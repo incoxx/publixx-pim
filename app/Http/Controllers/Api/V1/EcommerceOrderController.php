@@ -18,6 +18,8 @@ class EcommerceOrderController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', EcommerceOrder::class);
+
         $query = EcommerceOrder::query()
             ->with(['cartType', 'paymentType'])
             ->orderBy('submitted_at', 'desc');
@@ -54,6 +56,8 @@ class EcommerceOrderController extends Controller
 
     public function show(EcommerceOrder $order): JsonResponse
     {
+        $this->authorize('view', $order);
+
         return response()->json([
             'data' => $order->load(['cartType', 'paymentType', 'user']),
         ]);
@@ -61,6 +65,8 @@ class EcommerceOrderController extends Controller
 
     public function update(Request $request, EcommerceOrder $order): JsonResponse
     {
+        $this->authorize('update', $order);
+
         $data = $request->validate([
             'status'         => 'sometimes|in:pending,processing,confirmed,failed',
             'internal_notes' => 'nullable|string',
@@ -74,6 +80,8 @@ class EcommerceOrderController extends Controller
     // Adapter erneut auslösen (z.B. nach Email-Fehler)
     public function retry(EcommerceOrder $order): JsonResponse
     {
+        $this->authorize('retry', $order);
+
         $updated = $this->orderService->retryDispatch($order);
 
         return response()->json(['data' => $updated->load(['cartType', 'paymentType'])]);

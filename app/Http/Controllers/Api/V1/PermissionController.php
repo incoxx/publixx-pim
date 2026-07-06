@@ -62,6 +62,10 @@ class PermissionController extends Controller
         'meilisearch-admin' => 'Meilisearch-Verwaltung',
         'preview' => 'Katalog-Vorschau',
         'cockpit-layouts' => 'Cockpit-Layouts',
+        'ecommerce-cart-types' => 'E-Commerce: Warenkorbarten',
+        'ecommerce-address-types' => 'E-Commerce: Adressarten',
+        'ecommerce-payment-types' => 'E-Commerce: Zahlungsarten',
+        'ecommerce-orders' => 'E-Commerce: Bestellungen',
     ];
 
     /**
@@ -97,6 +101,8 @@ class PermissionController extends Controller
             'entities' => [
                 'catalog-templates', 'portals', 'connectors',
                 'workflow', 'workflows', 'workflow-statuses',
+                'ecommerce-cart-types', 'ecommerce-address-types',
+                'ecommerce-payment-types', 'ecommerce-orders',
             ],
         ],
         [

@@ -12,6 +12,8 @@ class EcommerceCartTypeController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', EcommerceCartType::class);
+
         $types = EcommerceCartType::query()
             ->with('priceType')
             ->orderBy('sort_order')
@@ -23,6 +25,8 @@ class EcommerceCartTypeController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', EcommerceCartType::class);
+
         $data = $request->validate([
             'technical_name' => 'required|string|max:100|unique:ecommerce_cart_types',
             'name_de'        => 'required|string|max:255',
@@ -47,11 +51,15 @@ class EcommerceCartTypeController extends Controller
 
     public function show(EcommerceCartType $cartType): JsonResponse
     {
+        $this->authorize('view', $cartType);
+
         return response()->json(['data' => $cartType->load('priceType')]);
     }
 
     public function update(Request $request, EcommerceCartType $cartType): JsonResponse
     {
+        $this->authorize('update', $cartType);
+
         $data = $request->validate([
             'technical_name' => "sometimes|string|max:100|unique:ecommerce_cart_types,technical_name,{$cartType->id}",
             'name_de'        => 'sometimes|string|max:255',
@@ -76,6 +84,8 @@ class EcommerceCartTypeController extends Controller
 
     public function destroy(EcommerceCartType $cartType): JsonResponse
     {
+        $this->authorize('delete', $cartType);
+
         // Prüfen ob noch aktive Warenkörbe oder Bestellungen vorhanden
         $cartCount  = $cartType->carts()->active()->count();
         $orderCount = $cartType->orders()->count();
