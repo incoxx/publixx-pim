@@ -16,6 +16,7 @@ use App\Models\MediaRevision;
 use App\Models\MediaUsageType;
 use App\Models\Product;
 use App\Models\ProductMediaAssignment;
+use App\Models\RoleEntityRestriction;
 use App\Models\User;
 use App\Services\ThumbnailService;
 use Illuminate\Http\JsonResponse;
@@ -725,9 +726,10 @@ class MediaController extends Controller
     /**
      * GET /media/file/{filename} — serve the file directly.
      */
-    public function serve(string $filename): BinaryFileResponse
+    public function serve(Request $request, string $filename): BinaryFileResponse
     {
         $media = Media::where('file_name', $filename)->latest()->firstOrFail();
+        $this->assertSignedIfRestrictionSensitive($request, $media);
 
         $disk = Storage::disk('public');
         $path = $disk->path($media->file_path);
@@ -753,6 +755,8 @@ class MediaController extends Controller
      */
     public function thumb(Request $request, Media $medium): BinaryFileResponse|JsonResponse
     {
+        $this->assertSignedIfRestrictionSensitive($request, $medium);
+
         $width = min(max(1, (int) $request->query('w', '300')), 1200);
         $height = min(max(1, (int) $request->query('h', '300')), 1200);
         $fit = in_array($request->query('fit'), ['contain', 'cover']) ? $request->query('fit') : 'contain';
@@ -1103,8 +1107,9 @@ class MediaController extends Controller
     }
 
     /**
-     * Prüft, ob der Nutzer Zugriff auf alle UsageTypes hat, mit denen dieses Medium
-     * irgendwo (Produkt- oder Hierarchie-Zuordnung) verwendet wird.
+     * Prüft, ob der Nutzer über mindestens eine der Verwendungen dieses Mediums
+     * (Produkt- oder Hierarchie-Zuordnung) Zugriff hat. Ein Medium ist grundsätzlich
+     * downloadbar, sobald es dem Nutzer über irgendeinen legitimen Kontext zugänglich ist.
      */
     private function assertUsageTypeAccess(?User $user, Media $media): void
     {
@@ -1112,20 +1117,59 @@ class MediaController extends Controller
             return;
         }
 
-        $usageTypeIds = ProductMediaAssignment::where('media_id', $media->id)->pluck('usage_type_id')
-            ->merge(HierarchyNodeMediaAssignment::where('media_id', $media->id)->pluck('usage_type_id'))
-            ->filter()
-            ->unique();
+        // Kein Nutzer mit Rolleneinschränkungen für MediaUsageType → voller Zugriff (Default).
+        $restrictions = $this->getRestrictionsForUser($user, MediaUsageType::class);
+        if ($restrictions->isEmpty()) {
+            return;
+        }
 
+        $usageTypeIds = $this->mediaUsageTypeIds($media);
         if ($usageTypeIds->isEmpty()) {
             return;
         }
 
         $usageTypes = MediaUsageType::whereIn('id', $usageTypeIds)->get();
-        foreach ($usageTypes as $usageType) {
-            if (! $this->checkInstanceAccess($user, $usageType, 'read')) {
-                abort(403, 'Kein Zugriff auf diesen Medientyp.');
-            }
+        $hasAccessToAny = $usageTypes->contains(
+            fn (MediaUsageType $usageType) => $this->checkInstanceAccess($user, $usageType, 'read')
+        );
+
+        if (! $hasAccessToAny) {
+            abort(403, 'Kein Zugriff auf diesen Medientyp.');
+        }
+    }
+
+    /**
+     * Alle UsageType-IDs, mit denen dieses Medium irgendwo (Produkt- oder
+     * Hierarchie-Zuordnung) verwendet wird.
+     */
+    private function mediaUsageTypeIds(Media $media): \Illuminate\Support\Collection
+    {
+        return ProductMediaAssignment::where('media_id', $media->id)->pluck('usage_type_id')
+            ->merge(HierarchyNodeMediaAssignment::where('media_id', $media->id)->pluck('usage_type_id'))
+            ->filter()
+            ->unique();
+    }
+
+    /**
+     * Öffentliche Datei-Auslieferung (serve()/thumb()) ist standardmäßig ohne Auth,
+     * da sie von <img src> genutzt wird (kein Bearer-Token anhängbar). Sobald für einen
+     * UsageType dieses Mediums irgendwo eine RoleEntityRestriction existiert, ist die
+     * Route nicht mehr "für alle offen" und verlangt eine signierte URL (die nur von
+     * bereits Bearer-Token-authentifizierten, rechtegeprüften Endpunkten ausgestellt wird).
+     */
+    private function assertSignedIfRestrictionSensitive(Request $request, Media $media): void
+    {
+        $usageTypeIds = $this->mediaUsageTypeIds($media);
+        if ($usageTypeIds->isEmpty()) {
+            return;
+        }
+
+        $isRestrictionSensitive = RoleEntityRestriction::where('restrictable_type', MediaUsageType::class)
+            ->whereIn('restrictable_id', $usageTypeIds)
+            ->exists();
+
+        if ($isRestrictionSensitive && ! $request->hasValidSignature()) {
+            abort(403, 'Für diesen Medientyp ist eine signierte URL erforderlich.');
         }
     }
 

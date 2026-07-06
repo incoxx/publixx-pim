@@ -38,7 +38,7 @@ import attributeMappingsApi from '@/api/attributeMappings'
 import watchlistApi from '@/api/watchlist'
 import searchProfilesApi from '@/api/searchProfiles'
 import manufacturersApi from '@/api/manufacturers'
-import { triggerDownload } from '@/utils/download'
+import { triggerDownload, blobErrorMessage } from '@/utils/download'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import ProductNotesTab from '@/components/products/ProductNotesTab.vue'
 import ProductConformanceTab from '@/components/products/ProductConformanceTab.vue'
@@ -1307,8 +1307,16 @@ async function loadMedia() {
   if (mediaLoaded.value || !product.value) return
   mediaLoading.value = true
   try {
-    const { data } = await productsApi.getMedia(product.value.id)
-    mediaItems.value = data.data || data
+    const items = []
+    let page = 1
+    let lastPage = 1
+    do {
+      const { data } = await productsApi.getMedia(product.value.id, { page, perPage: 100 })
+      items.push(...(data.data || data))
+      lastPage = data.meta?.last_page || 1
+      page++
+    } while (page <= lastPage)
+    mediaItems.value = items
     mediaLoaded.value = true
     selectedMediaIds.value = new Set()
   } catch (e) { console.error('Failed to load media:', e.message) }
@@ -1342,11 +1350,14 @@ const allDisplayedMediaSelected = computed(() => {
 })
 
 function toggleSelectAllMedia() {
+  const next = new Set(selectedMediaIds.value)
+  const displayedIds = selectableDisplayMediaItems.value.map(m => m.id)
   if (allDisplayedMediaSelected.value) {
-    selectedMediaIds.value = new Set()
-    return
+    displayedIds.forEach(id => next.delete(id))
+  } else {
+    displayedIds.forEach(id => next.add(id))
   }
-  selectedMediaIds.value = new Set(selectableDisplayMediaItems.value.map(m => m.id))
+  selectedMediaIds.value = next
 }
 
 async function downloadSelectedMediaZip() {
@@ -1355,9 +1366,13 @@ async function downloadSelectedMediaZip() {
   try {
     const resp = await productsApi.downloadMediaZip(product.value.id, [...selectedMediaIds.value])
     triggerDownload(resp.data, `${product.value.sku || product.value.id}-medien-${new Date().toISOString().slice(0, 10)}.zip`)
+    const skippedCount = parseInt(resp.headers?.['x-skipped-count'] || '0', 10)
+    if (skippedCount > 0) {
+      toastStore.showToast(`${skippedCount} Datei(en) konnten nicht in die ZIP-Datei aufgenommen werden`, 'info')
+    }
   } catch (e) {
     console.error('Media ZIP download failed:', e.message)
-    toastStore.showToast('ZIP-Download fehlgeschlagen: ' + (e.response?.data?.message || e.message), 'error')
+    toastStore.showToast('ZIP-Download fehlgeschlagen: ' + (await blobErrorMessage(e)), 'error')
   } finally {
     downloadingMediaZip.value = false
   }
@@ -2969,6 +2984,7 @@ async function switchToProduct(newId) {
   variantAttributeDefs.value = []
   variantAttrValuesMap.value = {}
   mediaItems.value = []
+  selectedMediaIds.value = new Set()
   prices.value = []
   relations.value = []
   expandedRelationId.value = null

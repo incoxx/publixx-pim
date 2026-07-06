@@ -75,8 +75,8 @@ export default {
   },
 
   // Media
-  getMedia(id) {
-    return client.get(`/products/${id}/media`)
+  getMedia(id, { page = 1, perPage = 100 } = {}) {
+    return client.get(`/products/${id}/media`, { params: { page, per_page: perPage } })
   },
 
   attachMedia(id, data) {

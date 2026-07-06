@@ -88,13 +88,10 @@ class ProductMediaController extends Controller
         $user = $request->user();
 
         $assignments = $product->mediaAssignments()
-            ->with(['media', 'usageType'])
+            ->with(['media', 'usageType', 'motif.masterRendition'])
             ->whereIn('id', $request->input('assignment_ids'))
             ->get()
             ->filter(function (ProductMediaAssignment $assignment) use ($user) {
-                if (! $assignment->media) {
-                    return false;
-                }
                 if (! $assignment->usageType || $user->hasRole('Admin')) {
                     return true;
                 }
@@ -113,31 +110,57 @@ class ProductMediaController extends Controller
 
         $zipPath = $tempDir . '/medien.zip';
         $zip = new ZipArchive();
-        $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $opened = $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
 
-        $usedNames = [];
-        $disk = Storage::disk('public');
-        foreach ($assignments as $assignment) {
-            $media = $assignment->media;
-            $path = $disk->path($media->file_path);
-            if (! file_exists($path)) {
-                continue;
-            }
-            $name = $this->uniqueZipEntryName($media->file_name ?? basename($path), $usedNames);
-            $zip->addFile($path, $name);
+        if ($opened !== true) {
+            $this->cleanupTempDir($tempDir);
+            abort(500, 'ZIP-Datei konnte nicht erstellt werden.');
         }
 
-        $zip->close();
+        try {
+            $usedNames = [];
+            $skipped = [];
+            $disk = Storage::disk('public');
+            foreach ($assignments as $assignment) {
+                $media = $assignment->media ?? $assignment->motif?->masterRendition;
+                if (! $media) {
+                    $skipped[] = $assignment->motif?->title_de ?? $assignment->id;
+                    continue;
+                }
+                $path = $disk->path($media->file_path);
+                if (! file_exists($path)) {
+                    $skipped[] = $media->file_name ?? $assignment->id;
+                    continue;
+                }
+                $name = $this->uniqueZipEntryName($media->file_name ?? basename($path), $usedNames);
+                if (! $zip->addFile($path, $name)) {
+                    $skipped[] = $name;
+                }
+            }
+
+            $zip->close();
+        } catch (\Throwable $e) {
+            $this->cleanupTempDir($tempDir);
+            throw $e;
+        }
 
         $fileName = ($product->sku ?? $product->id) . '-medien-' . date('Y-m-d') . '.zip';
 
         return response()->streamDownload(function () use ($zipPath, $tempDir) {
             readfile($zipPath);
-            array_map('unlink', glob("{$tempDir}/*"));
-            rmdir($tempDir);
+            $this->cleanupTempDir($tempDir);
         }, $fileName, [
             'Content-Type' => 'application/zip',
+            'X-Skipped-Count' => (string) count($skipped),
         ]);
+    }
+
+    private function cleanupTempDir(string $tempDir): void
+    {
+        foreach (glob("{$tempDir}/*") ?: [] as $file) {
+            @unlink($file);
+        }
+        @rmdir($tempDir);
     }
 
     private function uniqueZipEntryName(string $name, array &$usedNames): string
