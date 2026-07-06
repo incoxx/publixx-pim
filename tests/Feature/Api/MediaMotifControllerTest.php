@@ -157,4 +157,87 @@ class MediaMotifControllerTest extends TestCase
         $this->assertDatabaseHas('media', ['id' => $media->id, 'motif_id' => null, 'is_master_rendition' => false]);
         $this->assertDatabaseMissing('media', ['motif_id' => $motifId]);
     }
+
+    public function test_destroy_blocked_when_motif_directly_assigned_to_product(): void
+    {
+        Storage::fake('public');
+        $media = $this->createMediaWithRealFile();
+        $motifId = $this->postJson('/api/v1/media-motifs', ['media_id' => $media->id])->json('data.id');
+
+        \App\Models\ProductMediaAssignment::factory()->create(['motif_id' => $motifId, 'media_id' => null]);
+
+        $response = $this->deleteJson("/api/v1/media-motifs/{$motifId}");
+
+        $response->assertStatus(422);
+        $this->assertDatabaseHas('media_motifs', ['id' => $motifId]);
+    }
+
+    public function test_direct_motif_assignment_marks_motif_as_used(): void
+    {
+        Storage::fake('public');
+        $media = $this->createMediaWithRealFile();
+        $motifId = $this->postJson('/api/v1/media-motifs', ['media_id' => $media->id])->json('data.id');
+
+        $this->getJson("/api/v1/media-motifs/{$motifId}")->assertJsonPath('data.is_used', false);
+
+        \App\Models\ProductMediaAssignment::factory()->create(['motif_id' => $motifId, 'media_id' => null]);
+
+        $this->getJson("/api/v1/media-motifs/{$motifId}")->assertJsonPath('data.is_used', true);
+        $this->getJson('/api/v1/media-motifs?filter[is_used]=true')->assertJsonCount(1, 'data');
+    }
+
+    public function test_index_supports_search_and_is_used_filter(): void
+    {
+        Storage::fake('public');
+
+        $used = $this->createMediaWithRealFile();
+        $usedMotifId = $this->postJson('/api/v1/media-motifs', [
+            'media_id' => $used->id,
+            'title_de' => 'Akkuschrauber MiniDrive',
+        ])->json('data.id');
+
+        \App\Models\ProductMediaAssignment::factory()->create([
+            'media_id' => $used->id,
+        ]);
+
+        $unused = $this->createMediaWithRealFile();
+        $unused->update(['file_name' => 'anderes-bild.jpg', 'file_path' => 'media/anderes-bild.jpg']);
+        $this->postJson('/api/v1/media-motifs', [
+            'media_id' => $unused->id,
+            'title_de' => 'Schleifgerät Pro',
+        ])->assertCreated();
+
+        // Suche nach Titel
+        $searchResponse = $this->getJson('/api/v1/media-motifs?search=Akkuschrauber');
+        $searchResponse->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.title_de', 'Akkuschrauber MiniDrive');
+
+        // Filter: nur verwendete Motive
+        $usedResponse = $this->getJson('/api/v1/media-motifs?filter[is_used]=true');
+        $usedResponse->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $usedMotifId)
+            ->assertJsonPath('data.0.is_used', true);
+
+        // Filter: nur nicht verwendete Motive
+        $unusedResponse = $this->getJson('/api/v1/media-motifs?filter[is_used]=false');
+        $unusedResponse->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.is_used', false);
+    }
+
+    public function test_show_reports_is_used_for_single_motif(): void
+    {
+        Storage::fake('public');
+        $media = $this->createMediaWithRealFile();
+        $motifId = $this->postJson('/api/v1/media-motifs', ['media_id' => $media->id])->json('data.id');
+
+        $this->getJson("/api/v1/media-motifs/{$motifId}")
+            ->assertOk()
+            ->assertJsonPath('data.is_used', false);
+
+        \App\Models\ProductMediaAssignment::factory()->create(['media_id' => $media->id]);
+
+        $this->getJson("/api/v1/media-motifs/{$motifId}")
+            ->assertOk()
+            ->assertJsonPath('data.is_used', true);
+    }
 }

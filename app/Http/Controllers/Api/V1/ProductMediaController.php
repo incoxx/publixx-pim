@@ -18,6 +18,7 @@ class ProductMediaController extends Controller
 {
     use AuditsChanges;
     use ChecksTabPermissions;
+
     /**
      * GET /products/{product}/media — assigned media for a product.
      */
@@ -26,7 +27,7 @@ class ProductMediaController extends Controller
         $this->authorize('view', $product);
 
         $query = $product->mediaAssignments()
-            ->with(['media', 'usageType'])
+            ->with(['media', 'motif.masterRendition', 'usageType'])
             ->orderBy('sort_order', 'asc');
 
         return ProductMediaResource::collection(
@@ -47,10 +48,11 @@ class ProductMediaController extends Controller
         $this->audit('media_assigned', 'Product', $product->id, null, [
             'assignment_id' => $assignment->id,
             'media_id' => $assignment->media_id,
+            'motif_id' => $assignment->motif_id,
             'usage_type_id' => $assignment->usage_type_id,
         ]);
 
-        return (new ProductMediaResource($assignment->load(['media', 'usageType'])))
+        return (new ProductMediaResource($assignment->load(['media', 'motif.masterRendition', 'usageType'])))
             ->response()
             ->setStatusCode(201);
     }
@@ -66,6 +68,7 @@ class ProductMediaController extends Controller
         $snapshot = [
             'assignment_id' => $productMedium->id,
             'media_id' => $productMedium->media_id,
+            'motif_id' => $productMedium->motif_id,
             'usage_type_id' => $productMedium->usage_type_id,
         ];
         $productId = $productMedium->product_id;

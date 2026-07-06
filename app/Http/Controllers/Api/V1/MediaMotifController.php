@@ -17,11 +17,58 @@ use Illuminate\Support\Facades\Storage;
 
 class MediaMotifController extends Controller
 {
+    /**
+     * Bedingung "Motiv wird verwendet": entweder zeigt eine Produktzuordnung
+     * direkt auf das Motiv, oder mindestens eine Rendition (inkl. Master) hat
+     * eine aktive Produkt- oder Knoten-Zuordnung.
+     */
+    private function usedCondition(): \Closure
+    {
+        return function ($q) {
+            $q->whereHas('productAssignments')
+                ->orWhereHas('renditions', function ($q2) {
+                    $q2->whereHas('productAssignments')->orWhereHas('hierarchyNodeAssignments');
+                });
+        };
+    }
+
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', MediaMotif::class);
 
-        $query = MediaMotif::with('masterRendition')->withCount('renditions');
+        $query = MediaMotif::with('masterRendition')
+            ->withCount('renditions')
+            ->withExists(['productAssignments as has_direct_assignment'])
+            ->withExists(['renditions as has_rendition_assignment' => function ($q) {
+                $q->whereHas('productAssignments')->orWhereHas('hierarchyNodeAssignments');
+            }]);
+
+        $this->applySearch($query, $request, ['title_de', 'title_en']);
+
+        $filters = $request->query('filter', []);
+
+        if (isset($filters['is_used'])) {
+            $isUsed = filter_var($filters['is_used'], FILTER_VALIDATE_BOOLEAN);
+            $isUsed
+                ? $query->where($this->usedCondition())
+                : $query->whereNot($this->usedCondition());
+        }
+
+        if (isset($filters['license_expired'])) {
+            $expired = filter_var($filters['license_expired'], FILTER_VALIDATE_BOOLEAN);
+            if ($expired) {
+                $query->whereNotNull('license_valid_until')->where('license_valid_until', '<', now());
+            } else {
+                $query->where(function ($q) {
+                    $q->whereNull('license_valid_until')->orWhere('license_valid_until', '>=', now());
+                });
+            }
+        }
+
+        if (! empty($filters['asset_folder_id'])) {
+            $query->where('asset_folder_id', $filters['asset_folder_id']);
+        }
+
         $this->applySorting($query, $request, 'created_at', 'desc');
 
         return MediaMotifResource::collection(
@@ -60,9 +107,10 @@ class MediaMotifController extends Controller
     {
         $this->authorize('view', $mediaMotif);
 
-        return new MediaMotifResource(
-            $mediaMotif->load(['masterRendition', 'renditions' => fn ($q) => $q->orderBy('rendition_channel')])
-        );
+        $mediaMotif->load(['masterRendition', 'renditions' => fn ($q) => $q->orderBy('rendition_channel')]);
+        $this->loadUsedFlags($mediaMotif);
+
+        return new MediaMotifResource($mediaMotif);
     }
 
     public function update(UpdateMediaMotifRequest $request, MediaMotif $mediaMotif): MediaMotifResource
@@ -71,7 +119,18 @@ class MediaMotifController extends Controller
 
         $mediaMotif->update($request->validated());
 
-        return new MediaMotifResource($mediaMotif->fresh(['masterRendition', 'renditions']));
+        $fresh = $mediaMotif->fresh(['masterRendition', 'renditions']);
+        $this->loadUsedFlags($fresh);
+
+        return new MediaMotifResource($fresh);
+    }
+
+    private function loadUsedFlags(MediaMotif $mediaMotif): void
+    {
+        $mediaMotif->loadExists(['productAssignments as has_direct_assignment']);
+        $mediaMotif->loadExists(['renditions as has_rendition_assignment' => function ($q) {
+            $q->whereHas('productAssignments')->orWhereHas('hierarchyNodeAssignments');
+        }]);
     }
 
     /**
@@ -83,6 +142,12 @@ class MediaMotifController extends Controller
     public function destroy(MediaMotif $mediaMotif): JsonResponse
     {
         $this->authorize('delete', $mediaMotif);
+
+        if ($mediaMotif->productAssignments()->exists()) {
+            return response()->json([
+                'message' => 'Dieses Motiv ist direkt mindestens einem Produkt zugeordnet und kann nicht aufgelöst werden.',
+            ], 422);
+        }
 
         $disk = Storage::disk('public');
 

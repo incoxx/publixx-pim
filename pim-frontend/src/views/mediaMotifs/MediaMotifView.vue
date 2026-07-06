@@ -2,31 +2,55 @@
 import { ref, onMounted } from 'vue'
 import {
   Plus, X, Save, Search, AlertCircle, Check,
-  Trash2, ImageOff, Wand2,
+  Trash2, ImageOff, Wand2, Settings, Link2,
 } from 'lucide-vue-next'
 import { mediaMotifs } from '@/api/mediaMotifs'
 import mediaApi from '@/api/media'
 import { useAuthStore } from '@/stores/auth'
 import MotifMetadataFields from '@/components/mediaMotifs/MotifMetadataFields.vue'
+import RenditionPresetsDialog from '@/components/mediaMotifs/RenditionPresetsDialog.vue'
 
 const authStore = useAuthStore()
+const showPresetsDialog = ref(false)
 
-// ─── Liste ───────────────────────────────────────
+// ─── Liste: Suche & Filter ────────────────────────
 const items = ref([])
 const meta = ref(null)
 const loading = ref(false)
 const page = ref(1)
+const searchTerm = ref('')
+const usedFilter = ref('all') // all | used | unused
+const licenseExpiredOnly = ref(false)
+let listSearchDebounce = null
 
 async function fetchItems(targetPage = 1) {
   loading.value = true
   try {
-    const { data } = await mediaMotifs.list({ page: targetPage, perPage: 25 })
+    const filters = {}
+    if (usedFilter.value !== 'all') filters.is_used = usedFilter.value === 'used'
+    if (licenseExpiredOnly.value) filters.license_expired = true
+
+    const { data } = await mediaMotifs.list({
+      page: targetPage,
+      perPage: 25,
+      search: searchTerm.value || undefined,
+      filters: Object.keys(filters).length ? filters : undefined,
+    })
     items.value = data.data || []
     meta.value = data.meta || null
     page.value = targetPage
   } finally {
     loading.value = false
   }
+}
+
+function onSearchInput() {
+  clearTimeout(listSearchDebounce)
+  listSearchDebounce = setTimeout(() => fetchItems(1), 300)
+}
+
+function onFilterChange() {
+  fetchItems(1)
 }
 
 function formatDate(value) {
@@ -147,6 +171,23 @@ const generating = ref(false)
 const generateResult = ref(null)
 const deleteTarget = ref(null)
 const deleting = ref(false)
+const selectedRendition = ref(null)
+
+function openRendition(rendition) {
+  selectedRendition.value = rendition
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return '—'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = bytes
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex++
+  }
+  return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
+}
 
 async function openDetail(row) {
   detailLoading.value = true
@@ -178,6 +219,7 @@ function closeDetail() {
   detail.value = null
   editErrors.value = {}
   generateResult.value = null
+  selectedRendition.value = null
 }
 
 async function saveDetail() {
@@ -245,9 +287,38 @@ onMounted(() => fetchItems())
           Ein Motiv bündelt mehrere Ausgabeformate desselben Bildinhalts (Print, Web, Mobile, Social).
         </p>
       </div>
-      <button v-if="authStore.hasPermission('media.create')" class="pim-btn pim-btn-primary" @click="openPicker">
-        <Plus class="w-4 h-4" :stroke-width="2" /> Neues Motiv
-      </button>
+      <div class="flex items-center gap-2">
+        <button v-if="authStore.hasPermission('media.edit')" class="pim-btn pim-btn-secondary" @click="showPresetsDialog = true">
+          <Settings class="w-4 h-4" :stroke-width="2" /> Presets verwalten
+        </button>
+        <button v-if="authStore.hasPermission('media.create')" class="pim-btn pim-btn-primary" @click="openPicker">
+          <Plus class="w-4 h-4" :stroke-width="2" /> Neues Motiv
+        </button>
+      </div>
+    </div>
+
+    <RenditionPresetsDialog :open="showPresetsDialog" @close="showPresetsDialog = false" />
+
+    <!-- ─── Suche & Filter ───────────────────────── -->
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="relative flex-1 min-w-[220px]">
+        <Search class="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+        <input
+          v-model="searchTerm"
+          @input="onSearchInput"
+          class="pim-input pl-8 text-xs"
+          placeholder="Motive nach Titel durchsuchen…"
+        />
+      </div>
+      <select v-model="usedFilter" @change="onFilterChange" class="pim-select text-xs">
+        <option value="all">Alle Motive</option>
+        <option value="used">Nur verwendete</option>
+        <option value="unused">Nur unverwendete</option>
+      </select>
+      <label class="inline-flex items-center gap-1.5 cursor-pointer text-xs text-[var(--color-text-secondary)] px-2">
+        <input type="checkbox" v-model="licenseExpiredOnly" @change="onFilterChange" class="w-3.5 h-3.5 accent-[var(--color-primary)]" />
+        Nur abgelaufene Lizenzen
+      </label>
     </div>
 
     <!-- ─── Asset-Picker ─────────────────────────── -->
@@ -358,11 +429,13 @@ onMounted(() => fetchItems())
           </div>
 
           <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-            <div
+            <button
               v-for="rendition in detail.renditions || []"
               :key="rendition.id"
-              class="rounded-lg border border-[var(--color-border)] overflow-hidden"
+              type="button"
+              class="text-left rounded-lg border border-[var(--color-border)] overflow-hidden hover:border-[var(--color-accent)] transition-colors"
               :class="rendition.is_master_rendition ? 'ring-2 ring-[var(--color-accent)]' : ''"
+              @click="openRendition(rendition)"
             >
               <img :src="rendition.thumb_url" class="w-full aspect-square object-cover" />
               <div class="p-1.5 text-[10px] text-[var(--color-text-tertiary)] space-y-0.5">
@@ -372,7 +445,7 @@ onMounted(() => fetchItems())
                 <p>{{ rendition.width }}×{{ rendition.height }}px</p>
                 <p v-if="rendition.colorspace">{{ rendition.colorspace.toUpperCase() }} · {{ rendition.dpi }}dpi</p>
               </div>
-            </div>
+            </button>
           </div>
         </div>
       </template>
@@ -386,16 +459,17 @@ onMounted(() => fetchItems())
             <th class="w-14 px-3 py-2.5"></th>
             <th class="px-3 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Titel</th>
             <th class="px-3 py-2.5 text-center font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Renditions</th>
+            <th class="px-3 py-2.5 text-center font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Verwendet</th>
             <th class="px-3 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Lizenz</th>
             <th class="px-3 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Gültigkeit</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="5" class="py-16 text-center text-xs text-[var(--color-text-tertiary)]">Lädt…</td>
+            <td colspan="6" class="py-16 text-center text-xs text-[var(--color-text-tertiary)]">Lädt…</td>
           </tr>
           <tr v-else-if="items.length === 0">
-            <td colspan="5" class="py-16 text-center text-sm text-[var(--color-text-tertiary)]">Noch keine Motive angelegt</td>
+            <td colspan="6" class="py-16 text-center text-sm text-[var(--color-text-tertiary)]">Noch keine Motive angelegt</td>
           </tr>
           <tr
             v-else
@@ -413,6 +487,10 @@ onMounted(() => fetchItems())
             <td class="px-3 py-2 text-[var(--color-text-primary)]">{{ row.title_de || '(ohne Titel)' }}</td>
             <td class="px-3 py-2 text-center">
               <span class="pim-badge bg-[var(--color-surface)] text-[var(--color-text-secondary)]">{{ row.rendition_count ?? 0 }}</span>
+            </td>
+            <td class="px-3 py-2 text-center" :title="row.is_used ? 'Motiv ist einem Produkt/Knoten zugeordnet' : 'Noch keine Zuordnung'">
+              <Link2 v-if="row.is_used" class="w-4 h-4 inline text-[var(--color-success)]" :stroke-width="2" />
+              <span v-else class="text-[var(--color-text-tertiary)]">—</span>
             </td>
             <td class="px-3 py-2">
               <span v-if="row.license_expired" class="pim-badge bg-[var(--color-error)]/10 text-[var(--color-error)]">Lizenz abgelaufen</span>
@@ -436,6 +514,56 @@ onMounted(() => fetchItems())
         </div>
       </div>
     </div>
+
+    <!-- ─── Rendition-Lightbox ───────────────────── -->
+    <Teleport to="body">
+      <div v-if="selectedRendition" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="selectedRendition = null" />
+        <div class="relative z-10 w-full max-w-[720px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-xl mx-4 max-h-[90vh] flex flex-col">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
+            <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
+              {{ selectedRendition.is_master_rendition ? 'Master' : (selectedRendition.rendition_channel || 'Rendition') }}
+            </h3>
+            <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)]" @click="selectedRendition = null">
+              <X class="w-4 h-4" :stroke-width="2" />
+            </button>
+          </div>
+          <div class="overflow-auto p-4 space-y-4">
+            <img :src="selectedRendition.thumb_url?.replace(/w=\d+&h=\d+/, 'w=1200&h=1200')" :alt="selectedRendition.file_name" class="w-full max-h-[50vh] object-contain rounded-lg bg-[var(--color-bg)]" />
+            <dl class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <dt class="text-[var(--color-text-tertiary)]">Dateiname</dt>
+                <dd class="text-[var(--color-text-primary)] font-mono truncate">{{ selectedRendition.file_name }}</dd>
+              </div>
+              <div>
+                <dt class="text-[var(--color-text-tertiary)]">Abmessungen</dt>
+                <dd class="text-[var(--color-text-primary)]">{{ selectedRendition.width }}×{{ selectedRendition.height }}px</dd>
+              </div>
+              <div>
+                <dt class="text-[var(--color-text-tertiary)]">Format</dt>
+                <dd class="text-[var(--color-text-primary)]">{{ selectedRendition.mime_type }}</dd>
+              </div>
+              <div v-if="selectedRendition.colorspace">
+                <dt class="text-[var(--color-text-tertiary)]">Farbraum</dt>
+                <dd class="text-[var(--color-text-primary)]">{{ selectedRendition.colorspace.toUpperCase() }}</dd>
+              </div>
+              <div v-if="selectedRendition.dpi">
+                <dt class="text-[var(--color-text-tertiary)]">Auflösung</dt>
+                <dd class="text-[var(--color-text-primary)]">{{ selectedRendition.dpi }} dpi</dd>
+              </div>
+              <div>
+                <dt class="text-[var(--color-text-tertiary)]">Dateigröße</dt>
+                <dd class="text-[var(--color-text-primary)]">{{ formatBytes(selectedRendition.file_size) }}</dd>
+              </div>
+            </dl>
+          </div>
+          <div class="flex justify-end gap-2 px-4 py-3 border-t border-[var(--color-border)]">
+            <a :href="selectedRendition.file_url" target="_blank" rel="noopener" class="pim-btn pim-btn-secondary text-xs">Original öffnen</a>
+            <a :href="selectedRendition.file_url" :download="selectedRendition.file_name" class="pim-btn pim-btn-primary text-xs">Herunterladen</a>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- ─── Lösch-Bestätigung ────────────────────── -->
     <Teleport to="body">
