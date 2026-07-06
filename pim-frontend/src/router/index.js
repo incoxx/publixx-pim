@@ -443,6 +443,12 @@ const routes = [
     meta: { title: 'Bildtypen' },
   },
   {
+    path: '/media-motifs',
+    name: 'media-motifs',
+    component: () => import('@/views/mediaMotifs/MediaMotifView.vue'),
+    meta: { title: 'Motive' },
+  },
+  {
     path: '/prices',
     name: 'prices',
     component: () => import('@/views/prices/PriceView.vue'),
