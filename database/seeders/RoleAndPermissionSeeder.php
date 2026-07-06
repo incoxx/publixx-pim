@@ -135,6 +135,11 @@ class RoleAndPermissionSeeder extends Seeder
             'section-types.view', 'section-types.create', 'section-types.edit', 'section-types.delete',
             'navigation.view', 'navigation.create', 'navigation.edit', 'navigation.delete',
             'product-widgets.view', 'product-widgets.create', 'product-widgets.edit', 'product-widgets.delete',
+            // E-Commerce (Warenkorbarten, Adressarten, Zahlungsarten, Bestellungen)
+            'ecommerce-cart-types.view', 'ecommerce-cart-types.create', 'ecommerce-cart-types.edit', 'ecommerce-cart-types.delete',
+            'ecommerce-address-types.view', 'ecommerce-address-types.create', 'ecommerce-address-types.edit', 'ecommerce-address-types.delete',
+            'ecommerce-payment-types.view', 'ecommerce-payment-types.create', 'ecommerce-payment-types.edit', 'ecommerce-payment-types.delete',
+            'ecommerce-orders.view', 'ecommerce-orders.edit',
         ];
 
         foreach ($permissions as $permissionName) {

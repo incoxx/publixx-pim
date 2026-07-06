@@ -233,7 +233,7 @@ const sections = computed(() => {
             { icon: Upload, label: () => t('nav.imports'), to: '/imports', permission: 'imports.view' },
             { icon: Download, label: () => t('nav.exports'), to: '/exports', permission: 'export.view' },
             { icon: FileJson, label: () => 'JSON Export/Import', to: '/json-export-import', permission: 'json-export-import.view' },
-            { icon: FileSpreadsheet, label: () => 'Sheet Designer', to: '/excel-designer', module: 'excel_designer', permission: 'export.view' },
+            { icon: FileSpreadsheet, label: () => 'Sheet Designer', to: '/excel-designer', module: 'excel_designer', permission: 'excel-templates.view' },
             { icon: FileCode, label: () => 'BMEcat Import/Export', to: '/bmecat-import-export', module: 'bmecat', permission: 'bmecat.view' },
             { icon: PlayCircle, label: () => 'Export-Jobs', to: '/export-jobs', module: 'advanced_export', permission: 'export-jobs.view' },
             { icon: ArrowRightLeft, label: () => 'Attribut-Mapping', to: '/attribute-mappings', permission: 'attribute-mappings.view' },

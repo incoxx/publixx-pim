@@ -12,6 +12,8 @@ class EcommercePaymentTypeController extends Controller
 {
     public function index(): JsonResponse
     {
+        $this->authorize('viewAny', EcommercePaymentType::class);
+
         $types = EcommercePaymentType::query()
             ->where('is_active', true)
             ->orderBy('sort_order')
@@ -23,6 +25,8 @@ class EcommercePaymentTypeController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', EcommercePaymentType::class);
+
         $data = $request->validate([
             'technical_name' => 'required|string|max:100|unique:ecommerce_payment_types',
             'name_de'        => 'required|string|max:255',
@@ -41,11 +45,15 @@ class EcommercePaymentTypeController extends Controller
 
     public function show(EcommercePaymentType $paymentType): JsonResponse
     {
+        $this->authorize('view', $paymentType);
+
         return response()->json(['data' => $paymentType]);
     }
 
     public function update(Request $request, EcommercePaymentType $paymentType): JsonResponse
     {
+        $this->authorize('update', $paymentType);
+
         $data = $request->validate([
             'technical_name' => "sometimes|string|max:100|unique:ecommerce_payment_types,technical_name,{$paymentType->id}",
             'name_de'        => 'sometimes|string|max:255',
@@ -64,6 +72,8 @@ class EcommercePaymentTypeController extends Controller
 
     public function destroy(EcommercePaymentType $paymentType): JsonResponse
     {
+        $this->authorize('delete', $paymentType);
+
         if ($paymentType->orders()->exists()) {
             return response()->json([
                 'message' => 'Zahlungsart kann nicht gelöscht werden — es existieren abhängige Bestellungen.',

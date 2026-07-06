@@ -12,6 +12,8 @@ class EcommerceAddressTypeController extends Controller
 {
     public function index(): JsonResponse
     {
+        $this->authorize('viewAny', EcommerceAddressType::class);
+
         $types = EcommerceAddressType::query()
             ->orderBy('sort_order')
             ->orderBy('name_de')
@@ -22,6 +24,8 @@ class EcommerceAddressTypeController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', EcommerceAddressType::class);
+
         $data = $request->validate([
             'technical_name' => 'required|string|max:100|unique:ecommerce_address_types',
             'name_de'        => 'required|string|max:255',
@@ -44,11 +48,15 @@ class EcommerceAddressTypeController extends Controller
 
     public function show(EcommerceAddressType $addressType): JsonResponse
     {
+        $this->authorize('view', $addressType);
+
         return response()->json(['data' => $addressType]);
     }
 
     public function update(Request $request, EcommerceAddressType $addressType): JsonResponse
     {
+        $this->authorize('update', $addressType);
+
         $data = $request->validate([
             'technical_name' => "sometimes|string|max:100|unique:ecommerce_address_types,technical_name,{$addressType->id}",
             'name_de'        => 'sometimes|string|max:255',
@@ -71,6 +79,8 @@ class EcommerceAddressTypeController extends Controller
 
     public function destroy(EcommerceAddressType $addressType): JsonResponse
     {
+        $this->authorize('delete', $addressType);
+
         $addressType->delete();
 
         return response()->json(null, 204);
