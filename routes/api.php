@@ -63,6 +63,8 @@ use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\MediaAttributeValueController;
 use App\Http\Controllers\Api\V1\ManufacturerController;
 use App\Http\Controllers\Api\V1\MediaController;
+use App\Http\Controllers\Api\V1\MediaMotifController;
+use App\Http\Controllers\Api\V1\MediaRenditionPresetController;
 use App\Http\Controllers\Api\V1\MeilisearchAdminController;
 use App\Http\Controllers\Api\V1\MediaUsageTypeController;
 use App\Http\Controllers\Api\V1\NodeAttributeAssignmentController;
@@ -665,6 +667,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::apiResource('media-usage-types', MediaUsageTypeController::class);
     Route::get('media-usage-types/{media_usage_type}/dependencies', [MediaUsageTypeController::class, 'dependencies']);
     Route::put('media-usage-types/{media_usage_type}/default-attributes', [MediaUsageTypeController::class, 'updateDefaultAttributes']);
+
+    // Motiv/Rendition-Pipeline: mehrere Ausgabeformate (Print/Web/Mobile/Social) desselben Bild-Motivs
+    Route::apiResource('media-motifs', MediaMotifController::class);
+    Route::post('media-motifs/{media_motif}/generate-renditions', [MediaMotifController::class, 'generateRenditions']);
+
+    Route::apiResource('media-rendition-presets', MediaRenditionPresetController::class);
+    Route::get('media-rendition-presets/{media_rendition_preset}/dependencies', [MediaRenditionPresetController::class, 'dependencies']);
 
     Route::get('products/{product}/media', [ProductMediaController::class, 'index']);
     Route::post('products/{product}/media', [ProductMediaController::class, 'store']);
