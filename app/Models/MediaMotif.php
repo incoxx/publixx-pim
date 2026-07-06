@@ -30,10 +30,15 @@ class MediaMotif extends Model
         'focal_point_x',
         'focal_point_y',
         'rights_holder',
+        'creator',
+        'credit_line',
         'license_type',
         'license_valid_until',
         'copyright_notice',
         'usage_restrictions',
+        'keywords',
+        'valid_from',
+        'valid_until',
         'asset_folder_id',
     ];
 
@@ -43,6 +48,9 @@ class MediaMotif extends Model
             'focal_point_x' => 'decimal:4',
             'focal_point_y' => 'decimal:4',
             'license_valid_until' => 'date',
+            'keywords' => 'array',
+            'valid_from' => 'date',
+            'valid_until' => 'date',
         ];
     }
 
@@ -64,6 +72,26 @@ class MediaMotif extends Model
     public function isLicenseExpired(): bool
     {
         return $this->license_valid_until !== null && $this->license_valid_until->isPast();
+    }
+
+    /**
+     * Liegt der aktuelle Zeitpunkt innerhalb des optionalen Gültigkeitszeitraums
+     * (valid_from/valid_until, z.B. für saisonale Kampagnenbilder)? Ohne gesetzten
+     * Zeitraum gilt das Motiv als uneingeschränkt gültig.
+     */
+    public function isCurrentlyValid(): bool
+    {
+        $now = now()->startOfDay();
+
+        if ($this->valid_from !== null && $now->lt($this->valid_from)) {
+            return false;
+        }
+
+        if ($this->valid_until !== null && $now->gt($this->valid_until)) {
+            return false;
+        }
+
+        return true;
     }
 
     public function deletionConstraints(): array

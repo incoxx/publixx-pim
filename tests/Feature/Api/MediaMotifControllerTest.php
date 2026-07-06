@@ -62,11 +62,21 @@ class MediaMotifControllerTest extends TestCase
             'media_id' => $media->id,
             'title_de' => 'Akkubohrer Professional',
             'rights_holder' => 'Fotostudio Muster GmbH',
+            'creator' => 'Max Mustermann',
+            'credit_line' => 'Foto: Fotostudio Muster GmbH',
             'license_type' => 'exklusiv',
+            'keywords' => ['akkubohrer', 'werkzeug', 'profi'],
+            'valid_from' => '2026-01-01',
+            'valid_until' => '2026-12-31',
         ]);
 
         $response->assertCreated()
             ->assertJsonPath('data.title_de', 'Akkubohrer Professional')
+            ->assertJsonPath('data.creator', 'Max Mustermann')
+            ->assertJsonPath('data.keywords', ['akkubohrer', 'werkzeug', 'profi'])
+            ->assertJsonPath('data.valid_from', '2026-01-01')
+            ->assertJsonPath('data.valid_until', '2026-12-31')
+            ->assertJsonPath('data.is_currently_valid', true)
             ->assertJsonPath('data.master_rendition.id', $media->id);
 
         $this->assertDatabaseHas('media', [
@@ -74,6 +84,21 @@ class MediaMotifControllerTest extends TestCase
             'is_master_rendition' => true,
         ]);
         $this->assertNotNull($media->fresh()->motif_id);
+    }
+
+    public function test_metadata_and_validity_period_are_optional(): void
+    {
+        Storage::fake('public');
+        $media = $this->createMediaWithRealFile();
+
+        $response = $this->postJson('/api/v1/media-motifs', ['media_id' => $media->id]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.creator', null)
+            ->assertJsonPath('data.keywords', [])
+            ->assertJsonPath('data.valid_from', null)
+            ->assertJsonPath('data.valid_until', null)
+            ->assertJsonPath('data.is_currently_valid', true);
     }
 
     public function test_store_rejects_media_already_in_motif(): void
