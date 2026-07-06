@@ -306,7 +306,7 @@ onMounted(() => fetchItems())
         <input
           v-model="searchTerm"
           @input="onSearchInput"
-          class="pim-input pl-8 text-xs"
+          class="pim-input pim-input-icon text-xs"
           placeholder="Motive nach Titel durchsuchen…"
         />
       </div>
@@ -334,7 +334,7 @@ onMounted(() => fetchItems())
         <input
           v-model="pickerSearch"
           @input="onPickerInput"
-          class="pim-input pl-8 text-xs"
+          class="pim-input pim-input-icon text-xs"
           placeholder="Dateiname oder Titel durchsuchen…"
         />
       </div>
