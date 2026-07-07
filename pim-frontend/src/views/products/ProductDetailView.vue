@@ -6,8 +6,6 @@ const _refDataCache = {
   manufacturers: null,
   productTypes: null,
   projects: null,
-  hierarchies: null,
-  hierarchyTrees: {},    // keyed by hierarchyId
   filterOptions: null,   // { views, types }
   workflowUsers: null,
   workflowTeams: null,
@@ -24,7 +22,7 @@ import { useLocaleStore } from '@/stores/locale'
 import { useToastStore } from '@/stores/toast'
 import { useRecordNavigatorStore } from '@/stores/recordNavigator'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, Filter, Upload, ClipboardList, Lightbulb, AlertTriangle, XCircle, Wand2, Images, Lock } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, Filter, Upload, ClipboardList, Lightbulb, AlertTriangle, XCircle, Wand2, Images, Lock, FolderTree } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import projectsApi from '@/api/projects'
 import usersApi from '@/api/users'
@@ -61,6 +59,7 @@ import MediaUploadQueue from '@/components/media/MediaUploadQueue.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
 import { formatCompositeSummary } from '@/utils/formatting'
 import PdfTemplatePickerModal from '@/components/pdf-templates/PdfTemplatePickerModal.vue'
+import MasterHierarchyNodePickerDialog from '@/components/products/MasterHierarchyNodePickerDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -111,10 +110,8 @@ function onNoteCountsUpdated(counts) {
 // um veraltete Responses bei schnellem Produktwechsel zu verwerfen.
 let _loadGeneration = 0
 
-// Hierarchy assignment
-const hierarchies = ref([])
-const hierarchyNodes = ref([])
-const selectedHierarchyId = ref(null)
+// Master-Hierarchie-Knoten-Zuordnung
+const showMasterNodePicker = ref(false)
 
 // Manufacturer assignment
 const manufacturers = ref([])
@@ -477,19 +474,41 @@ async function cancelWorkflow() {
   }
 }
 
+// Basiert auf dem vom Backend aufgelösten master_hierarchy_node (siehe include=
+// masterHierarchyNode.hierarchy in stores/products.js) statt einer lokal
+// zusammengestellten Baum-Liste — zeigt dadurch auch nachträglich zugeordnete
+// Knoten zuverlässig an, unabhängig davon, ob deren Hierarchie-Baum lokal geladen ist.
 const masterNodePath = computed(() => {
-  const nodeId = product.value?.master_hierarchy_node_id
-  if (!nodeId) return null
-  return hierarchyNodes.value.find(n => n.id === nodeId)?.label || null
+  const node = product.value?.master_hierarchy_node
+  if (!node) return null
+  const hierarchyName = node.hierarchy?.name_de || node.hierarchy?.name_en || ''
+  const nodeName = node.name_de || node.name_en || node.id
+  return hierarchyName ? `${hierarchyName} › ${nodeName}` : nodeName
 })
 
 const masterNodeName = computed(() => {
-  const path = masterNodePath.value
-  if (!path) return null
-  // Last segment after last ' › '
-  const parts = path.split(' › ')
-  return parts[parts.length - 1]
+  const node = product.value?.master_hierarchy_node
+  return node ? (node.name_de || node.name_en || node.id) : null
 })
+
+function openMasterNodePicker() {
+  showMasterNodePicker.value = true
+}
+
+function onMasterNodeSelected(selection) {
+  product.value.master_hierarchy_node_id = selection.id
+  product.value.master_hierarchy_node = {
+    id: selection.id,
+    name_de: selection.name_de,
+    name_en: selection.name_en,
+    hierarchy: selection.hierarchy,
+  }
+}
+
+function clearMasterNode() {
+  product.value.master_hierarchy_node_id = null
+  product.value.master_hierarchy_node = null
+}
 
 // ─── Attribute Values ─────────────────────────────────
 const schema = ref(null)
@@ -2884,66 +2903,6 @@ async function save() {
   }
 }
 
-// ─── Hierarchy node loading ──────────────────────────
-async function loadHierarchies() {
-  try {
-    if (_refDataCache.hierarchies) {
-      hierarchies.value = _refDataCache.hierarchies
-    } else {
-      const { data } = await hierarchiesApi.list()
-      hierarchies.value = data.data || data
-      _refDataCache.hierarchies = hierarchies.value
-    }
-    // Load tree for the hierarchy that the product belongs to
-    if (product.value?.master_hierarchy_node_id) {
-      for (const h of hierarchies.value) {
-        await loadHierarchyTree(h.id)
-      }
-    } else if (hierarchies.value.length > 0) {
-      await loadHierarchyTree(hierarchies.value[0].id)
-    }
-  } catch (e) { console.error('Failed to load hierarchies:', e.message) }
-}
-
-async function loadHierarchyTree(hierarchyId) {
-  try {
-    let tree
-    if (_refDataCache.hierarchyTrees[hierarchyId]) {
-      tree = _refDataCache.hierarchyTrees[hierarchyId]
-    } else {
-      const { data } = await hierarchiesApi.getTree(hierarchyId)
-      tree = data.data || data
-      _refDataCache.hierarchyTrees[hierarchyId] = tree
-    }
-    const flatNodes = flattenTree(tree, hierarchyId)
-    hierarchyNodes.value = [...hierarchyNodes.value.filter(n => n._hierarchyId !== hierarchyId), ...flatNodes]
-    // Auto-select hierarchy that contains the product's current node
-    const nodeId = product.value?.master_hierarchy_node_id
-    if (nodeId && flatNodes.some(n => n.id === nodeId)) {
-      selectedHierarchyId.value = hierarchyId
-    } else if (!selectedHierarchyId.value) {
-      selectedHierarchyId.value = hierarchyId
-    }
-  } catch (e) { console.error('Failed to load hierarchy tree:', e.message) }
-}
-
-function flattenTree(nodes, hierarchyId, prefix = '') {
-  const result = []
-  for (const node of (Array.isArray(nodes) ? nodes : [])) {
-    const label = prefix + (node.name_de || node.name_en || node.id)
-    result.push({ id: node.id, label, _hierarchyId: hierarchyId })
-    if (node.children?.length) {
-      result.push(...flattenTree(node.children, hierarchyId, label + ' › '))
-    }
-  }
-  return result
-}
-
-async function onHierarchyChange(hierarchyId) {
-  selectedHierarchyId.value = hierarchyId
-  await loadHierarchyTree(hierarchyId)
-}
-
 // ─── Hierarchy node change → reload attributes ───────
 watch(() => product.value?.master_hierarchy_node_id, async (newNodeId, oldNodeId) => {
   if (newNodeId === oldNodeId) return
@@ -2991,7 +2950,6 @@ onMounted(async () => {
     tabStore.updateTabTitle(route, `Produkt: ${product.value.sku}`)
   }
   loadAttributeData()
-  loadHierarchies()
   loadManufacturers()
   loadProductTypes()
   loadProjects()
@@ -3084,7 +3042,6 @@ async function switchToProduct(newId) {
     tabStore.updateTabTitle(route, `Produkt: ${product.value.sku}`)
   }
   loadAttributeData(null, gen)
-  loadHierarchies()
   loadMedia()         // Für Hauptbild-Vorschau im Header
   // If variant, load parent's inheritance rules
   if (product.value?.product_type_ref === 'variant' && product.value?.parent_product_id) {
@@ -3487,17 +3444,23 @@ onUnmounted(() => {
           </div>
           <div v-if="product.product_type_ref !== 'variant'" class="md:flex md:items-start md:gap-4">
             <label class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 md:mt-2 mb-1 block">Master-Hierarchie-Knoten</label>
-            <div class="md:flex-1 md:min-w-0">
-              <div class="flex flex-col sm:flex-row gap-2">
-                <select v-if="hierarchies.length > 1" class="pim-input text-xs w-full sm:w-36 shrink-0" :value="selectedHierarchyId" @change="onHierarchyChange($event.target.value)">
-                  <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
-                </select>
-                <select class="pim-input text-xs flex-1" :value="product.master_hierarchy_node_id || ''" @change="product.master_hierarchy_node_id = $event.target.value || null">
-                  <option value="">— Kein Knoten —</option>
-                  <option v-for="node in hierarchyNodes.filter(n => !selectedHierarchyId || n._hierarchyId === selectedHierarchyId)" :key="node.id" :value="node.id">{{ node.label }}</option>
-                </select>
+            <div class="md:flex-1 md:min-w-0 flex items-center gap-2">
+              <div class="pim-input text-xs flex-1 flex items-center gap-1.5 min-h-[30px]" :class="masterNodePath ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)] italic'">
+                <FolderTree class="w-3.5 h-3.5 shrink-0 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+                <span class="truncate">{{ masterNodePath || 'Kein Knoten zugeordnet' }}</span>
               </div>
-              <p v-if="masterNodePath" class="text-[11px] text-[var(--color-text-tertiary)] mt-1 font-mono">{{ masterNodePath }}</p>
+              <button type="button" class="pim-btn pim-btn-secondary text-xs shrink-0" @click="openMasterNodePicker">
+                {{ product.master_hierarchy_node_id ? 'Ändern' : 'Auswählen' }}
+              </button>
+              <button
+                v-if="product.master_hierarchy_node_id"
+                type="button"
+                class="pim-btn pim-btn-ghost p-1.5 shrink-0"
+                title="Zuordnung entfernen"
+                @click="clearMasterNode"
+              >
+                <X class="w-3.5 h-3.5" :stroke-width="1.75" />
+              </button>
             </div>
           </div>
           <div class="md:flex md:items-center md:gap-4">
@@ -5968,6 +5931,14 @@ onUnmounted(() => {
     <PdfTemplatePickerModal
       v-model:open="showPdfTemplatePicker"
       :productIds="product ? [product.id] : []"
+    />
+
+    <!-- Master-Hierarchie-Knoten Picker -->
+    <MasterHierarchyNodePickerDialog
+      v-model:open="showMasterNodePicker"
+      :currentNodeId="product?.master_hierarchy_node_id"
+      :currentHierarchyId="product?.master_hierarchy_node?.hierarchy?.id"
+      @select="onMasterNodeSelected"
     />
 
     <!-- Mandatory fields warning dialog -->

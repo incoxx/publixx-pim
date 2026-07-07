@@ -35,7 +35,7 @@ class ProductController extends Controller
 
     private const ALLOWED_INCLUDES = [
         'productType', 'attributeValues', 'variants', 'media',
-        'prices', 'relations', 'parentProduct', 'masterHierarchyNode',
+        'prices', 'relations', 'parentProduct', 'masterHierarchyNode', 'masterHierarchyNode.hierarchy',
         'manufacturer', 'workflow', 'currentWorkflowStatus', 'workflowAssignee', 'workflowTeam', 'projects',
     ];
 
