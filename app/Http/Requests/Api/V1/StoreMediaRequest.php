@@ -23,6 +23,8 @@ class StoreMediaRequest extends FormRequest
             'description_en' => 'nullable|string',
             'alt_text_de' => 'nullable|string|max:255',
             'alt_text_en' => 'nullable|string|max:255',
+            'keywords' => 'nullable|array',
+            'keywords.*' => 'string|max:100',
             'width' => 'nullable|integer',
             'height' => 'nullable|integer',
             'asset_folder_id' => 'nullable|uuid|exists:hierarchy_nodes,id',

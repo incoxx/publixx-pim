@@ -26,6 +26,7 @@ class MediaResource extends JsonResource
             'description_en' => $this->description_en,
             'alt_text_de' => $this->alt_text_de,
             'alt_text_en' => $this->alt_text_en,
+            'keywords' => $this->keywords ?? [],
             'width' => $this->width,
             'height' => $this->height,
             'asset_folder_id' => $this->asset_folder_id,

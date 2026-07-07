@@ -12,6 +12,7 @@ use App\Http\Traits\ChecksInstanceRestrictions;
 use App\Models\HierarchyNodeMediaAssignment;
 use App\Models\Media;
 use App\Models\MediaAssignmentHistory;
+use App\Models\MediaMotif;
 use App\Models\MediaRevision;
 use App\Models\MediaUsageType;
 use App\Models\Product;
@@ -62,20 +63,7 @@ class MediaController extends Controller
      */
     private function hideRestrictedMedia($query, ?User $user): void
     {
-        if (! $user || $user->hasRole('Admin')) {
-            return;
-        }
-
-        $restrictions = $this->getRestrictionsForUser($user, MediaUsageType::class);
-        if ($restrictions->isEmpty()) {
-            return;
-        }
-
-        $allowedIds = $restrictions->pluck('restrictable_id');
-        $hiddenIds = MediaUsageType::where('restricted_display_mode', 'hidden')
-            ->whereNotIn('id', $allowedIds)
-            ->pluck('id');
-
+        $hiddenIds = $this->hiddenUsageTypeIdsForUser($user);
         if ($hiddenIds->isEmpty()) {
             return;
         }
@@ -83,6 +71,30 @@ class MediaController extends Controller
         $query
             ->whereDoesntHave('productAssignments', fn ($q) => $q->whereIn('usage_type_id', $hiddenIds))
             ->whereDoesntHave('hierarchyNodeAssignments', fn ($q) => $q->whereIn('usage_type_id', $hiddenIds));
+    }
+
+    /**
+     * IDs der UsageTypes, die für den Nutzer per RoleEntityRestriction verborgen sind
+     * (leer für Admins/Nutzer ohne Restriktionen). Von hideRestrictedMedia() und
+     * suggestKeywords() genutzt, damit auch die Keyword-Vorschläge keine Schlagworte
+     * aus für den Nutzer verborgenen Medien verraten.
+     */
+    private function hiddenUsageTypeIdsForUser(?User $user): \Illuminate\Support\Collection
+    {
+        if (! $user || $user->hasRole('Admin')) {
+            return collect();
+        }
+
+        $restrictions = $this->getRestrictionsForUser($user, MediaUsageType::class);
+        if ($restrictions->isEmpty()) {
+            return collect();
+        }
+
+        $allowedIds = $restrictions->pluck('restrictable_id');
+
+        return MediaUsageType::where('restricted_display_mode', 'hidden')
+            ->whereNotIn('id', $allowedIds)
+            ->pluck('id');
     }
 
     /**
@@ -102,6 +114,54 @@ class MediaController extends Controller
             'ids' => $ids,
             'total' => $ids->count(),
         ]);
+    }
+
+    /**
+     * GET /media/keywords/suggest?q=... — Autocomplete-Vorschläge aus bereits vergebenen
+     * Keywords (Media + MediaMotif), damit beim Pflegen bestehende Schlagworte wiederverwendet
+     * werden statt Duplikate mit Tippfehlern anzulegen. Nach Häufigkeit sortiert.
+     */
+    public function suggestKeywords(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Media::class);
+
+        $search = mb_strtolower(trim((string) $request->query('q', '')));
+        $limit = min(max((int) $request->query('limit', 20), 1), 50);
+        $hiddenIds = $this->hiddenUsageTypeIdsForUser($request->user());
+
+        $mediaQuery = Media::query()->whereNotNull('keywords');
+        $motifQuery = MediaMotif::query()->whereNotNull('keywords');
+        if ($hiddenIds->isNotEmpty()) {
+            // Motive haben keine Hierarchie-Zuordnung, daher nur productAssignments prüfen.
+            $mediaQuery
+                ->whereDoesntHave('productAssignments', fn ($q) => $q->whereIn('usage_type_id', $hiddenIds))
+                ->whereDoesntHave('hierarchyNodeAssignments', fn ($q) => $q->whereIn('usage_type_id', $hiddenIds));
+            $motifQuery->whereDoesntHave('productAssignments', fn ($q) => $q->whereIn('usage_type_id', $hiddenIds));
+        }
+
+        // Ein Durchlauf: pro klein geschriebenem Keyword zählen und die zuerst gesehene
+        // Schreibweise als Anzeige-Label merken (case-insensitive Dedupe, Original-Case erhalten).
+        $counts = collect([$mediaQuery, $motifQuery])
+            ->flatMap(fn ($query) => $query->latest()->limit(5000)->pluck('keywords'))
+            ->flatMap(fn ($keywords) => (array) $keywords)
+            ->map(fn ($keyword) => trim((string) $keyword))
+            ->filter(fn ($keyword) => $keyword !== '')
+            ->reduce(function (array $counts, string $keyword) {
+                $key = mb_strtolower($keyword);
+                $counts[$key] ??= ['label' => $keyword, 'count' => 0];
+                $counts[$key]['count']++;
+
+                return $counts;
+            }, []);
+
+        $suggestions = collect($counts)
+            ->when($search !== '', fn ($c) => $c->filter(fn ($entry) => str_contains(mb_strtolower($entry['label']), $search)))
+            ->sortByDesc('count')
+            ->values()
+            ->take($limit)
+            ->pluck('label');
+
+        return response()->json(['data' => $suggestions]);
     }
 
     /**
@@ -270,7 +330,42 @@ class MediaController extends Controller
             }
         }
 
-        $this->applySearch($query, $request, ['file_name', 'title_de', 'title_en']);
+        // Exaktes Tag-Filtering (z.B. ?filter[keywords]=akkubohrer,profi — beliebiges der
+        // angegebenen Keywords muss vorhanden sein), zusätzlich zur Freitextsuche unten.
+        // Akzeptiert sowohl Komma-String (?filter[keywords]=a,b) als auch Array-Query-Syntax
+        // (?filter[keywords][]=a&filter[keywords][]=b), da explode() sonst mit einem Array crasht.
+        if (! empty($filters['keywords'])) {
+            $rawKeywords = $filters['keywords'];
+            $keywordList = is_array($rawKeywords)
+                ? array_map('trim', $rawKeywords)
+                : array_map('trim', explode(',', (string) $rawKeywords));
+            $keywordList = array_filter($keywordList, fn ($k) => $k !== '');
+
+            if (! empty($keywordList)) {
+                $query->where(function ($q) use ($keywordList) {
+                    foreach ($keywordList as $keyword) {
+                        // whereJsonContains vergleicht in MySQL case-sensitiv; Keywords werden aber
+                        // ohne einheitliche Groß-/Kleinschreibung gepflegt, daher case-insensitiver
+                        // Abgleich über den (per LIKE-Escaping abgesicherten) JSON-Text der Spalte.
+                        $needle = str_replace(['\\', '%', '_', '"'], ['\\\\', '\\%', '\\_', '\\"'], mb_strtolower($keyword));
+                        $q->orWhereRaw('LOWER(CAST(keywords AS CHAR)) LIKE ?', ['%"'.$needle.'"%']);
+                    }
+                });
+            }
+        }
+
+        // 'keywords' bewusst NICHT Teil der applySearch()-Spaltenliste: MySQL 8 erlaubt LIKE nicht
+        // direkt auf JSON-Spalten ("Cannot compare JSON in the LIKE operator") — Freitextsuche über
+        // Keywords läuft daher über denselben CAST-Ansatz wie oben, ergänzt zur normalen Suche.
+        $search = trim((string) $request->query('search', ''));
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                foreach (['file_name', 'title_de', 'title_en'] as $col) {
+                    $q->orWhere($col, 'LIKE', "%{$search}%");
+                }
+                $q->orWhereRaw('LOWER(CAST(keywords AS CHAR)) LIKE ?', ['%'.mb_strtolower($search).'%']);
+            });
+        }
 
         // Filter: Medien ohne Datei (file_size = 0 oder NULL) — "Nicht vorhanden"
         if (! empty($filters['is_missing'])) {
@@ -352,6 +447,7 @@ class MediaController extends Controller
                 'description_en' => $request->input('description_en'),
                 'alt_text_de' => $request->input('alt_text_de'),
                 'alt_text_en' => $request->input('alt_text_en'),
+                'keywords' => $request->input('keywords'),
                 'width' => $width,
                 'height' => $height,
                 'asset_folder_id' => $request->input('asset_folder_id'),
