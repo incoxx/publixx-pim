@@ -89,8 +89,9 @@ class ProcessPdfDocument implements ShouldQueue
             // 3+4. Seiten rendern und Text extrahieren
             $storageDir = 'pdf-pages/' . $document->id;
 
-            // Alte Seiten-IDs merken — erst NACH erfolgreicher Neuanlage löschen
-            $oldPageIds = $document->pages()->pluck('id')->toArray();
+            // Alte Seitennummern merken, um nach dem Lauf verwaiste Seiten zu entfernen
+            // (z.B. wenn das PDF beim Neu-Rendern weniger Seiten hat als zuvor).
+            $oldPageNumbers = $document->pages()->pluck('page_number')->toArray();
 
             for ($n = 1; $n <= $pageCount; $n++) {
                 // PNG rendern via pdftoppm
@@ -104,21 +105,27 @@ class ProcessPdfDocument implements ShouldQueue
                 // Text extrahieren
                 $text = $this->extractText($pdfPath, $n);
 
-                // PdfPage anlegen
-                PdfPage::create([
-                    'pdf_document_id' => $document->id,
-                    'page_number' => $n,
-                    'image_path' => $webpRelativePath,
-                    'extracted_text' => $text,
-                ]);
+                // PdfPage anlegen/aktualisieren. updateOrCreate statt create(), da derselbe
+                // Job für dasselbe Dokument mehrfach angestoßen werden kann (z.B. jede
+                // Media-Änderung über MediaObserver, manuelles Reprocessing, oder ein
+                // überlappender Lauf nach Ablauf des WithoutOverlapping-Locks bei sehr langen
+                // PDFs) — ein zweites create() für dieselbe (pdf_document_id, page_number)
+                // würde sonst den Unique-Constraint verletzen und den Job crashen lassen.
+                PdfPage::updateOrCreate(
+                    ['pdf_document_id' => $document->id, 'page_number' => $n],
+                    ['image_path' => $webpRelativePath, 'extracted_text' => $text]
+                );
 
                 // Temporäre PNG löschen
                 @unlink($pngPath);
             }
 
-            // Alte Seiten erst NACH erfolgreicher Neuanlage löschen (Crash-Sicherheit)
-            if (!empty($oldPageIds)) {
-                PdfPage::whereIn('id', $oldPageIds)->delete();
+            // Seiten entfernen, die im neuen Lauf nicht mehr existieren (PDF wurde kürzer)
+            $stalePageNumbers = array_diff($oldPageNumbers, range(1, $pageCount));
+            if (!empty($stalePageNumbers)) {
+                PdfPage::where('pdf_document_id', $document->id)
+                    ->whereIn('page_number', $stalePageNumbers)
+                    ->delete();
             }
 
             // 5. In Typesense indexieren (pages werden per chunk() geladen)
