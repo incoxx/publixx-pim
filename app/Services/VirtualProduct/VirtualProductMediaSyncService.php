@@ -9,6 +9,7 @@ use App\Models\ProductMediaAssignment;
 use App\Models\VirtualProductMediaInheritanceRule;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Vererbt Medien-Zuordnungen eines virtuellen Produkts ("Klammer") an dessen
@@ -82,14 +83,36 @@ class VirtualProductMediaSyncService
 
         $definition = $virtualProduct->virtualDefinition;
         if ($definition === null) {
+            Log::info('VirtualProductMediaSyncService: kein Sync — virtuelles Produkt hat keine Cluster-Definition', [
+                'virtual_product_id' => $virtualProduct->id,
+                'sku' => $virtualProduct->sku,
+            ]);
+
             return $report;
         }
 
         $rules = $virtualProduct->mediaInheritanceRules()->get()->keyBy('usage_type_id');
         $report['usage_type_count'] = $rules->count();
 
+        if ($rules->isEmpty()) {
+            // Häufigste Ursache für "es wird nichts vererbt": für keinen
+            // Usage-Type (z.B. "Dokument"/PDF) wurde bislang eine
+            // Medien-Vererbungsregel angelegt und aktiviert.
+            Log::info('VirtualProductMediaSyncService: keine Medien-Vererbungsregeln konfiguriert — nichts zu synchronisieren', [
+                'virtual_product_id' => $virtualProduct->id,
+                'sku' => $virtualProduct->sku,
+            ]);
+        }
+
         DB::transaction(function () use ($virtualProduct, $definition, $rules, $memberIds, &$report) {
             $memberIds = collect($memberIds ?? $this->resolver->memberIds($definition));
+
+            Log::info('VirtualProductMediaSyncService: sync gestartet', [
+                'virtual_product_id' => $virtualProduct->id,
+                'sku' => $virtualProduct->sku,
+                'member_ids' => $memberIds->all(),
+                'usage_type_ids' => $rules->keys()->all(),
+            ]);
 
             $this->releaseFormerMembers($virtualProduct, $memberIds, $report);
 
@@ -102,17 +125,28 @@ class VirtualProductMediaSyncService
                 if ($conflictOwnerId) {
                     $owner = Product::find($conflictOwnerId);
                     $member = Product::find($memberId);
+                    $reason = 'Bereits Mitglied von Cluster "' . ($owner->sku ?? $conflictOwnerId) . '" (Medien)';
                     $report['skipped_members'][] = [
                         'id' => $memberId,
                         'sku' => $member->sku ?? $memberId,
-                        'reason' => 'Bereits Mitglied von Cluster "' . ($owner->sku ?? $conflictOwnerId) . '" (Medien)',
+                        'reason' => $reason,
                     ];
+                    Log::info('VirtualProductMediaSyncService: Mitglied übersprungen', [
+                        'virtual_product_id' => $virtualProduct->id,
+                        'member_id' => $memberId,
+                        'reason' => $reason,
+                    ]);
                     continue;
                 }
 
                 $report['member_count']++;
                 $this->reconcileMember($virtualProduct, $memberId, $rules, $report);
             }
+
+            Log::info('VirtualProductMediaSyncService: sync abgeschlossen', [
+                'virtual_product_id' => $virtualProduct->id,
+                'report' => $report,
+            ]);
         });
 
         return $report;
@@ -183,6 +217,14 @@ class VirtualProductMediaSyncService
                     ->where('usage_type_id', $rule->usage_type_id)
                     ->count();
                 $report['assignments_kept_local'] += $sourceCount;
+                Log::debug('VirtualProductMediaSyncService: usage_type übersprungen (keep_local, lokale Zuordnung vorhanden)', [
+                    'virtual_product_id' => $virtualProduct->id,
+                    'member_id' => $memberId,
+                    'usage_type_id' => $rule->usage_type_id,
+                    'local_count' => $localAssignments->count(),
+                    'source_count' => $sourceCount,
+                ]);
+
                 return;
             }
 
@@ -194,6 +236,14 @@ class VirtualProductMediaSyncService
             ->where('usage_type_id', $rule->usage_type_id)
             ->orderBy('sort_order')
             ->get();
+
+        Log::debug('VirtualProductMediaSyncService: usage_type wird synchronisiert', [
+            'virtual_product_id' => $virtualProduct->id,
+            'member_id' => $memberId,
+            'usage_type_id' => $rule->usage_type_id,
+            'source_row_count' => $sourceRows->count(),
+            'source_media_ids' => $sourceRows->pluck('media_id')->filter()->all(),
+        ]);
 
         // Lokale Zuordnungen wurden oben ggf. bereits entfernt (force_override) —
         // die von diesem virtuellen Produkt vererbten Zeilen sind davon unberührt
