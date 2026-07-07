@@ -1016,6 +1016,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('admin/meilisearch/run', [MeilisearchAdminController::class, 'run']);
     Route::post('admin/pdf/batch-process', [PdfController::class, 'batchProcess']);
     Route::post('admin/media/clear-thumbnail-cache', [MediaController::class, 'clearThumbnailCache']);
+    Route::post('admin/media/fix-mime-types', [MediaController::class, 'fixMimeTypes']);
 
     // =====================================================================
     // Report Designer (Enterprise: reports)

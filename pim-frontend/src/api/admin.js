@@ -100,6 +100,10 @@ export default {
     return client.post('/admin/media/clear-thumbnail-cache', {}, { timeout: 60000 })
   },
 
+  fixMediaMimeTypes() {
+    return client.post('/admin/media/fix-mime-types', {}, { timeout: 300000 })
+  },
+
   // ── Process / Queue Management ──
   getQueueJobs() {
     return client.get('/admin/queue-jobs')

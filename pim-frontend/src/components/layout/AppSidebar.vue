@@ -182,9 +182,6 @@ const sections = computed(() => {
       key: 'config',
       label: 'Konfiguration',
       items: [
-        { icon: Tags, label: () => t('nav.mediaUsageTypes'), to: '/media-usage-types', permission: 'media-usage-types.view' },
-        { icon: Languages, label: () => 'Medien-Sprachen', to: '/media-languages', permission: 'media-languages.view' },
-        { icon: MapPin, label: () => 'Medien-Länder', to: '/media-countries', permission: 'media-countries.view' },
         {
           key: 'grp-produktstruktur',
           icon: Layers,
@@ -219,6 +216,16 @@ const sections = computed(() => {
             { icon: ArrowRightLeft, label: () => 'Vergleichsoperatoren', to: '/comparison-operators', permission: 'units.view' },
             { icon: DollarSign, label: () => t('nav.prices'), to: '/prices', permission: 'prices.view' },
             { icon: Globe, label: () => t('nav.priceRegions'), to: '/price-regions', permission: 'price-regions.view' },
+          ],
+        },
+        {
+          key: 'grp-medien',
+          icon: Image,
+          label: () => 'Medien',
+          children: [
+            { icon: Tags, label: () => t('nav.mediaUsageTypes'), to: '/media-usage-types', permission: 'media-usage-types.view' },
+            { icon: Languages, label: () => 'Medien-Sprachen', to: '/media-languages', permission: 'media-languages.view' },
+            { icon: MapPin, label: () => 'Medien-Länder', to: '/media-countries', permission: 'media-countries.view' },
           ],
         },
       ],

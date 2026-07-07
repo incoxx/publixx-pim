@@ -21,15 +21,27 @@ class ThumbnailService
             return null;
         }
 
-        if (!str_starts_with($media->mime_type, 'image/')) {
-            return null;
+        $disk = Storage::disk('public');
+        $mimeType = (string) $media->mime_type;
+
+        if (!str_starts_with($mimeType, 'image/')) {
+            // Gespeicherter mime_type ist keiner (z.B. durch fehlerhaften Bulk-/BMEcat-Import,
+            // der die Endung geraten oder einen Feed-Wert ungeprüft übernommen hat) — bevor wir
+            // ein tatsächliches Bild fälschlich als "kein Bild" ablehnen, echten Dateiinhalt prüfen.
+            $detected = MimeTypeDetector::detectFromFile($disk->path($media->file_path));
+            if ($detected && str_starts_with($detected, 'image/')) {
+                $mimeType = $detected;
+                // Datensatz selbstheilend korrigieren, damit auch Medienübersicht/Produkteditor
+                // das Bild künftig korrekt erkennen (nicht nur dieser Thumbnail-Aufruf).
+                $media->forceFill(['mime_type' => $detected, 'media_type' => 'image'])->save();
+            } else {
+                return null;
+            }
         }
 
         $extension = pathinfo($media->file_name, PATHINFO_EXTENSION) ?: 'jpg';
         $cacheDir = "thumbs/{$width}x{$height}";
         $cachePath = "{$cacheDir}/{$media->id}.{$extension}";
-
-        $disk = Storage::disk('public');
 
         // Cache hit — nur vertrauen, wenn die Datei auch Inhalt hat. Ein 0-Byte-File
         // deutet auf einen abgebrochenen oder parallel überschriebenen Schreibvorgang
@@ -57,7 +69,7 @@ class ThumbnailService
 
         // Generate thumbnail using GD
         $thumbPath = $disk->path($cachePath);
-        $this->createThumbnail($sourcePath, $thumbPath, $width, $height, $fit, $media->mime_type);
+        $this->createThumbnail($sourcePath, $thumbPath, $width, $height, $fit, $mimeType);
 
         return (file_exists($thumbPath) && filesize($thumbPath) > 0) ? $thumbPath : null;
     }
