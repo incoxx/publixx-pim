@@ -731,6 +731,28 @@ info "Caches erstellt."
 # ═════════════════════════════════════════════════════════════════════════════
 step "9/10 — Services neu starten"
 
+# PCRE-JIT deaktivieren (falls noch nicht geschehen): auf gehaerteten Servern
+# (SELinux/seccomp/grsecurity) kann PHP keinen ausfuehrbaren Speicher fuer den
+# JIT allozieren ("Allocation of JIT memory failed"), was Laravel als
+# ErrorException loggt, obwohl PCRE danach ohnehin interpretiert weiterlaeuft.
+# Idempotent — betrifft nur Installationen, bei denen setup.sh dies noch nicht
+# gesetzt hat.
+PHP_VERSION_DETECTED="$(php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;' 2>/dev/null || true)"
+if [ -n "$PHP_VERSION_DETECTED" ]; then
+    for PHP_INI in "/etc/php/${PHP_VERSION_DETECTED}/apache2/php.ini" "/etc/php/${PHP_VERSION_DETECTED}/cli/php.ini"; do
+        if [ -f "$PHP_INI" ] && ! grep -q '^pcre.jit\s*=\s*0' "$PHP_INI"; then
+            if grep -q '^pcre.jit' "$PHP_INI"; then
+                sed -i 's/^pcre.jit.*/pcre.jit=0/' "$PHP_INI"
+            elif grep -q '^;pcre.jit' "$PHP_INI"; then
+                sed -i 's/^;pcre.jit.*/pcre.jit=0/' "$PHP_INI"
+            else
+                echo 'pcre.jit=0' >> "$PHP_INI"
+            fi
+            info "PCRE-JIT in ${PHP_INI} deaktiviert."
+        fi
+    done
+fi
+
 # Dateiberechtigungen korrigieren (ohne langsames find -exec)
 chown -R www-data:www-data "$INSTALL_DIR"
 chmod -R u=rwX,g=rX,o=rX "$INSTALL_DIR"
