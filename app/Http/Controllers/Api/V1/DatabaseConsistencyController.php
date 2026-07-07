@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Models\Media;
+use App\Models\PdfPage;
 use App\Services\MimeTypeDetector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -57,6 +58,7 @@ class DatabaseConsistencyController extends Controller
             'orphaned_conformance_results' => $this->fixOrphanedConformanceResults(),
             'missing_media_files' => $this->fixMissingMediaFiles(),
             'broken_media_images' => $this->fixBrokenMediaImages(),
+            'duplicate_pdf_pages' => $this->fixDuplicatePdfPages(),
             'stale_translatable_null_values' => $this->fixStaleTranslatableNull('product_attribute_values', ['product_id', 'output_hierarchy_id']),
             'stale_translatable_null_media_values' => $this->fixStaleTranslatableNull('media_attribute_values', ['media_id']),
             'stale_translatable_null_hierarchy_node_values' => $this->fixStaleTranslatableNull('hierarchy_node_attribute_values', ['hierarchy_node_id']),
@@ -190,6 +192,10 @@ class DatabaseConsistencyController extends Controller
 
         $checks[] = $this->checkMissingMediaFiles();
         $checks[] = $this->checkBrokenMediaImages();
+
+        if (Schema::hasTable('pdf_pages')) {
+            $checks[] = $this->checkDuplicatePdfPages();
+        }
 
         $checks[] = $this->checkOrphanedRelations();
 
@@ -429,6 +435,33 @@ class DatabaseConsistencyController extends Controller
         ];
     }
 
+    /**
+     * pdf_pages hat einen Unique-Constraint auf (pdf_document_id, page_number) — echte
+     * Dubletten sollten dadurch eigentlich unmöglich sein. Diese Prüfung dient als
+     * defensive Absicherung, z.B. falls Altdaten aus der Zeit vor dem Constraint stammen
+     * oder eine zukünftige Migration/ein Import ihn umgeht.
+     */
+    private function checkDuplicatePdfPages(): array
+    {
+        $count = DB::table('pdf_pages')
+            ->select('pdf_document_id', 'page_number')
+            ->groupBy('pdf_document_id', 'page_number')
+            ->havingRaw('COUNT(*) > 1')
+            ->get()
+            ->sum(fn ($group) => DB::table('pdf_pages')
+                ->where('pdf_document_id', $group->pdf_document_id)
+                ->where('page_number', $group->page_number)
+                ->count() - 1);
+
+        return [
+            'key' => 'duplicate_pdf_pages',
+            'label' => 'Doppelte PDF-Seiten',
+            'description' => 'Mehrere pdf_pages-Einträge für dieselbe Dokument+Seitenzahl-Kombination (z.B. durch überlappende Verarbeitungsläufe vor dem Idempotenz-Fix in ProcessPdfDocument).',
+            'count' => $count,
+            'status' => $count > 0 ? 'issue' : 'ok',
+        ];
+    }
+
     private function checkOrphanedRelations(): array
     {
         $count = 0;
@@ -626,6 +659,36 @@ class DatabaseConsistencyController extends Controller
                     $deleted += Media::whereIn('id', $ids)->delete();
                 }
             });
+
+        return $deleted;
+    }
+
+    /**
+     * Behält je (pdf_document_id, page_number)-Gruppe die "beste" Zeile (gültiger image_path,
+     * bei mehreren Kandidaten die zuletzt aktualisierte) und löscht die übrigen.
+     */
+    private function fixDuplicatePdfPages(): int
+    {
+        $deleted = 0;
+
+        $duplicateGroups = DB::table('pdf_pages')
+            ->select('pdf_document_id', 'page_number')
+            ->groupBy('pdf_document_id', 'page_number')
+            ->havingRaw('COUNT(*) > 1')
+            ->get();
+
+        foreach ($duplicateGroups as $group) {
+            $rows = PdfPage::where('pdf_document_id', $group->pdf_document_id)
+                ->where('page_number', $group->page_number)
+                ->orderByRaw("CASE WHEN image_path IS NOT NULL AND image_path != '' THEN 0 ELSE 1 END ASC")
+                ->orderByDesc('updated_at')
+                ->get();
+
+            $idsToDelete = $rows->slice(1)->pluck('id');
+            if ($idsToDelete->isNotEmpty()) {
+                $deleted += PdfPage::whereIn('id', $idsToDelete)->delete();
+            }
+        }
 
         return $deleted;
     }
