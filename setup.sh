@@ -520,16 +520,29 @@ apt-get install -y -qq "${PHP_PACKAGES[@]}"
 
 info "PHP ${PHP_VERSION} installiert: $(php -v | head -1)"
 
-# PHP Konfiguration optimieren
-PHP_INI="/etc/php/${PHP_VERSION}/apache2/php.ini"
-if [ -f "$PHP_INI" ]; then
-    sed -i 's/^memory_limit = .*/memory_limit = 512M/' "$PHP_INI"
-    sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 256M/' "$PHP_INI"
-    sed -i 's/^post_max_size = .*/post_max_size = 260M/' "$PHP_INI"
-    sed -i 's/^max_execution_time = .*/max_execution_time = 300/' "$PHP_INI"
-    sed -i 's/^;date.timezone =.*/date.timezone = Europe\/Berlin/' "$PHP_INI"
-    info "PHP-Konfiguration optimiert."
-fi
+# PHP Konfiguration optimieren (Apache-SAPI + CLI-SAPI, da artisan-Kommandos
+# ueber die CLI-Ini laufen und sonst nicht von diesen Anpassungen profitieren)
+for PHP_INI in "/etc/php/${PHP_VERSION}/apache2/php.ini" "/etc/php/${PHP_VERSION}/cli/php.ini"; do
+    if [ -f "$PHP_INI" ]; then
+        sed -i 's/^memory_limit = .*/memory_limit = 512M/' "$PHP_INI"
+        sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 256M/' "$PHP_INI"
+        sed -i 's/^post_max_size = .*/post_max_size = 260M/' "$PHP_INI"
+        sed -i 's/^max_execution_time = .*/max_execution_time = 300/' "$PHP_INI"
+        sed -i 's/^;date.timezone =.*/date.timezone = Europe\/Berlin/' "$PHP_INI"
+        # PCRE-JIT deaktivieren: auf gehaerteten Servern (SELinux/seccomp/grsecurity) kann PHP
+        # keinen ausfuehrbaren Speicher fuer den JIT allozieren ("Allocation of JIT memory
+        # failed"). Ohne diese Einstellung wird die PHP-Warnung von Laravel als ErrorException
+        # geloggt, obwohl PCRE danach ohnehin auf den interpretierten Modus zurueckfaellt.
+        if grep -q '^pcre.jit' "$PHP_INI"; then
+            sed -i 's/^pcre.jit.*/pcre.jit=0/' "$PHP_INI"
+        elif grep -q '^;pcre.jit' "$PHP_INI"; then
+            sed -i 's/^;pcre.jit.*/pcre.jit=0/' "$PHP_INI"
+        else
+            echo 'pcre.jit=0' >> "$PHP_INI"
+        fi
+        info "PHP-Konfiguration optimiert: ${PHP_INI}"
+    fi
+done
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  3. APACHE INSTALLIEREN & KONFIGURIEREN

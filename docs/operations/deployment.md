@@ -172,8 +172,12 @@ sudo certbot renew --dry-run
 
 ## 8. Tune PHP
 
+Edit **both** the Apache and CLI php.ini (artisan commands run under the CLI SAPI and
+won't pick up Apache-only changes):
+
 ```bash
 sudo nano /etc/php/8.4/apache2/php.ini
+sudo nano /etc/php/8.4/cli/php.ini
 ```
 
 ```ini
@@ -181,7 +185,14 @@ memory_limit = 512M
 upload_max_filesize = 256M
 post_max_size = 260M
 max_execution_time = 300
+pcre.jit = 0
 ```
+
+`pcre.jit = 0` avoids `preg_match(): Allocation of JIT memory failed, PCRE JIT will be
+disabled` errors in the logs — some hardened hosts/containers (SELinux, seccomp,
+grsecurity) deny PHP executable-memory allocation for the PCRE JIT compiler. Regex
+matching still works via the interpreted fallback; only JIT compilation is skipped, with
+no noticeable performance impact for typical web requests.
 
 ```bash
 sudo systemctl restart apache2

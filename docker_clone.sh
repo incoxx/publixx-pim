@@ -248,6 +248,11 @@ opcache.enable = 1
 opcache.memory_consumption = 256
 opcache.max_accelerated_files = 20000
 opcache.validate_timestamps = 0
+; Docker-Container laufen haeufig unter seccomp-Profilen, die PHP keinen
+; ausfuehrbaren Speicher fuer den PCRE-JIT erlauben ("Allocation of JIT
+; memory failed"). JIT deaktivieren vermeidet die Warnung; PCRE faellt
+; ohnehin auf den interpretierten Modus zurueck, kein spuerbarer Unterschied.
+pcre.jit = 0
 PHPINI
 
 # ─── 7. Supervisor: Apache + Horizon + Scheduler (wie setup.sh, Schritt 10) ──
