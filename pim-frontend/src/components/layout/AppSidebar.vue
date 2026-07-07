@@ -183,6 +183,8 @@ const sections = computed(() => {
       label: 'Konfiguration',
       items: [
         { icon: Tags, label: () => t('nav.mediaUsageTypes'), to: '/media-usage-types', permission: 'media-usage-types.view' },
+        { icon: Languages, label: () => 'Medien-Sprachen', to: '/media-languages', permission: 'media-languages.view' },
+        { icon: MapPin, label: () => 'Medien-Länder', to: '/media-countries', permission: 'media-countries.view' },
         {
           key: 'grp-produktstruktur',
           icon: Layers,

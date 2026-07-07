@@ -63,6 +63,8 @@ use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\MediaAttributeValueController;
 use App\Http\Controllers\Api\V1\ManufacturerController;
 use App\Http\Controllers\Api\V1\MediaController;
+use App\Http\Controllers\Api\V1\MediaCountryController;
+use App\Http\Controllers\Api\V1\MediaLanguageController;
 use App\Http\Controllers\Api\V1\MediaMotifController;
 use App\Http\Controllers\Api\V1\MediaRenditionPresetController;
 use App\Http\Controllers\Api\V1\MeilisearchAdminController;
@@ -669,6 +671,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('media-usage-types/{media_usage_type}/dependencies', [MediaUsageTypeController::class, 'dependencies']);
     Route::put('media-usage-types/{media_usage_type}/default-attributes', [MediaUsageTypeController::class, 'updateDefaultAttributes']);
 
+    // Medien-Metadaten: Sprache und Land (frei konfigurierbar, kann auch Regionen abbilden)
+    Route::apiResource('media-languages', MediaLanguageController::class);
+    Route::get('media-languages/{media_language}/dependencies', [MediaLanguageController::class, 'dependencies']);
+    Route::apiResource('media-countries', MediaCountryController::class);
+    Route::get('media-countries/{media_country}/dependencies', [MediaCountryController::class, 'dependencies']);
+
     // Motiv/Rendition-Pipeline: mehrere Ausgabeformate (Print/Web/Mobile/Social) desselben Bild-Motivs
     Route::apiResource('media-motifs', MediaMotifController::class);
     Route::post('media-motifs/{media_motif}/generate-renditions', [MediaMotifController::class, 'generateRenditions']);
@@ -1007,6 +1015,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('admin/meilisearch/status', [MeilisearchAdminController::class, 'status']);
     Route::post('admin/meilisearch/run', [MeilisearchAdminController::class, 'run']);
     Route::post('admin/pdf/batch-process', [PdfController::class, 'batchProcess']);
+    Route::post('admin/media/clear-thumbnail-cache', [MediaController::class, 'clearThumbnailCache']);
 
     // =====================================================================
     // Report Designer (Enterprise: reports)

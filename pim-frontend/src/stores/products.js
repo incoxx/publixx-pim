@@ -42,7 +42,7 @@ export const useProductStore = defineStore('products', () => {
     error.value = null
     try {
       const { data } = await productsApi.get(id, {
-        include: 'attributeValues,variants,media,prices,productType,workflow,currentWorkflowStatus,workflowAssignee,workflowTeam,projects',
+        include: 'attributeValues,variants,media,prices,productType,workflow,currentWorkflowStatus,workflowAssignee,workflowTeam,projects,masterHierarchyNode.hierarchy',
         ...options,
       })
       current.value = data.data || data

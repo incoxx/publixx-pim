@@ -4,6 +4,8 @@ import { useRoute } from 'vue-router'
 import { Upload, Image, ImageOff, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw, ExternalLink, Package, FolderTree, Eye, Filter, Archive, ToggleLeft, ToggleRight, Table, Layers, Images } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
+import { mediaLanguages as mediaLanguagesApi } from '@/api/mediaLanguages'
+import { mediaCountries as mediaCountriesApi } from '@/api/mediaCountries'
 import hierarchiesApi from '@/api/hierarchies'
 import { useAuthStore } from '@/stores/auth'
 import { formatFileSize } from '@/utils/formatting'
@@ -624,6 +626,8 @@ async function saveDetail() {
       usage_purpose: detailItem.value.usage_purpose,
       asset_folder_id: detailItem.value.asset_folder_id,
       media_type: detailItem.value.media_type,
+      media_language_id: detailItem.value.media_language_id,
+      media_country_id: detailItem.value.media_country_id,
     })
     await saveAssetAttributeValues()
     closeDetail()
@@ -784,6 +788,17 @@ async function fetchUsageTypes() {
   } catch (e) { console.warn('Failed to load usage types:', e.message) }
 }
 
+// ─── Sprachen & Länder (PDF-Metadaten) ────────────────────────
+const mediaLanguageOptions = ref([])
+const mediaCountryOptions = ref([])
+async function fetchMediaLanguagesAndCountries() {
+  try {
+    const [langRes, countryRes] = await Promise.all([mediaLanguagesApi.list(), mediaCountriesApi.list()])
+    mediaLanguageOptions.value = langRes.data.data || langRes.data || []
+    mediaCountryOptions.value = countryRes.data.data || countryRes.data || []
+  } catch (e) { console.warn('Failed to load media languages/countries:', e.message) }
+}
+
 // ─── URL Import ────────────────────────
 const showUrlImport = ref(false)
 const urlImportForm = ref({ url: '', usage_type_id: null, usage_purpose: 'both' })
@@ -902,6 +917,7 @@ onMounted(() => {
   fetchMedia()
   fetchFolders()
   fetchUsageTypes()
+  fetchMediaLanguagesAndCountries()
   document.addEventListener('click', handleDocClick, true)
 
   // Direktes Öffnen eines Mediums per ?medium=<id> (z. B. aus dem Cockpit-Spotlight)
@@ -1578,6 +1594,22 @@ onMounted(() => {
               <option value="web">Web</option>
             </select>
           </div>
+          <template v-if="isItemPdf(detailItem)">
+            <div>
+              <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Sprache</label>
+              <select v-model="detailItem.media_language_id" class="pim-select text-xs w-full">
+                <option :value="null">—</option>
+                <option v-for="lang in mediaLanguageOptions" :key="lang.id" :value="lang.id">{{ lang.name_de || lang.technical_name }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Land</label>
+              <select v-model="detailItem.media_country_id" class="pim-select text-xs w-full">
+                <option :value="null">—</option>
+                <option v-for="country in mediaCountryOptions" :key="country.id" :value="country.id">{{ country.name_de || country.technical_name }}</option>
+              </select>
+            </div>
+          </template>
           <div v-if="detailItem.width && detailItem.height">
             <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Abmessungen</label>
             <p class="text-xs text-[var(--color-text-primary)]">{{ detailItem.width }} × {{ detailItem.height }} px</p>

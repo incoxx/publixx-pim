@@ -31,9 +31,14 @@ class ThumbnailService
 
         $disk = Storage::disk('public');
 
-        // Cache hit
+        // Cache hit — nur vertrauen, wenn die Datei auch Inhalt hat. Ein 0-Byte-File
+        // deutet auf einen abgebrochenen oder parallel überschriebenen Schreibvorgang
+        // hin (siehe saveImage()) und würde sonst dauerhaft als "broken image" ausgeliefert.
         if ($disk->exists($cachePath)) {
-            return $disk->path($cachePath);
+            if ($disk->size($cachePath) > 0) {
+                return $disk->path($cachePath);
+            }
+            $disk->delete($cachePath);
         }
 
         // Source file
@@ -54,7 +59,7 @@ class ThumbnailService
         $thumbPath = $disk->path($cachePath);
         $this->createThumbnail($sourcePath, $thumbPath, $width, $height, $fit, $media->mime_type);
 
-        return file_exists($thumbPath) ? $thumbPath : null;
+        return (file_exists($thumbPath) && filesize($thumbPath) > 0) ? $thumbPath : null;
     }
 
     /**
@@ -73,6 +78,26 @@ class ThumbnailService
                 $disk->delete($file);
             }
         }
+    }
+
+    /**
+     * Löscht den kompletten Thumbnail-Cache (alle Größen, alle Medien). Fehlerhafte
+     * oder veraltete Cache-Einträge werden dadurch beim nächsten Aufruf lazy neu erzeugt.
+     *
+     * @return int Anzahl der gelöschten Dateien.
+     */
+    public function clearAllCache(): int
+    {
+        $disk = Storage::disk('public');
+        $count = 0;
+
+        foreach ($disk->directories('thumbs') as $dir) {
+            $count += count($disk->files($dir));
+        }
+
+        $disk->deleteDirectory('thumbs');
+
+        return $count;
     }
 
     private function createThumbnail(string $source, string $dest, int $maxW, int $maxH, string $fit, string $mimeType): void
@@ -155,12 +180,29 @@ class ThumbnailService
             mkdir($dir, 0755, true);
         }
 
-        match ($mimeType) {
-            'image/png' => imagepng($image, $path, 8),
-            'image/gif' => imagegif($image, $path),
-            'image/webp' => function_exists('imagewebp') ? imagewebp($image, $path, 85) : imagejpeg($image, $path, 85),
-            default => imagejpeg($image, $path, 85),
+        // In eine temporäre Datei im selben Verzeichnis schreiben und erst danach atomar
+        // an den Zielpfad verschieben (rename). Ohne das würden zwei parallele Requests für
+        // dasselbe neue Thumbnail (z.B. mehrere UI-Stellen, die gleichzeitig das gerade als
+        // Hauptbild zugeordnete Bild anfragen) sich gegenseitig eine unvollständige Datei
+        // überschreiben — Ursache für dauerhaft "broken" Thumbnails.
+        $tmpPath = $path.'.'.uniqid('tmp', true);
+
+        $success = match ($mimeType) {
+            'image/png' => imagepng($image, $tmpPath, 8),
+            'image/gif' => imagegif($image, $tmpPath),
+            'image/webp' => function_exists('imagewebp') ? imagewebp($image, $tmpPath, 85) : imagejpeg($image, $tmpPath, 85),
+            default => imagejpeg($image, $tmpPath, 85),
         };
+
+        if (!$success || !file_exists($tmpPath) || filesize($tmpPath) === 0) {
+            if (file_exists($tmpPath)) {
+                @unlink($tmpPath);
+            }
+            \Log::error('ThumbnailService: Failed to write thumbnail image', ['path' => $path]);
+            return;
+        }
+
+        rename($tmpPath, $path);
     }
 
     private function preserveTransparency(\GdImage $image, string $mimeType): void
