@@ -142,11 +142,17 @@ if [ -f "$CONFIG_FILE" ]; then
     echo -e "  ${CYAN}${CONFIG_FILE}${NC} ($(date -r "$CONFIG_FILE" '+%d.%m.%Y %H:%M' 2>/dev/null))"
     ask "Diese Konfiguration wiederverwenden statt alles neu einzugeben? [J/n]: "
     read -r REUSE_CONFIG
-    if [[ ! "$REUSE_CONFIG" =~ ^[nN]$ ]]; then
+    # "^[nN]" statt "^[nN]$": erkennt auch ausgeschriebene Antworten wie
+    # "nein"/"no" als Ablehnung, nicht nur den exakten Einzelbuchstaben.
+    if [[ ! "$REUSE_CONFIG" =~ ^[nN] ]]; then
         # shellcheck disable=SC1090
-        source "$CONFIG_FILE"
-        RESUMED_FROM_CONFIG=true
-        info "Konfiguration geladen — Installation wird ohne erneute Abfrage fortgesetzt."
+        if source "$CONFIG_FILE" 2>/dev/null; then
+            RESUMED_FROM_CONFIG=true
+            info "Konfiguration geladen — Installation wird ohne erneute Abfrage fortgesetzt."
+        else
+            warn "Gespeicherte Konfiguration ist beschaedigt (vermutlich ein waehrend des Speicherns abgebrochener Lauf) — wird verworfen, Fragen werden erneut gestellt."
+            rm -f "$CONFIG_FILE"
+        fi
     else
         rm -f "$CONFIG_FILE"
     fi
@@ -367,10 +373,19 @@ umask 077
 } > "$CONFIG_FILE"
 chmod 600 "$CONFIG_FILE"
 umask 022
-info "Konfiguration gespeichert (${CONFIG_FILE}) — bei Abbruch muss nichts erneut eingegeben werden."
+info "Konfiguration gespeichert (${CONFIG_FILE}) — bei Abbruch muss diese Basis-Konfiguration nicht erneut eingegeben werden."
+# Hinweis: einzelne spaetere Abfragen, die vom aktuellen System-Zustand
+# abhaengen (z.B. Datenbank existiert bereits, Apache-Alias existiert
+# bereits), werden davon bewusst nicht abgedeckt und laufen bei jedem
+# (Wieder-)Start live, da sich dieser Zustand zwischen Laeufen aendern kann.
 
 INSTALL_START=$(date +%s)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Muss vor jedem apt-get/add-apt-repository-Aufruf gesetzt sein (auch vor dem
+# PHP-Repository-Preflight unten), sonst koennen debconf-Prompts vereinzelter
+# Pakete den unbeaufsichtigten Lauf zum Haengen bringen.
+export DEBIAN_FRONTEND=noninteractive
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  PHP-REPOSITORY VORBEREITEN (muss vor "System aktualisieren" laufen)
@@ -389,18 +404,23 @@ UBUNTU_CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
 PHP_REPO_OK=false
 
 if grep -rq "packages\.sury\.org" /etc/apt/sources.list.d/ 2>/dev/null; then
-    info "PHP-Repository packages.sury.org bereits konfiguriert."
-    PHP_REPO_OK=true
+    info "PHP-Repository packages.sury.org bereits konfiguriert — pruefe Erreichbarkeit..."
+    apt-get update -qq --allow-releaseinfo-change 2>/tmp/anypim-apt-update.log && PHP_REPO_OK=true
 elif grep -rq "ondrej/php" /etc/apt/sources.list.d/ 2>/dev/null; then
     info "ondrej/php PPA ist bereits eingetragen — pruefe Erreichbarkeit..."
     apt-get update -qq --allow-releaseinfo-change 2>/tmp/anypim-apt-update.log && PHP_REPO_OK=true
 else
     info "Fuege PHP-Repository ondrej/php (PPA) hinzu..."
-    add-apt-repository ppa:ondrej/php -y
-    apt-get update -qq --allow-releaseinfo-change 2>/tmp/anypim-apt-update.log && PHP_REPO_OK=true
+    if add-apt-repository ppa:ondrej/php -y 2>/tmp/anypim-apt-update.log; then
+        apt-get update -qq --allow-releaseinfo-change 2>>/tmp/anypim-apt-update.log && PHP_REPO_OK=true
+    fi
 fi
 
-if [ "$PHP_REPO_OK" = false ]; then
+# Nur bei genau dem Fehler wechseln, den dieser Block beheben soll (fehlendes
+# Release fuer den Codename). Andere Fehler (Netzwerk-Haenger, Lock, volle
+# Platte) sollen NICHT zum unnoetigen Repo-Umbau fuehren, sondern regulaer
+# via set -e abbrechen, sobald Schritt 1 denselben Befehl erneut versucht.
+if [ "$PHP_REPO_OK" = false ] && grep -q "does not have a Release file" /tmp/anypim-apt-update.log 2>/dev/null; then
     cat /tmp/anypim-apt-update.log >&2 2>/dev/null || true
     warn "ondrej/php PPA hat fuer '${UBUNTU_CODENAME}' (noch) kein Release — vermutlich eine sehr neue Ubuntu-Version oder ein Rest aus einem vorherigen fehlgeschlagenen Lauf."
     info "Wechsle auf packages.sury.org/php (von ondrej selbst als kanonisches Repo empfohlen)..."
@@ -430,6 +450,7 @@ if [ "$PHP_REPO_OK" = false ]; then
         error "Weder ondrej/php PPA noch packages.sury.org bieten PHP-Pakete fuer '${UBUNTU_CODENAME}' an. Bitte https://packages.sury.org/php/ manuell pruefen."
     fi
     info "PHP-Repository packages.sury.org/php fuer '${UBUNTU_CODENAME}' eingerichtet."
+    PHP_REPO_OK=true
 fi
 rm -f /tmp/anypim-apt-update.log
 
@@ -438,8 +459,9 @@ rm -f /tmp/anypim-apt-update.log
 # ═════════════════════════════════════════════════════════════════════════════
 step "1/10 — System aktualisieren"
 
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq --allow-releaseinfo-change
+# Kein erneutes apt-get update noetig: der Preflight oben hat den Paket-Cache
+# bereits ueber einen erfolgreichen Aufruf verifiziert/aktualisiert (sonst
+# waere das Script per set -e/error() vorher schon abgebrochen).
 apt-get upgrade -y -qq
 info "System aktualisiert."
 
@@ -529,7 +551,11 @@ if mysql -u root -e "USE \`${DB_NAME}\`" 2>/dev/null; then
             mysql -u root -e "DROP DATABASE \`${DB_NAME}\`;"
             info "Datenbank '${DB_NAME}' geloescht."
             ;;
-        2)
+        2|"")
+            # Leere Eingabe (z.B. kein Terminal bei einem non-interaktiven
+            # Wiederholungslauf) faellt auf die sichere, nicht-destruktive
+            # Option zurueck, statt abzubrechen.
+            [ -z "$DB_CHOICE" ] && warn "Keine Eingabe erhalten — behalte bestehende Datenbank bei (sicherer Default)."
             info "Datenbank wird beibehalten."
             ;;
         *)
@@ -619,7 +645,7 @@ if ! command -v node &> /dev/null || [[ "$(node -v | cut -d. -f1 | tr -d 'v')" -
         warn "NodeSource-Repository steht fuer diese Ubuntu-Version (noch) nicht zur Verfuegung."
         info "Installiere Node.js 22 LTS stattdessen als offizielles Binary von nodejs.org..."
 
-        rm -f /etc/apt/sources.list.d/nodesource.list
+        rm -f /etc/apt/sources.list.d/nodesource.list /etc/apt/sources.list.d/nodesource.sources
 
         case "$(dpkg --print-architecture)" in
             amd64) NODE_ARCH="x64" ;;
@@ -627,9 +653,14 @@ if ! command -v node &> /dev/null || [[ "$(node -v | cut -d. -f1 | tr -d 'v')" -
             *) error "Nicht unterstuetzte Architektur fuer Node.js-Binary-Fallback: $(dpkg --print-architecture)" ;;
         esac
 
-        NODE_VERSION=$(curl -fsSL https://nodejs.org/dist/latest-v22.x/SHASUMS256.txt \
-            | grep -oP "node-v22\.\d+\.\d+(?=-linux-${NODE_ARCH}\.tar\.xz)" | sort -V | tail -1)
-        NODE_VERSION=${NODE_VERSION#node-v}
+        # In eine if-Bedingung eingebettet: schlaegt curl/grep fehl (Netzwerk,
+        # SHASUMS-Format geaendert), wuerde eine blanke Zuweisung sonst per
+        # set -e/pipefail sofort abbrechen, statt die Fehlermeldung unten zu erreichen.
+        NODE_VERSION=""
+        if NODE_VERSION=$(curl -fsSL https://nodejs.org/dist/latest-v22.x/SHASUMS256.txt \
+            | grep -oP "node-v22\.\d+\.\d+(?=-linux-${NODE_ARCH}\.tar\.xz)" | sort -V | tail -1); then
+            NODE_VERSION=${NODE_VERSION#node-v}
+        fi
 
         if [ -z "$NODE_VERSION" ]; then
             error "Node.js-Version konnte nicht von nodejs.org ermittelt werden. Bitte manuell installieren."
