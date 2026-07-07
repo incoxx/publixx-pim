@@ -201,6 +201,33 @@ class ProductMediaController extends Controller
     }
 
     /**
+     * PUT /products/{product}/media/reorder — Reihenfolge der Medien-Zuordnungen persistieren
+     * (Drag&Drop-Sortierung in der Produkt-Galerie). Erwartet die vollständige, neue Reihenfolge
+     * der assignment_ids; sort_order wird aus der Array-Position abgeleitet.
+     */
+    public function reorder(Request $request, Product $product): JsonResponse
+    {
+        $this->authorize('update', $product);
+        $this->assertTabWriteAccess('media');
+
+        $validated = $request->validate([
+            'assignment_ids' => 'required|array|min:1',
+            'assignment_ids.*' => 'string|uuid',
+        ]);
+
+        $assignments = $product->mediaAssignments()
+            ->whereIn('id', $validated['assignment_ids'])
+            ->get()
+            ->keyBy('id');
+
+        foreach (array_values($validated['assignment_ids']) as $sortOrder => $assignmentId) {
+            $assignments->get($assignmentId)?->update(['sort_order' => $sortOrder]);
+        }
+
+        return response()->json(null, 204);
+    }
+
+    /**
      * DELETE /product-media/{id} — remove assignment.
      */
     public function destroy(ProductMediaAssignment $productMedium): JsonResponse

@@ -12,6 +12,7 @@ use App\Http\Traits\ChecksInstanceRestrictions;
 use App\Models\HierarchyNodeMediaAssignment;
 use App\Models\Media;
 use App\Models\MediaAssignmentHistory;
+use App\Models\MediaMotif;
 use App\Models\MediaRevision;
 use App\Models\MediaUsageType;
 use App\Models\Product;
@@ -102,6 +103,45 @@ class MediaController extends Controller
             'ids' => $ids,
             'total' => $ids->count(),
         ]);
+    }
+
+    /**
+     * GET /media/keywords/suggest?q=... — Autocomplete-Vorschläge aus bereits vergebenen
+     * Keywords (Media + MediaMotif), damit beim Pflegen bestehende Schlagworte wiederverwendet
+     * werden statt Duplikate mit Tippfehlern anzulegen. Nach Häufigkeit sortiert.
+     */
+    public function suggestKeywords(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Media::class);
+
+        $search = mb_strtolower(trim((string) $request->query('q', '')));
+        $limit = min(max((int) $request->query('limit', 20), 1), 50);
+
+        $counts = [];
+        foreach ([Media::query(), MediaMotif::query()] as $source) {
+            $source->whereNotNull('keywords')->latest()->limit(5000)
+                ->pluck('keywords')
+                ->each(function ($keywords) use (&$counts) {
+                    foreach ((array) $keywords as $keyword) {
+                        $keyword = trim((string) $keyword);
+                        if ($keyword === '') {
+                            continue;
+                        }
+                        $key = mb_strtolower($keyword);
+                        $counts[$key] ??= ['label' => $keyword, 'count' => 0];
+                        $counts[$key]['count']++;
+                    }
+                });
+        }
+
+        $suggestions = collect($counts)
+            ->when($search !== '', fn ($c) => $c->filter(fn ($entry) => str_contains(mb_strtolower($entry['label']), $search)))
+            ->sortByDesc('count')
+            ->values()
+            ->take($limit)
+            ->pluck('label');
+
+        return response()->json(['data' => $suggestions]);
     }
 
     /**
@@ -270,7 +310,20 @@ class MediaController extends Controller
             }
         }
 
-        $this->applySearch($query, $request, ['file_name', 'title_de', 'title_en']);
+        // Exaktes Tag-Filtering (z.B. ?filter[keywords]=akkubohrer,profi — beliebiges der
+        // angegebenen Keywords muss vorhanden sein), zusätzlich zur Freitextsuche unten.
+        if (! empty($filters['keywords'])) {
+            $keywordList = array_filter(array_map('trim', explode(',', $filters['keywords'])));
+            if (! empty($keywordList)) {
+                $query->where(function ($q) use ($keywordList) {
+                    foreach ($keywordList as $keyword) {
+                        $q->orWhereJsonContains('keywords', $keyword);
+                    }
+                });
+            }
+        }
+
+        $this->applySearch($query, $request, ['file_name', 'title_de', 'title_en', 'keywords']);
 
         // Filter: Medien ohne Datei (file_size = 0 oder NULL) — "Nicht vorhanden"
         if (! empty($filters['is_missing'])) {
@@ -352,6 +405,7 @@ class MediaController extends Controller
                 'description_en' => $request->input('description_en'),
                 'alt_text_de' => $request->input('alt_text_de'),
                 'alt_text_en' => $request->input('alt_text_en'),
+                'keywords' => $request->input('keywords'),
                 'width' => $width,
                 'height' => $height,
                 'asset_folder_id' => $request->input('asset_folder_id'),

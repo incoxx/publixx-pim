@@ -654,6 +654,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('media/import-url', [MediaController::class, 'importFromUrl']);
     Route::post('media/bulk-import-urls', [MediaController::class, 'bulkImportFromUrls']);
     Route::post('media/auto-match', [MediaController::class, 'autoMatch']);
+    Route::get('media/keywords/suggest', [MediaController::class, 'suggestKeywords']);
     Route::apiResource('media', MediaController::class);
     Route::get('media/{medium}/dependencies', [MediaController::class, 'dependencies']);
     Route::get('media/{medium}/usage', [MediaController::class, 'usage']);
@@ -678,6 +679,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('products/{product}/media', [ProductMediaController::class, 'index']);
     Route::post('products/{product}/media', [ProductMediaController::class, 'store']);
     Route::post('products/{product}/media/download-zip', [ProductMediaController::class, 'downloadZip']);
+    Route::put('products/{product}/media/reorder', [ProductMediaController::class, 'reorder']);
     Route::delete('product-media/{product_medium}', [ProductMediaController::class, 'destroy']);
 
     // =====================================================================

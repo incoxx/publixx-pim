@@ -27,6 +27,7 @@ const searchTerm = ref(_route.query.search || '')
 const selectedFolderId = ref(null)
 const includeDescendants = ref(true)
 const usagePurposeFilter = ref('')
+const keywordFilter = ref('')
 const showRenditions = ref(false)
 const detailItem = ref(null)
 const detailOpen = ref(false)
@@ -159,6 +160,7 @@ const filterOptions = computed(() => {
   const filters = {}
   if (selectedFolderId.value) filters.asset_folder_id = selectedFolderId.value
   if (usagePurposeFilter.value) filters.usage_purpose = usagePurposeFilter.value
+  if (keywordFilter.value.trim()) filters.keywords = keywordFilter.value.trim()
   if (missingOnlyFilter.value) filters.is_missing = '1'
   if (Object.keys(filters).length) opts.filters = filters
   if (searchTerm.value) opts.search = searchTerm.value
@@ -556,6 +558,51 @@ function closeDetail() {
 
 const saveError = ref('')
 
+// Schlagworte (Keywords) — Tag-Input mit Autocomplete aus bereits vergebenen Werten
+const keywordInput = ref('')
+const keywordSuggestions = ref([])
+let keywordDebounce = null
+
+function onKeywordInput() {
+  clearTimeout(keywordDebounce)
+  if (!keywordInput.value.trim()) {
+    keywordSuggestions.value = []
+    return
+  }
+  keywordDebounce = setTimeout(searchKeywordSuggestions, 250)
+}
+
+async function searchKeywordSuggestions() {
+  try {
+    const { data } = await mediaApi.suggestKeywords(keywordInput.value)
+    const existing = detailItem.value?.keywords || []
+    keywordSuggestions.value = (data.data || []).filter((k) => !existing.includes(k))
+  } catch {
+    keywordSuggestions.value = []
+  }
+}
+
+function addKeyword(value) {
+  const keyword = (value ?? keywordInput.value).trim()
+  if (!keyword || !detailItem.value) return
+  if (!detailItem.value.keywords) detailItem.value.keywords = []
+  if (!detailItem.value.keywords.includes(keyword)) {
+    detailItem.value.keywords.push(keyword)
+  }
+  keywordInput.value = ''
+  keywordSuggestions.value = []
+}
+
+function removeKeyword(keyword) {
+  if (!detailItem.value?.keywords) return
+  detailItem.value.keywords = detailItem.value.keywords.filter((k) => k !== keyword)
+}
+
+function onKeywordBlur() {
+  // Verzögerung, damit ein @mousedown auf einen Vorschlag vor dem Schließen greift
+  setTimeout(() => { keywordSuggestions.value = [] }, 200)
+}
+
 async function saveDetail() {
   if (!detailItem.value) return
   saveError.value = ''
@@ -566,6 +613,7 @@ async function saveDetail() {
       description_de: detailItem.value.description_de,
       description_en: detailItem.value.description_en,
       alt_text_de: detailItem.value.alt_text_de,
+      keywords: detailItem.value.keywords || [],
       usage_purpose: detailItem.value.usage_purpose,
       asset_folder_id: detailItem.value.asset_folder_id,
       media_type: detailItem.value.media_type,
@@ -833,6 +881,11 @@ onUnmounted(() => {
   document.removeEventListener('click', handleDocClick, true)
 })
 watch(usagePurposeFilter, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
+let keywordFilterDebounce = null
+watch(keywordFilter, () => {
+  clearTimeout(keywordFilterDebounce)
+  keywordFilterDebounce = setTimeout(() => { clearSelection(); currentPage.value = 1; fetchMedia() }, 300)
+})
 watch(missingOnlyFilter, (val) => { clearSelection(); currentPage.value = 1; fetchMedia(); bulkDeleteForce.value = val })
 watch(selectedFolderId, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
 watch(includeDescendants, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
@@ -957,6 +1010,16 @@ onMounted(() => {
               v-model="searchTerm"
               class="pim-input text-xs pim-input-icon w-36 sm:w-48"
               placeholder="Suchen…"
+            />
+          </div>
+
+          <!-- Keyword filter -->
+          <div class="relative">
+            <input
+              v-model="keywordFilter"
+              class="pim-input text-xs w-32 sm:w-40"
+              placeholder="Schlagwort…"
+              title="Nach Schlagwort filtern (exakt, mehrere kommagetrennt)"
             />
           </div>
 
@@ -1459,6 +1522,46 @@ onMounted(() => {
           <div>
             <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Alt-Text</label>
             <input v-model="detailItem.alt_text_de" class="pim-input text-xs w-full" />
+          </div>
+          <div>
+            <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Schlagworte</label>
+            <div v-if="(detailItem.keywords || []).length" class="flex flex-wrap gap-1 mb-1.5">
+              <span
+                v-for="kw in detailItem.keywords"
+                :key="kw"
+                class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-[var(--color-accent)]/10 text-[var(--color-accent)] text-[10px]"
+              >
+                {{ kw }}
+                <button type="button" class="hover:opacity-70" @click="removeKeyword(kw)">
+                  <X class="w-2.5 h-2.5" />
+                </button>
+              </span>
+            </div>
+            <div class="relative">
+              <input
+                v-model="keywordInput"
+                class="pim-input text-xs w-full"
+                placeholder="Schlagwort hinzufügen…"
+                @input="onKeywordInput"
+                @focus="onKeywordInput"
+                @keydown.enter.prevent="addKeyword()"
+                @blur="onKeywordBlur"
+              />
+              <div
+                v-if="keywordSuggestions.length"
+                class="absolute z-10 mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg max-h-40 overflow-y-auto"
+              >
+                <button
+                  v-for="s in keywordSuggestions"
+                  :key="s"
+                  type="button"
+                  class="block w-full text-left px-2 py-1.5 text-xs hover:bg-[var(--color-bg)]"
+                  @mousedown.prevent="addKeyword(s)"
+                >
+                  {{ s }}
+                </button>
+              </div>
+            </div>
           </div>
           <div>
             <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Verwendungszweck</label>

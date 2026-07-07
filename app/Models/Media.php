@@ -33,6 +33,7 @@ class Media extends Model
         'description_en',
         'alt_text_de',
         'alt_text_en',
+        'keywords',
         'width',
         'height',
         'asset_folder_id',
@@ -54,6 +55,7 @@ class Media extends Model
     {
         return [
             'file_size' => 'integer',
+            'keywords' => 'array',
             'width' => 'integer',
             'height' => 'integer',
             'last_uploaded_at' => 'datetime',

@@ -91,6 +91,10 @@ export default {
     return client.post(`/products/${id}/media/download-zip`, { assignment_ids: assignmentIds }, { responseType: 'blob' })
   },
 
+  reorderMedia(id, assignmentIds) {
+    return client.put(`/products/${id}/media/reorder`, { assignment_ids: assignmentIds })
+  },
+
   // Prices
   getPrices(id) {
     return client.get(`/products/${id}/prices`)

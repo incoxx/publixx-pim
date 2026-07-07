@@ -55,6 +55,7 @@ import ProductScheduledActionsTab from '@/components/products/ProductScheduledAc
 import MediaPickerDialog from '@/components/shared/MediaPickerDialog.vue'
 import MotifPickerDialog from '@/components/shared/MotifPickerDialog.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
+import { useDragDrop } from '@/composables/useDragDrop'
 import MediaUploadQueue from '@/components/media/MediaUploadQueue.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
 import { formatCompositeSummary } from '@/utils/formatting'
@@ -1431,6 +1432,44 @@ const displayMediaItems = computed(() => {
     })
   })
 })
+
+// Drag&Drop-Sortierung der Bildergalerie (Grid-Ansicht) — nur aktiv ohne Filter/Quick-Lookup,
+// da displayMediaItems dann exakt mediaItems.value entspricht und Indizes übereinstimmen.
+const canReorderMedia = computed(() => !mediaFilter.value.trim() && !showMediaQuickLookup.value)
+const mediaReordering = ref(false)
+
+async function persistMediaOrder(newItems) {
+  const previous = mediaItems.value
+  mediaItems.value = newItems
+  mediaReordering.value = true
+  try {
+    await productsApi.reorderMedia(product.value.id, newItems.map(m => m.id))
+  } catch (e) {
+    mediaItems.value = previous
+    toastStore.showToast('Reihenfolge konnte nicht gespeichert werden: ' + (e.response?.data?.message || e.message), 'error')
+  } finally {
+    mediaReordering.value = false
+  }
+}
+
+const {
+  dragging: mediaDragging,
+  dragIndex: mediaDragIndex,
+  onDragStart: onMediaDragStart,
+  onDragEnd: onMediaDragEnd,
+  onDrop: onMediaDrop,
+} = useDragDrop(persistMediaOrder)
+
+function handleMediaDrop(targetIndex) {
+  if (!canReorderMedia.value || mediaDragIndex.value === null || mediaDragIndex.value === targetIndex) {
+    onMediaDragEnd()
+    return
+  }
+  const arr = [...mediaItems.value]
+  const [moved] = arr.splice(mediaDragIndex.value, 1)
+  arr.splice(targetIndex, 0, moved)
+  onMediaDrop(arr)
+}
 
 function formatFileSize(bytes) {
   if (!bytes) return '—'
@@ -4367,7 +4406,18 @@ onUnmounted(() => {
 
       <!-- Grid view -->
       <div v-else-if="displayMediaItems.length > 0 && mediaViewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        <div v-for="m in displayMediaItems" :key="m.id" class="pim-card overflow-hidden group relative">
+        <div
+          v-for="(m, mIdx) in displayMediaItems"
+          :key="m.id"
+          class="pim-card overflow-hidden group relative"
+          :class="{ 'cursor-move': canReorderMedia, 'opacity-40': mediaDragging && mediaDragIndex === mIdx }"
+          :draggable="canReorderMedia"
+          :title="canReorderMedia ? 'Ziehen zum Sortieren' : ''"
+          @dragstart="onMediaDragStart(mIdx)"
+          @dragend="onMediaDragEnd"
+          @dragover.prevent
+          @drop.prevent="handleMediaDrop(mIdx)"
+        >
           <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden p-2 relative">
             <span v-if="m.motif_id" class="pim-badge absolute top-1 left-1 z-10 bg-[var(--color-accent)] text-white text-[9px]">Motiv</span>
             <input

@@ -115,6 +115,10 @@ export default {
     return client.get('/media/processing-status')
   },
 
+  suggestKeywords(query, limit = 20) {
+    return client.get('/media/keywords/suggest', { params: { q: query, limit } })
+  },
+
   fileUrl(filename) {
     return `${base}/media/file/${encodeURIComponent(filename)}`
   },
