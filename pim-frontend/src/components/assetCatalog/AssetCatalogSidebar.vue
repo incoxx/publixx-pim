@@ -1,19 +1,32 @@
 <script setup>
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
-import { FolderOpen, Folder, ChevronRight, ChevronDown } from 'lucide-vue-next'
-import { ref } from 'vue'
+import { FolderOpen } from 'lucide-vue-next'
+import PimTree from '@/components/shared/PimTree.vue'
 
 const { t } = useI18n()
 const store = useAssetCatalogStore()
-const expanded = ref(new Set())
+const expandedIds = ref(new Set())
+
+// PimTree erwartet ein "product_count"-Badge-Feld — der Asset-Katalog liefert
+// stattdessen asset_count. Rekursiv mappen, ohne die geteilte Baum-Komponente
+// mit einem asset-katalog-spezifischen Feldnamen zu belasten.
+function mapNodes(nodes) {
+  return nodes.map(node => ({
+    ...node,
+    product_count: node.asset_count,
+    children: node.children?.length ? mapNodes(node.children) : [],
+  }))
+}
+
+const treeNodes = computed(() => mapNodes(store.folders))
 
 function toggleExpand(nodeId) {
-  if (expanded.value.has(nodeId)) {
-    expanded.value.delete(nodeId)
-  } else {
-    expanded.value.add(nodeId)
-  }
+  const s = new Set(expandedIds.value)
+  if (s.has(nodeId)) s.delete(nodeId)
+  else s.add(nodeId)
+  expandedIds.value = s
 }
 
 function selectFolder(node) {
@@ -21,8 +34,7 @@ function selectFolder(node) {
     store.clearFolder()
   } else {
     store.setFolder(node.id, node.name)
-    // Auto-expand
-    expanded.value.add(node.id)
+    expandedIds.value = new Set(expandedIds.value).add(node.id)
   }
   store.fetchAssets()
 }
@@ -52,18 +64,16 @@ function selectAll() {
       </button>
 
       <!-- Folder tree -->
-      <template v-if="store.folders.length > 0">
-        <div v-for="node in store.folders" :key="node.id">
-          <FolderNode
-            :node="node"
-            :depth="0"
-            :expanded="expanded"
-            :selected-id="store.selectedFolderId"
-            @toggle-expand="toggleExpand"
-            @select="selectFolder"
-          />
-        </div>
-      </template>
+      <PimTree
+        v-if="treeNodes.length > 0"
+        :nodes="treeNodes"
+        :selectedId="store.selectedFolderId"
+        :expandedIds="expandedIds"
+        :draggable="false"
+        :showActions="false"
+        @select="selectFolder"
+        @toggle="toggleExpand"
+      />
 
       <div v-else-if="!store.foldersLoading" class="px-3 py-4 text-xs text-base-content/30 text-center">
         {{ t('assetCatalog.noFolders') }}
@@ -71,63 +81,3 @@ function selectAll() {
     </div>
   </div>
 </template>
-
-<script>
-// Recursive folder node component
-const FolderNode = {
-  name: 'FolderNode',
-  props: {
-    node: Object,
-    depth: Number,
-    expanded: Object,
-    selectedId: String,
-  },
-  emits: ['toggle-expand', 'select'],
-  setup(props, { emit }) {
-    const hasChildren = props.node.children && props.node.children.length > 0
-    const isExpanded = () => props.expanded.has(props.node.id)
-    const isSelected = () => props.selectedId === props.node.id
-
-    return { hasChildren, isExpanded, isSelected, emit }
-  },
-  template: `
-    <div>
-      <button
-        class="w-full flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors"
-        :class="isSelected() ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-base-200'"
-        :style="{ paddingLeft: (depth * 16 + 12) + 'px' }"
-        @click="emit('select', node)"
-      >
-        <button
-          v-if="hasChildren"
-          class="flex-none w-4 h-4 flex items-center justify-center"
-          @click.stop="emit('toggle-expand', node.id)"
-        >
-          <component :is="isExpanded() ? 'ChevronDown' : 'ChevronRight'" class="w-3 h-3" />
-        </button>
-        <span v-else class="w-4"></span>
-        <component :is="isExpanded() ? 'FolderOpen' : 'Folder'" class="w-4 h-4 flex-none text-base-content/50" />
-        <span class="truncate">{{ node.name }}</span>
-        <span v-if="node.asset_count" class="ml-auto text-xs text-base-content/40 flex-none">{{ node.asset_count }}</span>
-      </button>
-      <div v-if="hasChildren && isExpanded()">
-        <FolderNode
-          v-for="child in node.children"
-          :key="child.id"
-          :node="child"
-          :depth="depth + 1"
-          :expanded="expanded"
-          :selected-id="selectedId"
-          @toggle-expand="(id) => emit('toggle-expand', id)"
-          @select="(n) => emit('select', n)"
-        />
-      </div>
-    </div>
-  `,
-  components: { FolderOpen, Folder, ChevronRight, ChevronDown },
-}
-
-export default {
-  components: { FolderNode },
-}
-</script>

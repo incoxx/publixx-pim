@@ -9,6 +9,9 @@ const props = defineProps({
   highlightedIds: { type: Set, default: () => new Set() },
   level: { type: Number, default: 0 },
   draggable: { type: Boolean, default: true },
+  // Blendet die Kontextmenü-Aktion ("...") aus — z.B. im öffentlichen Asset-Katalog,
+  // wo es keine Bearbeitungsrechte gibt.
+  showActions: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['select', 'toggle', 'create', 'delete', 'move', 'context-menu'])
@@ -139,6 +142,7 @@ function handleDrop(e, targetNode) {
 
         <!-- Context actions -->
         <button
+          v-if="showActions"
           class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-border)] transition-opacity shrink-0"
           @click.stop="$emit('context-menu', $event, node)"
         >
@@ -160,6 +164,7 @@ function handleDrop(e, targetNode) {
           :highlightedIds="highlightedIds"
           :level="level + 1"
           :draggable="draggable"
+          :showActions="showActions"
           @select="$emit('select', $event)"
           @toggle="$emit('toggle', $event)"
           @create="$emit('create', $event)"

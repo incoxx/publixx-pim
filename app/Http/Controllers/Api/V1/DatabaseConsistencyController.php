@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Models\Media;
+use App\Services\MimeTypeDetector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -55,6 +56,7 @@ class DatabaseConsistencyController extends Controller
             'orphaned_cart_items' => $this->fixOrphanedCartItems(),
             'orphaned_conformance_results' => $this->fixOrphanedConformanceResults(),
             'missing_media_files' => $this->fixMissingMediaFiles(),
+            'broken_media_images' => $this->fixBrokenMediaImages(),
             'stale_translatable_null_values' => $this->fixStaleTranslatableNull('product_attribute_values', ['product_id', 'output_hierarchy_id']),
             'stale_translatable_null_media_values' => $this->fixStaleTranslatableNull('media_attribute_values', ['media_id']),
             'stale_translatable_null_hierarchy_node_values' => $this->fixStaleTranslatableNull('hierarchy_node_attribute_values', ['hierarchy_node_id']),
@@ -187,6 +189,7 @@ class DatabaseConsistencyController extends Controller
         }
 
         $checks[] = $this->checkMissingMediaFiles();
+        $checks[] = $this->checkBrokenMediaImages();
 
         $checks[] = $this->checkOrphanedRelations();
 
@@ -366,13 +369,64 @@ class DatabaseConsistencyController extends Controller
 
     private function mediaFileExists($disk, Media $media): bool
     {
+        return $this->resolveMediaFilePath($disk, $media) !== null;
+    }
+
+    /**
+     * Absoluter Pfad, an dem die Datei eines Mediums tatsächlich liegt (gespeicherter file_path
+     * oder Standard-Importpfad media/{file_name}), oder null wenn keiner der beiden existiert.
+     */
+    private function resolveMediaFilePath($disk, Media $media): ?string
+    {
         if ($disk->exists($media->file_path)) {
-            return true;
+            return $disk->path($media->file_path);
         }
 
         $correctedPath = 'media/'.$media->file_name;
+        if ($media->file_path !== $correctedPath && $disk->exists($correctedPath)) {
+            return $disk->path($correctedPath);
+        }
 
-        return $media->file_path !== $correctedPath && $disk->exists($correctedPath);
+        return null;
+    }
+
+    /**
+     * Prüft live per echter Dateiinhalts-Erkennung (nicht anhand des ggf. fehlerhaften
+     * mime_type-Feldes), ob als Bild markierte Medien tatsächlich ein lesbares Bildformat sind.
+     * Anders als checkMissingMediaFiles(): die Datei EXISTIERT hier, ihr Inhalt ist aber kein
+     * dekodierbares Bild (z.B. eine per fehlerhaftem Import gespeicherte Fehlerseite/HTML statt
+     * des eigentlichen Bildes, oder eine beschädigte/leere Datei). Ursache für "Thumbnail nicht
+     * verfügbar (kein Bild)", obwohl die Datei auf dem Server vorhanden ist.
+     */
+    private function checkBrokenMediaImages(): array
+    {
+        $disk = Storage::disk('public');
+        $broken = 0;
+
+        Media::where(function ($q) {
+            $q->where('media_type', 'image')->orWhere('mime_type', 'like', 'image/%');
+        })
+            ->select('id', 'file_name', 'file_path', 'mime_type', 'media_type')
+            ->chunkById(500, function ($records) use ($disk, &$broken) {
+                foreach ($records as $media) {
+                    $path = $this->resolveMediaFilePath($disk, $media);
+                    if ($path === null) {
+                        continue; // fehlende Datei wird bereits von checkMissingMediaFiles() erfasst
+                    }
+                    $detected = MimeTypeDetector::detectFromFile($path);
+                    if (!$detected || !str_starts_with($detected, 'image/')) {
+                        $broken++;
+                    }
+                }
+            });
+
+        return [
+            'key' => 'broken_media_images',
+            'label' => 'Medien mit ungültiger Bilddatei',
+            'description' => 'Als Bild markierte Medien, deren Datei zwar vorhanden, aber inhaltlich kein lesbares Bildformat ist (z.B. beschädigter oder fehlerhafter Import). Führt zu "Thumbnail nicht verfügbar (kein Bild)" trotz vorhandener Datei.',
+            'count' => $broken,
+            'status' => $broken > 0 ? 'issue' : 'ok',
+        ];
     }
 
     private function checkOrphanedRelations(): array
@@ -534,6 +588,41 @@ class DatabaseConsistencyController extends Controller
                     ->pluck('id');
 
                 if ($ids->isNotEmpty()) {
+                    $deleted += Media::whereIn('id', $ids)->delete();
+                }
+            });
+
+        return $deleted;
+    }
+
+    /**
+     * Löscht Medien-Datensätze, deren Datei zwar vorhanden, aber inhaltlich kein gültiges
+     * Bildformat ist (live per echter Dateiinhalts-Erkennung geprüft, siehe
+     * checkBrokenMediaImages()). Zugeordnete Produkt-/Hierarchie-Zuweisungen und Attributwerte
+     * werden per FK-Cascade automatisch mitentfernt.
+     */
+    private function fixBrokenMediaImages(): int
+    {
+        $disk = Storage::disk('public');
+        $deleted = 0;
+
+        Media::where(function ($q) {
+            $q->where('media_type', 'image')->orWhere('mime_type', 'like', 'image/%');
+        })
+            ->select('id', 'file_name', 'file_path', 'mime_type', 'media_type')
+            ->chunkById(500, function ($records) use ($disk, &$deleted) {
+                $ids = [];
+                foreach ($records as $media) {
+                    $path = $this->resolveMediaFilePath($disk, $media);
+                    if ($path === null) {
+                        continue;
+                    }
+                    $detected = MimeTypeDetector::detectFromFile($path);
+                    if (!$detected || !str_starts_with($detected, 'image/')) {
+                        $ids[] = $media->id;
+                    }
+                }
+                if (!empty($ids)) {
                     $deleted += Media::whereIn('id', $ids)->delete();
                 }
             });
