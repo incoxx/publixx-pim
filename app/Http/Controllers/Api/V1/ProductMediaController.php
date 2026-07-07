@@ -9,6 +9,7 @@ use App\Http\Resources\Api\V1\ProductMediaResource;
 use App\Http\Traits\AuditsChanges;
 use App\Http\Traits\ChecksInstanceRestrictions;
 use App\Http\Traits\ChecksTabPermissions;
+use App\Jobs\UpdateSearchIndex;
 use App\Models\MediaUsageType;
 use App\Models\Product;
 use App\Models\ProductMediaAssignment;
@@ -16,6 +17,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use ZipArchive;
@@ -195,6 +197,8 @@ class ProductMediaController extends Controller
             'usage_type_id' => $assignment->usage_type_id,
         ]);
 
+        $this->dispatchSearchIndexUpdate($product->id);
+
         return (new ProductMediaResource($assignment->load(['media', 'motif.masterRendition', 'usageType'])))
             ->response()
             ->setStatusCode(201);
@@ -235,6 +239,8 @@ class ProductMediaController extends Controller
             $assignments->get($assignmentId)?->update(['sort_order' => $sortOrder]);
         }
 
+        $this->dispatchSearchIndexUpdate($product->id);
+
         return response()->json(null, 204);
     }
 
@@ -258,6 +264,25 @@ class ProductMediaController extends Controller
 
         $this->audit('media_removed', 'Product', $productId, $snapshot);
 
+        $this->dispatchSearchIndexUpdate($productId);
+
         return response()->json(null, 204);
+    }
+
+    /**
+     * Search-Index (products_search_index.primary_image) nach Medien-Änderungen
+     * neu aufbauen. Ohne dies bleibt das auf /Produkte (Bild-Spalte) und /Preview
+     * angezeigte Titelbild veraltet, bis das Produkt selbst gespeichert wird.
+     */
+    private function dispatchSearchIndexUpdate(string $productId): void
+    {
+        try {
+            dispatch(new UpdateSearchIndex($productId))->afterCommit();
+        } catch (\Throwable $e) {
+            Log::warning('ProductMediaController: Failed to dispatch UpdateSearchIndex', [
+                'product_id' => $productId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

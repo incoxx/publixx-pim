@@ -7,6 +7,7 @@ namespace App\Http\Resources\Api\V1;
 use App\Models\Attribute;
 use App\Models\ProductAttributeValue;
 use App\Services\CompositeFormatResolver;
+use App\Services\Media\PrimaryImageResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -21,17 +22,24 @@ class CatalogProductDetailResource extends JsonResource
         $name = $this->resource->name;
         $description = $this->resource->searchIndex?->description_de;
 
-        $media = $this->resource->media->map(function ($m) use ($lang) {
-            return [
-                'url' => url('api/v1/catalog/media/' . rawurlencode($m->file_name)),
-                'alt' => $lang === 'en' && $m->alt_text_en ? $m->alt_text_en : $m->alt_text_de,
-                'is_primary' => (bool) $m->pivot->is_primary,
-                'media_type' => $m->media_type,
-                'mime_type' => $m->mime_type,
-                'file_name' => $m->file_name,
-                'description' => $lang === 'en' && $m->description_en ? $m->description_en : ($m->description_de ?? ''),
-            ];
-        })->values();
+        // Titelbild (gleiche Fallback-Kette wie /Produkte und /Medien) an erste Stelle
+        // der Galerie sortieren, damit die "Hauptansicht" überall dasselbe Bild zeigt.
+        $primaryMedia = PrimaryImageResolver::resolveFromCollection($this->resource->media);
+
+        $media = $this->resource->media
+            ->sortBy(fn ($m) => $primaryMedia && $m->id === $primaryMedia->id ? 0 : 1)
+            ->values()
+            ->map(function ($m) use ($lang) {
+                return [
+                    'url' => url('api/v1/catalog/media/' . rawurlencode($m->file_name)),
+                    'alt' => $lang === 'en' && $m->alt_text_en ? $m->alt_text_en : $m->alt_text_de,
+                    'is_primary' => (bool) $m->pivot->is_primary,
+                    'media_type' => $m->media_type,
+                    'mime_type' => $m->mime_type,
+                    'file_name' => $m->file_name,
+                    'description' => $lang === 'en' && $m->description_en ? $m->description_en : ($m->description_de ?? ''),
+                ];
+            })->values();
 
         $prices = $this->resource->prices->map(function ($p) use ($lang) {
             $typeName = null;
@@ -248,10 +256,7 @@ class CatalogProductDetailResource extends JsonResource
                     ->get();
 
                 foreach ($productsWithMedia as $p) {
-                    $primary = $p->media->first(fn ($m) => ($m->pivot->is_primary ?? false) && $m->media_type === 'image');
-                    if (!$primary) {
-                        $primary = $p->media->first(fn ($m) => $m->media_type === 'image');
-                    }
+                    $primary = PrimaryImageResolver::resolveFromCollection($p->media);
                     if ($primary) {
                         $mediaMap[$p->id] = url('api/v1/catalog/media/' . rawurlencode($primary->file_name));
                     }

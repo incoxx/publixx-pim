@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductMediaAssignment;
 use App\Models\ProductPrice;
+use App\Services\Media\PrimaryImageResolver;
 use App\Support\KoelnerPhonetik;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -17,7 +18,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use App\Models\Setting;
-use App\Models\WebsiteProfile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -224,44 +224,12 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
     /**
      * Primäres Bild des Produkts ermitteln.
      *
-     * Bevorzugt Bilder mit dem konfigurierten Thumbnail-Bildtyp (usage_type_id),
-     * dann is_primary=true, dann das erste zugeordnete Bild nach sort_order.
+     * Delegiert an PrimaryImageResolver, damit /Produkte, /Medien und /Preview
+     * dieselbe Fallback-Kette (Thumbnail-UsageType → is_primary → sort_order) nutzen.
      */
     private function getPrimaryImage(string $productId): ?string
     {
-        // Check for configured thumbnail usage type
-        $themePayload = WebsiteProfile::getActivePayload();
-        $thumbnailUsageTypeId = $themePayload['thumbnail_usage_type_id'] ?? null;
-
-        if ($thumbnailUsageTypeId) {
-            $image = ProductMediaAssignment::query()
-                ->join('media', 'media.id', '=', 'product_media_assignments.media_id')
-                ->where('product_media_assignments.product_id', $productId)
-                ->where('product_media_assignments.usage_type_id', $thumbnailUsageTypeId)
-                ->orderBy('product_media_assignments.sort_order')
-                ->value('media.file_name');
-            if ($image) {
-                return $image;
-            }
-        }
-
-        // Fallback: is_primary flag
-        $image = ProductMediaAssignment::query()
-            ->join('media', 'media.id', '=', 'product_media_assignments.media_id')
-            ->where('product_media_assignments.product_id', $productId)
-            ->where('product_media_assignments.is_primary', true)
-            ->value('media.file_name');
-        if ($image) {
-            return $image;
-        }
-
-        // Fallback: first image by sort_order
-        return ProductMediaAssignment::query()
-            ->join('media', 'media.id', '=', 'product_media_assignments.media_id')
-            ->where('product_media_assignments.product_id', $productId)
-            ->where('media.media_type', 'image')
-            ->orderBy('product_media_assignments.sort_order')
-            ->value('media.file_name');
+        return PrimaryImageResolver::resolveFileName($productId);
     }
 
     /**
