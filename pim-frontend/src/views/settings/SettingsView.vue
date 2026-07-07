@@ -1521,7 +1521,7 @@ async function triggerPdfBatchProcess() {
 
 // ── Combined: PDF Thumbnails + Search Reindex ──
 const combinedProcessing = ref(false)
-const combinedStep = ref('')  // 'pdf' | 'reindex' | ''
+const combinedStep = ref('')  // 'images' | 'pdf' | 'reindex' | ''
 const combinedResult = ref(null)
 const combinedError = ref(null)
 
@@ -1531,11 +1531,16 @@ async function triggerCombinedProcess() {
   combinedError.value = null
 
   try {
-    // Step 1: PDF thumbnails
+    // Step 1: Bild-Thumbnail-Cache leeren (behebt "broken" Thumbnails — Neuerzeugung
+    // erfolgt danach lazy beim nächsten Aufruf einzelner Bilder)
+    combinedStep.value = 'images'
+    await adminApi.clearThumbnailCache()
+
+    // Step 2: PDF thumbnails
     combinedStep.value = 'pdf'
     await adminApi.batchProcessPdfs('missing')
 
-    // Step 2: Reindex (now async with polling)
+    // Step 3: Reindex (now async with polling)
     combinedStep.value = 'reindex'
     await adminApi.reindexSearch()
 
@@ -1559,9 +1564,10 @@ async function triggerCombinedProcess() {
       }, 2000)
     })
 
-    combinedResult.value = { message: 'PDF-Vorschaubilder erzeugt und Suchindex aktualisiert.' }
+    combinedResult.value = { message: 'Thumbnail-Cache geleert, PDF-Vorschaubilder erzeugt und Suchindex aktualisiert.' }
   } catch (e) {
-    combinedError.value = `Fehler bei ${combinedStep.value === 'pdf' ? 'PDF-Verarbeitung' : 'Suchindex'}: ${e.response?.data?.message || e.message}`
+    const stepLabel = { images: 'Thumbnail-Cache', pdf: 'PDF-Verarbeitung', reindex: 'Suchindex' }[combinedStep.value] || combinedStep.value
+    combinedError.value = `Fehler bei ${stepLabel}: ${e.response?.data?.message || e.message}`
   } finally {
     combinedProcessing.value = false
     combinedStep.value = ''
@@ -3616,16 +3622,18 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Admin: PDF Processing & Search Reindex (combined) -->
+    <!-- Admin: Thumbnails & Search Reindex (combined) -->
     <div v-if="isAdmin" class="pim-card p-4 sm:p-6 space-y-4">
       <div class="flex items-center gap-3 mb-2">
         <RefreshCw class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
-        <h3 class="text-sm font-semibold">PDF-Verarbeitung & Suchindex</h3>
+        <h3 class="text-sm font-semibold">Thumbnails & Suchindex</h3>
       </div>
 
       <p class="text-xs text-[var(--color-text-secondary)]">
-        Erzeugt fehlende PDF-Vorschaubilder (WebP) und aktualisiert den Suchindex für den Vorschaukatalog.
-        Empfohlen nach Massenänderungen, dem initialen Setup oder wenn PDF-Thumbnails fehlen.
+        Leert den Bild-Thumbnail-Cache (behebt "broken" Vorschaubilder — Neuerzeugung erfolgt danach
+        automatisch beim nächsten Aufruf), erzeugt fehlende PDF-Vorschaubilder (WebP) und aktualisiert
+        den Suchindex für den Vorschaukatalog. Empfohlen nach Massenänderungen, dem initialen Setup
+        oder wenn Thumbnails fehlerhaft angezeigt werden.
       </p>
 
       <!-- Combined button -->
@@ -3646,9 +3654,10 @@ onUnmounted(() => {
         <div class="flex items-center gap-3 text-xs text-[var(--color-text-secondary)]">
           <Loader2 v-if="!reindexCancelling" class="w-3.5 h-3.5 animate-spin" />
           <span v-if="reindexCancelling">Abbruch angefordert, wird beim nächsten Chunk gestoppt…</span>
-          <span v-else-if="combinedStep === 'pdf'">Schritt 1/2 — PDF-Vorschaubilder werden erzeugt…</span>
+          <span v-else-if="combinedStep === 'images'">Schritt 1/3 — Bild-Thumbnail-Cache wird geleert…</span>
+          <span v-else-if="combinedStep === 'pdf'">Schritt 2/3 — PDF-Vorschaubilder werden erzeugt…</span>
           <span v-else-if="reindexProgress && reindexProgress.status === 'running'">
-            {{ combinedStep === 'reindex' ? 'Schritt 2/2 — ' : '' }}Suchindex: {{ reindexProgress.processed?.toLocaleString('de-DE') }} / {{ reindexProgress.total?.toLocaleString('de-DE') }} Produkte ({{ reindexProgress.percent }}%)
+            {{ combinedStep === 'reindex' ? 'Schritt 3/3 — ' : '' }}Suchindex: {{ reindexProgress.processed?.toLocaleString('de-DE') }} / {{ reindexProgress.total?.toLocaleString('de-DE') }} Produkte ({{ reindexProgress.percent }}%)
             <template v-if="reindexProgress.estimated_seconds > 0">
               — ca. {{ reindexProgress.estimated_seconds >= 60 ? Math.ceil(reindexProgress.estimated_seconds / 60) + ' Min.' : reindexProgress.estimated_seconds + ' Sek.' }} verbleibend
             </template>

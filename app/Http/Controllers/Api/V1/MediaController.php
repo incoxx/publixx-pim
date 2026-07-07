@@ -955,6 +955,25 @@ class MediaController extends Controller
     }
 
     /**
+     * POST /admin/media/clear-thumbnail-cache — löscht den kompletten Bild-Thumbnail-Cache.
+     * Behebt "broken" Thumbnails durch fehlerhafte/veraltete Cache-Dateien; die
+     * Neuerzeugung passiert danach lazy beim nächsten Aufruf von thumb().
+     */
+    public function clearThumbnailCache(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $count = app(ThumbnailService::class)->clearAllCache();
+
+        return response()->json([
+            'message' => "{$count} zwischengespeicherte Thumbnails gelöscht. Sie werden beim nächsten Aufruf neu erzeugt.",
+            'cleared' => $count,
+        ]);
+    }
+
+    /**
      * POST /media/bulk-move — move multiple media items to a folder.
      */
     public function bulkMove(Request $request): JsonResponse

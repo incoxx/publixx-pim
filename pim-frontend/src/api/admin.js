@@ -96,6 +96,10 @@ export default {
     return client.post('/admin/pdf/batch-process', { mode }, { timeout: 300000 })
   },
 
+  clearThumbnailCache() {
+    return client.post('/admin/media/clear-thumbnail-cache', {}, { timeout: 60000 })
+  },
+
   // ── Process / Queue Management ──
   getQueueJobs() {
     return client.get('/admin/queue-jobs')
