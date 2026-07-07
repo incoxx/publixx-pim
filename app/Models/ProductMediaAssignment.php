@@ -20,6 +20,7 @@ class ProductMediaAssignment extends Model
         'usage_type_id',
         'sort_order',
         'is_primary',
+        'inherited_from_virtual_product_id',
     ];
 
     protected function casts(): array

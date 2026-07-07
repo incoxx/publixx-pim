@@ -203,6 +203,14 @@ class Product extends Model
     }
 
     /**
+     * Medien-Vererbungsregeln, wenn dieses Produkt virtuell ist (die "Klammer").
+     */
+    public function mediaInheritanceRules(): HasMany
+    {
+        return $this->hasMany(VirtualProductMediaInheritanceRule::class, 'virtual_product_id');
+    }
+
+    /**
      * Virtuelles Produkt ("Klammer"): Mitglieder werden dynamisch aus
      * einem Suchprofil, einer PQL-Abfrage oder einer Merkliste aufgelöst.
      */
