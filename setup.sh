@@ -2,12 +2,13 @@
 #
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║              anyPIM — Setup & Installer                       ║
-# ║              Ubuntu 24.04 LTS · Apache · PHP 8.4 · MySQL 8        ║
+# ║              Ubuntu 24.04 LTS · Apache · PHP 8.4+ · MySQL 8       ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 #
 # Dieses Script richtet eine vollstaendige anyPIM Instanz ein:
 #   - Apache2 mit VirtualHost
-#   - PHP 8.4 + alle benoetigten Extensions
+#   - PHP 8.4 (oder die von Ubuntu nativ mitgelieferte neuere Version,
+#     z.B. PHP 8.5 auf Ubuntu 26.04) + alle benoetigten Extensions
 #   - MySQL 8.0 mit Datenbank und Benutzer
 #   - Redis (Cache, Queue, Session)
 #   - Node.js 20 LTS + Frontend-Build (Vue 3 / Vite)
@@ -388,69 +389,84 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export DEBIAN_FRONTEND=noninteractive
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  PHP-REPOSITORY VORBEREITEN (muss vor "System aktualisieren" laufen)
+#  PHP-VERSION ERMITTELN & REPOSITORY VORBEREITEN (muss vor "System
+#  aktualisieren" laufen)
 # ═════════════════════════════════════════════════════════════════════════════
-# Die ondrej/php-PPA auf Launchpad baut Pakete nicht immer sofort fuer
-# brandneue Ubuntu-Versionen (z.B. Ubuntu 26.04 "Resolute"): apt meldet dann
-# "does not have a Release file". Das wuerde JEDEN apt-get update Aufruf
-# blockieren — auch den generischen System-Update in Schritt 1, und auch
-# einen Rest aus einem vorherigen, abgebrochenen Lauf. Deshalb wird das
-# Repository hier geprueft/repariert, bevor ueberhaupt aktualisiert wird.
-# Ondrej verweist im Fehlerfall selbst auf packages.sury.org/php als
-# kanonisches Repository — dorthin wird als Fallback gewechselt.
-step "PHP-Repository vorbereiten"
+# Die ondrej/php-PPA auf Launchpad (und teils auch packages.sury.org) bauen
+# Pakete nicht immer sofort fuer brandneue Ubuntu-Versionen (z.B. Ubuntu
+# 26.04 "Resolute"): entweder fehlt das Release fuer den Codename, oder das
+# Release existiert bereits, aber die eigentlichen Pakete wurden fuer diese
+# Suite noch nicht hochgeladen. Ein bloss erfolgreiches "apt-get update"
+# reicht daher NICHT als Beweis, dass PHP 8.4 wirklich installierbar ist —
+# deshalb wird hier zusaetzlich immer der tatsaechliche apt-Kandidat geprueft.
+#
+# Bevorzugt wird eine von Ubuntu selbst nativ mitgelieferte PHP-Version, wenn
+# sie >= 8.4 ist (z.B. Ubuntu 26.04 "Resolute" bringt PHP 8.5 direkt aus dem
+# eigenen Archiv mit). Das umgeht Drittanbieter-Repos komplett und damit
+# strukturell auch das "Drittanbieter-Repo hinkt brandneuer Ubuntu-Version
+# hinterher"-Problem, statt nur den einen konkret bekannten Fehlerfall zu
+# patchen. Nur wenn nativ nichts >= 8.4 verfuegbar ist (z.B. Ubuntu 24.04,
+# das nativ nur PHP 8.3 mitbringt), wird gezielt PHP 8.4 ueber ondrej/php
+# bzw. packages.sury.org installiert.
+step "PHP-Version ermitteln & Repository vorbereiten"
 
 UBUNTU_CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
-PHP_REPO_OK=false
+PHP_VERSION="8.4"
 
-if grep -rq "packages\.sury\.org" /etc/apt/sources.list.d/ 2>/dev/null; then
-    info "PHP-Repository packages.sury.org bereits konfiguriert — pruefe Erreichbarkeit..."
-    apt-get update -qq --allow-releaseinfo-change 2>/tmp/anypim-apt-update.log && PHP_REPO_OK=true
-elif grep -rq "ondrej/php" /etc/apt/sources.list.d/ 2>/dev/null; then
-    info "ondrej/php PPA ist bereits eingetragen — pruefe Erreichbarkeit..."
-    apt-get update -qq --allow-releaseinfo-change 2>/tmp/anypim-apt-update.log && PHP_REPO_OK=true
+php_has_candidate() {
+    apt-cache policy "$1" 2>/dev/null | grep -q "Candidate: [^(]"
+}
+
+apt-get update -qq --allow-releaseinfo-change 2>/tmp/anypim-apt-update.log || true
+
+NATIVE_PHP_VERSION="$(apt-cache policy php 2>/dev/null | awk '/Candidate:/ {print $2}' | grep -oP '\d+\.\d+' | head -1)"
+if [ -n "$NATIVE_PHP_VERSION" ] && [ "$(printf '%s\n' "8.4" "$NATIVE_PHP_VERSION" | sort -V | tail -1)" = "$NATIVE_PHP_VERSION" ]; then
+    PHP_VERSION="$NATIVE_PHP_VERSION"
+    info "Ubuntu liefert PHP ${PHP_VERSION} bereits nativ (>= 8.4) — ueberspringe ondrej/php PPA und packages.sury.org."
+elif php_has_candidate "php8.4"; then
+    info "PHP 8.4 ist bereits ueber ein konfiguriertes Repository installierbar."
 else
-    info "Fuege PHP-Repository ondrej/php (PPA) hinzu..."
-    if add-apt-repository ppa:ondrej/php -y 2>/tmp/anypim-apt-update.log; then
-        apt-get update -qq --allow-releaseinfo-change 2>>/tmp/anypim-apt-update.log && PHP_REPO_OK=true
+    if ! grep -rq "ondrej/php" /etc/apt/sources.list.d/ 2>/dev/null; then
+        info "Fuege PHP-Repository ondrej/php (PPA) hinzu..."
+        add-apt-repository ppa:ondrej/php -y 2>/tmp/anypim-apt-update.log || true
+        apt-get update -qq --allow-releaseinfo-change 2>>/tmp/anypim-apt-update.log || true
     fi
-fi
 
-# Nur bei genau dem Fehler wechseln, den dieser Block beheben soll (fehlendes
-# Release fuer den Codename). Andere Fehler (Netzwerk-Haenger, Lock, volle
-# Platte) sollen NICHT zum unnoetigen Repo-Umbau fuehren, sondern regulaer
-# via set -e abbrechen, sobald Schritt 1 denselben Befehl erneut versucht.
-if [ "$PHP_REPO_OK" = false ] && grep -q "does not have a Release file" /tmp/anypim-apt-update.log 2>/dev/null; then
-    cat /tmp/anypim-apt-update.log >&2 2>/dev/null || true
-    warn "ondrej/php PPA hat fuer '${UBUNTU_CODENAME}' (noch) kein Release — vermutlich eine sehr neue Ubuntu-Version oder ein Rest aus einem vorherigen fehlgeschlagenen Lauf."
-    info "Wechsle auf packages.sury.org/php (von ondrej selbst als kanonisches Repo empfohlen)..."
+    if ! php_has_candidate "php8.4"; then
+        cat /tmp/anypim-apt-update.log >&2 2>/dev/null || true
+        warn "PHP 8.4 ist ueber ondrej/php fuer '${UBUNTU_CODENAME}' (noch) nicht installierbar — vermutlich eine sehr neue Ubuntu-Version, fuer die das Repo noch keine Pakete hochgeladen hat."
+        info "Wechsle auf packages.sury.org/php (von ondrej selbst als kanonisches Repo empfohlen)..."
 
-    add-apt-repository --remove ppa:ondrej/php -y > /dev/null 2>&1 || true
-    rm -f /etc/apt/sources.list.d/ondrej-ubuntu-php-*.list /etc/apt/sources.list.d/ondrej-ubuntu-php-*.sources
+        add-apt-repository --remove ppa:ondrej/php -y > /dev/null 2>&1 || true
+        rm -f /etc/apt/sources.list.d/ondrej-ubuntu-php-*.list /etc/apt/sources.list.d/ondrej-ubuntu-php-*.sources
 
-    apt-get install -y -qq apt-transport-https ca-certificates gnupg
+        if ! grep -rq "packages\.sury\.org" /etc/apt/sources.list.d/ 2>/dev/null; then
+            apt-get install -y -qq apt-transport-https ca-certificates gnupg
 
-    # Key kann ASCII-armored oder bereits binaer sein — je nach Format
-    # entdearmoren oder direkt uebernehmen. Explizit chmod 644, da gpgv
-    # (von apt sandboxed als User "_apt" ausgefuehrt) den Keyring lesen
-    # koennen muss — unabhaengig vom aktuell gesetzten umask.
-    curl -fsSL https://packages.sury.org/php/apt.gpg -o /tmp/anypim-sury-php.key
-    if grep -q "BEGIN PGP PUBLIC KEY BLOCK" /tmp/anypim-sury-php.key; then
-        gpg --dearmor -o /usr/share/keyrings/deb-sury-php.gpg /tmp/anypim-sury-php.key
-    else
-        cp /tmp/anypim-sury-php.key /usr/share/keyrings/deb-sury-php.gpg
+            # Key kann ASCII-armored oder bereits binaer sein — je nach Format
+            # entdearmoren oder direkt uebernehmen. Explizit chmod 644, da gpgv
+            # (von apt sandboxed als User "_apt" ausgefuehrt) den Keyring lesen
+            # koennen muss — unabhaengig vom aktuell gesetzten umask.
+            curl -fsSL https://packages.sury.org/php/apt.gpg -o /tmp/anypim-sury-php.key
+            if grep -q "BEGIN PGP PUBLIC KEY BLOCK" /tmp/anypim-sury-php.key; then
+                gpg --dearmor -o /usr/share/keyrings/deb-sury-php.gpg /tmp/anypim-sury-php.key
+            else
+                cp /tmp/anypim-sury-php.key /usr/share/keyrings/deb-sury-php.gpg
+            fi
+            rm -f /tmp/anypim-sury-php.key
+            chmod 644 /usr/share/keyrings/deb-sury-php.gpg
+
+            echo "deb [signed-by=/usr/share/keyrings/deb-sury-php.gpg] https://packages.sury.org/php/ ${UBUNTU_CODENAME} main" \
+                > /etc/apt/sources.list.d/php-sury.list
+        fi
+
+        apt-get update -qq --allow-releaseinfo-change || true
+
+        if ! php_has_candidate "php8.4"; then
+            error "PHP 8.4 ist weder nativ von Ubuntu, noch ueber ondrej/php PPA, noch ueber packages.sury.org fuer '${UBUNTU_CODENAME}' installierbar. Bitte https://packages.sury.org/php/ manuell pruefen oder PHP von Hand installieren."
+        fi
+        info "PHP-Repository packages.sury.org/php fuer '${UBUNTU_CODENAME}' eingerichtet."
     fi
-    rm -f /tmp/anypim-sury-php.key
-    chmod 644 /usr/share/keyrings/deb-sury-php.gpg
-
-    echo "deb [signed-by=/usr/share/keyrings/deb-sury-php.gpg] https://packages.sury.org/php/ ${UBUNTU_CODENAME} main" \
-        > /etc/apt/sources.list.d/php-sury.list
-
-    if ! apt-get update -qq --allow-releaseinfo-change; then
-        error "Weder ondrej/php PPA noch packages.sury.org bieten PHP-Pakete fuer '${UBUNTU_CODENAME}' an. Bitte https://packages.sury.org/php/ manuell pruefen."
-    fi
-    info "PHP-Repository packages.sury.org/php fuer '${UBUNTU_CODENAME}' eingerichtet."
-    PHP_REPO_OK=true
 fi
 rm -f /tmp/anypim-apt-update.log
 
@@ -466,33 +482,35 @@ apt-get upgrade -y -qq
 info "System aktualisiert."
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  2. PHP 8.4 INSTALLIEREN
+#  2. PHP INSTALLIEREN
 # ═════════════════════════════════════════════════════════════════════════════
-step "2/10 — PHP 8.4 installieren"
+step "2/10 — PHP ${PHP_VERSION} installieren"
 
-# PHP-Repository wurde bereits vor Schritt 1 eingerichtet/repariert (siehe
-# "PHP-Repository vorbereiten" weiter oben).
+# PHP-Version und -Repository wurden bereits vor Schritt 1 ermittelt/
+# eingerichtet (siehe "PHP-Version ermitteln & Repository vorbereiten" weiter
+# oben) — $PHP_VERSION ist entweder die nativ von Ubuntu mitgelieferte
+# Version (>= 8.4) oder gezielt 8.4 ueber ondrej/php bzw. packages.sury.org.
 apt-get install -y -qq \
-    php8.4 \
-    php8.4-cli \
-    php8.4-common \
-    php8.4-mysql \
-    php8.4-redis \
-    php8.4-mbstring \
-    php8.4-xml \
-    php8.4-zip \
-    php8.4-gd \
-    php8.4-bcmath \
-    php8.4-curl \
-    php8.4-intl \
-    php8.4-readline \
-    php8.4-opcache \
-    libapache2-mod-php8.4
+    "php${PHP_VERSION}" \
+    "php${PHP_VERSION}-cli" \
+    "php${PHP_VERSION}-common" \
+    "php${PHP_VERSION}-mysql" \
+    "php${PHP_VERSION}-redis" \
+    "php${PHP_VERSION}-mbstring" \
+    "php${PHP_VERSION}-xml" \
+    "php${PHP_VERSION}-zip" \
+    "php${PHP_VERSION}-gd" \
+    "php${PHP_VERSION}-bcmath" \
+    "php${PHP_VERSION}-curl" \
+    "php${PHP_VERSION}-intl" \
+    "php${PHP_VERSION}-readline" \
+    "php${PHP_VERSION}-opcache" \
+    "libapache2-mod-php${PHP_VERSION}"
 
-info "PHP 8.4 installiert: $(php -v | head -1)"
+info "PHP ${PHP_VERSION} installiert: $(php -v | head -1)"
 
 # PHP Konfiguration optimieren
-PHP_INI="/etc/php/8.4/apache2/php.ini"
+PHP_INI="/etc/php/${PHP_VERSION}/apache2/php.ini"
 if [ -f "$PHP_INI" ]; then
     sed -i 's/^memory_limit = .*/memory_limit = 512M/' "$PHP_INI"
     sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 256M/' "$PHP_INI"
@@ -510,7 +528,7 @@ step "3/10 — Apache installieren"
 apt-get install -y -qq apache2
 
 # Module aktivieren
-a2enmod rewrite headers ssl php8.4 > /dev/null 2>&1
+a2enmod rewrite headers ssl "php${PHP_VERSION}" > /dev/null 2>&1
 
 # Default-Site nur deaktivieren wenn PIM im Root laeuft
 if [ -z "$WEB_PATH" ]; then
