@@ -1521,7 +1521,7 @@ async function triggerPdfBatchProcess() {
 
 // ── Combined: PDF Thumbnails + Search Reindex ──
 const combinedProcessing = ref(false)
-const combinedStep = ref('')  // 'images' | 'pdf' | 'reindex' | ''
+const combinedStep = ref('')  // 'mime' | 'images' | 'pdf' | 'reindex' | ''
 const combinedResult = ref(null)
 const combinedError = ref(null)
 
@@ -1531,16 +1531,22 @@ async function triggerCombinedProcess() {
   combinedError.value = null
 
   try {
-    // Step 1: Bild-Thumbnail-Cache leeren (behebt "broken" Thumbnails — Neuerzeugung
+    // Step 1: Fehlerhafte mime_type-Werte korrigieren (z.B. durch Bulk-/BMEcat-Import mit
+    // falsch geratener Endung — Ursache für "Thumbnail nicht verfügbar (kein Bild)" bei
+    // tatsächlichen Bildern)
+    combinedStep.value = 'mime'
+    await adminApi.fixMediaMimeTypes()
+
+    // Step 2: Bild-Thumbnail-Cache leeren (behebt "broken" Thumbnails — Neuerzeugung
     // erfolgt danach lazy beim nächsten Aufruf einzelner Bilder)
     combinedStep.value = 'images'
     await adminApi.clearThumbnailCache()
 
-    // Step 2: PDF thumbnails
+    // Step 3: PDF thumbnails
     combinedStep.value = 'pdf'
     await adminApi.batchProcessPdfs('missing')
 
-    // Step 3: Reindex (now async with polling)
+    // Step 4: Reindex (now async with polling)
     combinedStep.value = 'reindex'
     await adminApi.reindexSearch()
 
@@ -1564,9 +1570,9 @@ async function triggerCombinedProcess() {
       }, 2000)
     })
 
-    combinedResult.value = { message: 'Thumbnail-Cache geleert, PDF-Vorschaubilder erzeugt und Suchindex aktualisiert.' }
+    combinedResult.value = { message: 'MIME-Typen korrigiert, Thumbnail-Cache geleert, PDF-Vorschaubilder erzeugt und Suchindex aktualisiert.' }
   } catch (e) {
-    const stepLabel = { images: 'Thumbnail-Cache', pdf: 'PDF-Verarbeitung', reindex: 'Suchindex' }[combinedStep.value] || combinedStep.value
+    const stepLabel = { mime: 'MIME-Typ-Korrektur', images: 'Thumbnail-Cache', pdf: 'PDF-Verarbeitung', reindex: 'Suchindex' }[combinedStep.value] || combinedStep.value
     combinedError.value = `Fehler bei ${stepLabel}: ${e.response?.data?.message || e.message}`
   } finally {
     combinedProcessing.value = false
@@ -3630,7 +3636,9 @@ onUnmounted(() => {
       </div>
 
       <p class="text-xs text-[var(--color-text-secondary)]">
-        Leert den Bild-Thumbnail-Cache (behebt "broken" Vorschaubilder — Neuerzeugung erfolgt danach
+        Korrigiert fehlerhafte MIME-Typen (z.B. durch Bulk-/BMEcat-Import mit falsch geratener
+        Dateiendung — Ursache für "Thumbnail nicht verfügbar (kein Bild)" bei echten Bildern),
+        leert den Bild-Thumbnail-Cache (behebt "broken" Vorschaubilder — Neuerzeugung erfolgt danach
         automatisch beim nächsten Aufruf), erzeugt fehlende PDF-Vorschaubilder (WebP) und aktualisiert
         den Suchindex für den Vorschaukatalog. Empfohlen nach Massenänderungen, dem initialen Setup
         oder wenn Thumbnails fehlerhaft angezeigt werden.
@@ -3654,10 +3662,11 @@ onUnmounted(() => {
         <div class="flex items-center gap-3 text-xs text-[var(--color-text-secondary)]">
           <Loader2 v-if="!reindexCancelling" class="w-3.5 h-3.5 animate-spin" />
           <span v-if="reindexCancelling">Abbruch angefordert, wird beim nächsten Chunk gestoppt…</span>
-          <span v-else-if="combinedStep === 'images'">Schritt 1/3 — Bild-Thumbnail-Cache wird geleert…</span>
-          <span v-else-if="combinedStep === 'pdf'">Schritt 2/3 — PDF-Vorschaubilder werden erzeugt…</span>
+          <span v-else-if="combinedStep === 'mime'">Schritt 1/4 — MIME-Typen werden korrigiert…</span>
+          <span v-else-if="combinedStep === 'images'">Schritt 2/4 — Bild-Thumbnail-Cache wird geleert…</span>
+          <span v-else-if="combinedStep === 'pdf'">Schritt 3/4 — PDF-Vorschaubilder werden erzeugt…</span>
           <span v-else-if="reindexProgress && reindexProgress.status === 'running'">
-            {{ combinedStep === 'reindex' ? 'Schritt 3/3 — ' : '' }}Suchindex: {{ reindexProgress.processed?.toLocaleString('de-DE') }} / {{ reindexProgress.total?.toLocaleString('de-DE') }} Produkte ({{ reindexProgress.percent }}%)
+            {{ combinedStep === 'reindex' ? 'Schritt 4/4 — ' : '' }}Suchindex: {{ reindexProgress.processed?.toLocaleString('de-DE') }} / {{ reindexProgress.total?.toLocaleString('de-DE') }} Produkte ({{ reindexProgress.percent }}%)
             <template v-if="reindexProgress.estimated_seconds > 0">
               — ca. {{ reindexProgress.estimated_seconds >= 60 ? Math.ceil(reindexProgress.estimated_seconds / 60) + ' Min.' : reindexProgress.estimated_seconds + ' Sek.' }} verbleibend
             </template>

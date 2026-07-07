@@ -915,9 +915,12 @@ class MediaController extends Controller
             }
         }
 
-        // Try thumbnail generation
+        // Try thumbnail generation. Kein Vorab-Filter auf mime_type — ThumbnailService prüft bei
+        // Bedarf den echten Dateiinhalt und heilt einen fehlerhaften mime_type (z.B. aus einem
+        // Bulk-/BMEcat-Import mit falsch geratener Endung) selbst, statt hier fälschlich
+        // abzubrechen.
         $thumbPath = null;
-        if (extension_loaded('gd') && str_starts_with($medium->mime_type, 'image/')) {
+        if (extension_loaded('gd')) {
             try {
                 $thumbPath = app(ThumbnailService::class)->generate($medium, $width, $height, $fit);
             } catch (\Throwable $e) {
@@ -970,6 +973,26 @@ class MediaController extends Controller
         return response()->json([
             'message' => "{$count} zwischengespeicherte Thumbnails gelöscht. Sie werden beim nächsten Aufruf neu erzeugt.",
             'cleared' => $count,
+        ]);
+    }
+
+    /**
+     * POST /admin/media/fix-mime-types — korrigiert mime_type/media_type anhand des echten
+     * Dateiinhalts für alle Medien, deren gespeicherter mime_type nicht auf "image/" beginnt
+     * (typische Ursache für "Thumbnail nicht verfügbar (kein Bild)" bei tatsächlichen Bildern,
+     * z.B. durch fehlerhaft geratene Endungen bei Bulk-/BMEcat-Importen).
+     */
+    public function fixMimeTypes(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        \Artisan::call('media:fix-mime-types');
+        $output = trim(\Artisan::output());
+
+        return response()->json([
+            'message' => $output !== '' ? $output : 'MIME-Typen geprüft.',
         ]);
     }
 
@@ -1967,11 +1990,6 @@ class MediaController extends Controller
      */
     private function detectMimeFromFile(string $filePath): ?string
     {
-        if (! file_exists($filePath)) {
-            return null;
-        }
-        $finfo = new \finfo(FILEINFO_MIME_TYPE);
-
-        return $finfo->file($filePath) ?: null;
+        return \App\Services\MimeTypeDetector::detectFromFile($filePath);
     }
 }
