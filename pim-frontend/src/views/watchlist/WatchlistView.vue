@@ -23,11 +23,13 @@ import PdfTemplatePickerModal from '@/components/pdf-templates/PdfTemplatePicker
 import { useLicenseStore } from '@/stores/license'
 import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialog.vue'
 import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierarchyNodeDialog.vue'
+import { useRecordNavigatorStore } from '@/stores/recordNavigator'
 
 const router = useRouter()
 const localeStore = useLocaleStore()
 const attrStore = useAttributeStore()
 const licenseStore = useLicenseStore()
+const recordNavigatorStore = useRecordNavigatorStore()
 
 const items = ref([])
 const loading = ref(false)
@@ -189,6 +191,8 @@ async function loadWatchlist() {
 }
 
 function openProduct(row) {
+  const ids = filteredTableRows.value.map(r => r.product_id).filter(Boolean)
+  recordNavigatorStore.setContext('Merkliste', ids)
   router.push(`/products/${row.product_id}`)
 }
 

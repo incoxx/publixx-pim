@@ -22,8 +22,9 @@ import { useTabStore } from '@/stores/tabs'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useToastStore } from '@/stores/toast'
+import { useRecordNavigatorStore } from '@/stores/recordNavigator'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Filter, Upload, ClipboardList, Lightbulb, AlertTriangle, XCircle, Wand2, Images, Lock } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, Filter, Upload, ClipboardList, Lightbulb, AlertTriangle, XCircle, Wand2, Images, Lock } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import projectsApi from '@/api/projects'
 import usersApi from '@/api/users'
@@ -68,7 +69,24 @@ const tabStore = useTabStore()
 const authStore = useAuthStore()
 const localeStore = useLocaleStore()
 const toastStore = useToastStore()
+const recordNavigatorStore = useRecordNavigatorStore()
 const { t } = useI18n()
+
+// Navigator "Produkt X/Y" — nur sichtbar, wenn das Produkt aus einer Kontextliste
+// (z.B. Merkliste) geöffnet wurde und dort mehr als ein Eintrag steht.
+const recordNavIndex = computed(() => recordNavigatorStore.indexOf(route.params.id))
+const recordNavTotal = computed(() => recordNavigatorStore.ids.length)
+const hasRecordNav = computed(() => recordNavIndex.value !== -1 && recordNavTotal.value > 1)
+const recordNavPrevId = computed(() => recordNavIndex.value > 0 ? recordNavigatorStore.ids[recordNavIndex.value - 1] : null)
+const recordNavNextId = computed(() => recordNavIndex.value !== -1 && recordNavIndex.value < recordNavTotal.value - 1 ? recordNavigatorStore.ids[recordNavIndex.value + 1] : null)
+
+function goToPrevRecord() {
+  if (recordNavPrevId.value) router.push(`/products/${recordNavPrevId.value}`)
+}
+
+function goToNextRecord() {
+  if (recordNavNextId.value) router.push(`/products/${recordNavNextId.value}`)
+}
 
 const activeTab = ref('base-data')
 const activeAttrSubTab = ref('master')  // 'master' oder hierarchy_id
@@ -3121,6 +3139,33 @@ onUnmounted(() => {
           </p>
         </template>
       </div>
+      <!-- Navigator: vor/zurück innerhalb der Kontextliste (z.B. Merkliste) -->
+      <div
+        v-if="hasRecordNav"
+        class="flex items-center gap-0.5 px-1 py-1 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] shrink-0"
+        :title="`${recordNavigatorStore.label}: Produkt ${recordNavIndex + 1} von ${recordNavTotal}`"
+      >
+        <button
+          class="pim-btn pim-btn-ghost p-1 disabled:opacity-30"
+          :disabled="!recordNavPrevId"
+          title="Vorheriges Produkt"
+          @click="goToPrevRecord"
+        >
+          <ChevronLeft class="w-4 h-4" :stroke-width="1.75" />
+        </button>
+        <span class="text-xs font-medium text-[var(--color-text-secondary)] tabular-nums whitespace-nowrap px-0.5">
+          {{ recordNavIndex + 1 }}/{{ recordNavTotal }}
+        </span>
+        <button
+          class="pim-btn pim-btn-ghost p-1 disabled:opacity-30"
+          :disabled="!recordNavNextId"
+          title="Nächstes Produkt"
+          @click="goToNextRecord"
+        >
+          <ChevronRight class="w-4 h-4" :stroke-width="1.75" />
+        </button>
+      </div>
+
       <button
         v-if="product"
         class="pim-btn pim-btn-ghost p-1.5"
