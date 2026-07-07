@@ -633,19 +633,13 @@ class AssetCatalogController extends BaseController
     {
         $lang = $request->query('lang', 'de');
 
-        // Bevorzugt die Hierarchie, in der Medien tatsächlich per asset_folder_id einsortiert
-        // sind. Ein blindes "erste Hierarchie mit hierarchy_type=asset" (ohne orderBy) kann bei
-        // mehreren asset-Hierarchien (z.B. eine leere Test-Hierarchie ohne Unterordner) zufällig
-        // die falsche wählen und im Katalog nur einen Root-Ordner ohne Unterverzeichnisse zeigen.
-        $hierarchyId = Media::whereNotNull('asset_folder_id')
-            ->join('hierarchy_nodes', 'media.asset_folder_id', '=', 'hierarchy_nodes.id')
-            ->value('hierarchy_nodes.hierarchy_id');
-
-        $hierarchy = $hierarchyId ? Hierarchy::find($hierarchyId) : null;
-
-        if (!$hierarchy) {
-            $hierarchy = Hierarchy::where('hierarchy_type', 'asset')->orderBy('created_at')->first();
-        }
+        // Dieselbe Auswahl-Logik wie im internen Medien-Admin (MediaView.vue::fetchFolders() →
+        // hierarchiesApi.list({filters:{hierarchy_type:'asset'}}), was serverseitig per Default
+        // nach name_de sortiert und den ersten Treffer nimmt). Beide Stellen müssen dieselbe
+        // Hierarchie wählen, sonst legt der Admin Ordner unter einer anderen "asset"-Hierarchie
+        // an als der, die der öffentliche Katalog anzeigt — bei mehreren hierarchy_type=asset-
+        // Hierarchien (kein Uniqueness-Constraint darauf) sonst nicht deterministisch.
+        $hierarchy = Hierarchy::where('hierarchy_type', 'asset')->orderBy('name_de')->first();
 
         if (!$hierarchy) {
             return response()->json([
