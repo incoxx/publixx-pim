@@ -31,6 +31,8 @@ class MediaResource extends JsonResource
             'height' => $this->height,
             'asset_folder_id' => $this->asset_folder_id,
             'usage_purpose' => $this->usage_purpose,
+            'media_language_id' => $this->media_language_id,
+            'media_country_id' => $this->media_country_id,
             'last_uploaded_at' => $this->last_uploaded_at,
             'motif_id' => $this->motif_id,
             'is_master_rendition' => (bool) $this->is_master_rendition,

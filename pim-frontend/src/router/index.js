@@ -443,6 +443,18 @@ const routes = [
     meta: { title: 'Bildtypen' },
   },
   {
+    path: '/media-languages',
+    name: 'media-languages',
+    component: () => import('@/views/mediaLanguages/MediaLanguageView.vue'),
+    meta: { title: 'Medien-Sprachen' },
+  },
+  {
+    path: '/media-countries',
+    name: 'media-countries',
+    component: () => import('@/views/mediaCountries/MediaCountryView.vue'),
+    meta: { title: 'Medien-Länder' },
+  },
+  {
     path: '/media-motifs',
     name: 'media-motifs',
     component: () => import('@/views/mediaMotifs/MediaMotifView.vue'),

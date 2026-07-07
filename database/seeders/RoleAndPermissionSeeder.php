@@ -47,6 +47,9 @@ class RoleAndPermissionSeeder extends Seeder
             'price-regions.view', 'price-regions.create', 'price-regions.edit', 'price-regions.delete',
             // Medien-Bildtypen
             'media-usage-types.view', 'media-usage-types.create', 'media-usage-types.edit', 'media-usage-types.delete',
+            // Medien-Sprachen & -Länder (PDF-Metadaten)
+            'media-languages.view', 'media-languages.create', 'media-languages.edit', 'media-languages.delete',
+            'media-countries.view', 'media-countries.create', 'media-countries.edit', 'media-countries.delete',
             // Hersteller
             'manufacturers.view', 'manufacturers.create', 'manufacturers.edit', 'manufacturers.delete',
             // Relationstypen
@@ -187,6 +190,8 @@ class RoleAndPermissionSeeder extends Seeder
             'price-types.view', 'price-types.create', 'price-types.edit', 'price-types.delete',
             'price-regions.view', 'price-regions.create', 'price-regions.edit', 'price-regions.delete',
             'media-usage-types.view', 'media-usage-types.create', 'media-usage-types.edit', 'media-usage-types.delete',
+            'media-languages.view', 'media-languages.create', 'media-languages.edit', 'media-languages.delete',
+            'media-countries.view', 'media-countries.create', 'media-countries.edit', 'media-countries.delete',
             'products.view',
             'prices.view',
             'preview.view',
@@ -226,6 +231,8 @@ class RoleAndPermissionSeeder extends Seeder
             'relation-types.view',
             'manufacturers.view',
             'media-usage-types.view',
+            'media-languages.view',
+            'media-countries.view',
             'imports.view', 'imports.create', 'imports.execute',
             'workflow.view',
             'workflows.view', 'teams.view', 'projects.view', 'projects.edit',
@@ -331,6 +338,8 @@ class RoleAndPermissionSeeder extends Seeder
             // Medien/Content: Vollzugriff
             'media.view', 'media.create', 'media.edit', 'media.delete',
             'media-usage-types.view',
+            'media-languages.view',
+            'media-countries.view',
             // Strukturierter Content: Seiten pflegen (Vollzugriff), Typen lesen
             'content.view', 'content.create', 'content.edit', 'content.delete',
             'content-types.view',

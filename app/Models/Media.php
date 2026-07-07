@@ -40,6 +40,8 @@ class Media extends Model
         'usage_purpose',
         'language',
         'document_type',
+        'media_language_id',
+        'media_country_id',
         'last_uploaded_at',
         'motif_id',
         'is_master_rendition',
@@ -83,6 +85,16 @@ class Media extends Model
     public function renditionPreset(): BelongsTo
     {
         return $this->belongsTo(MediaRenditionPreset::class, 'rendition_preset_id');
+    }
+
+    public function mediaLanguage(): BelongsTo
+    {
+        return $this->belongsTo(MediaLanguage::class, 'media_language_id');
+    }
+
+    public function mediaCountry(): BelongsTo
+    {
+        return $this->belongsTo(MediaCountry::class, 'media_country_id');
     }
 
     public function attributeValues(): HasMany
