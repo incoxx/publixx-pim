@@ -891,7 +891,10 @@ DB_USERNAME=${DB_USER}
 DB_PASSWORD=${DB_PASS}
 
 # ─── Redis ────────────────────────────────────────────────────────────
-REDIS_CLIENT=phpredis
+# predis statt phpredis: umgeht laravel/framework#57908 (Cache::tags()->flush()
+# stuerzt mit "Cannot use bool as array" ab, PHP >= 8.5 -- Fix nur in
+# Laravel 12.x, unser composer.json ist auf ^11.0 gepinnt).
+REDIS_CLIENT=predis
 REDIS_HOST=127.0.0.1
 REDIS_PASSWORD=null
 REDIS_PORT=6379

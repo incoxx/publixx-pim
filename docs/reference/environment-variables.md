@@ -99,7 +99,7 @@ anyPIM nutzt Redis für Cache, Queue und Sessions — drei getrennte Datenbanken
 
 | Variable | Standard | Pflicht | Beschreibung |
 |----------|----------|---------|--------------|
-| `REDIS_CLIENT` | `phpredis` | ✓ | PHP-Client: `phpredis` (empfohlen) oder `predis` |
+| `REDIS_CLIENT` | `predis` | ✓ | PHP-Client: `predis` (Standard) oder `phpredis`. `phpredis` löst auf PHP ≥ 8.5 einen bekannten Laravel-Bug aus (`Cache::tags()->flush()` stürzt ab, [laravel/framework#57908](https://github.com/laravel/framework/issues/57908), Fix nur in Laravel 12.x) |
 | `REDIS_HOST` | `127.0.0.1` | ✓ | Redis-Hostname |
 | `REDIS_PORT` | `6379` | ✓ | Redis-Port |
 | `REDIS_PASSWORD` | `null` | – ⚠️ | Redis-Passwort (`null` = kein Passwort) |
