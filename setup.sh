@@ -344,10 +344,42 @@ info "System aktualisiert."
 # ═════════════════════════════════════════════════════════════════════════════
 step "2/10 — PHP 8.4 installieren"
 
-# PPA hinzufuegen falls noch nicht vorhanden
-if ! grep -q "ondrej/php" /etc/apt/sources.list.d/*.list 2>/dev/null; then
+# PHP-Repository einrichten.
+# Die ondrej/php-PPA auf Launchpad baut Pakete nicht immer sofort fuer
+# brandneue Ubuntu-Versionen (z.B. Ubuntu 26.04 "Resolute"): apt meldet dann
+# "does not have a Release file" und apt-get update schlaegt fehl.
+# Ondrej verweist in diesem Fall selbst auf packages.sury.org/php als
+# kanonisches Repository — dorthin wird als Fallback gewechselt.
+# (Suchmuster deckt sowohl klassische .list- als auch neuere deb822 .sources-
+# Dateien ab, damit ein erneuter Lauf das bereits eingerichtete Repo erkennt.)
+if ! grep -rq "ondrej/php\|packages\.sury\.org" /etc/apt/sources.list.d/ 2>/dev/null; then
+    UBUNTU_CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+
+    info "Fuege PHP-Repository ondrej/php (PPA) hinzu..."
     add-apt-repository ppa:ondrej/php -y
-    apt-get update -qq --allow-releaseinfo-change
+
+    PHP_PPA_OK=true
+    apt-get update -qq --allow-releaseinfo-change 2>/tmp/anypim-apt-update.log || PHP_PPA_OK=false
+
+    if [ "$PHP_PPA_OK" = false ] || grep -q "does not have a Release file" /tmp/anypim-apt-update.log 2>/dev/null; then
+        cat /tmp/anypim-apt-update.log >&2 2>/dev/null || true
+        warn "ondrej/php PPA hat fuer '${UBUNTU_CODENAME}' (noch) kein Release — vermutlich eine sehr neue Ubuntu-Version."
+        info "Wechsle auf packages.sury.org/php (von ondrej selbst als kanonisches Repo empfohlen)..."
+
+        add-apt-repository --remove ppa:ondrej/php -y > /dev/null 2>&1 || true
+        rm -f /etc/apt/sources.list.d/ondrej-ubuntu-php-*.list /etc/apt/sources.list.d/ondrej-ubuntu-php-*.sources
+
+        apt-get install -y -qq apt-transport-https ca-certificates gnupg
+        curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/deb-sury-php.gpg
+        echo "deb [signed-by=/usr/share/keyrings/deb-sury-php.gpg] https://packages.sury.org/php/ ${UBUNTU_CODENAME} main" \
+            > /etc/apt/sources.list.d/php-sury.list
+
+        if ! apt-get update -qq --allow-releaseinfo-change; then
+            error "Weder ondrej/php PPA noch packages.sury.org bieten PHP-Pakete fuer '${UBUNTU_CODENAME}' an. Bitte https://packages.sury.org/php/ manuell pruefen."
+        fi
+        info "PHP-Repository packages.sury.org/php fuer '${UBUNTU_CODENAME}' eingerichtet."
+    fi
+    rm -f /tmp/anypim-apt-update.log
 fi
 
 apt-get install -y -qq \
@@ -502,9 +534,46 @@ step "6/10 — Node.js 22 LTS installieren"
 # Node 22+ erforderlich (vue-i18n v11 / @intlify). Aeltere Versionen (z. B. 20)
 # werden ueber NodeSource auf 22 angehoben.
 if ! command -v node &> /dev/null || [[ "$(node -v | cut -d. -f1 | tr -d 'v')" -lt 22 ]]; then
-    # NodeSource Repository hinzufuegen
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-    apt-get install -y -qq nodejs
+    # NodeSource-Repository ist wie die PHP-PPA an den Ubuntu-Codename gebunden
+    # und kann bei brandneuen Releases (z.B. Ubuntu 26.04 "Resolute") noch
+    # keine Pakete anbieten. Fallback: offizielles Binary-Tarball von nodejs.org
+    # (codename-unabhaengig).
+    info "Fuege NodeSource-Repository hinzu..."
+    NODESOURCE_OK=true
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - > /tmp/anypim-nodesource.log 2>&1 || NODESOURCE_OK=false
+
+    if [ "$NODESOURCE_OK" = true ]; then
+        apt-get install -y -qq nodejs 2>>/tmp/anypim-nodesource.log || NODESOURCE_OK=false
+    fi
+
+    if [ "$NODESOURCE_OK" = false ]; then
+        cat /tmp/anypim-nodesource.log >&2 2>/dev/null || true
+        warn "NodeSource-Repository steht fuer diese Ubuntu-Version (noch) nicht zur Verfuegung."
+        info "Installiere Node.js 22 LTS stattdessen als offizielles Binary von nodejs.org..."
+
+        rm -f /etc/apt/sources.list.d/nodesource.list
+
+        case "$(dpkg --print-architecture)" in
+            amd64) NODE_ARCH="x64" ;;
+            arm64) NODE_ARCH="arm64" ;;
+            *) error "Nicht unterstuetzte Architektur fuer Node.js-Binary-Fallback: $(dpkg --print-architecture)" ;;
+        esac
+
+        NODE_VERSION=$(curl -fsSL https://nodejs.org/dist/latest-v22.x/SHASUMS256.txt \
+            | grep -oP "node-v22\.\d+\.\d+(?=-linux-${NODE_ARCH}\.tar\.xz)" | sort -V | tail -1)
+        NODE_VERSION=${NODE_VERSION#node-v}
+
+        if [ -z "$NODE_VERSION" ]; then
+            error "Node.js-Version konnte nicht von nodejs.org ermittelt werden. Bitte manuell installieren."
+        fi
+
+        curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" \
+            -o /tmp/anypim-node.tar.xz
+        tar -xJf /tmp/anypim-node.tar.xz -C /usr/local --strip-components=1
+        rm -f /tmp/anypim-node.tar.xz
+        info "Node.js ${NODE_VERSION} nach /usr/local installiert."
+    fi
+    rm -f /tmp/anypim-nodesource.log
 fi
 
 info "Node.js installiert: $(node -v)"
