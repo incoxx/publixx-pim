@@ -490,22 +490,33 @@ step "2/10 — PHP ${PHP_VERSION} installieren"
 # eingerichtet (siehe "PHP-Version ermitteln & Repository vorbereiten" weiter
 # oben) — $PHP_VERSION ist entweder die nativ von Ubuntu mitgelieferte
 # Version (>= 8.4) oder gezielt 8.4 ueber ondrej/php bzw. packages.sury.org.
-apt-get install -y -qq \
-    "php${PHP_VERSION}" \
-    "php${PHP_VERSION}-cli" \
-    "php${PHP_VERSION}-common" \
-    "php${PHP_VERSION}-mysql" \
-    "php${PHP_VERSION}-redis" \
-    "php${PHP_VERSION}-mbstring" \
-    "php${PHP_VERSION}-xml" \
-    "php${PHP_VERSION}-zip" \
-    "php${PHP_VERSION}-gd" \
-    "php${PHP_VERSION}-bcmath" \
-    "php${PHP_VERSION}-curl" \
-    "php${PHP_VERSION}-intl" \
-    "php${PHP_VERSION}-readline" \
-    "php${PHP_VERSION}-opcache" \
+PHP_PACKAGES=(
+    "php${PHP_VERSION}"
+    "php${PHP_VERSION}-cli"
+    "php${PHP_VERSION}-common"
+    "php${PHP_VERSION}-mysql"
+    "php${PHP_VERSION}-redis"
+    "php${PHP_VERSION}-mbstring"
+    "php${PHP_VERSION}-xml"
+    "php${PHP_VERSION}-zip"
+    "php${PHP_VERSION}-gd"
+    "php${PHP_VERSION}-bcmath"
+    "php${PHP_VERSION}-curl"
+    "php${PHP_VERSION}-intl"
+    "php${PHP_VERSION}-readline"
     "libapache2-mod-php${PHP_VERSION}"
+)
+
+# php-opcache ist je nach Paketquelle kein eigenes Paket mehr (z.B. Ubuntus
+# eigenes Archiv fuer PHP 8.5): OPcache ist seit PHP 5.5 fest im Core
+# enthalten und wird dort direkt ueber php-common vorkonfiguriert. Nur
+# hinzufuegen, wenn die aktive Quelle es tatsaechlich als separates Paket
+# anbietet (z.B. ondrej/php-Pakete tun das weiterhin).
+if php_has_candidate "php${PHP_VERSION}-opcache"; then
+    PHP_PACKAGES+=("php${PHP_VERSION}-opcache")
+fi
+
+apt-get install -y -qq "${PHP_PACKAGES[@]}"
 
 info "PHP ${PHP_VERSION} installiert: $(php -v | head -1)"
 
