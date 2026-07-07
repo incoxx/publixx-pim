@@ -220,6 +220,17 @@ class ProductMediaController extends Controller
             ->get()
             ->keyBy('id');
 
+        // Die übermittelte Liste muss ALLE Zuordnungen des Produkts enthalten — sonst behalten
+        // ausgelassene (z.B. dem Nutzer per RoleEntityRestriction verborgene) Zuordnungen ihre alte
+        // sort_order und kollidieren mit den hier neu vergebenen 0..N-1-Werten.
+        $totalAssignmentCount = $product->mediaAssignments()->count();
+        if ($assignments->count() !== count($validated['assignment_ids'])
+            || $totalAssignmentCount !== count($validated['assignment_ids'])) {
+            return response()->json([
+                'message' => 'Die Reihenfolge muss alle Medien-Zuordnungen des Produkts vollständig und ohne unbekannte IDs enthalten.',
+            ], 422);
+        }
+
         foreach (array_values($validated['assignment_ids']) as $sortOrder => $assignmentId) {
             $assignments->get($assignmentId)?->update(['sort_order' => $sortOrder]);
         }

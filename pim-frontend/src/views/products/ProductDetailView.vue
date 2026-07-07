@@ -1435,20 +1435,27 @@ const displayMediaItems = computed(() => {
 
 // Drag&Drop-Sortierung der Bildergalerie (Grid-Ansicht) — nur aktiv ohne Filter/Quick-Lookup,
 // da displayMediaItems dann exakt mediaItems.value entspricht und Indizes übereinstimmen.
-const canReorderMedia = computed(() => !mediaFilter.value.trim() && !showMediaQuickLookup.value)
+const canReorderMedia = computed(() => !mediaFilter.value.trim() && !showMediaQuickLookup.value && !mediaReordering.value)
 const mediaReordering = ref(false)
+let mediaOrderRequestId = 0
 
 async function persistMediaOrder(newItems) {
   const previous = mediaItems.value
+  const requestId = ++mediaOrderRequestId
   mediaItems.value = newItems
   mediaReordering.value = true
   try {
     await productsApi.reorderMedia(product.value.id, newItems.map(m => m.id))
   } catch (e) {
-    mediaItems.value = previous
-    toastStore.showToast('Reihenfolge konnte nicht gespeichert werden: ' + (e.response?.data?.message || e.message), 'error')
+    // Nur zurücksetzen, wenn dies noch der jüngste Reorder-Request ist — sonst würde ein
+    // spät fehlschlagender, längst überholter Request einen bereits erfolgreich gespeicherten
+    // neueren Zustand wieder überschreiben.
+    if (requestId === mediaOrderRequestId) {
+      mediaItems.value = previous
+      toastStore.showToast('Reihenfolge konnte nicht gespeichert werden: ' + (e.response?.data?.message || e.message), 'error')
+    }
   } finally {
-    mediaReordering.value = false
+    if (requestId === mediaOrderRequestId) mediaReordering.value = false
   }
 }
 

@@ -540,6 +540,8 @@ function openDetail(item) {
   copiedUrl.value = false
   saveError.value = ''
   detailTab.value = 'info'
+  keywordInput.value = ''
+  keywordSuggestions.value = []
   loadAssetAttributes(item)
   fetchUsage(item.id)
   if (item.revision_count > 0) {
@@ -573,12 +575,16 @@ function onKeywordInput() {
 }
 
 async function searchKeywordSuggestions() {
+  // Item merken, für das diese Anfrage gestartet wurde — falls der Nutzer inzwischen ein
+  // anderes Medium geöffnet hat, darf die (verzögerte) Antwort dessen Vorschläge nicht mehr setzen.
+  const requestedFor = detailItem.value
   try {
     const { data } = await mediaApi.suggestKeywords(keywordInput.value)
-    const existing = detailItem.value?.keywords || []
-    keywordSuggestions.value = (data.data || []).filter((k) => !existing.includes(k))
+    if (detailItem.value !== requestedFor) return
+    const existingLower = (requestedFor?.keywords || []).map((k) => k.toLowerCase())
+    keywordSuggestions.value = (data.data || []).filter((k) => !existingLower.includes(k.toLowerCase()))
   } catch {
-    keywordSuggestions.value = []
+    if (detailItem.value === requestedFor) keywordSuggestions.value = []
   }
 }
 
@@ -586,7 +592,8 @@ function addKeyword(value) {
   const keyword = (value ?? keywordInput.value).trim()
   if (!keyword || !detailItem.value) return
   if (!detailItem.value.keywords) detailItem.value.keywords = []
-  if (!detailItem.value.keywords.includes(keyword)) {
+  const alreadyPresent = detailItem.value.keywords.some((k) => k.toLowerCase() === keyword.toLowerCase())
+  if (!alreadyPresent) {
     detailItem.value.keywords.push(keyword)
   }
   keywordInput.value = ''

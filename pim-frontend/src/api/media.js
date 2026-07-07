@@ -15,7 +15,14 @@ export default {
     const formData = new FormData()
     formData.append('file', file)
     for (const [key, val] of Object.entries(metadata)) {
-      if (val != null) formData.append(key, val)
+      if (val == null) continue
+      // Arrays (z.B. keywords) müssen als key[] gesendet werden, sonst stringifyt FormData
+      // sie über Array.toString() zu einem einzelnen komma-getrennten Feld.
+      if (Array.isArray(val)) {
+        val.forEach((v) => formData.append(`${key}[]`, v))
+      } else {
+        formData.append(key, val)
+      }
     }
     return client.post('/media', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
