@@ -7,13 +7,16 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Resources\Api\V1\ProductResource;
 use App\Http\Resources\Api\V1\VirtualProductDefinitionResource;
 use App\Http\Resources\Api\V1\VirtualProductInheritanceRuleResource;
+use App\Http\Resources\Api\V1\VirtualProductMediaInheritanceRuleResource;
 use App\Http\Traits\AuditsChanges;
 use App\Http\Traits\ChecksTabPermissions;
 use App\Models\Product;
 use App\Models\VirtualProductDefinition;
 use App\Models\VirtualProductInheritanceRule;
+use App\Models\VirtualProductMediaInheritanceRule;
 use App\Models\WatchlistItem;
 use App\Services\VirtualProduct\VirtualProductAttributeSyncService;
+use App\Services\VirtualProduct\VirtualProductMediaSyncService;
 use App\Services\VirtualProduct\VirtualProductResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,6 +38,7 @@ class VirtualProductController extends Controller
     public function __construct(
         private readonly VirtualProductResolver $resolver,
         private readonly VirtualProductAttributeSyncService $syncService,
+        private readonly VirtualProductMediaSyncService $mediaSyncService,
     ) {}
 
     /**
@@ -256,11 +260,74 @@ class VirtualProductController extends Controller
     }
 
     /**
+     * GET /products/{product}/virtual-media-inheritance-rules
+     *
+     * Liefert die Medien-Vererbungsregeln des virtuellen Produkts (welche
+     * Usage-Types per Sync an die Mitglieder vererbt werden, inkl.
+     * Konfliktverhalten).
+     */
+    public function mediaInheritanceRules(Product $product): AnonymousResourceCollection
+    {
+        $this->authorize('view', $product);
+
+        $rules = $product->mediaInheritanceRules()->with('usageType')->get();
+
+        return VirtualProductMediaInheritanceRuleResource::collection($rules);
+    }
+
+    /**
+     * PUT /products/{product}/virtual-media-inheritance-rules
+     *
+     * Ersetzt den kompletten Regelsatz (Upsert + Löschen der nicht mehr
+     * enthaltenen Usage-Types). Die Medien-Zuordnungen selbst werden
+     * weiterhin ganz normal im Medien-Tab des virtuellen Produkts gepflegt.
+     */
+    public function saveMediaInheritanceRules(Request $request, Product $product): AnonymousResourceCollection
+    {
+        $this->authorize('update', $product);
+        $this->assertTabWriteAccess('relations');
+
+        if (! $product->isVirtual()) {
+            throw ValidationException::withMessages([
+                'product_type_ref' => 'Vererbungsregeln können nur für virtuelle Produkte (product_type_ref=virtual) angelegt werden.',
+            ]);
+        }
+
+        $data = $request->validate([
+            'rules' => ['present', 'array'],
+            'rules.*.usage_type_id' => ['required', 'string', 'exists:media_usage_types,id'],
+            'rules.*.conflict_mode' => ['required', Rule::in([
+                VirtualProductMediaInheritanceRule::CONFLICT_KEEP_LOCAL,
+                VirtualProductMediaInheritanceRule::CONFLICT_FORCE_OVERRIDE,
+            ])],
+        ]);
+
+        $usageTypeIds = collect($data['rules'])->pluck('usage_type_id')->all();
+
+        $product->mediaInheritanceRules()->whereNotIn('usage_type_id', $usageTypeIds)->delete();
+
+        foreach ($data['rules'] as $rule) {
+            VirtualProductMediaInheritanceRule::updateOrCreate(
+                ['virtual_product_id' => $product->id, 'usage_type_id' => $rule['usage_type_id']],
+                ['conflict_mode' => $rule['conflict_mode']],
+            );
+        }
+
+        $this->audit('virtual_media_inheritance_rules_saved', 'Product', $product->id, null, [
+            'usage_type_count' => count($usageTypeIds),
+        ]);
+
+        return VirtualProductMediaInheritanceRuleResource::collection(
+            $product->mediaInheritanceRules()->with('usageType')->get()
+        );
+    }
+
+    /**
      * POST /products/{product}/virtual-definition/sync
      *
-     * Vererbt die per Regel definierten Attributwerte an die aktuellen
-     * Mitglieder. Deklarativ: entfernt auch Werte, deren Regel gelöscht
-     * wurde oder deren Mitglied den Cluster verlassen hat.
+     * Vererbt die per Regel definierten Attributwerte und Medien-Zuordnungen
+     * an die aktuellen Mitglieder. Deklarativ: entfernt auch Werte/Zuordnungen,
+     * deren Regel gelöscht wurde oder deren Mitglied den Cluster verlassen hat.
      */
     public function sync(Product $product): JsonResponse
     {
@@ -273,11 +340,21 @@ class VirtualProductController extends Controller
             ]);
         }
 
-        $report = $this->syncService->sync($product);
+        // Mitglieder einmalig auflösen (statt in beiden Services separat) — bei
+        // source_type=search_profile/pql führt jede Auflösung eine Live-Suche
+        // bzw. PQL-Abfrage aus, die sich für denselben Sync-Aufruf nicht lohnt.
+        $definition = $product->virtualDefinition;
+        $memberIds = $definition !== null ? $this->resolver->memberIds($definition) : [];
 
-        $this->audit('virtual_attributes_synced', 'Product', $product->id, null, $report);
+        $attributeReport = $this->syncService->sync($product, $memberIds);
+        $mediaReport = $this->mediaSyncService->sync($product, $memberIds);
 
-        return response()->json(['data' => $report]);
+        $this->audit('virtual_attributes_synced', 'Product', $product->id, null, $attributeReport);
+        $this->audit('virtual_media_synced', 'Product', $product->id, null, $mediaReport);
+
+        return response()->json(['data' => array_merge($attributeReport, [
+            'media' => $mediaReport,
+        ])]);
     }
 
     /**

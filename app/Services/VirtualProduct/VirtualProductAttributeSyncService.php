@@ -48,7 +48,13 @@ class VirtualProductAttributeSyncService
      *     released_members: array<string, string>,
      * }
      */
-    public function sync(Product $virtualProduct): array
+    /**
+     * @param  array<int, string>|null  $memberIds  Bereits aufgelöste Cluster-Mitglieder
+     *   (z.B. vom Aufrufer einmalig für Attribut- und Medien-Sync gemeinsam ermittelt,
+     *   um die Live-Auflösung — Suchprofil/PQL-Ausführung — nicht doppelt auszuführen).
+     *   Wird nichts übergeben, löst der Service die Mitglieder selbst auf.
+     */
+    public function sync(Product $virtualProduct, ?array $memberIds = null): array
     {
         $report = [
             'member_count' => 0,
@@ -70,8 +76,8 @@ class VirtualProductAttributeSyncService
         $rules = $virtualProduct->inheritanceRules()->get()->keyBy('attribute_id');
         $report['attribute_count'] = $rules->count();
 
-        DB::transaction(function () use ($virtualProduct, $definition, $rules, &$report) {
-            $memberIds = collect($this->resolver->memberIds($definition));
+        DB::transaction(function () use ($virtualProduct, $definition, $rules, $memberIds, &$report) {
+            $memberIds = collect($memberIds ?? $this->resolver->memberIds($definition));
 
             $this->releaseFormerMembers($virtualProduct, $memberIds, $report);
 

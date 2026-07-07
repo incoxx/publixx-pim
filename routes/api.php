@@ -730,6 +730,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('products/{product}/virtual-inheritance-rules', [VirtualProductController::class, 'inheritanceRules']);
     Route::put('products/{product}/virtual-inheritance-rules', [VirtualProductController::class, 'saveInheritanceRules']);
 
+    // Virtuelle Produkte — Vererbungsregeln (Phase 2: Medien)
+    Route::get('products/{product}/virtual-media-inheritance-rules', [VirtualProductController::class, 'mediaInheritanceRules']);
+    Route::put('products/{product}/virtual-media-inheritance-rules', [VirtualProductController::class, 'saveMediaInheritanceRules']);
+
     // =====================================================================
     // Agent 3 + 6: Import
     // =====================================================================

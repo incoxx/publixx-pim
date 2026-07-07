@@ -2068,6 +2068,7 @@ async function loadVirtualCluster() {
     }
     await loadVirtualMembers()
     await loadVirtualInheritanceData()
+    await loadVirtualMediaInheritanceData()
   } catch (e) { console.error('Failed to load virtual cluster:', e.message) }
   finally { virtualLoading.value = false }
 }
@@ -2238,6 +2239,49 @@ async function saveVirtualInheritanceRules() {
   } catch (e) {
     toastStore.showToast(e.response?.data?.message || 'Speichern fehlgeschlagen', 'error')
   } finally { virtualRulesSaving.value = false }
+}
+
+// ─── Vererbungsregeln (Phase 2: Medien) ───────────────
+// { [usage_type_id]: { enabled: bool, conflict_mode: 'keep_local'|'force_override' } }
+const virtualMediaRules = ref({})
+const virtualMediaRulesLoading = ref(false)
+const virtualMediaRulesSaving = ref(false)
+
+async function loadVirtualMediaInheritanceData() {
+  if (!product.value) return
+  virtualMediaRulesLoading.value = true
+  try {
+    if (usageTypesList.value.length === 0) {
+      const { data } = await mediaUsageTypes.list()
+      usageTypesList.value = data.data || data
+    }
+    const { data } = await productsApi.getVirtualMediaInheritanceRules(product.value.id)
+    const existingRules = data.data || data || []
+    const rulesMap = {}
+    for (const ut of usageTypesList.value) {
+      const existing = existingRules.find(r => r.usage_type_id === ut.id)
+      rulesMap[ut.id] = {
+        enabled: !!existing,
+        conflict_mode: existing?.conflict_mode || 'keep_local',
+      }
+    }
+    virtualMediaRules.value = rulesMap
+  } catch (e) { console.error('Failed to load media inheritance rules:', e.message) }
+  finally { virtualMediaRulesLoading.value = false }
+}
+
+async function saveVirtualMediaInheritanceRules() {
+  if (!product.value) return
+  virtualMediaRulesSaving.value = true
+  try {
+    const rules = Object.entries(virtualMediaRules.value)
+      .filter(([, r]) => r.enabled)
+      .map(([usage_type_id, r]) => ({ usage_type_id, conflict_mode: r.conflict_mode }))
+    await productsApi.saveVirtualMediaInheritanceRules(product.value.id, rules)
+    toastStore.showToast('Medien-Vererbungsregeln gespeichert', 'success')
+  } catch (e) {
+    toastStore.showToast(e.response?.data?.message || 'Speichern fehlgeschlagen', 'error')
+  } finally { virtualMediaRulesSaving.value = false }
 }
 
 async function syncVirtualCluster() {
@@ -5236,6 +5280,82 @@ onUnmounted(() => {
                 <li v-for="s in virtualSyncReport.skipped_members" :key="s.id">{{ s.sku }} — {{ s.reason }}</li>
               </ul>
             </div>
+            <div v-if="virtualSyncReport.media" class="pt-1 border-t border-[var(--color-border)]">
+              <p class="text-[var(--color-text-primary)] font-medium">Medien</p>
+              <p class="text-[var(--color-text-secondary)]">
+                {{ virtualSyncReport.media.member_count }} Mitglieder verarbeitet ·
+                {{ virtualSyncReport.media.assignments_created }} neu ·
+                {{ virtualSyncReport.media.assignments_updated }} aktualisiert ·
+                {{ virtualSyncReport.media.assignments_overridden }} überschrieben ·
+                {{ virtualSyncReport.media.assignments_kept_local }} lokal belassen ·
+                {{ virtualSyncReport.media.assignments_removed }} entfernt
+              </p>
+              <p v-if="Object.keys(virtualSyncReport.media.released_members || {}).length" class="text-[var(--color-text-tertiary)]">
+                Cluster verlassen (Medien entfernt): {{ Object.values(virtualSyncReport.media.released_members).join(', ') }}
+              </p>
+              <div v-if="virtualSyncReport.media.skipped_members?.length" class="text-amber-600">
+                <p class="font-medium">Übersprungen ({{ virtualSyncReport.media.skipped_members.length }}):</p>
+                <ul class="list-disc list-inside">
+                  <li v-for="s in virtualSyncReport.media.skipped_members" :key="s.id">{{ s.sku }} — {{ s.reason }}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Vererbungsregeln (Phase 2: Medien) -->
+        <div class="pim-card p-4 space-y-3">
+          <div>
+            <h4 class="text-sm font-medium text-[var(--color-text-primary)]">Medien-Vererbungsregeln</h4>
+            <p class="text-[11px] text-[var(--color-text-tertiary)]">
+              Bildtypen (Usage-Types), deren Medien-Zuordnungen per Sync an die Mitglieder vererbt werden. Die Medien selbst pflegst du im Reiter „Medien“ dieses Produkts.
+              Ein Mitglied gehört bei Medien immer zu höchstens einem Cluster — bereits einem anderen Cluster zugeordnete Mitglieder werden beim Sync übersprungen.
+            </p>
+          </div>
+
+          <div v-if="virtualMediaRulesLoading" class="text-center py-4">
+            <p class="text-sm text-[var(--color-text-tertiary)]">Laden…</p>
+          </div>
+          <div v-else-if="usageTypesList.length === 0" class="text-center py-4">
+            <p class="text-sm text-[var(--color-text-tertiary)]">Keine Bildtypen (Usage-Types) im System vorhanden.</p>
+          </div>
+          <div v-else class="pim-card overflow-hidden">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+                  <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium" style="width:32px"></th>
+                  <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Bildtyp</th>
+                  <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Bei Konflikt mit lokalen Medien</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="ut in usageTypesList" :key="ut.id" class="border-b border-[var(--color-border)] last:border-0">
+                  <td class="px-3 py-2">
+                    <input type="checkbox" v-model="virtualMediaRules[ut.id].enabled" />
+                  </td>
+                  <td class="px-3 py-2 text-[var(--color-text-primary)]">{{ ut.name_de || ut.technical_name }}</td>
+                  <td class="px-3 py-2">
+                    <select
+                      class="pim-input text-xs py-1"
+                      v-model="virtualMediaRules[ut.id].conflict_mode"
+                      :disabled="!virtualMediaRules[ut.id].enabled"
+                    >
+                      <option value="keep_local">Lokale Medien belassen</option>
+                      <option value="force_override">Überschreiben</option>
+                    </select>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="flex gap-2">
+            <button class="pim-btn pim-btn-secondary text-xs" :disabled="virtualMediaRulesSaving" @click="saveVirtualMediaInheritanceRules">
+              {{ virtualMediaRulesSaving ? 'Speichern…' : 'Regeln speichern' }}
+            </button>
+            <button class="pim-btn pim-btn-primary text-xs" :disabled="virtualSyncing" @click="syncVirtualCluster">
+              <RefreshCw class="w-3.5 h-3.5" :stroke-width="2" :class="{ 'animate-spin': virtualSyncing }" /> {{ virtualSyncing ? 'Synchronisiere…' : 'Jetzt synchronisieren' }}
+            </button>
           </div>
         </div>
 

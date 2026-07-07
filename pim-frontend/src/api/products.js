@@ -166,6 +166,14 @@ export default {
     return client.put(`/products/${id}/virtual-inheritance-rules`, { rules })
   },
 
+  getVirtualMediaInheritanceRules(id) {
+    return client.get(`/products/${id}/virtual-media-inheritance-rules`)
+  },
+
+  saveVirtualMediaInheritanceRules(id, rules) {
+    return client.put(`/products/${id}/virtual-media-inheritance-rules`, { rules })
+  },
+
   // Output Hierarchy Assignments
   getOutputHierarchyAssignments(id) {
     return client.get(`/products/${id}/output-hierarchy-assignments`)
