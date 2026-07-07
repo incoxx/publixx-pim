@@ -1211,7 +1211,12 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 VIDEO_ENGINE_DIR="${INSTALL_DIR}/video-engine"
 
-if [ -d "$VIDEO_ENGINE_DIR" ] && [ -f "${VIDEO_ENGINE_DIR}/package.json" ]; then
+# In eine Funktion gekapselt, damit ein Fehlschlag (z.B. Playwright kennt eine
+# brandneue Ubuntu-Version noch nicht) nur DIESEN optionalen Block per
+# "if ! setup_video_engine" abfaengt, statt via set -e die GESAMTE
+# Installation abzubrechen — "(optional)" im Step-Namen war bisher nicht
+# tatsaechlich optional.
+setup_video_engine() {
     step "Video-Engine einrichten (optional)"
 
     # System-Pakete fuer Video-Aufnahme
@@ -1269,6 +1274,15 @@ if [ -d "$VIDEO_ENGINE_DIR" ] && [ -f "${VIDEO_ENGINE_DIR}/package.json" ]; then
     info "Video-Engine eingerichtet."
     info "  Nutzung: php artisan pim:video-generate --list"
     info "  Preflight: php artisan pim:video-generate --preflight"
+}
+
+if [ -d "$VIDEO_ENGINE_DIR" ] && [ -f "${VIDEO_ENGINE_DIR}/package.json" ]; then
+    if ! setup_video_engine; then
+        cd "$INSTALL_DIR"
+        warn "Video-Engine-Setup fehlgeschlagen — optionales Feature wird uebersprungen, Rest der Installation laeuft weiter."
+        warn "Haeufige Ursache auf brandneuen Ubuntu-Versionen: Playwright kennt die Distribution (noch) nicht."
+        warn "Spaeter manuell nachholen: cd ${VIDEO_ENGINE_DIR} && npx playwright install --with-deps chromium"
+    fi
 else
     info "Video-Engine nicht vorhanden — uebersprungen."
 fi
