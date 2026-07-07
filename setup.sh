@@ -129,9 +129,34 @@ elif [ "$TOTAL_RAM_MB" -lt 4096 ]; then
     info "RAM: ${TOTAL_RAM_MB} MB, Swap: ${SWAP_TOTAL_MB} MB — ausreichend."
 fi
 
+# ─── Gespeicherte Konfiguration aus vorherigem Lauf ────────────────────────────
+# Falls ein spaeterer Schritt (z.B. apt/Netzwerk) fehlschlaegt, muessen beim
+# erneuten Ausfuehren nicht alle Fragen erneut beantwortet werden. Datei liegt
+# nur fuer root lesbar unter /root, da sie Passwoerter im Klartext enthaelt.
+CONFIG_FILE="/root/.anypim-setup-answers.env"
+RESUMED_FROM_CONFIG=false
+
+if [ -f "$CONFIG_FILE" ]; then
+    echo ""
+    warn "Gespeicherte Konfiguration von einem vorherigen Lauf gefunden:"
+    echo -e "  ${CYAN}${CONFIG_FILE}${NC} ($(date -r "$CONFIG_FILE" '+%d.%m.%Y %H:%M' 2>/dev/null))"
+    ask "Diese Konfiguration wiederverwenden statt alles neu einzugeben? [J/n]: "
+    read -r REUSE_CONFIG
+    if [[ ! "$REUSE_CONFIG" =~ ^[nN]$ ]]; then
+        # shellcheck disable=SC1090
+        source "$CONFIG_FILE"
+        RESUMED_FROM_CONFIG=true
+        info "Konfiguration geladen — Installation wird ohne erneute Abfrage fortgesetzt."
+    else
+        rm -f "$CONFIG_FILE"
+    fi
+fi
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  INTERAKTIVE KONFIGURATION
 # ═════════════════════════════════════════════════════════════════════════════
+if [ "$RESUMED_FROM_CONFIG" = false ]; then
+
 step "Konfiguration"
 
 echo -e "${BOLD}Bitte gib die folgenden Informationen ein:${NC}\n"
@@ -303,6 +328,8 @@ if [[ "$ADMIN_ANSWER" =~ ^[jJyY]$ ]]; then
     fi
 fi
 
+fi # Ende: RESUMED_FROM_CONFIG = false (interaktive Abfrage)
+
 # --- Zusammenfassung ---
 echo ""
 echo -e "${BOLD}${BLUE}═══ Zusammenfassung ═══${NC}"
@@ -326,8 +353,71 @@ if [[ ! "$START_INSTALL" =~ ^[jJyY]$ ]]; then
     exit 0
 fi
 
+# --- Konfiguration fuer Resume nach Abbruch speichern ---
+umask 077
+{
+    declare -p SERVER_DOMAIN IS_IP APP_PORT USE_SSL APP_PROTOCOL WEB_PATH APP_URL SANCTUM_DOMAIN
+    declare -p DB_NAME DB_USER DB_PASS INSTALL_DIR CUSTOM_ADMIN
+    if [ "$USE_SSL" = true ]; then
+        declare -p SSL_EMAIL SSL_PORT
+    fi
+    if [ "$CUSTOM_ADMIN" = true ]; then
+        declare -p ADMIN_EMAIL ADMIN_NAME ADMIN_PASS
+    fi
+} > "$CONFIG_FILE"
+chmod 600 "$CONFIG_FILE"
+info "Konfiguration gespeichert (${CONFIG_FILE}) — bei Abbruch muss nichts erneut eingegeben werden."
+
 INSTALL_START=$(date +%s)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  PHP-REPOSITORY VORBEREITEN (muss vor "System aktualisieren" laufen)
+# ═════════════════════════════════════════════════════════════════════════════
+# Die ondrej/php-PPA auf Launchpad baut Pakete nicht immer sofort fuer
+# brandneue Ubuntu-Versionen (z.B. Ubuntu 26.04 "Resolute"): apt meldet dann
+# "does not have a Release file". Das wuerde JEDEN apt-get update Aufruf
+# blockieren — auch den generischen System-Update in Schritt 1, und auch
+# einen Rest aus einem vorherigen, abgebrochenen Lauf. Deshalb wird das
+# Repository hier geprueft/repariert, bevor ueberhaupt aktualisiert wird.
+# Ondrej verweist im Fehlerfall selbst auf packages.sury.org/php als
+# kanonisches Repository — dorthin wird als Fallback gewechselt.
+step "PHP-Repository vorbereiten"
+
+UBUNTU_CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+PHP_REPO_OK=false
+
+if grep -rq "packages\.sury\.org" /etc/apt/sources.list.d/ 2>/dev/null; then
+    info "PHP-Repository packages.sury.org bereits konfiguriert."
+    PHP_REPO_OK=true
+elif grep -rq "ondrej/php" /etc/apt/sources.list.d/ 2>/dev/null; then
+    info "ondrej/php PPA ist bereits eingetragen — pruefe Erreichbarkeit..."
+    apt-get update -qq --allow-releaseinfo-change 2>/tmp/anypim-apt-update.log && PHP_REPO_OK=true
+else
+    info "Fuege PHP-Repository ondrej/php (PPA) hinzu..."
+    add-apt-repository ppa:ondrej/php -y
+    apt-get update -qq --allow-releaseinfo-change 2>/tmp/anypim-apt-update.log && PHP_REPO_OK=true
+fi
+
+if [ "$PHP_REPO_OK" = false ]; then
+    cat /tmp/anypim-apt-update.log >&2 2>/dev/null || true
+    warn "ondrej/php PPA hat fuer '${UBUNTU_CODENAME}' (noch) kein Release — vermutlich eine sehr neue Ubuntu-Version oder ein Rest aus einem vorherigen fehlgeschlagenen Lauf."
+    info "Wechsle auf packages.sury.org/php (von ondrej selbst als kanonisches Repo empfohlen)..."
+
+    add-apt-repository --remove ppa:ondrej/php -y > /dev/null 2>&1 || true
+    rm -f /etc/apt/sources.list.d/ondrej-ubuntu-php-*.list /etc/apt/sources.list.d/ondrej-ubuntu-php-*.sources
+
+    apt-get install -y -qq apt-transport-https ca-certificates gnupg
+    curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/deb-sury-php.gpg
+    echo "deb [signed-by=/usr/share/keyrings/deb-sury-php.gpg] https://packages.sury.org/php/ ${UBUNTU_CODENAME} main" \
+        > /etc/apt/sources.list.d/php-sury.list
+
+    if ! apt-get update -qq --allow-releaseinfo-change; then
+        error "Weder ondrej/php PPA noch packages.sury.org bieten PHP-Pakete fuer '${UBUNTU_CODENAME}' an. Bitte https://packages.sury.org/php/ manuell pruefen."
+    fi
+    info "PHP-Repository packages.sury.org/php fuer '${UBUNTU_CODENAME}' eingerichtet."
+fi
+rm -f /tmp/anypim-apt-update.log
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  1. SYSTEM-PAKETE AKTUALISIEREN
@@ -344,44 +434,8 @@ info "System aktualisiert."
 # ═════════════════════════════════════════════════════════════════════════════
 step "2/10 — PHP 8.4 installieren"
 
-# PHP-Repository einrichten.
-# Die ondrej/php-PPA auf Launchpad baut Pakete nicht immer sofort fuer
-# brandneue Ubuntu-Versionen (z.B. Ubuntu 26.04 "Resolute"): apt meldet dann
-# "does not have a Release file" und apt-get update schlaegt fehl.
-# Ondrej verweist in diesem Fall selbst auf packages.sury.org/php als
-# kanonisches Repository — dorthin wird als Fallback gewechselt.
-# (Suchmuster deckt sowohl klassische .list- als auch neuere deb822 .sources-
-# Dateien ab, damit ein erneuter Lauf das bereits eingerichtete Repo erkennt.)
-if ! grep -rq "ondrej/php\|packages\.sury\.org" /etc/apt/sources.list.d/ 2>/dev/null; then
-    UBUNTU_CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
-
-    info "Fuege PHP-Repository ondrej/php (PPA) hinzu..."
-    add-apt-repository ppa:ondrej/php -y
-
-    PHP_PPA_OK=true
-    apt-get update -qq --allow-releaseinfo-change 2>/tmp/anypim-apt-update.log || PHP_PPA_OK=false
-
-    if [ "$PHP_PPA_OK" = false ] || grep -q "does not have a Release file" /tmp/anypim-apt-update.log 2>/dev/null; then
-        cat /tmp/anypim-apt-update.log >&2 2>/dev/null || true
-        warn "ondrej/php PPA hat fuer '${UBUNTU_CODENAME}' (noch) kein Release — vermutlich eine sehr neue Ubuntu-Version."
-        info "Wechsle auf packages.sury.org/php (von ondrej selbst als kanonisches Repo empfohlen)..."
-
-        add-apt-repository --remove ppa:ondrej/php -y > /dev/null 2>&1 || true
-        rm -f /etc/apt/sources.list.d/ondrej-ubuntu-php-*.list /etc/apt/sources.list.d/ondrej-ubuntu-php-*.sources
-
-        apt-get install -y -qq apt-transport-https ca-certificates gnupg
-        curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/deb-sury-php.gpg
-        echo "deb [signed-by=/usr/share/keyrings/deb-sury-php.gpg] https://packages.sury.org/php/ ${UBUNTU_CODENAME} main" \
-            > /etc/apt/sources.list.d/php-sury.list
-
-        if ! apt-get update -qq --allow-releaseinfo-change; then
-            error "Weder ondrej/php PPA noch packages.sury.org bieten PHP-Pakete fuer '${UBUNTU_CODENAME}' an. Bitte https://packages.sury.org/php/ manuell pruefen."
-        fi
-        info "PHP-Repository packages.sury.org/php fuer '${UBUNTU_CODENAME}' eingerichtet."
-    fi
-    rm -f /tmp/anypim-apt-update.log
-fi
-
+# PHP-Repository wurde bereits vor Schritt 1 eingerichtet/repariert (siehe
+# "PHP-Repository vorbereiten" weiter oben).
 apt-get install -y -qq \
     php8.4 \
     php8.4-cli \
@@ -1504,6 +1558,10 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 #  FERTIG
 # ═════════════════════════════════════════════════════════════════════════════
+
+# Installation erfolgreich -> gespeicherte Klartext-Passwoerter nicht mehr noetig.
+rm -f "$CONFIG_FILE"
+
 INSTALL_END=$(date +%s)
 INSTALL_DURATION=$(( INSTALL_END - INSTALL_START ))
 INSTALL_MINUTES=$(( INSTALL_DURATION / 60 ))
