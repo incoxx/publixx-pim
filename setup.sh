@@ -704,6 +704,17 @@ if ! command -v node &> /dev/null || [[ "$(node -v | cut -d. -f1 | tr -d 'v')" -
     rm -f /tmp/anypim-nodesource.log
 fi
 
+# npm fehlt, wenn Node ueber Ubuntus eigenes natives nodejs-Paket kommt
+# (z.B. Ubuntu 26.04 "Resolute" liefert nodejs>=22 direkt aus dem eigenen
+# Archiv -> obiger Versionscheck ist schon erfuellt, der Block oben laeuft
+# gar nicht erst). Anders als bei NodeSource oder dem nodejs.org-Tarball
+# (beide buendeln npm) ist npm bei Ubuntus eigener Paketierung ein
+# separates Paket.
+if ! command -v npm &> /dev/null; then
+    info "npm fehlt (natives nodejs-Paket bringt es nicht mit) — installiere npm..."
+    apt-get install -y -qq npm
+fi
+
 info "Node.js installiert: $(node -v)"
 info "npm installiert: $(npm -v)"
 
