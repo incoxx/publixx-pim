@@ -366,6 +366,7 @@ umask 077
     fi
 } > "$CONFIG_FILE"
 chmod 600 "$CONFIG_FILE"
+umask 022
 info "Konfiguration gespeichert (${CONFIG_FILE}) — bei Abbruch muss nichts erneut eingegeben werden."
 
 INSTALL_START=$(date +%s)
@@ -408,7 +409,20 @@ if [ "$PHP_REPO_OK" = false ]; then
     rm -f /etc/apt/sources.list.d/ondrej-ubuntu-php-*.list /etc/apt/sources.list.d/ondrej-ubuntu-php-*.sources
 
     apt-get install -y -qq apt-transport-https ca-certificates gnupg
-    curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/deb-sury-php.gpg
+
+    # Key kann ASCII-armored oder bereits binaer sein — je nach Format
+    # entdearmoren oder direkt uebernehmen. Explizit chmod 644, da gpgv
+    # (von apt sandboxed als User "_apt" ausgefuehrt) den Keyring lesen
+    # koennen muss — unabhaengig vom aktuell gesetzten umask.
+    curl -fsSL https://packages.sury.org/php/apt.gpg -o /tmp/anypim-sury-php.key
+    if grep -q "BEGIN PGP PUBLIC KEY BLOCK" /tmp/anypim-sury-php.key; then
+        gpg --dearmor -o /usr/share/keyrings/deb-sury-php.gpg /tmp/anypim-sury-php.key
+    else
+        cp /tmp/anypim-sury-php.key /usr/share/keyrings/deb-sury-php.gpg
+    fi
+    rm -f /tmp/anypim-sury-php.key
+    chmod 644 /usr/share/keyrings/deb-sury-php.gpg
+
     echo "deb [signed-by=/usr/share/keyrings/deb-sury-php.gpg] https://packages.sury.org/php/ ${UBUNTU_CODENAME} main" \
         > /etc/apt/sources.list.d/php-sury.list
 
