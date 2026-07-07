@@ -2,12 +2,13 @@
 #
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║              anyPIM — Setup & Installer                       ║
-# ║              Ubuntu 24.04 LTS · Apache · PHP 8.4 · MySQL 8        ║
+# ║              Ubuntu 24.04 LTS · Apache · PHP 8.4+ · MySQL 8       ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 #
 # Dieses Script richtet eine vollstaendige anyPIM Instanz ein:
 #   - Apache2 mit VirtualHost
-#   - PHP 8.4 + alle benoetigten Extensions
+#   - PHP 8.4 (oder die von Ubuntu nativ mitgelieferte neuere Version,
+#     z.B. PHP 8.5 auf Ubuntu 26.04) + alle benoetigten Extensions
 #   - MySQL 8.0 mit Datenbank und Benutzer
 #   - Redis (Cache, Queue, Session)
 #   - Node.js 20 LTS + Frontend-Build (Vue 3 / Vite)
@@ -129,9 +130,40 @@ elif [ "$TOTAL_RAM_MB" -lt 4096 ]; then
     info "RAM: ${TOTAL_RAM_MB} MB, Swap: ${SWAP_TOTAL_MB} MB — ausreichend."
 fi
 
+# ─── Gespeicherte Konfiguration aus vorherigem Lauf ────────────────────────────
+# Falls ein spaeterer Schritt (z.B. apt/Netzwerk) fehlschlaegt, muessen beim
+# erneuten Ausfuehren nicht alle Fragen erneut beantwortet werden. Datei liegt
+# nur fuer root lesbar unter /root, da sie Passwoerter im Klartext enthaelt.
+CONFIG_FILE="/root/.anypim-setup-answers.env"
+RESUMED_FROM_CONFIG=false
+
+if [ -f "$CONFIG_FILE" ]; then
+    echo ""
+    warn "Gespeicherte Konfiguration von einem vorherigen Lauf gefunden:"
+    echo -e "  ${CYAN}${CONFIG_FILE}${NC} ($(date -r "$CONFIG_FILE" '+%d.%m.%Y %H:%M' 2>/dev/null))"
+    ask "Diese Konfiguration wiederverwenden statt alles neu einzugeben? [J/n]: "
+    read -r REUSE_CONFIG
+    # "^[nN]" statt "^[nN]$": erkennt auch ausgeschriebene Antworten wie
+    # "nein"/"no" als Ablehnung, nicht nur den exakten Einzelbuchstaben.
+    if [[ ! "$REUSE_CONFIG" =~ ^[nN] ]]; then
+        # shellcheck disable=SC1090
+        if source "$CONFIG_FILE" 2>/dev/null; then
+            RESUMED_FROM_CONFIG=true
+            info "Konfiguration geladen — Installation wird ohne erneute Abfrage fortgesetzt."
+        else
+            warn "Gespeicherte Konfiguration ist beschaedigt (vermutlich ein waehrend des Speicherns abgebrochener Lauf) — wird verworfen, Fragen werden erneut gestellt."
+            rm -f "$CONFIG_FILE"
+        fi
+    else
+        rm -f "$CONFIG_FILE"
+    fi
+fi
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  INTERAKTIVE KONFIGURATION
 # ═════════════════════════════════════════════════════════════════════════════
+if [ "$RESUMED_FROM_CONFIG" = false ]; then
+
 step "Konfiguration"
 
 echo -e "${BOLD}Bitte gib die folgenden Informationen ein:${NC}\n"
@@ -303,6 +335,8 @@ if [[ "$ADMIN_ANSWER" =~ ^[jJyY]$ ]]; then
     fi
 fi
 
+fi # Ende: RESUMED_FROM_CONFIG = false (interaktive Abfrage)
+
 # --- Zusammenfassung ---
 echo ""
 echo -e "${BOLD}${BLUE}═══ Zusammenfassung ═══${NC}"
@@ -326,51 +360,168 @@ if [[ ! "$START_INSTALL" =~ ^[jJyY]$ ]]; then
     exit 0
 fi
 
+# --- Konfiguration fuer Resume nach Abbruch speichern ---
+umask 077
+{
+    declare -p SERVER_DOMAIN IS_IP APP_PORT USE_SSL APP_PROTOCOL WEB_PATH APP_URL SANCTUM_DOMAIN
+    declare -p DB_NAME DB_USER DB_PASS INSTALL_DIR CUSTOM_ADMIN
+    if [ "$USE_SSL" = true ]; then
+        declare -p SSL_EMAIL SSL_PORT
+    fi
+    if [ "$CUSTOM_ADMIN" = true ]; then
+        declare -p ADMIN_EMAIL ADMIN_NAME ADMIN_PASS
+    fi
+} > "$CONFIG_FILE"
+chmod 600 "$CONFIG_FILE"
+umask 022
+info "Konfiguration gespeichert (${CONFIG_FILE}) — bei Abbruch muss diese Basis-Konfiguration nicht erneut eingegeben werden."
+# Hinweis: einzelne spaetere Abfragen, die vom aktuellen System-Zustand
+# abhaengen (z.B. Datenbank existiert bereits, Apache-Alias existiert
+# bereits), werden davon bewusst nicht abgedeckt und laufen bei jedem
+# (Wieder-)Start live, da sich dieser Zustand zwischen Laeufen aendern kann.
+
 INSTALL_START=$(date +%s)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Muss vor jedem apt-get/add-apt-repository-Aufruf gesetzt sein (auch vor dem
+# PHP-Repository-Preflight unten), sonst koennen debconf-Prompts vereinzelter
+# Pakete den unbeaufsichtigten Lauf zum Haengen bringen.
+export DEBIAN_FRONTEND=noninteractive
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  PHP-VERSION ERMITTELN & REPOSITORY VORBEREITEN (muss vor "System
+#  aktualisieren" laufen)
+# ═════════════════════════════════════════════════════════════════════════════
+# Die ondrej/php-PPA auf Launchpad (und teils auch packages.sury.org) bauen
+# Pakete nicht immer sofort fuer brandneue Ubuntu-Versionen (z.B. Ubuntu
+# 26.04 "Resolute"): entweder fehlt das Release fuer den Codename, oder das
+# Release existiert bereits, aber die eigentlichen Pakete wurden fuer diese
+# Suite noch nicht hochgeladen. Ein bloss erfolgreiches "apt-get update"
+# reicht daher NICHT als Beweis, dass PHP 8.4 wirklich installierbar ist —
+# deshalb wird hier zusaetzlich immer der tatsaechliche apt-Kandidat geprueft.
+#
+# Bevorzugt wird eine von Ubuntu selbst nativ mitgelieferte PHP-Version, wenn
+# sie >= 8.4 ist (z.B. Ubuntu 26.04 "Resolute" bringt PHP 8.5 direkt aus dem
+# eigenen Archiv mit). Das umgeht Drittanbieter-Repos komplett und damit
+# strukturell auch das "Drittanbieter-Repo hinkt brandneuer Ubuntu-Version
+# hinterher"-Problem, statt nur den einen konkret bekannten Fehlerfall zu
+# patchen. Nur wenn nativ nichts >= 8.4 verfuegbar ist (z.B. Ubuntu 24.04,
+# das nativ nur PHP 8.3 mitbringt), wird gezielt PHP 8.4 ueber ondrej/php
+# bzw. packages.sury.org installiert.
+step "PHP-Version ermitteln & Repository vorbereiten"
+
+UBUNTU_CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+PHP_VERSION="8.4"
+
+php_has_candidate() {
+    apt-cache policy "$1" 2>/dev/null | grep -q "Candidate: [^(]"
+}
+
+apt-get update -qq --allow-releaseinfo-change 2>/tmp/anypim-apt-update.log || true
+
+NATIVE_PHP_VERSION="$(apt-cache policy php 2>/dev/null | awk '/Candidate:/ {print $2}' | grep -oP '\d+\.\d+' | head -1)"
+if [ -n "$NATIVE_PHP_VERSION" ] && [ "$(printf '%s\n' "8.4" "$NATIVE_PHP_VERSION" | sort -V | tail -1)" = "$NATIVE_PHP_VERSION" ]; then
+    PHP_VERSION="$NATIVE_PHP_VERSION"
+    info "Ubuntu liefert PHP ${PHP_VERSION} bereits nativ (>= 8.4) — ueberspringe ondrej/php PPA und packages.sury.org."
+elif php_has_candidate "php8.4"; then
+    info "PHP 8.4 ist bereits ueber ein konfiguriertes Repository installierbar."
+else
+    if ! grep -rq "ondrej/php" /etc/apt/sources.list.d/ 2>/dev/null; then
+        info "Fuege PHP-Repository ondrej/php (PPA) hinzu..."
+        add-apt-repository ppa:ondrej/php -y 2>/tmp/anypim-apt-update.log || true
+        apt-get update -qq --allow-releaseinfo-change 2>>/tmp/anypim-apt-update.log || true
+    fi
+
+    if ! php_has_candidate "php8.4"; then
+        cat /tmp/anypim-apt-update.log >&2 2>/dev/null || true
+        warn "PHP 8.4 ist ueber ondrej/php fuer '${UBUNTU_CODENAME}' (noch) nicht installierbar — vermutlich eine sehr neue Ubuntu-Version, fuer die das Repo noch keine Pakete hochgeladen hat."
+        info "Wechsle auf packages.sury.org/php (von ondrej selbst als kanonisches Repo empfohlen)..."
+
+        add-apt-repository --remove ppa:ondrej/php -y > /dev/null 2>&1 || true
+        rm -f /etc/apt/sources.list.d/ondrej-ubuntu-php-*.list /etc/apt/sources.list.d/ondrej-ubuntu-php-*.sources
+
+        if ! grep -rq "packages\.sury\.org" /etc/apt/sources.list.d/ 2>/dev/null; then
+            apt-get install -y -qq apt-transport-https ca-certificates gnupg
+
+            # Key kann ASCII-armored oder bereits binaer sein — je nach Format
+            # entdearmoren oder direkt uebernehmen. Explizit chmod 644, da gpgv
+            # (von apt sandboxed als User "_apt" ausgefuehrt) den Keyring lesen
+            # koennen muss — unabhaengig vom aktuell gesetzten umask.
+            curl -fsSL https://packages.sury.org/php/apt.gpg -o /tmp/anypim-sury-php.key
+            if grep -q "BEGIN PGP PUBLIC KEY BLOCK" /tmp/anypim-sury-php.key; then
+                gpg --dearmor -o /usr/share/keyrings/deb-sury-php.gpg /tmp/anypim-sury-php.key
+            else
+                cp /tmp/anypim-sury-php.key /usr/share/keyrings/deb-sury-php.gpg
+            fi
+            rm -f /tmp/anypim-sury-php.key
+            chmod 644 /usr/share/keyrings/deb-sury-php.gpg
+
+            echo "deb [signed-by=/usr/share/keyrings/deb-sury-php.gpg] https://packages.sury.org/php/ ${UBUNTU_CODENAME} main" \
+                > /etc/apt/sources.list.d/php-sury.list
+        fi
+
+        apt-get update -qq --allow-releaseinfo-change || true
+
+        if ! php_has_candidate "php8.4"; then
+            error "PHP 8.4 ist weder nativ von Ubuntu, noch ueber ondrej/php PPA, noch ueber packages.sury.org fuer '${UBUNTU_CODENAME}' installierbar. Bitte https://packages.sury.org/php/ manuell pruefen oder PHP von Hand installieren."
+        fi
+        info "PHP-Repository packages.sury.org/php fuer '${UBUNTU_CODENAME}' eingerichtet."
+    fi
+fi
+rm -f /tmp/anypim-apt-update.log
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  1. SYSTEM-PAKETE AKTUALISIEREN
 # ═════════════════════════════════════════════════════════════════════════════
 step "1/10 — System aktualisieren"
 
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq --allow-releaseinfo-change
+# Kein erneutes apt-get update noetig: der Preflight oben hat den Paket-Cache
+# bereits ueber einen erfolgreichen Aufruf verifiziert/aktualisiert (sonst
+# waere das Script per set -e/error() vorher schon abgebrochen).
 apt-get upgrade -y -qq
 info "System aktualisiert."
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  2. PHP 8.4 INSTALLIEREN
+#  2. PHP INSTALLIEREN
 # ═════════════════════════════════════════════════════════════════════════════
-step "2/10 — PHP 8.4 installieren"
+step "2/10 — PHP ${PHP_VERSION} installieren"
 
-# PPA hinzufuegen falls noch nicht vorhanden
-if ! grep -q "ondrej/php" /etc/apt/sources.list.d/*.list 2>/dev/null; then
-    add-apt-repository ppa:ondrej/php -y
-    apt-get update -qq --allow-releaseinfo-change
+# PHP-Version und -Repository wurden bereits vor Schritt 1 ermittelt/
+# eingerichtet (siehe "PHP-Version ermitteln & Repository vorbereiten" weiter
+# oben) — $PHP_VERSION ist entweder die nativ von Ubuntu mitgelieferte
+# Version (>= 8.4) oder gezielt 8.4 ueber ondrej/php bzw. packages.sury.org.
+PHP_PACKAGES=(
+    "php${PHP_VERSION}"
+    "php${PHP_VERSION}-cli"
+    "php${PHP_VERSION}-common"
+    "php${PHP_VERSION}-mysql"
+    "php${PHP_VERSION}-redis"
+    "php${PHP_VERSION}-mbstring"
+    "php${PHP_VERSION}-xml"
+    "php${PHP_VERSION}-zip"
+    "php${PHP_VERSION}-gd"
+    "php${PHP_VERSION}-bcmath"
+    "php${PHP_VERSION}-curl"
+    "php${PHP_VERSION}-intl"
+    "php${PHP_VERSION}-readline"
+    "libapache2-mod-php${PHP_VERSION}"
+)
+
+# php-opcache ist je nach Paketquelle kein eigenes Paket mehr (z.B. Ubuntus
+# eigenes Archiv fuer PHP 8.5): OPcache ist seit PHP 5.5 fest im Core
+# enthalten und wird dort direkt ueber php-common vorkonfiguriert. Nur
+# hinzufuegen, wenn die aktive Quelle es tatsaechlich als separates Paket
+# anbietet (z.B. ondrej/php-Pakete tun das weiterhin).
+if php_has_candidate "php${PHP_VERSION}-opcache"; then
+    PHP_PACKAGES+=("php${PHP_VERSION}-opcache")
 fi
 
-apt-get install -y -qq \
-    php8.4 \
-    php8.4-cli \
-    php8.4-common \
-    php8.4-mysql \
-    php8.4-redis \
-    php8.4-mbstring \
-    php8.4-xml \
-    php8.4-zip \
-    php8.4-gd \
-    php8.4-bcmath \
-    php8.4-curl \
-    php8.4-intl \
-    php8.4-readline \
-    php8.4-opcache \
-    libapache2-mod-php8.4
+apt-get install -y -qq "${PHP_PACKAGES[@]}"
 
-info "PHP 8.4 installiert: $(php -v | head -1)"
+info "PHP ${PHP_VERSION} installiert: $(php -v | head -1)"
 
 # PHP Konfiguration optimieren
-PHP_INI="/etc/php/8.4/apache2/php.ini"
+PHP_INI="/etc/php/${PHP_VERSION}/apache2/php.ini"
 if [ -f "$PHP_INI" ]; then
     sed -i 's/^memory_limit = .*/memory_limit = 512M/' "$PHP_INI"
     sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 256M/' "$PHP_INI"
@@ -388,7 +539,7 @@ step "3/10 — Apache installieren"
 apt-get install -y -qq apache2
 
 # Module aktivieren
-a2enmod rewrite headers ssl php8.4 > /dev/null 2>&1
+a2enmod rewrite headers ssl "php${PHP_VERSION}" > /dev/null 2>&1
 
 # Default-Site nur deaktivieren wenn PIM im Root laeuft
 if [ -z "$WEB_PATH" ]; then
@@ -429,7 +580,11 @@ if mysql -u root -e "USE \`${DB_NAME}\`" 2>/dev/null; then
             mysql -u root -e "DROP DATABASE \`${DB_NAME}\`;"
             info "Datenbank '${DB_NAME}' geloescht."
             ;;
-        2)
+        2|"")
+            # Leere Eingabe (z.B. kein Terminal bei einem non-interaktiven
+            # Wiederholungslauf) faellt auf die sichere, nicht-destruktive
+            # Option zurueck, statt abzubrechen.
+            [ -z "$DB_CHOICE" ] && warn "Keine Eingabe erhalten — behalte bestehende Datenbank bei (sicherer Default)."
             info "Datenbank wird beibehalten."
             ;;
         *)
@@ -502,9 +657,62 @@ step "6/10 — Node.js 22 LTS installieren"
 # Node 22+ erforderlich (vue-i18n v11 / @intlify). Aeltere Versionen (z. B. 20)
 # werden ueber NodeSource auf 22 angehoben.
 if ! command -v node &> /dev/null || [[ "$(node -v | cut -d. -f1 | tr -d 'v')" -lt 22 ]]; then
-    # NodeSource Repository hinzufuegen
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-    apt-get install -y -qq nodejs
+    # NodeSource-Repository ist wie die PHP-PPA an den Ubuntu-Codename gebunden
+    # und kann bei brandneuen Releases (z.B. Ubuntu 26.04 "Resolute") noch
+    # keine Pakete anbieten. Fallback: offizielles Binary-Tarball von nodejs.org
+    # (codename-unabhaengig).
+    info "Fuege NodeSource-Repository hinzu..."
+    NODESOURCE_OK=true
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - > /tmp/anypim-nodesource.log 2>&1 || NODESOURCE_OK=false
+
+    if [ "$NODESOURCE_OK" = true ]; then
+        apt-get install -y -qq nodejs 2>>/tmp/anypim-nodesource.log || NODESOURCE_OK=false
+    fi
+
+    if [ "$NODESOURCE_OK" = false ]; then
+        cat /tmp/anypim-nodesource.log >&2 2>/dev/null || true
+        warn "NodeSource-Repository steht fuer diese Ubuntu-Version (noch) nicht zur Verfuegung."
+        info "Installiere Node.js 22 LTS stattdessen als offizielles Binary von nodejs.org..."
+
+        rm -f /etc/apt/sources.list.d/nodesource.list /etc/apt/sources.list.d/nodesource.sources
+
+        case "$(dpkg --print-architecture)" in
+            amd64) NODE_ARCH="x64" ;;
+            arm64) NODE_ARCH="arm64" ;;
+            *) error "Nicht unterstuetzte Architektur fuer Node.js-Binary-Fallback: $(dpkg --print-architecture)" ;;
+        esac
+
+        # In eine if-Bedingung eingebettet: schlaegt curl/grep fehl (Netzwerk,
+        # SHASUMS-Format geaendert), wuerde eine blanke Zuweisung sonst per
+        # set -e/pipefail sofort abbrechen, statt die Fehlermeldung unten zu erreichen.
+        NODE_VERSION=""
+        if NODE_VERSION=$(curl -fsSL https://nodejs.org/dist/latest-v22.x/SHASUMS256.txt \
+            | grep -oP "node-v22\.\d+\.\d+(?=-linux-${NODE_ARCH}\.tar\.xz)" | sort -V | tail -1); then
+            NODE_VERSION=${NODE_VERSION#node-v}
+        fi
+
+        if [ -z "$NODE_VERSION" ]; then
+            error "Node.js-Version konnte nicht von nodejs.org ermittelt werden. Bitte manuell installieren."
+        fi
+
+        curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" \
+            -o /tmp/anypim-node.tar.xz
+        tar -xJf /tmp/anypim-node.tar.xz -C /usr/local --strip-components=1
+        rm -f /tmp/anypim-node.tar.xz
+        info "Node.js ${NODE_VERSION} nach /usr/local installiert."
+    fi
+    rm -f /tmp/anypim-nodesource.log
+fi
+
+# npm fehlt, wenn Node ueber Ubuntus eigenes natives nodejs-Paket kommt
+# (z.B. Ubuntu 26.04 "Resolute" liefert nodejs>=22 direkt aus dem eigenen
+# Archiv -> obiger Versionscheck ist schon erfuellt, der Block oben laeuft
+# gar nicht erst). Anders als bei NodeSource oder dem nodejs.org-Tarball
+# (beide buendeln npm) ist npm bei Ubuntus eigener Paketierung ein
+# separates Paket.
+if ! command -v npm &> /dev/null; then
+    info "npm fehlt (natives nodejs-Paket bringt es nicht mit) — installiere npm..."
+    apt-get install -y -qq npm
 fi
 
 info "Node.js installiert: $(node -v)"
@@ -694,7 +902,10 @@ DB_USERNAME=${DB_USER}
 DB_PASSWORD=${DB_PASS}
 
 # ─── Redis ────────────────────────────────────────────────────────────
-REDIS_CLIENT=phpredis
+# predis statt phpredis: umgeht laravel/framework#57908 (Cache::tags()->flush()
+# stuerzt mit "Cannot use bool as array" ab, PHP >= 8.5 -- Fix nur in
+# Laravel 12.x, unser composer.json ist auf ^11.0 gepinnt).
+REDIS_CLIENT=predis
 REDIS_HOST=127.0.0.1
 REDIS_PASSWORD=null
 REDIS_PORT=6379
@@ -1000,7 +1211,12 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 VIDEO_ENGINE_DIR="${INSTALL_DIR}/video-engine"
 
-if [ -d "$VIDEO_ENGINE_DIR" ] && [ -f "${VIDEO_ENGINE_DIR}/package.json" ]; then
+# In eine Funktion gekapselt, damit ein Fehlschlag (z.B. Playwright kennt eine
+# brandneue Ubuntu-Version noch nicht) nur DIESEN optionalen Block per
+# "if ! setup_video_engine" abfaengt, statt via set -e die GESAMTE
+# Installation abzubrechen — "(optional)" im Step-Namen war bisher nicht
+# tatsaechlich optional.
+setup_video_engine() {
     step "Video-Engine einrichten (optional)"
 
     # System-Pakete fuer Video-Aufnahme
@@ -1058,6 +1274,15 @@ if [ -d "$VIDEO_ENGINE_DIR" ] && [ -f "${VIDEO_ENGINE_DIR}/package.json" ]; then
     info "Video-Engine eingerichtet."
     info "  Nutzung: php artisan pim:video-generate --list"
     info "  Preflight: php artisan pim:video-generate --preflight"
+}
+
+if [ -d "$VIDEO_ENGINE_DIR" ] && [ -f "${VIDEO_ENGINE_DIR}/package.json" ]; then
+    if ! setup_video_engine; then
+        cd "$INSTALL_DIR"
+        warn "Video-Engine-Setup fehlgeschlagen — optionales Feature wird uebersprungen, Rest der Installation laeuft weiter."
+        warn "Haeufige Ursache auf brandneuen Ubuntu-Versionen: Playwright kennt die Distribution (noch) nicht."
+        warn "Spaeter manuell nachholen: cd ${VIDEO_ENGINE_DIR} && npx playwright install --with-deps chromium"
+    fi
 else
     info "Video-Engine nicht vorhanden — uebersprungen."
 fi
@@ -1435,6 +1660,10 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 #  FERTIG
 # ═════════════════════════════════════════════════════════════════════════════
+
+# Installation erfolgreich -> gespeicherte Klartext-Passwoerter nicht mehr noetig.
+rm -f "$CONFIG_FILE"
+
 INSTALL_END=$(date +%s)
 INSTALL_DURATION=$(( INSTALL_END - INSTALL_START ))
 INSTALL_MINUTES=$(( INSTALL_DURATION / 60 ))
