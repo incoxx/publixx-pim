@@ -10,6 +10,7 @@ function buildParams(options = {}) {
   if (options.folder) params.folder = options.folder
   if (options.usagePurpose) params.usage_purpose = options.usagePurpose
   if (options.mediaType) params.media_type = options.mediaType
+  if (options.usageType) params.usage_type = options.usageType
   if (options.lang) params.lang = options.lang
   return params
 }
@@ -25,6 +26,10 @@ export default {
 
   getFolders(options = {}) {
     return catalogClient.get('/asset-catalog/folders', { params: buildParams(options) })
+  },
+
+  getUsageTypes() {
+    return catalogClient.get('/asset-catalog/usage-types')
   },
 
   getAssetProducts(assetId, options = {}) {

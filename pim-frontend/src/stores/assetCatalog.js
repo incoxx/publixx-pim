@@ -50,6 +50,8 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
   const selectedFolderName = ref(null)
   const usagePurposeFilter = ref(null)
   const mediaTypeFilter = ref(null)
+  const usageTypeFilter = ref(null)
+  const usageTypes = ref([])
   const sort = ref({ field: 'created_at', order: 'desc' })
   const viewMode = ref(localStorage.getItem('asset_catalog_view_mode') || 'grid')
   const locale = ref(localStorage.getItem('asset_catalog_locale') || 'de')
@@ -142,6 +144,7 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
         folder: selectedFolderId.value || undefined,
         usagePurpose: usagePurposeFilter.value || undefined,
         mediaType: mediaTypeFilter.value || undefined,
+        usageType: usageTypeFilter.value || undefined,
         lang: locale.value,
       })
       assets.value = data.data
@@ -153,6 +156,16 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
       assets.value = []
     } finally {
       loading.value = false
+    }
+  }
+
+  async function fetchUsageTypes() {
+    try {
+      const { data } = await assetCatalogApi.getUsageTypes()
+      usageTypes.value = data.data || data || []
+    } catch (e) {
+      console.warn('Failed to load usage types:', e.message)
+      usageTypes.value = []
     }
   }
 
@@ -253,6 +266,11 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
     meta.value.current_page = 1
   }
 
+  function setUsageType(usageTypeId) {
+    usageTypeFilter.value = usageTypeId
+    meta.value.current_page = 1
+  }
+
   function setPage(page) {
     meta.value.current_page = page
   }
@@ -288,6 +306,9 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
     selectedFolderName,
     usagePurposeFilter,
     mediaTypeFilter,
+    usageTypeFilter,
+    usageTypes,
+    fetchUsageTypes,
     sort,
     effectiveSort,
     viewMode,
@@ -313,6 +334,7 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
     clearFolder,
     setUsagePurpose,
     setMediaType,
+    setUsageType,
     setPage,
     setSort,
     setViewMode,

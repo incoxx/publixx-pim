@@ -22,6 +22,7 @@ useThemeApplicator(themeRoot, themeSettingsRef)
 onMounted(async () => {
   await store.fetchThemeSettings()
   store.fetchFolders()
+  store.fetchUsageTypes()
 })
 </script>
 

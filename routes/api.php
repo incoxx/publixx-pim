@@ -189,6 +189,7 @@ Route::prefix('v1/asset-catalog')->middleware(['throttle.pim', 'catalog.access']
     Route::get('assets/{medium}/products', [AssetCatalogController::class, 'assetProducts']);
     Route::get('assets/{medium}/nodes', [AssetCatalogController::class, 'assetNodes']);
     Route::get('folders', [AssetCatalogController::class, 'folders']);
+    Route::get('usage-types', [AssetCatalogController::class, 'usageTypes']);
     Route::post('download', [AssetCatalogController::class, 'download']);
 });
 

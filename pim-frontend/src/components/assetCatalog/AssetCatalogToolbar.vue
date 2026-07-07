@@ -23,6 +23,11 @@ function setMediaType(val) {
   store.fetchAssets()
 }
 
+function setUsageType(val) {
+  store.setUsageType(val || null)
+  store.fetchAssets()
+}
+
 function clearFolder() {
   store.clearFolder()
   store.fetchAssets()
@@ -75,6 +80,19 @@ function clearFolder() {
         <option value="">{{ t('assetCatalog.allTypes') }}</option>
         <option value="image">{{ t('assetCatalog.images') }}</option>
         <option value="document">{{ t('assetCatalog.documents') }}</option>
+      </select>
+
+      <!-- Usage type facet (Bildtyp, z.B. Hauptbild/Galleriebild) -->
+      <select
+        v-if="store.usageTypes.length > 0"
+        class="select select-bordered select-xs"
+        :value="store.usageTypeFilter || ''"
+        @change="setUsageType($event.target.value)"
+      >
+        <option value="">{{ t('assetCatalog.allUsageTypes', 'Alle Verwendungen') }}</option>
+        <option v-for="ut in store.usageTypes" :key="ut.id" :value="ut.id">
+          {{ ut.name_de || ut.technical_name }}
+        </option>
       </select>
 
       <select
