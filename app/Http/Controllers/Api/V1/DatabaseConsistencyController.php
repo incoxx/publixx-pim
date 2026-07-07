@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Models\Media;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 
 class DatabaseConsistencyController extends Controller
 {
@@ -52,6 +54,7 @@ class DatabaseConsistencyController extends Controller
             'orphaned_media_attribute_values' => $this->fixOrphanedMediaAttributeValues(),
             'orphaned_cart_items' => $this->fixOrphanedCartItems(),
             'orphaned_conformance_results' => $this->fixOrphanedConformanceResults(),
+            'missing_media_files' => $this->fixMissingMediaFiles(),
             'stale_translatable_null_values' => $this->fixStaleTranslatableNull('product_attribute_values', ['product_id', 'output_hierarchy_id']),
             'stale_translatable_null_media_values' => $this->fixStaleTranslatableNull('media_attribute_values', ['media_id']),
             'stale_translatable_null_hierarchy_node_values' => $this->fixStaleTranslatableNull('hierarchy_node_attribute_values', ['hierarchy_node_id']),
@@ -182,6 +185,8 @@ class DatabaseConsistencyController extends Controller
                 'products',
             );
         }
+
+        $checks[] = $this->checkMissingMediaFiles();
 
         $checks[] = $this->checkOrphanedRelations();
 
@@ -330,6 +335,46 @@ class DatabaseConsistencyController extends Controller
         ];
     }
 
+    /**
+     * Prüft live (nicht anhand des ggf. veralteten file_status-Feldes), ob die Datei eines
+     * Mediums tatsächlich noch auf dem Server liegt — weder am gespeicherten file_path noch
+     * am Standard-Importpfad media/{file_name} (dieselbe Korrektur-Logik wie
+     * MediaController::thumb()). Ursache für "Datei nicht auf dem Server gefunden".
+     */
+    private function checkMissingMediaFiles(): array
+    {
+        $disk = Storage::disk('public');
+        $missing = 0;
+
+        Media::select('id', 'file_name', 'file_path')
+            ->chunkById(500, function ($records) use ($disk, &$missing) {
+                foreach ($records as $media) {
+                    if (!$this->mediaFileExists($disk, $media)) {
+                        $missing++;
+                    }
+                }
+            });
+
+        return [
+            'key' => 'missing_media_files',
+            'label' => 'Medien mit fehlender Datei',
+            'description' => 'Medien-Datensätze, deren Datei nicht mehr auf dem Server vorhanden ist (weder am gespeicherten Pfad noch am Standard-Importpfad). Führt zu "Datei nicht auf dem Server gefunden" bei Thumbnails.',
+            'count' => $missing,
+            'status' => $missing > 0 ? 'issue' : 'ok',
+        ];
+    }
+
+    private function mediaFileExists($disk, Media $media): bool
+    {
+        if ($disk->exists($media->file_path)) {
+            return true;
+        }
+
+        $correctedPath = 'media/'.$media->file_name;
+
+        return $media->file_path !== $correctedPath && $disk->exists($correctedPath);
+    }
+
     private function checkOrphanedRelations(): array
     {
         $count = 0;
@@ -469,6 +514,31 @@ class DatabaseConsistencyController extends Controller
     private function fixOrphanedConformanceResults(): int
     {
         return $this->deleteOrphans('product_conformance_results', 'product_id', 'products');
+    }
+
+    /**
+     * Löscht Medien-Datensätze, deren Datei nachweislich nicht mehr auf dem Server liegt
+     * (live geprüft, siehe checkMissingMediaFiles()). Zugeordnete Produkt-/Hierarchie-
+     * Zuweisungen und Attributwerte werden per FK-Cascade automatisch mitentfernt, sodass
+     * Produktlisten danach kein kaputtes Thumbnail mehr referenzieren.
+     */
+    private function fixMissingMediaFiles(): int
+    {
+        $disk = Storage::disk('public');
+        $deleted = 0;
+
+        Media::select('id', 'file_name', 'file_path')
+            ->chunkById(500, function ($records) use ($disk, &$deleted) {
+                $ids = $records
+                    ->reject(fn (Media $media) => $this->mediaFileExists($disk, $media))
+                    ->pluck('id');
+
+                if ($ids->isNotEmpty()) {
+                    $deleted += Media::whereIn('id', $ids)->delete();
+                }
+            });
+
+        return $deleted;
     }
 
     /**

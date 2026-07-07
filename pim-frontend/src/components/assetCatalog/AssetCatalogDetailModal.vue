@@ -304,6 +304,28 @@ const productPages = computed(() => {
                     <span class="text-xs font-medium text-base-content/50">{{ t('assetCatalog.description') }}</span>
                     <p class="text-sm text-base-content/70">{{ store.currentAsset.description }}</p>
                   </div>
+                  <div v-if="store.currentAsset.media_language || store.currentAsset.media_country" class="grid grid-cols-2 gap-3">
+                    <div v-if="store.currentAsset.media_language">
+                      <span class="text-xs font-medium text-base-content/50">{{ t('assetCatalog.language', 'Sprache') }}</span>
+                      <p class="text-sm">{{ store.currentAsset.media_language }}</p>
+                    </div>
+                    <div v-if="store.currentAsset.media_country">
+                      <span class="text-xs font-medium text-base-content/50">{{ t('assetCatalog.country', 'Land') }}</span>
+                      <p class="text-sm">{{ store.currentAsset.media_country }}</p>
+                    </div>
+                  </div>
+                  <div v-if="store.currentAsset.keywords?.length">
+                    <span class="text-xs font-medium text-base-content/50">{{ t('assetCatalog.keywords', 'Schlagworte') }}</span>
+                    <div class="flex flex-wrap gap-1 mt-0.5">
+                      <span
+                        v-for="kw in store.currentAsset.keywords"
+                        :key="kw"
+                        class="badge badge-sm badge-ghost"
+                      >
+                        {{ kw }}
+                      </span>
+                    </div>
+                  </div>
                   <div v-if="store.currentAsset.folder_name">
                     <span class="text-xs font-medium text-base-content/50">{{ t('assetCatalog.folders') }}</span>
                     <p class="text-sm">{{ store.currentAsset.folder_name }}</p>

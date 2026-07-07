@@ -94,6 +94,22 @@ class AssetCatalogResource extends JsonResource
             }
         }
 
+        $mediaLanguage = null;
+        if ($this->relationLoaded('mediaLanguage') && $this->mediaLanguage) {
+            $mediaLanguage = $lang === 'en' && $this->mediaLanguage->name_en
+                ? $this->mediaLanguage->name_en
+                : $this->mediaLanguage->name_de;
+        }
+
+        $mediaCountry = null;
+        if ($this->relationLoaded('mediaCountry') && $this->mediaCountry) {
+            $mediaCountry = $lang === 'en' && $this->mediaCountry->name_en
+                ? $this->mediaCountry->name_en
+                : $this->mediaCountry->name_de;
+        }
+
+        $usageCount = ($this->product_assignments_count ?? 0) + ($this->hierarchy_node_assignments_count ?? 0);
+
         return [
             'id' => $this->id,
             'file_name' => $this->file_name,
@@ -104,11 +120,16 @@ class AssetCatalogResource extends JsonResource
             'title' => $title,
             'description' => $description,
             'alt_text' => $lang === 'en' && $this->alt_text_en ? $this->alt_text_en : $this->alt_text_de,
+            'keywords' => $this->keywords ?? [],
+            'media_language' => $mediaLanguage,
+            'media_country' => $mediaCountry,
             'width' => $this->width,
             'height' => $this->height,
             'asset_folder_id' => $this->asset_folder_id,
             'folder_name' => $folderPath,
             'hierarchy_nodes' => $hierarchyNodes,
+            'is_used' => $usageCount > 0,
+            'usage_count' => $usageCount,
             'thumb_url' => url("api/v1/media/thumb/{$this->id}?w=300&h=300"),
             'preview_url' => url("api/v1/media/thumb/{$this->id}?w=800&h=800"),
             'pdf_preview_url' => $pdfPreviewUrl,

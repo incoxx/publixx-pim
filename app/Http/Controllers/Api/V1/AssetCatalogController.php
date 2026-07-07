@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Resources\Api\V1\AssetCatalogResource;
+use App\Http\Resources\Api\V1\MediaUsageTypeResource;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\HierarchyNodeMediaAssignment;
 use App\Models\Media;
 use App\Models\MediaAttributeValue;
+use App\Models\MediaCountry;
+use App\Models\MediaLanguage;
 use App\Models\MediaUsageType;
 use App\Models\ProductMediaAssignment;
 use App\Support\KoelnerPhonetik;
@@ -39,6 +42,7 @@ class AssetCatalogController extends BaseController
         $folderId = $request->query('folder');
         $usagePurpose = $request->query('usage_purpose');
         $mediaType = $request->query('media_type');
+        $usageTypeId = $request->query('usage_type');
 
         $query = Media::query()->with([
             'attributeValues.attribute',
@@ -48,7 +52,9 @@ class AssetCatalogController extends BaseController
             'assetFolder',
             'pdfDocument',
             'hierarchyNodeAssignments.hierarchyNode.hierarchy',
-        ]);
+            'mediaLanguage',
+            'mediaCountry',
+        ])->withCount(['productAssignments', 'hierarchyNodeAssignments']);
 
         // Anonyme Katalog-Zugriffe: Medientypen mit aktiver RoleEntityRestriction werden
         // pauschal ausgeschlossen. Bei angemeldeten PIM-Nutzern (z.B. interner Bulk-Download
@@ -86,6 +92,14 @@ class AssetCatalogController extends BaseController
         // Media type filter
         if ($mediaType) {
             $query->where('media_type', $mediaType);
+        }
+
+        // Verwendungstyp-Facette: nur Assets, die bei mindestens einem Produkt mit diesem
+        // Bildtyp (z.B. Hauptbild/Galleriebild) zugeordnet sind.
+        if ($usageTypeId) {
+            $query->whereHas('productAssignments', function ($q) use ($usageTypeId) {
+                $q->where('usage_type_id', $usageTypeId);
+            });
         }
 
         // Enhanced search
@@ -133,12 +147,27 @@ class AssetCatalogController extends BaseController
                 ->unique()
                 ->toArray();
 
-            $query->where(function ($q) use ($likeTerm, $mediaIdsFromAttributes, $mediaIdsFromPhonetic, $mediaIdsFromNodes) {
+            // Medien, deren zugeordnete Sprache/Land dem Suchbegriff entspricht (z.B. "Deutsch", "DACH")
+            $mediaIdsFromLanguageCountry = Media::query()
+                ->where(function ($lq) use ($likeTerm) {
+                    $lq->whereHas('mediaLanguage', function ($q) use ($likeTerm) {
+                        $q->where('name_de', 'like', $likeTerm)->orWhere('name_en', 'like', $likeTerm);
+                    })->orWhereHas('mediaCountry', function ($q) use ($likeTerm) {
+                        $q->where('name_de', 'like', $likeTerm)->orWhere('name_en', 'like', $likeTerm);
+                    });
+                })
+                ->pluck('id')
+                ->toArray();
+
+            $query->where(function ($q) use ($likeTerm, $mediaIdsFromAttributes, $mediaIdsFromPhonetic, $mediaIdsFromNodes, $mediaIdsFromLanguageCountry) {
                 $q->where('file_name', 'like', $likeTerm)
                     ->orWhere('title_de', 'like', $likeTerm)
                     ->orWhere('title_en', 'like', $likeTerm)
                     ->orWhere('description_de', 'like', $likeTerm)
-                    ->orWhere('description_en', 'like', $likeTerm);
+                    ->orWhere('description_en', 'like', $likeTerm)
+                    ->orWhere('alt_text_de', 'like', $likeTerm)
+                    ->orWhere('alt_text_en', 'like', $likeTerm)
+                    ->orWhere('keywords', 'like', $likeTerm);
 
                 if (!empty($mediaIdsFromAttributes)) {
                     $q->orWhereIn('id', $mediaIdsFromAttributes);
@@ -150,6 +179,10 @@ class AssetCatalogController extends BaseController
 
                 if (!empty($mediaIdsFromNodes)) {
                     $q->orWhereIn('id', $mediaIdsFromNodes);
+                }
+
+                if (!empty($mediaIdsFromLanguageCountry)) {
+                    $q->orWhereIn('id', $mediaIdsFromLanguageCountry);
                 }
             });
         }
@@ -174,6 +207,9 @@ class AssetCatalogController extends BaseController
                 $boostParts[$id] = ($boostParts[$id] ?? 0) + 5;
             }
             foreach ($mediaIdsFromNodes as $id) {
+                $boostParts[$id] = ($boostParts[$id] ?? 0) + 5;
+            }
+            foreach ($mediaIdsFromLanguageCountry as $id) {
                 $boostParts[$id] = ($boostParts[$id] ?? 0) + 5;
             }
             foreach ($mediaIdsFromPhonetic as $id) {
@@ -414,7 +450,9 @@ class AssetCatalogController extends BaseController
             'assetFolder',
             'pdfDocument',
             'hierarchyNodeAssignments.hierarchyNode.hierarchy',
-        ]);
+            'mediaLanguage',
+            'mediaCountry',
+        ])->loadCount(['productAssignments', 'hierarchyNodeAssignments']);
 
         // Build folder breadcrumb
         $breadcrumb = [];
@@ -595,7 +633,19 @@ class AssetCatalogController extends BaseController
     {
         $lang = $request->query('lang', 'de');
 
-        $hierarchy = Hierarchy::where('hierarchy_type', 'asset')->first();
+        // Bevorzugt die Hierarchie, in der Medien tatsächlich per asset_folder_id einsortiert
+        // sind. Ein blindes "erste Hierarchie mit hierarchy_type=asset" (ohne orderBy) kann bei
+        // mehreren asset-Hierarchien (z.B. eine leere Test-Hierarchie ohne Unterordner) zufällig
+        // die falsche wählen und im Katalog nur einen Root-Ordner ohne Unterverzeichnisse zeigen.
+        $hierarchyId = Media::whereNotNull('asset_folder_id')
+            ->join('hierarchy_nodes', 'media.asset_folder_id', '=', 'hierarchy_nodes.id')
+            ->value('hierarchy_nodes.hierarchy_id');
+
+        $hierarchy = $hierarchyId ? Hierarchy::find($hierarchyId) : null;
+
+        if (!$hierarchy) {
+            $hierarchy = Hierarchy::where('hierarchy_type', 'asset')->orderBy('created_at')->first();
+        }
 
         if (!$hierarchy) {
             return response()->json([
@@ -656,6 +706,23 @@ class AssetCatalogController extends BaseController
                 'hierarchy_name' => $lang === 'en' && $hierarchy->name_en ? $hierarchy->name_en : $hierarchy->name_de,
                 'nodes' => $buildTree($rootNodes)->toArray(),
             ],
+        ]);
+    }
+
+    /**
+     * GET /api/v1/asset-catalog/usage-types
+     *
+     * Verwendungstyp-Facette: Bildtypen (Hauptbild, Galleriebild, ...), die tatsächlich bei
+     * mindestens einem Produkt einem Asset zugeordnet sind — für den Such-Filter im Katalog.
+     */
+    public function usageTypes(): JsonResponse
+    {
+        $types = MediaUsageType::whereHas('mediaAssignments')
+            ->orderBy('sort_order')
+            ->get();
+
+        return response()->json([
+            'data' => MediaUsageTypeResource::collection($types)->resolve(),
         ]);
     }
 

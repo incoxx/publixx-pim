@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
-import { Heart, Eye, Image, FileText } from 'lucide-vue-next'
+import { Heart, Eye, Image, FileText, CheckCircle2 } from 'lucide-vue-next'
 import { formatFileSize } from '@/utils/formatting'
 
 const props = defineProps({
@@ -61,6 +61,15 @@ const firstSnippet = computed(() => {
         :class="asset.usage_purpose === 'print' ? 'badge-info' : 'badge-success'"
       >
         {{ asset.usage_purpose }}
+      </span>
+
+      <!-- In-use indicator -->
+      <span
+        v-if="asset.is_used"
+        class="absolute bottom-2 left-2 w-5 h-5 rounded-full bg-success text-success-content flex items-center justify-center shadow-sm"
+        :title="t('assetCatalog.inUse', 'Wird verwendet')"
+      >
+        <CheckCircle2 class="w-3.5 h-3.5" />
       </span>
 
       <!-- Wishlist button -->

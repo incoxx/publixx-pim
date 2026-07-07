@@ -2,6 +2,7 @@
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
 import AssetCatalogCard from './AssetCatalogCard.vue'
 import { formatFileSize } from '@/utils/formatting'
+import { CheckCircle2 } from 'lucide-vue-next'
 
 defineProps({
   assets: { type: Array, required: true },
@@ -44,7 +45,10 @@ const store = useAssetCatalogStore()
         />
       </div>
       <div class="flex-1 min-w-0">
-        <p class="text-sm font-medium truncate">{{ asset.title || asset.file_name }}</p>
+        <p class="text-sm font-medium truncate flex items-center gap-1.5">
+          {{ asset.title || asset.file_name }}
+          <CheckCircle2 v-if="asset.is_used" class="w-3.5 h-3.5 text-success shrink-0" title="Wird verwendet" />
+        </p>
         <p class="text-xs text-base-content/50">{{ asset.file_name }}</p>
         <div class="flex items-center gap-2 mt-1">
           <span class="badge badge-xs badge-ghost">{{ asset.media_type }}</span>
