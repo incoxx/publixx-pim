@@ -16,6 +16,14 @@ use App\Services\Export\MappingResolver;
  * (verifiziert) -- MappingResolver::resolve() ist der reale, wiederverwendbare Einstiegspunkt.
  *
  * Positionen ohne product_id (Freitext) werden nicht angereichert (edge case #5).
+ *
+ * WICHTIG: $rules kommt vom Aufrufer, NICHT von collection_type.default_item_attribute_groups.
+ * Dieses Feld ist -- analog zu product_types.default_attribute_groups -- eine reine
+ * Frontend-Konfiguration (welche Attribut-Gruppen fuer die intrinsische Positions-Pflege
+ * vorbelegt sind), keine Mapping-Regel-Quelle fuer die Produktanreicherung. Die Frage, wo
+ * die Anreicherungs-Regeln fuer eine Collection langfristig herkommen (fester Regelsatz je
+ * Collection, Referenz auf eine PublixxExportMapping, o.ae.) wird beim Render-/Snapshot-
+ * Service (Phase 2/3) entschieden -- hier bewusst entkoppelt gehalten.
  */
 class EnrichmentService
 {
@@ -28,9 +36,11 @@ class EnrichmentService
      * Angereicherter, abgeleiteter Zustand einer Position -- Grundlage fuer den Snapshot
      * (SnapshotService, Phase 3) und die Live-Vorschau.
      *
+     * @param  array<int, array{source: string, target: string, type: string}>  $rules  Mapping-
+     *         Regeln im PublixxExportMapping-Format (attribute:/media:/prices:/relations:-Quellen).
      * @return array{name: ?string, resolved_attributes: array, resolved_price: ?array, price_warning: bool}
      */
-    public function enrichItem(CollectionItem $item, Collection $collection): array
+    public function enrichItem(CollectionItem $item, Collection $collection, array $rules): array
     {
         if ($item->product_id === null) {
             // Freitextposition: nichts vom Produkt abzuleiten.
@@ -46,7 +56,6 @@ class EnrichmentService
             return $item->snapshot ?? [];
         }
 
-        $rules = $this->itemRules($collection);
         $options = $this->buildOptions($product);
         $language = $collection->language ?? 'de';
 
@@ -83,15 +92,6 @@ class EnrichmentService
             // edge case #6: kein Preis gefunden -- Ausgabe rendert trotzdem, nie blockierend.
             'price_warning' => $priceTypeTechnicalName !== null && $resolvedPrice === null,
         ];
-    }
-
-    /**
-     * default_item_attribute_groups speichert Mapping-Regeln im selben Format wie
-     * PublixxExportMapping.mapping_rules['rules'] ({source, target, type}).
-     */
-    private function itemRules(Collection $collection): array
-    {
-        return $collection->collectionType?->default_item_attribute_groups ?? [];
     }
 
     /**
