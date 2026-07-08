@@ -1052,6 +1052,32 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     });
 
     // =====================================================================
+    // Collections (Enterprise: collections) -- kuratierte, empfaengerbezogene
+    // Produktkollektionen (Angebot, RFQ, Katalogauszug, Planungsliste, ...)
+    // =====================================================================
+    Route::middleware('module:collections')->group(function () {
+        Route::apiResource('collection-types', \App\Http\Controllers\Api\V1\CollectionTypeController::class)
+            ->parameters(['collection-types' => 'collectionType']);
+        Route::get('collection-types/{collectionType}/dependencies', [\App\Http\Controllers\Api\V1\CollectionTypeController::class, 'dependencies']);
+
+        Route::apiResource('collections', \App\Http\Controllers\Api\V1\CollectionController::class)
+            ->parameters(['collections' => 'collection']);
+
+        Route::get('collections/{collection}/attribute-values', [\App\Http\Controllers\Api\V1\CollectionAttributeValueController::class, 'indexForCollection']);
+        Route::put('collections/{collection}/attribute-values', [\App\Http\Controllers\Api\V1\CollectionAttributeValueController::class, 'bulkUpdateForCollection']);
+
+        Route::get('collections/{collection}/items', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'index']);
+        Route::post('collections/{collection}/items', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'store']);
+        Route::patch('collections/{collection}/items/reorder', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'reorder']);
+        Route::get('collections/{collection}/items/{item}', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'show']);
+        Route::put('collections/{collection}/items/{item}', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'update']);
+        Route::delete('collections/{collection}/items/{item}', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'destroy']);
+
+        Route::get('collections/{collection}/items/{item}/attribute-values', [\App\Http\Controllers\Api\V1\CollectionAttributeValueController::class, 'indexForItem']);
+        Route::put('collections/{collection}/items/{item}/attribute-values', [\App\Http\Controllers\Api\V1\CollectionAttributeValueController::class, 'bulkUpdateForItem']);
+    });
+
+    // =====================================================================
     // API Designer (Enterprise: api_designer)
     // =====================================================================
     Route::middleware('module:api_designer')->group(function () {
