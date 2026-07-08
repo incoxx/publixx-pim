@@ -40,6 +40,14 @@ export const collections = {
   saveAttributeValues(id, values) {
     return client.put(`/collections/${id}/attribute-values`, { values })
   },
+  import(formData) {
+    // @see api/bmecatImport.js, api/excelTemplates.js -- gleiches Muster fuer Multipart-Uploads
+    // in diesem Repo. client.js setzt global Content-Type: application/json, das ueberschreibt
+    // axios' FormData-Auto-Erkennung; muss pro Request explizit ueberschrieben werden.
+    return client.post('/collections/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
 
 export const collectionItems = {
@@ -66,5 +74,11 @@ export const collectionItems = {
   },
   saveAttributeValues(collectionId, itemId, values) {
     return client.put(`/collections/${collectionId}/items/${itemId}/attribute-values`, { values })
+  },
+  needsReview(collectionId) {
+    return client.get(`/collections/${collectionId}/items/needs-review`)
+  },
+  confirmMatch(collectionId, itemId, productId) {
+    return client.post(`/collections/${collectionId}/items/${itemId}/confirm-match`, { product_id: productId })
   },
 }

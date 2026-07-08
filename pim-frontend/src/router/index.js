@@ -227,6 +227,12 @@ const routes = [
     meta: { title: 'Collections' },
   },
   {
+    path: '/collections/import',
+    name: 'collections-import',
+    component: () => import('@/views/collections/CollectionImportView.vue'),
+    meta: { title: 'Collection importieren' },
+  },
+  {
     path: '/comparison-operators',
     name: 'comparison-operators',
     component: () => import('@/views/comparisonOperators/ComparisonOperatorGroupView.vue'),

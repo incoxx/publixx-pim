@@ -5,13 +5,15 @@ import { useCollectionsStore } from '@/stores/collections'
 import attributesApi from '@/api/attributes'
 import { collections as collectionsApi, collectionItems as collectionItemsApi } from '@/api/collections'
 import productsApi from '@/api/products'
-import { Plus, ChevronLeft, Trash2, GripVertical } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { Plus, ChevronLeft, Trash2, GripVertical, Upload } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import EntityPickerDialog from '@/components/shared/EntityPickerDialog.vue'
 import CollectionFormPanel from '@/components/panels/CollectionFormPanel.vue'
+import CollectionMatchQueue from '@/components/collections/CollectionMatchQueue.vue'
 
 const VueDraggable = defineAsyncComponent(() => import('vue-draggable-plus').then((m) => m.VueDraggable))
 
@@ -27,6 +29,7 @@ function mapDataTypeToInput(attr) {
 
 const authStore = useAuthStore()
 const store = useCollectionsStore()
+const router = useRouter()
 const search = ref('')
 const deleteTarget = ref(null)
 const deleting = ref(false)
@@ -192,9 +195,14 @@ onMounted(() => {
     <div :class="['space-y-4 transition-all', selected ? 'w-1/3 flex-none' : 'flex-1']">
       <div class="flex items-center justify-between">
         <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Collections</h2>
-        <button class="pim-btn pim-btn-primary" @click="openCreatePanel">
-          <Plus class="w-4 h-4" :stroke-width="2" /> Neue Collection
-        </button>
+        <div class="flex items-center gap-2">
+          <button class="pim-btn pim-btn-ghost" @click="router.push('/collections/import')">
+            <Upload class="w-4 h-4" :stroke-width="2" /> Import
+          </button>
+          <button class="pim-btn pim-btn-primary" @click="openCreatePanel">
+            <Plus class="w-4 h-4" :stroke-width="2" /> Neue Collection
+          </button>
+        </div>
       </div>
       <PimFilterBar :search="search" placeholder="Collections durchsuchen..." @update:search="v => search = v" />
       <PimTable
@@ -225,6 +233,8 @@ onMounted(() => {
         </div>
         <button class="pim-btn pim-btn-ghost text-xs" @click="openEditPanel(selected)">Bearbeiten</button>
       </div>
+
+      <CollectionMatchQueue :collection-id="selected.id" @resolved="store.fetchItems(selected.id)" />
 
       <!-- Collection-level attributes -->
       <div v-if="collectionAttrDefs.length" class="pim-card p-4 space-y-3">
