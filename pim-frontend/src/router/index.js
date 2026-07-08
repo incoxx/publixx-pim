@@ -221,6 +221,12 @@ const routes = [
     meta: { title: 'Einheiten' },
   },
   {
+    path: '/collections',
+    name: 'collections',
+    component: () => import('@/views/collections/CollectionListView.vue'),
+    meta: { title: 'Collections' },
+  },
+  {
     path: '/comparison-operators',
     name: 'comparison-operators',
     component: () => import('@/views/comparisonOperators/ComparisonOperatorGroupView.vue'),

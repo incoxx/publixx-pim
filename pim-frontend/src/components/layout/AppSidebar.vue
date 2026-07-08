@@ -23,6 +23,7 @@ import {
   Gauge,
   Wand2,
   Terminal,
+  Folders,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 import { useAppearanceStore, SECTION_ICON_COLORS } from '@/stores/appearance'
@@ -67,6 +68,7 @@ const sections = computed(() => {
         { icon: Package, label: () => t('nav.products'), to: '/products', permission: 'products.view', testid: 'nav-products' },
         { icon: GitBranch, label: () => t('nav.hierarchies'), to: '/hierarchies', permission: 'hierarchies.view', testid: 'nav-hierarchies' },
         { icon: Star, label: () => 'Merkliste', to: '/watchlist', permission: 'watchlist.view', testid: 'nav-watchlist' },
+        { icon: Folders, label: () => 'Collections', to: '/collections', module: 'collections', permission: 'collections.view', testid: 'nav-collections' },
         { icon: ClipboardList, label: () => 'Workflow', to: '/workflow', module: 'workflow', permission: 'workflow.view', testid: 'nav-workflow' },
         { icon: CalendarDays, label: () => 'Planungskalender', to: '/calendar', permission: 'calendar.view', testid: 'nav-calendar' },
         { divider: true },
