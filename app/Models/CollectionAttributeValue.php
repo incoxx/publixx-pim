@@ -1,0 +1,69 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
+
+/**
+ * Polymorphe Werte-Tabelle fuer freie Metadaten an Collections UND Positionen.
+ * Spiegelt ProductAttributeValue ohne die Vererbungs-Spalten (Vererbung gilt hier nicht).
+ */
+class CollectionAttributeValue extends Model
+{
+    use HasFactory, HasUuids;
+
+    protected $fillable = [
+        'owner_type',
+        'owner_id',
+        'attribute_id',
+        'value_string',
+        'value_number',
+        'value_date',
+        'value_flag',
+        'value_selection_id',
+        'unit_id',
+        'language',
+        'multiplied_index',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'value_number' => 'decimal:6',
+            'value_date' => 'date',
+            'value_flag' => 'boolean',
+            'multiplied_index' => 'integer',
+        ];
+    }
+
+    public function attribute(): BelongsTo
+    {
+        return $this->belongsTo(Attribute::class);
+    }
+
+    public function valueListEntry(): BelongsTo
+    {
+        return $this->belongsTo(ValueListEntry::class, 'value_selection_id');
+    }
+
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class);
+    }
+
+    /**
+     * owner_type-Werte sind ueber Relation::morphMap() (AppServiceProvider::boot())
+     * auf Collection/CollectionItem gemappt -- das enum ('collection'/'collection_item')
+     * bleibt so als DB-Wert erhalten, statt vollqualifizierte Klassennamen zu speichern.
+     */
+    public function owner(): MorphTo
+    {
+        return $this->morphTo('owner', 'owner_type', 'owner_id');
+    }
+}

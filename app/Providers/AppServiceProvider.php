@@ -111,6 +111,12 @@ class AppServiceProvider extends ServiceProvider
         // ─── Observers ─────────────────────────────────────────────────
         Media::observe(MediaObserver::class);
 
+        // ─── Collections: Morph-Map fuer polymorphe collection_attribute_values ──
+        \Illuminate\Database\Eloquent\Relations\Relation::morphMap([
+            'collection' => \App\Models\Collection::class,
+            'collection_item' => \App\Models\CollectionItem::class,
+        ]);
+
         // ─── SSO: Register Azure AD Socialite Driver ─────────────────
         Event::listen(SocialiteWasCalled::class, AzureExtendSocialite::class.'@handle');
 
