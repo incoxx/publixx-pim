@@ -89,7 +89,7 @@ const collectionAttrDefs = ref([])
 const collectionAttrValues = ref({})
 
 async function loadCollectionAttributes() {
-  const { data: defs } = await attributesApi.list({ filters: { applies_to: 'collection' }, perPage: 100 })
+  const { data: defs } = await attributesApi.list({ filters: { applies_to: 'collection', is_internal: 0 }, perPage: 100 })
   collectionAttrDefs.value = defs.data
   const { data: vals } = await collectionsApi.getAttributeValues(selected.value.id)
   const map = {}
@@ -122,7 +122,7 @@ async function toggleItemAttributes(item) {
   }
   expandedItemId.value = item.id
   if (!itemAttrDefs.value.length) {
-    const { data: defs } = await attributesApi.list({ filters: { applies_to: 'collection_item' }, perPage: 100 })
+    const { data: defs } = await attributesApi.list({ filters: { applies_to: 'collection_item', is_internal: 0 }, perPage: 100 })
     itemAttrDefs.value = defs.data
   }
   const { data: vals } = await collectionItemsApi.getAttributeValues(selected.value.id, item.id)

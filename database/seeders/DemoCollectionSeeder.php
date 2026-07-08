@@ -22,6 +22,12 @@ class DemoCollectionSeeder extends Seeder
 {
     public function run(): void
     {
+        // Interne/versteckte Attribute fuer die Import-Review-Queue (Phase 4) -- unabhaengig
+        // vom Collection-Typ, daher hier global geseedet statt an "Angebot" gebunden.
+        // is_internal/is_hidden: erscheinen in keiner normalen Attribut-UI/-Auswahl.
+        $this->seedInternalAttribute('_import_match_status', 'Import-Match-Status', 'String');
+        $this->seedInternalAttribute('_import_fuzzy_candidates', 'Import-Fuzzy-Kandidaten', 'String');
+
         $headerView = $this->seedAttributeView(
             'angebot-kopfdaten',
             'Angebot — Kopfdaten',
@@ -83,6 +89,21 @@ class DemoCollectionSeeder extends Seeder
                 'default_item_attribute_groups' => [$itemView->technical_name],
                 'sort_order' => 10,
                 'is_active' => true,
+            ]
+        );
+    }
+
+    private function seedInternalAttribute(string $technicalName, string $nameDe, string $dataType): void
+    {
+        Attribute::updateOrCreate(
+            ['technical_name' => $technicalName],
+            [
+                'name_de' => $nameDe,
+                'data_type' => $dataType,
+                'applies_to' => ['collection_item'],
+                'is_internal' => true,
+                'is_hidden' => true,
+                'status' => 'active',
             ]
         );
     }

@@ -1060,6 +1060,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
             ->parameters(['collection-types' => 'collectionType']);
         Route::get('collection-types/{collectionType}/dependencies', [\App\Http\Controllers\Api\V1\CollectionTypeController::class, 'dependencies']);
 
+        // Vor apiResource('collections', ...) registriert, damit "import" nicht als
+        // {collection}-Parameter interpretiert wird.
+        Route::post('collections/import', [\App\Http\Controllers\Api\V1\CollectionImportController::class, 'import']);
+
         Route::apiResource('collections', \App\Http\Controllers\Api\V1\CollectionController::class)
             ->parameters(['collections' => 'collection']);
 
@@ -1069,9 +1073,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::get('collections/{collection}/items', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'index']);
         Route::post('collections/{collection}/items', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'store']);
         Route::patch('collections/{collection}/items/reorder', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'reorder']);
+        // Vor items/{item}, sonst wuerde {item} "needs-review" schlucken.
+        Route::get('collections/{collection}/items/needs-review', [\App\Http\Controllers\Api\V1\CollectionItemMatchController::class, 'needsReview']);
         Route::get('collections/{collection}/items/{item}', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'show']);
         Route::put('collections/{collection}/items/{item}', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'update']);
         Route::delete('collections/{collection}/items/{item}', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'destroy']);
+        Route::post('collections/{collection}/items/{item}/confirm-match', [\App\Http\Controllers\Api\V1\CollectionItemMatchController::class, 'confirm']);
 
         Route::get('collections/{collection}/items/{item}/attribute-values', [\App\Http\Controllers\Api\V1\CollectionAttributeValueController::class, 'indexForItem']);
         Route::put('collections/{collection}/items/{item}/attribute-values', [\App\Http\Controllers\Api\V1\CollectionAttributeValueController::class, 'bulkUpdateForItem']);

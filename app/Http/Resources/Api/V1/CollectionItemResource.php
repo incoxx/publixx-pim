@@ -22,6 +22,10 @@ class CollectionItemResource extends JsonResource
             'unit' => new UnitResource($this->whenLoaded('unit')),
             'snapshot' => $this->snapshot,
             'snapshot_at' => $this->snapshot_at,
+            // Nur bei CollectionItemMatchController::needsReview() dynamisch gesetzt --
+            // kein DB-Feld (Match-Status lebt in collection_attribute_values, siehe dort).
+            'import_match_status' => $this->when(isset($this->import_match_status), $this->import_match_status),
+            'import_fuzzy_candidates' => $this->when(isset($this->import_fuzzy_candidates), $this->import_fuzzy_candidates),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

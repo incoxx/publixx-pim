@@ -94,6 +94,14 @@ class CollectionAttributeValueController extends Controller
                     continue;
                 }
 
+                // _import_match_status/_import_fuzzy_candidates sind system-verwaltet
+                // (CollectionFactory, Phase 4) -- kein direkter Client-Schreibzugriff.
+                abort_if(
+                    $attribute->is_internal,
+                    422,
+                    "Attribut '{$attribute->technical_name}' ist intern und kann nicht direkt geschrieben werden."
+                );
+
                 // Edge case #11: ein Attribut, dessen applies_to den Owner-Scope nicht
                 // enthaelt, darf hier nicht beschrieben werden.
                 abort_unless(
