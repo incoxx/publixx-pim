@@ -55,6 +55,7 @@ yarn-error.log
 /storage/app/exports
 /storage/app/temp
 /storage/app/reports
+/storage/app/collections
 /storage/app/private/imports
 
 # TMS

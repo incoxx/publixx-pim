@@ -84,9 +84,13 @@ class DemoCollectionSeeder extends Seeder
                 // Ein Angebot ist ein rechtsverbindliches Dokument -- Positionen muessen vor
                 // dem Versand eingefroren werden (kein Angebot mit "lebendigem" Preis).
                 'requires_snapshot' => true,
-                'allowed_export_formats' => ['pdf', 'opentrans'],
+                'allowed_export_formats' => ['pdf', 'xlsx', 'opentrans'],
                 'default_attribute_groups' => [$headerView->technical_name],
                 'default_item_attribute_groups' => [$itemView->technical_name],
+                // 'list_price' ist der reale geseedete price_types.technical_name
+                // (DemoAttributeSeeder) -- Grundlage fuer CollectionRenderService's
+                // buildEnrichmentRules() (Phase 2).
+                'default_price_type' => 'list_price',
                 'sort_order' => 10,
                 'is_active' => true,
             ]

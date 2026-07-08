@@ -50,6 +50,27 @@ export const collections = {
   },
 }
 
+// @see api/reportTemplates.js -- identisches Job-ID/Poll/Download-Muster. jobDownload() geht
+// bewusst ueber eine authentifizierte Axios-Blob-Anfrage, nicht ueber eine rohe <a href>-URL --
+// die API nutzt Bearer-Token-Auth (kein Cookie), ein direkter Link haette keinen Auth-Header.
+export const collectionRenders = {
+  execute(collectionId, { format = 'pdf' } = {}) {
+    return client.post(`/collections/${collectionId}/render`, { format }, { responseType: 'blob' })
+  },
+  executeAsync(collectionId, { format = 'pdf' } = {}) {
+    return client.post(`/collections/${collectionId}/render`, { format, async: true })
+  },
+  preview(collectionId, { format = 'pdf' } = {}) {
+    return client.post(`/collections/${collectionId}/render/preview`, { format }, { responseType: 'blob' })
+  },
+  jobStatus(jobId) {
+    return client.get(`/collection-render-jobs/${jobId}`)
+  },
+  jobDownload(jobId) {
+    return client.get(`/collection-render-jobs/${jobId}/download`, { responseType: 'blob' })
+  },
+}
+
 export const collectionItems = {
   list(collectionId, options = {}) {
     return client.get(`/collections/${collectionId}/items`, { params: buildParams(options) })

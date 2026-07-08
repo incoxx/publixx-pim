@@ -91,4 +91,9 @@ class Collection extends Model
         return $this->hasMany(CollectionAttributeValue::class, 'owner_id')
             ->where('owner_type', 'collection');
     }
+
+    public function renderJobs(): HasMany
+    {
+        return $this->hasMany(CollectionRenderJob::class);
+    }
 }

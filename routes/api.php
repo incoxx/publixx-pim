@@ -1082,6 +1082,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
         Route::get('collections/{collection}/items/{item}/attribute-values', [\App\Http\Controllers\Api\V1\CollectionAttributeValueController::class, 'indexForItem']);
         Route::put('collections/{collection}/items/{item}/attribute-values', [\App\Http\Controllers\Api\V1\CollectionAttributeValueController::class, 'bulkUpdateForItem']);
+
+        Route::post('collections/{collection}/render', [\App\Http\Controllers\Api\V1\CollectionRenderController::class, 'execute']);
+        Route::post('collections/{collection}/render/preview', [\App\Http\Controllers\Api\V1\CollectionRenderController::class, 'preview']);
+        Route::get('collection-render-jobs/{id}', [\App\Http\Controllers\Api\V1\CollectionRenderController::class, 'jobStatus']);
+        Route::get('collection-render-jobs/{id}/download', [\App\Http\Controllers\Api\V1\CollectionRenderController::class, 'jobDownload']);
     });
 
     // =====================================================================

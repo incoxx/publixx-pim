@@ -1,12 +1,14 @@
 <script setup>
-import { ref, onMounted, markRaw, watch, defineAsyncComponent } from 'vue'
+import { ref, onMounted, onBeforeUnmount, markRaw, watch, defineAsyncComponent } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useToastStore } from '@/stores/toast'
 import { useCollectionsStore } from '@/stores/collections'
 import attributesApi from '@/api/attributes'
-import { collections as collectionsApi, collectionItems as collectionItemsApi } from '@/api/collections'
+import { collections as collectionsApi, collectionItems as collectionItemsApi, collectionRenders as collectionRendersApi } from '@/api/collections'
+import { triggerDownload, blobErrorMessage } from '@/utils/download'
 import productsApi from '@/api/products'
 import { useRouter } from 'vue-router'
-import { Plus, ChevronLeft, Trash2, GripVertical, Upload } from 'lucide-vue-next'
+import { Plus, ChevronLeft, Trash2, GripVertical, Upload, Eye, Download, Loader2 } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
@@ -28,6 +30,7 @@ function mapDataTypeToInput(attr) {
 }
 
 const authStore = useAuthStore()
+const toastStore = useToastStore()
 const store = useCollectionsStore()
 const router = useRouter()
 const search = ref('')
@@ -37,6 +40,14 @@ const deleting = ref(false)
 const selected = ref(null)
 const showProductPicker = ref(false)
 const expandedItemId = ref(null)
+
+// ─── Rendering: Vorschau + Export (sync/async), PdfTemplate-Kopfbereich siehe Backend ───
+const previewing = ref(false)
+const exportingFormat = ref(null) // Format, das gerade synchron exportiert wird
+const asyncJobFormat = ref(null) // Format, dessen Async-Job gerade laeuft (Polling)
+let pollHandle = null
+
+const exportFormatLabels = { pdf: 'PDF', xlsx: 'Excel', opentrans: 'openTRANS' }
 
 const statusLabels = {
   draft: 'Entwurf', open: 'Offen', frozen: 'Eingefroren', sent: 'Versendet', archived: 'Archiviert',
@@ -182,6 +193,65 @@ function productFetcher(query, page) {
   }))
 }
 
+// ─── Rendering ───
+async function previewCollection() {
+  previewing.value = true
+  try {
+    const { data } = await collectionRendersApi.preview(selected.value.id, { format: 'pdf' })
+    const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
+    window.open(url, '_blank')
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+  } catch (e) {
+    toastStore.showToast(await blobErrorMessage(e), 'error')
+  } finally {
+    previewing.value = false
+  }
+}
+
+async function exportSync(format) {
+  exportingFormat.value = format
+  try {
+    const { data } = await collectionRendersApi.execute(selected.value.id, { format })
+    triggerDownload(new Blob([data]), `${selected.value.name || 'collection'}.${format}`)
+  } catch (e) {
+    toastStore.showToast(await blobErrorMessage(e), 'error')
+  } finally {
+    exportingFormat.value = null
+  }
+}
+
+async function exportAsync(format) {
+  asyncJobFormat.value = format
+  try {
+    const { data } = await collectionRendersApi.executeAsync(selected.value.id, { format })
+    pollRenderJob(data.data.id, format)
+  } catch (e) {
+    toastStore.showToast(e.response?.data?.message || 'Render-Job konnte nicht gestartet werden', 'error')
+    asyncJobFormat.value = null
+  }
+}
+
+function pollRenderJob(jobId, format) {
+  clearInterval(pollHandle)
+  pollHandle = setInterval(async () => {
+    const { data } = await collectionRendersApi.jobStatus(jobId)
+    const job = data.data
+    if (job.last_status === 'completed') {
+      clearInterval(pollHandle)
+      asyncJobFormat.value = null
+      const { data: fileData } = await collectionRendersApi.jobDownload(jobId)
+      triggerDownload(new Blob([fileData]), `${selected.value.name || 'collection'}.${format}`)
+      toastStore.showToast('Render abgeschlossen', 'success')
+    } else if (job.last_status === 'failed') {
+      clearInterval(pollHandle)
+      asyncJobFormat.value = null
+      toastStore.showToast(job.last_error || 'Render-Job fehlgeschlagen', 'error')
+    }
+  }, 2000)
+}
+
+onBeforeUnmount(() => clearInterval(pollHandle))
+
 watch(search, () => fetchList())
 onMounted(() => {
   fetchList()
@@ -231,7 +301,50 @@ onMounted(() => {
             </p>
           </div>
         </div>
-        <button class="pim-btn pim-btn-ghost text-xs" @click="openEditPanel(selected)">Bearbeiten</button>
+        <div class="flex items-center gap-2">
+          <button class="pim-btn pim-btn-ghost text-xs" data-testid="collection-preview" :disabled="previewing" @click="previewCollection">
+            <Loader2 v-if="previewing" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
+            <Eye v-else class="w-3.5 h-3.5" :stroke-width="2" />
+            Vorschau
+          </button>
+          <button class="pim-btn pim-btn-ghost text-xs" @click="openEditPanel(selected)">Bearbeiten</button>
+        </div>
+      </div>
+
+      <!-- Export: PDF/XLSX (allowed_export_formats gefiltert, Sync-Download oder Hintergrund-Job) -->
+      <div v-if="selected.collection_type?.allowed_export_formats?.length" class="pim-card p-3 flex flex-wrap items-center gap-2">
+        <span class="text-[11px] font-medium text-[var(--color-text-secondary)] mr-1">Export:</span>
+        <template v-for="format in selected.collection_type.allowed_export_formats" :key="format">
+          <div v-if="format === 'pdf' || format === 'xlsx'" class="flex items-center gap-1">
+            <button
+              class="pim-btn pim-btn-ghost text-xs"
+              :data-testid="`collection-export-sync-${format}`"
+              :disabled="exportingFormat === format || asyncJobFormat === format"
+              @click="exportSync(format)"
+              :title="`${exportFormatLabels[format]} herunterladen`"
+            >
+              <Loader2 v-if="exportingFormat === format" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
+              <Download v-else class="w-3.5 h-3.5" :stroke-width="2" />
+              {{ exportFormatLabels[format] || format }}
+            </button>
+            <button
+              class="pim-btn pim-btn-ghost !text-[10px] !px-1.5"
+              :data-testid="`collection-export-async-${format}`"
+              :disabled="asyncJobFormat === format"
+              @click="exportAsync(format)"
+              title="Im Hintergrund erstellen"
+            >
+              {{ asyncJobFormat === format ? 'läuft…' : 'im Hintergrund' }}
+            </button>
+          </div>
+          <span
+            v-else
+            class="pim-btn pim-btn-ghost text-xs opacity-50 cursor-not-allowed"
+            title="Kommt in Phase 5"
+          >
+            {{ exportFormatLabels[format] || format }}
+          </span>
+        </template>
       </div>
 
       <CollectionMatchQueue :collection-id="selected.id" @resolved="store.fetchItems(selected.id)" />
