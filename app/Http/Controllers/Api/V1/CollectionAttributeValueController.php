@@ -75,6 +75,11 @@ class CollectionAttributeValueController extends Controller
             ->with(['attribute', 'unit', 'valueListEntry'])
             ->where('owner_type', $ownerType)
             ->where('owner_id', $ownerId)
+            // Symmetrisch zu bulkUpdate()'s Schreibsperre auf is_internal-Attribute (z.B.
+            // _import_match_status/_import_fuzzy_candidates) -- diese sind systemverwaltet und
+            // sollen ausserhalb der dedizierten Review-Queue (CollectionItemMatchController)
+            // auch nicht ueber die generische Attribut-Lese-Route sichtbar sein.
+            ->whereHas('attribute', fn ($q) => $q->where('is_internal', false))
             ->orderBy('attribute_id')
             ->orderBy('multiplied_index');
     }

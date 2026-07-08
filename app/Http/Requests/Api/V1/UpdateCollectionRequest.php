@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Api\V1;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class UpdateCollectionRequest extends FormRequest
 {
@@ -29,5 +30,34 @@ class UpdateCollectionRequest extends FormRequest
             'valid_until' => 'nullable|date',
             'source_channel' => 'nullable|string|max:50',
         ];
+    }
+
+    /**
+     * Verhindert "sent" ohne vorheriges Freeze, wenn der Collection-Typ requires_snapshot
+     * verlangt -- sonst koennte ein "rechtsverbindliches" Angebot mit noch lebendigem Preis
+     * als versendet markiert werden, obwohl SnapshotService (Phase 3) noch nicht existiert.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            if ($this->input('status') !== 'sent') {
+                return;
+            }
+
+            $collection = $this->route('collection');
+            if (!$collection) {
+                return;
+            }
+
+            $collection->loadMissing('collectionType');
+            $requiresSnapshot = (bool) ($collection->collectionType?->requires_snapshot ?? false);
+
+            if ($requiresSnapshot && $collection->frozen_at === null) {
+                $validator->errors()->add(
+                    'status',
+                    'Dieser Collection-Typ erfordert ein Freeze vor dem Versand -- Status "sent" ist erst moeglich, nachdem die Collection eingefroren wurde.'
+                );
+            }
+        });
     }
 }

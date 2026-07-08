@@ -109,25 +109,26 @@ class CollectionRenderService
      */
     private function buildItemViewModels(Collection $collection): array
     {
-        $rules = $this->buildEnrichmentRules($collection->collectionType);
+        $type = $collection->collectionType;
+        $rules = $this->buildEnrichmentRules($type);
         $currency = $collection->currency ?? $collection->organization?->currency ?? 'EUR';
 
-        return $collection->items->map(function (CollectionItem $item) use ($collection, $rules, $currency) {
+        return $collection->items->map(function (CollectionItem $item) use ($collection, $rules, $currency, $type) {
             $data = $collection->frozen_at !== null
                 ? ($item->snapshot ?? [])
                 : $this->enrichmentService->enrichItem($item, $collection, $rules);
 
-            return $this->normalizeItemViewModel($item, $data, $currency);
+            return $this->normalizeItemViewModel($item, $data, $currency, $type);
         })->values()->all();
     }
 
-    private function normalizeItemViewModel(CollectionItem $item, array $data, string $currency): array
+    private function normalizeItemViewModel(CollectionItem $item, array $data, string $currency, CollectionType $type): array
     {
         $price = $data['resolved_price'] ?? null;
         $priceWarning = (bool) ($data['price_warning'] ?? false);
 
-        $discountPercent = (float) ($this->findValueByTechnicalNameSuffix($item->attributeValues, '-rabatt') ?? 0);
-        $lineText = $this->findValueByTechnicalNameSuffix($item->attributeValues, '-positionstext');
+        $discountPercent = (float) ($this->findValueByTechnicalName($item->attributeValues, $type->default_discount_attribute) ?? 0);
+        $lineText = $this->findValueByTechnicalName($item->attributeValues, $type->default_line_text_attribute);
 
         $unitPrice = $price['amount'] ?? null;
         $lineTotal = ($unitPrice !== null && !$priceWarning)
@@ -168,8 +169,8 @@ class CollectionRenderService
         $type = $collection->collectionType;
         $organization = $collection->organization;
 
-        $paymentTerms = $this->findValueByTechnicalNameSuffix($collection->attributeValues, '-zahlungsbedingungen');
-        $coverText = $this->findValueByTechnicalNameSuffix($collection->attributeValues, '-kopftext');
+        $paymentTerms = $this->findValueByTechnicalName($collection->attributeValues, $type->default_payment_terms_attribute);
+        $coverText = $this->findValueByTechnicalName($collection->attributeValues, $type->default_cover_text_attribute);
 
         $templateElements = $this->headerResolver->resolve(
             $type->defaultRenderTemplate,
@@ -213,18 +214,26 @@ class CollectionRenderService
     }
 
     /**
-     * Sucht ueber ein Suffix statt eines fest verdrahteten technical_name -- so bleibt die
-     * Aufloesung fuer jeden collection_type generisch nutzbar (z.B. 'angebot-rabatt',
-     * kuenftig 'planungsliste-rabatt', ...), solange die Namenskonvention "{typ}-{suffix}"
-     * eingehalten wird (siehe DemoCollectionSeeder).
-     */
-    /**
+     * Loest einen Wert ueber den EXAKTEN, pro Collection-Typ konfigurierten technical_name auf
+     * (collection_types.default_discount_attribute/default_line_text_attribute/
+     * default_payment_terms_attribute/default_cover_text_attribute -- gleiches Muster wie
+     * default_price_type). Ersetzt das fruehere Suffix-Matching (str_ends_with gegen
+     * '-rabatt'/'-positionstext'/...), das nur fuer die exakte Namenskonvention des
+     * Demo-Typs 'angebot' funktionierte und bei jedem anderen collection_type oder einer
+     * zufaelligen Namensueberschneidung stillschweigend falsch/leer aufloeste. Ist fuer den
+     * Collection-Typ kein Attribut konfiguriert ($technicalName === null), wird nichts
+     * aufgeloest -- kein Rateversuch ueber alle Attributwerte hinweg.
+     *
      * @param  EloquentCollection<int, CollectionAttributeValue>  $attributeValues
      */
-    private function findValueByTechnicalNameSuffix(EloquentCollection $attributeValues, string $suffix): ?string
+    private function findValueByTechnicalName(EloquentCollection $attributeValues, ?string $technicalName): ?string
     {
+        if ($technicalName === null) {
+            return null;
+        }
+
         $match = $attributeValues->first(
-            fn (CollectionAttributeValue $value) => $value->attribute !== null && str_ends_with($value->attribute->technical_name, $suffix)
+            fn (CollectionAttributeValue $value) => $value->attribute?->technical_name === $technicalName
         );
 
         if ($match === null) {

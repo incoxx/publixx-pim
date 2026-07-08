@@ -53,12 +53,14 @@ class OpenTransRfqAdapter implements InboundAdapterInterface
             $supplierPid = $this->text($productId?->SUPPLIER_PID ?? null);
             $description = $this->text($productId?->DESCRIPTION_SHORT ?? null);
 
+            // ?? statt ?: -- text() liefert bei fehlenden/leeren Knoten bereits null (nie ''),
+            // ein legitimer Wert "0" (Menge 0, SKU "0") darf daher nicht als "leer" gelten.
             $items[] = [
                 'external_product_id' => $supplierPid,
-                'sku_candidate' => $supplierPid ?: $description,
-                'quantity' => (float) ($this->text($rfqItem->QUANTITY ?? null) ?: 1),
+                'sku_candidate' => $supplierPid ?? $description,
+                'quantity' => (float) ($this->text($rfqItem->QUANTITY ?? null) ?? 1),
                 'unit' => $this->text($rfqItem->ORDER_UNIT ?? null),
-                'note' => $this->text($rfqItem->REMARKS ?? null) ?: $description,
+                'note' => $this->text($rfqItem->REMARKS ?? null) ?? $description,
             ];
         }
 

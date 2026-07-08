@@ -12,7 +12,10 @@
         body { font-family: 'Noto Sans', DejaVu Sans, sans-serif; font-size: 10pt; color: #1f2937; }
         .page { position: relative; width: 210mm; }
 
-        .header-canvas { position: relative; }
+        {{-- overflow:hidden -- default_render_template_id ist nur als nullable|uuid validiert,
+             eine fuer die ganzseitige Produkt-Vorlage gedachte PdfTemplate (Elemente bei
+             y=100mm/200mm) darf nicht in Adressblock/Kopftext/Positionstabelle hineinbluten. --}}
+        .header-canvas { position: relative; overflow: hidden; }
         .element { position: absolute; overflow: hidden; word-wrap: break-word; }
 
         .doc-meta { margin: 4mm 0 6mm 0; }

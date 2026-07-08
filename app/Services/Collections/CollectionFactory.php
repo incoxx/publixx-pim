@@ -44,9 +44,12 @@ class CollectionFactory
     public function fromOfferContext(OfferContext $context, CollectionType $type): Collection
     {
         return DB::transaction(function () use ($context, $type) {
+            // Explizite Blank-Pruefung statt ?: -- eine legitime Referenz "0" darf nicht als
+            // leer gelten und durch den generierten Fallback-Namen ersetzt werden.
+            $reference = $context->reference;
             $collection = Collection::create([
                 'collection_type_id' => $type->id,
-                'name' => $context->reference ?: ($type->name_de . ' Import ' . now()->format('Y-m-d H:i')),
+                'name' => ($reference !== null && $reference !== '') ? $reference : ($type->name_de . ' Import ' . now()->format('Y-m-d H:i')),
                 'reference' => $context->reference,
                 'currency' => $context->currency,
                 'valid_until' => $context->validUntil,
@@ -107,9 +110,16 @@ class CollectionFactory
         // Edge case #1/#5: kein Produktbezug -> Snapshot sofort aus Freitext fuellen,
         // damit die Position nie kommentarlos verschwindet.
         if ($match['product_id'] === null) {
+            // Explizite Blank-Pruefung statt ?: -- ein legitimer note-/SKU-Wert "0" darf
+            // nicht als leer gelten und stillschweigend durch den Fallback-Text ersetzt werden.
+            $note = $itemData['note'] ?? null;
+            $name = ($note !== null && $note !== '')
+                ? $note
+                : (($skuCandidate !== null && $skuCandidate !== '') ? $skuCandidate : 'Unaufgeloeste Position');
+
             $item->snapshot = [
-                'name' => $itemData['note'] ?: ($skuCandidate ?: 'Unaufgeloeste Position'),
-                'note' => $itemData['note'] ?? null,
+                'name' => $name,
+                'note' => $note,
                 'sku_candidate' => $skuCandidate,
                 'unit' => $itemData['unit'] ?? null,
             ];

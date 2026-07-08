@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Api\V1;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreCollectionRequest extends FormRequest
 {
@@ -28,5 +29,34 @@ class StoreCollectionRequest extends FormRequest
             'valid_until' => 'nullable|date',
             'source_channel' => 'nullable|string|max:50',
         ];
+    }
+
+    /**
+     * Eine neu erstellte Collection kann per definitionem nie bereits eingefroren sein
+     * (frozen_at ist hier ueberhaupt nicht setzbar) -- "frozen"/"sent" bei der Erstellung
+     * waeren daher immer ein widerspruechlicher Zustand fuer Typen mit requires_snapshot.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            if (!in_array($this->input('status'), ['frozen', 'sent'], true)) {
+                return;
+            }
+
+            $collectionTypeId = $this->input('collection_type_id');
+            if (!$collectionTypeId) {
+                return;
+            }
+
+            $requiresSnapshot = (bool) \App\Models\CollectionType::where('id', $collectionTypeId)
+                ->value('requires_snapshot');
+
+            if ($requiresSnapshot) {
+                $validator->errors()->add(
+                    'status',
+                    'Dieser Collection-Typ erfordert ein Freeze vor "frozen"/"sent" -- eine neu erstellte Collection kann diesen Status noch nicht haben.'
+                );
+            }
+        });
     }
 }
