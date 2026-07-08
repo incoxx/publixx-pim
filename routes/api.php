@@ -1072,6 +1072,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
         Route::get('collections/{collection}/items', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'index']);
         Route::post('collections/{collection}/items', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'store']);
+        // Vor items/{item}, sonst wuerde {item} "bulk" schlucken.
+        Route::post('collections/{collection}/items/bulk', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'bulkStore']);
         Route::patch('collections/{collection}/items/reorder', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'reorder']);
         // Vor items/{item}, sonst wuerde {item} "needs-review" schlucken.
         Route::get('collections/{collection}/items/needs-review', [\App\Http\Controllers\Api\V1\CollectionItemMatchController::class, 'needsReview']);

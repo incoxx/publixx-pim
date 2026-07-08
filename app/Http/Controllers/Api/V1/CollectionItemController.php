@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Requests\Api\V1\BulkStoreCollectionItemsRequest;
 use App\Http\Requests\Api\V1\ReorderCollectionItemsRequest;
 use App\Http\Requests\Api\V1\StoreCollectionItemRequest;
 use App\Http\Requests\Api\V1\UpdateCollectionItemRequest;
@@ -47,6 +48,38 @@ class CollectionItemController extends Controller
         return (new CollectionItemResource($item))
             ->response()
             ->setStatusCode(201);
+    }
+
+    /**
+     * POST /collections/{collection}/items/bulk
+     *
+     * Fuegt mehrere Produkte auf einmal hinzu (z.B. Uebertragung aus der internen
+     * Merkliste) -- Body: { "product_ids": [...] }, analog zu WatchlistController::
+     * bulkStore()/ProjectController::bulkAddProducts(). Bereits vorhandene Produkte
+     * in dieser Collection werden uebersprungen statt dupliziert.
+     */
+    public function bulkStore(BulkStoreCollectionItemsRequest $request, Collection $collection): JsonResponse
+    {
+        $this->authorize('update', $collection);
+
+        $productIds = $request->validated('product_ids');
+        $existingProductIds = $collection->items()->whereIn('product_id', $productIds)->pluck('product_id')->all();
+        $newProductIds = array_diff($productIds, $existingProductIds);
+
+        $position = (int) $collection->items()->max('position');
+        $added = 0;
+
+        foreach ($newProductIds as $productId) {
+            $position += 10;
+            $collection->items()->create(['product_id' => $productId, 'position' => $position]);
+            $added++;
+        }
+
+        return response()->json([
+            'message' => "{$added} Produkt(e) zur Collection hinzugefuegt",
+            'added' => $added,
+            'skipped' => count($existingProductIds),
+        ], 201);
     }
 
     public function show(Request $request, Collection $collection, CollectionItem $item): CollectionItemResource

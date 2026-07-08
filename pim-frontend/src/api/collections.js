@@ -81,6 +81,10 @@ export const collectionItems = {
   create(collectionId, data) {
     return client.post(`/collections/${collectionId}/items`, data)
   },
+  // @see api/projects.js::bulkAddProducts -- gleiches Muster fuer Massen-Zuordnung.
+  bulkAdd(collectionId, productIds) {
+    return client.post(`/collections/${collectionId}/items/bulk`, { product_ids: productIds })
+  },
   update(collectionId, itemId, data) {
     return client.put(`/collections/${collectionId}/items/${itemId}`, data)
   },
