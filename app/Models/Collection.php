@@ -44,8 +44,17 @@ class Collection extends Model
     protected static function booted(): void
     {
         // owner_id in collection_attribute_values traegt keine echte FK (polymorph ohne
-        // Zieltabelle) -- Cascade-Delete muss daher hier explizit erfolgen.
+        // Zieltabelle) -- Cascade-Delete muss daher hier explizit erfolgen. collection_items
+        // wird zwar per DB-FK cascade geloescht, das umgeht aber CollectionItem::booted()'s
+        // eigenen deleting-Hook -- daher raeumen wir hier zusaetzlich die Item-Attributwerte
+        // aller Positionen dieser Collection auf, bevor die Zeilen kaskadiert werden.
         static::deleting(function (self $collection) {
+            $itemIds = $collection->items()->pluck('id');
+
+            CollectionAttributeValue::where('owner_type', 'collection_item')
+                ->whereIn('owner_id', $itemIds)
+                ->delete();
+
             CollectionAttributeValue::where('owner_type', 'collection')
                 ->where('owner_id', $collection->id)
                 ->delete();
