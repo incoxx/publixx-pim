@@ -64,6 +64,7 @@ class AttributeResource extends JsonResource
             'source_attribute_name' => $this->source_attribute_name,
             'source_attribute_key' => $this->source_attribute_key,
             'status' => $this->status,
+            'applies_to' => $this->applies_to,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

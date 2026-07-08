@@ -46,6 +46,7 @@ class AttributeController extends Controller
         ));
 
         $this->applyHierarchyNodeFilter($query, $request);
+        $this->applyAppliesToFilter($query, $request);
 
         $this->applySearch($query, $request, ['name_de', 'name_en', 'technical_name']);
         $this->applySorting($query, $request, 'position', 'asc');
@@ -183,6 +184,20 @@ class AttributeController extends Controller
                     $q->whereIn('hierarchy_node_id', $nodeIds);
                 });
             }
+        }
+    }
+
+    /**
+     * Filter by Entitaets-Scope (applies_to ist ein JSON-Array: product/collection/
+     * collection_item) -- einfache Spaltengleichheit (Filterable::applyFilters) greift
+     * bei JSON-Containment nicht, daher eigene whereJsonContains()-Behandlung.
+     */
+    private function applyAppliesToFilter($query, Request $request): void
+    {
+        $appliesTo = $request->query('filter', [])['applies_to'] ?? null;
+
+        if ($appliesTo) {
+            $query->whereJsonContains('applies_to', $appliesTo);
         }
     }
 
