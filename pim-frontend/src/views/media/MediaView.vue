@@ -501,12 +501,30 @@ async function loadAssetAttributes(mediaItem) {
 
   assetAttrsLoading.value = true
   try {
-    // Load attribute definitions from hierarchy node and current values in parallel
-    const [attrsRes, valsRes] = await Promise.all([
+    // Attribut-Definitionen kommen aus zwei Quellen: Zuordnungen am konkreten
+    // Ordner-Knoten (hierarchy_node_attribute_assignments) UND Zuordnungen an der
+    // gesamten Asset-Hierarchie (hierarchy_attribute_assignments, z.B. für die
+    // Facettensuche gepflegt). Beide sollen hier pflegbar sein.
+    const calls = [
       hierarchiesApi.getNodeAttributes(mediaItem.asset_folder_id),
       mediaApi.getAttributeValues(mediaItem.id),
-    ])
-    const assignments = attrsRes.data.data || attrsRes.data || []
+    ]
+    if (assetHierarchyId.value) {
+      calls.push(hierarchiesApi.getHierarchyAttributes(assetHierarchyId.value))
+    }
+    const [attrsRes, valsRes, hierarchyAttrsRes] = await Promise.all(calls)
+
+    const nodeAssignments = attrsRes.data.data || attrsRes.data || []
+    const hierarchyAssignments = hierarchyAttrsRes?.data.data || hierarchyAttrsRes?.data || []
+
+    // Dedupe nach Attribut-ID — die knotenspezifische Zuordnung gewinnt, falls
+    // dasselbe Attribut aus Versehen an beiden Stellen zugeordnet wurde.
+    const seenAttributeIds = new Set(nodeAssignments.map(a => a.attribute?.id || a.attribute_id))
+    const extraHierarchyAssignments = hierarchyAssignments.filter(
+      a => !seenAttributeIds.has(a.attribute?.id || a.attribute_id)
+    )
+
+    const assignments = [...nodeAssignments, ...extraHierarchyAssignments]
     assetAttributes.value = assignments
 
     // Build values map from existing attribute values

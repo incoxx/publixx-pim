@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Resources\Api\V1\HierarchyAttributeAssignmentResource;
 use App\Models\Attribute;
 use App\Models\Hierarchy;
 use App\Models\HierarchyAttributeAssignment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
 
 class HierarchyAttributeAssignmentController extends Controller
@@ -23,11 +23,11 @@ class HierarchyAttributeAssignmentController extends Controller
         $this->authorize('view', $hierarchy);
 
         $assignments = $hierarchy->attributeAssignments()
-            ->with('attribute')
+            ->with('attribute.valueList.entries')
             ->orderBy('sort_order')
             ->get();
 
-        return JsonResource::collection($assignments);
+        return HierarchyAttributeAssignmentResource::collection($assignments);
     }
 
     /**
@@ -62,9 +62,9 @@ class HierarchyAttributeAssignmentController extends Controller
             'is_facet' => $data['is_facet'] ?? false,
         ]);
 
-        $assignment->load('attribute');
+        $assignment->load('attribute.valueList.entries');
 
-        return (new JsonResource($assignment))
+        return (new HierarchyAttributeAssignmentResource($assignment))
             ->response()
             ->setStatusCode(201);
     }
@@ -111,9 +111,9 @@ class HierarchyAttributeAssignmentController extends Controller
         ]);
 
         $hierarchyAttributeAssignment->update($data);
-        $hierarchyAttributeAssignment->load('attribute');
+        $hierarchyAttributeAssignment->load('attribute.valueList.entries');
 
-        return (new JsonResource($hierarchyAttributeAssignment))->response();
+        return (new HierarchyAttributeAssignmentResource($hierarchyAttributeAssignment))->response();
     }
 
     /**
