@@ -166,7 +166,8 @@ class CollectionRenderService
         $displayAttributes = $this->resolveGroupDisplayValues(
             $item->attributeValues,
             $type->default_item_attribute_groups ?? [],
-            $type->default_discount_attribute
+            $type->default_discount_attribute,
+            $item->hidden_attribute_ids ?? []
         );
 
         $unitPrice = $price['amount'] ?? null;
@@ -343,9 +344,11 @@ class CollectionRenderService
      * @param  array<int, string>  $groupTechnicalNames
      * @param  string|null  $excludeTechnicalName  z.B. default_discount_attribute -- hat bereits
      *         eine eigene Tabellenspalte, wird hier nicht zusaetzlich als Anzeigezeile dupliziert.
+     * @param  array<int, string>  $excludeAttributeIds  CollectionItem.hidden_attribute_ids --
+     *         pro Position abgewaehlte Attribute der Sicht, auch im Export nicht anzeigen.
      * @return array<int, array{label: string, value: string}>
      */
-    private function resolveGroupDisplayValues(EloquentCollection $attributeValues, array $groupTechnicalNames, ?string $excludeTechnicalName = null): array
+    private function resolveGroupDisplayValues(EloquentCollection $attributeValues, array $groupTechnicalNames, ?string $excludeTechnicalName = null, array $excludeAttributeIds = []): array
     {
         if (empty($groupTechnicalNames)) {
             return [];
@@ -357,6 +360,7 @@ class CollectionRenderService
             ->flatMap(fn (AttributeView $view) => $view->attributes)
             ->unique('id')
             ->reject(fn (Attribute $attribute) => $excludeTechnicalName !== null && $attribute->technical_name === $excludeTechnicalName)
+            ->reject(fn (Attribute $attribute) => in_array($attribute->id, $excludeAttributeIds, true))
             ->values();
 
         $result = [];

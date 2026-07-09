@@ -8,7 +8,7 @@ import { collections as collectionsApi, collectionItems as collectionItemsApi, c
 import { triggerDownload, blobErrorMessage } from '@/utils/download'
 import productsApi from '@/api/products'
 import { useRouter } from 'vue-router'
-import { Plus, ChevronLeft, Trash2, GripVertical, Upload, Eye, Download, Loader2, Star } from 'lucide-vue-next'
+import { Plus, ChevronLeft, Trash2, GripVertical, Upload, Eye, EyeOff, Download, Loader2, Star } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
@@ -166,6 +166,10 @@ async function saveCollectionAttributes() {
 // ─── Item-level attributes (Rabatt, Positionstext, ...) ───
 const itemAttrDefs = ref([])
 const itemAttrValues = ref({})
+// Pro Position abwaehlbare Attribute der zugeordneten Attributsicht (z.B. "Farbe" bei einer
+// Position ohne Farbvariante) -- gilt nur fuer das aktuell aufgeklappte Item, aus
+// item.hidden_attribute_ids initialisiert, siehe CollectionRenderService::resolveGroupDisplayValues().
+const itemHiddenAttrIds = ref(new Set())
 
 async function toggleItemAttributes(item) {
   if (expandedItemId.value === item.id) {
@@ -173,6 +177,7 @@ async function toggleItemAttributes(item) {
     return
   }
   expandedItemId.value = item.id
+  itemHiddenAttrIds.value = new Set(item.hidden_attribute_ids || [])
   if (!itemAttrDefs.value.length) {
     // Auf die dem Collection-Typ zugeordnete Attributsicht beschraenkt (default_item_attribute_groups)
     // -- siehe loadCollectionAttributes()/CollectionRenderService::resolveGroupDisplayValues().
@@ -198,13 +203,29 @@ async function toggleItemAttributes(item) {
   const { data: vals } = await collectionItemsApi.getAttributeValues(selected.value.id, item.id)
   const map = {}
   for (const v of vals.data) {
-    map[v.attribute_id] = v.value_string ?? v.value_number ?? v.value_date ?? v.value_flag ?? v.value_selection_id
+    // Selection-Werte werden hier als reines Text-Eingabefeld dargestellt (keine Selectbox) --
+    // gleiche Feld-Prioritaet wie CollectionRenderService::resolveGroupDisplayValues(), damit
+    // Editor und gerendertes Dokument denselben Wert zeigen.
+    map[v.attribute_id] = v.value_string
+      ?? v.value_number
+      ?? v.value_date
+      ?? (v.value_flag !== null && v.value_flag !== undefined ? (v.value_flag ? 'Ja' : 'Nein') : null)
+      ?? v.value_list_entry?.display_value_de
+      ?? v.value_selection_id
   }
   itemAttrValues.value = map
 }
 
+function toggleAttributeHidden(attributeId) {
+  const next = new Set(itemHiddenAttrIds.value)
+  if (next.has(attributeId)) next.delete(attributeId)
+  else next.add(attributeId)
+  itemHiddenAttrIds.value = next
+}
+
 async function saveItemAttributes(item) {
   const values = itemAttrDefs.value
+    .filter((a) => !itemHiddenAttrIds.value.has(a.id))
     .filter((a) => itemAttrValues.value[a.id] !== undefined && itemAttrValues.value[a.id] !== '')
     .map((a) => ({
       attribute_id: a.id,
@@ -214,6 +235,7 @@ async function saveItemAttributes(item) {
   if (values.length) {
     await collectionItemsApi.saveAttributeValues(selected.value.id, item.id, values)
   }
+  await store.updateItem(selected.value.id, item.id, { hidden_attribute_ids: [...itemHiddenAttrIds.value] })
   expandedItemId.value = null
 }
 
@@ -523,15 +545,32 @@ onMounted(() => {
               </button>
             </div>
             <div v-if="expandedItemId === item.id" class="px-4 pb-3 pl-10 space-y-2 bg-[var(--color-bg)]">
-              <div v-for="attr in itemAttrDefs" :key="attr.id">
-                <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">{{ attr.name_de }}</label>
-                <PimAttributeInput
-                  :type="mapDataTypeToInput(attr)"
-                  :modelValue="itemAttrValues[attr.id]"
-                  @update:modelValue="v => itemAttrValues[attr.id] = v"
-                />
+              <p v-if="!itemAttrDefs.length" class="text-[11px] text-[var(--color-text-tertiary)] italic">
+                Dem Collection-Typ ist keine Positions-Attributsicht zugeordnet.
+              </p>
+              <div v-for="attr in itemAttrDefs" :key="attr.id" class="flex items-start gap-2">
+                <div class="flex-1 min-w-0">
+                  <label
+                    class="block text-[11px] font-medium mb-1"
+                    :class="itemHiddenAttrIds.has(attr.id) ? 'text-[var(--color-text-tertiary)] line-through' : 'text-[var(--color-text-secondary)]'"
+                  >{{ attr.name_de }}</label>
+                  <PimAttributeInput
+                    type="text"
+                    :modelValue="itemAttrValues[attr.id]"
+                    :disabled="itemHiddenAttrIds.has(attr.id)"
+                    @update:modelValue="v => itemAttrValues[attr.id] = v"
+                  />
+                </div>
+                <button
+                  class="pim-btn pim-btn-ghost !p-1.5 mt-4 shrink-0"
+                  :title="itemHiddenAttrIds.has(attr.id) ? 'Für diese Position einblenden' : 'Für diese Position abwählen'"
+                  :data-testid="`toggle-attr-${attr.technical_name}`"
+                  @click="toggleAttributeHidden(attr.id)"
+                >
+                  <component :is="itemHiddenAttrIds.has(attr.id) ? EyeOff : Eye" class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+                </button>
               </div>
-              <button class="pim-btn pim-btn-secondary text-xs" @click="saveItemAttributes(item)">Speichern</button>
+              <button v-if="itemAttrDefs.length" class="pim-btn pim-btn-secondary text-xs" @click="saveItemAttributes(item)">Speichern</button>
             </div>
           </div>
         </VueDraggable>
