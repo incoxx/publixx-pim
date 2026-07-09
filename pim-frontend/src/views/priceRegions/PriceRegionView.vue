@@ -18,10 +18,13 @@ const formErrors = ref({})
 const formSaving = ref(false)
 const metadataKey = ref('')
 const metadataValue = ref('')
+const meta = ref({ current_page: 1, last_page: 1, total: 0, per_page: 25 })
+const sortField = ref('name')
+const sortOrder = ref('asc')
 
 const columns = [
-  { key: 'code', label: 'Code', mono: true },
-  { key: 'name', label: 'Name' },
+  { key: 'code', label: 'Code', mono: true, sortable: true },
+  { key: 'name', label: 'Name', sortable: true },
   { key: 'type', label: 'Typ' },
 ]
 
@@ -33,9 +36,28 @@ const typeOptions = [
 async function fetchItems() {
   loading.value = true
   try {
-    const { data } = await priceRegions.list()
+    const { data } = await priceRegions.list({
+      sort: sortField.value,
+      order: sortOrder.value,
+      perPage: meta.value.per_page,
+      page: meta.value.current_page,
+    })
     items.value = data.data || data
+    if (data.meta) meta.value = data.meta
   } finally { loading.value = false }
+}
+
+function handleSort(field, order) {
+  sortField.value = field
+  sortOrder.value = order
+  meta.value.current_page = 1
+  fetchItems()
+}
+
+function handlePageChange(page) {
+  if (page < 1 || page > meta.value.last_page) return
+  meta.value.current_page = page
+  fetchItems()
 }
 
 function openForm(item = null) {
@@ -167,11 +189,25 @@ onMounted(() => fetchItems())
       :columns="columns"
       :rows="items"
       :loading="loading"
+      :sortField="sortField"
+      :sortOrder="sortOrder"
       :showActions="authStore.hasPermission('price-regions.delete')"
       emptyText="Keine Preisregionen vorhanden"
+      @sort="handleSort"
       @row-click="openForm"
       @row-action="(row) => deleteTarget = row"
-    />
+    >
+      <template #pagination>
+        <div class="flex items-center justify-between px-4 py-3 border-t border-[var(--color-border)]">
+          <span class="text-xs text-[var(--color-text-tertiary)]">{{ meta.total }} Preisregionen</span>
+          <div class="flex items-center gap-1">
+            <button class="pim-btn pim-btn-ghost text-xs" :disabled="meta.current_page <= 1" @click="handlePageChange(meta.current_page - 1)">Zurück</button>
+            <span class="text-xs text-[var(--color-text-secondary)] px-2">{{ meta.current_page }} / {{ meta.last_page }}</span>
+            <button class="pim-btn pim-btn-ghost text-xs" :disabled="meta.current_page >= meta.last_page" @click="handlePageChange(meta.current_page + 1)">Weiter</button>
+          </div>
+        </div>
+      </template>
+    </PimTable>
 
     <PimDeleteConfirmDialog
       :open="!!deleteTarget"

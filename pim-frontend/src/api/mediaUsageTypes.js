@@ -1,8 +1,8 @@
-import client from './client'
+import client, { buildParams } from './client'
 
 export const mediaUsageTypes = {
-  list() {
-    return client.get('/media-usage-types')
+  list(params = {}) {
+    return client.get('/media-usage-types', { params: buildParams(params) })
   },
   create(data) {
     return client.post('/media-usage-types', data)

@@ -214,7 +214,7 @@ export const formattingRules = {
 
 export const attributeViews = {
   list(params = {}) {
-    return client.get('/attribute-views', { params })
+    return client.get('/attribute-views', { params: buildParams(params) })
   },
 
   create(data) {

@@ -1,8 +1,8 @@
-import client from './client'
+import client, { buildParams } from './client'
 
 export const mediaLanguages = {
-  list() {
-    return client.get('/media-languages')
+  list(params = {}) {
+    return client.get('/media-languages', { params: buildParams(params) })
   },
   create(data) {
     return client.post('/media-languages', data)

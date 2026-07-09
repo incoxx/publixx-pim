@@ -158,9 +158,9 @@ onMounted(async () => {
     priceTypes.list(),
     // include=attributes: liefert jede Attributsicht direkt mit ihren Mitglieds-Attributen --
     // deckt sowohl die Sicht-Auswahl als auch die Rabatt-Attribut-Auswahl (aus der gewaehlten
-    // Positions-Sicht) ohne weiteren API-Call ab. per_page explizit hoch setzen -- ohne das
+    // Positions-Sicht) ohne weiteren API-Call ab. perPage explizit hoch setzen -- ohne das
     // liefert die Liste nur die Standard-Seitengroesse (25).
-    attributeViews.list({ include: 'attributes', per_page: 200 }),
+    attributeViews.list({ include: 'attributes', perPage: 200 }),
   ])
   if (pdfRes.status === 'fulfilled') {
     pdfTemplateOptions.value = (pdfRes.value.data.data || pdfRes.value.data).map(t => ({ value: t.id, label: t.name }))

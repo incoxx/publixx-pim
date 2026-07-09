@@ -27,6 +27,7 @@ class AttributeViewController extends Controller
         $query = AttributeView::query()
             ->with($this->parseIncludes($request, self::ALLOWED_INCLUDES));
 
+        $this->applySearch($query, $request, ['name_de', 'name_en', 'technical_name']);
         $this->applySorting($query, $request, 'sort_order', 'asc');
 
         return AttributeViewResource::collection(
