@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import assetCatalogApi from '@/api/assetCatalog'
 import catalogApi from '@/api/catalog'
 
@@ -13,6 +13,10 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
   const assetLoading = ref(false)
   const foldersLoading = ref(false)
   const error = ref(null)
+
+  // --- Facets ---
+  const facets = ref([])
+  const activeFilters = reactive({}) // { attributeId: 'value1,value2' or 'min:max' or '1'/'0' }
 
   // --- Theme Settings (shared with product catalog) ---
   const themeSettings = ref({
@@ -145,6 +149,7 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
         usagePurpose: usagePurposeFilter.value || undefined,
         mediaType: mediaTypeFilter.value || undefined,
         usageType: usageTypeFilter.value || undefined,
+        filters: Object.keys(activeFilters).length > 0 ? { ...activeFilters } : undefined,
         lang: locale.value,
       })
       assets.value = data.data
@@ -158,6 +163,43 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
       loading.value = false
     }
   }
+
+  async function fetchFacets() {
+    try {
+      const opts = { lang: locale.value }
+      if (selectedFolderId.value) opts.folder = selectedFolderId.value
+      if (usagePurposeFilter.value) opts.usagePurpose = usagePurposeFilter.value
+      if (mediaTypeFilter.value) opts.mediaType = mediaTypeFilter.value
+      if (usageTypeFilter.value) opts.usageType = usageTypeFilter.value
+      if (Object.keys(activeFilters).length > 0) {
+        opts.filters = { ...activeFilters }
+      }
+      const { data } = await assetCatalogApi.getFacets(opts)
+      facets.value = data.facets || []
+    } catch (e) {
+      console.warn('Failed to load asset facets:', e.message)
+      facets.value = []
+    }
+  }
+
+  function setFilter(attributeId, value) {
+    activeFilters[attributeId] = value
+    meta.value.current_page = 1
+  }
+
+  function clearFilter(attributeId) {
+    delete activeFilters[attributeId]
+    meta.value.current_page = 1
+  }
+
+  function clearAllFilters() {
+    for (const key of Object.keys(activeFilters)) {
+      delete activeFilters[key]
+    }
+    meta.value.current_page = 1
+  }
+
+  const activeFilterCount = computed(() => Object.keys(activeFilters).length)
 
   async function fetchUsageTypes() {
     try {
@@ -300,6 +342,13 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
     assetLoading,
     foldersLoading,
     error,
+    facets,
+    activeFilters,
+    activeFilterCount,
+    fetchFacets,
+    setFilter,
+    clearFilter,
+    clearAllFilters,
     meta,
     search,
     selectedFolderId,

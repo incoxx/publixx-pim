@@ -46,6 +46,22 @@ class AssetCatalogResource extends JsonResource
                     'unit' => $attrValue->unit?->abbreviation,
                 ];
             }
+
+            // Facetten-Attribute zuerst (in ihrer festgelegten Reihenfolge), danach die
+            // übrigen zugeordneten Attribute — ebenfalls per sort_order sortiert.
+            $attributeOrder = $this->additional['attribute_order'] ?? collect();
+            usort($metadata, function ($a, $b) use ($attributeOrder) {
+                $aInfo = $attributeOrder->get($a['attribute_id']);
+                $bInfo = $attributeOrder->get($b['attribute_id']);
+                $aFacet = (bool) ($aInfo->is_facet ?? false);
+                $bFacet = (bool) ($bInfo->is_facet ?? false);
+                if ($aFacet !== $bFacet) {
+                    return $aFacet ? -1 : 1;
+                }
+                $aSort = $aInfo->sort_order ?? PHP_INT_MAX;
+                $bSort = $bInfo->sort_order ?? PHP_INT_MAX;
+                return $aSort <=> $bSort;
+            });
         }
 
         // PDF preview URL (first page WebP from pipeline)
