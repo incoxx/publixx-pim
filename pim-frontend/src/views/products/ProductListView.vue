@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, markRaw } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useProductStore } from '@/stores/products'
@@ -7,7 +7,7 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useFilters } from '@/composables/useFilters'
 import { useLocaleStore } from '@/stores/locale'
-import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter, Settings, Package, FolderTree, Trash2, CheckCheck, ArrowRightLeft, LayoutGrid, List } from 'lucide-vue-next'
+import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter, Settings, Package, FolderTree, Trash2, CheckCheck, ArrowRightLeft, LayoutGrid, List, ChevronDown } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import PimTable from '@/components/shared/PimTable.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
@@ -22,10 +22,10 @@ import productsApi from '@/api/products'
 import watchlistApi from '@/api/watchlist'
 import searchApi from '@/api/search'
 import manufacturersApi from '@/api/manufacturers'
-import hierarchiesApi from '@/api/hierarchies'
 import { useLicenseStore } from '@/stores/license'
 import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialog.vue'
 import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierarchyNodeDialog.vue'
+import MasterHierarchyNodePickerDialog from '@/components/products/MasterHierarchyNodePickerDialog.vue'
 import attributeMappingsApi from '@/api/attributeMappings'
 
 const { t } = useI18n()
@@ -112,9 +112,23 @@ const { visibleColumns, allColumns, visibleKeys, isColumnVisible, toggleColumn, 
 
 const { columnProfiles, selectedColumnProfileId, loadColumnProfiles, loadColumnProfile, saveColumnProfile, updateColumnProfile, deleteColumnProfile } = useColumnProfiles('products', visibleKeys)
 
-// Quick Lookup
+// Quick Lookup — filtert serverseitig über die komplette Treffermenge, nicht nur
+// die aktuell angezeigte Seite.
 const showQuickLookup = ref(false)
 const quickLookupFilters = ref({})
+
+// Spalten-Key → Backend-Filterfeld. Text-Felder werden per Präfix-Suche (LIKE 'wert%'),
+// Select-Felder per Exakt-Match auf der ID gefiltert (siehe ProductController::ALLOWED_FILTERS
+// bzw. ALLOWED_PREFIX_FILTERS).
+const QUICK_LOOKUP_FIELD_MAP = {
+  sku: 'sku',
+  name: 'name',
+  'product_type.name_de': 'product_type_id',
+  'manufacturer.name': 'manufacturer_id',
+  'master_hierarchy_node.name_de': 'master_hierarchy_node_id',
+  status: 'status',
+  ean: 'ean',
+}
 
 const statusOptions = [
   { value: 'active', label: 'Aktiv' },
@@ -124,12 +138,12 @@ const statusOptions = [
 ]
 
 const productTypeOptions = computed(() =>
-  attrStore.prodTypes.map(pt => ({ value: pt.name_de || pt.technical_name, label: pt.name_de || pt.technical_name }))
+  attrStore.prodTypes.map(pt => ({ value: pt.id, label: pt.name_de || pt.technical_name }))
 )
 
 const manufacturerList = ref([])
 const manufacturerOptions = computed(() =>
-  manufacturerList.value.map(m => ({ value: m.name, label: m.name }))
+  manufacturerList.value.map(m => ({ value: m.id, label: m.name }))
 )
 
 async function loadManufacturers() {
@@ -139,28 +153,12 @@ async function loadManufacturers() {
   } catch { /* silently fail */ }
 }
 
-const hierarchyNodeList = ref([])
-const hierarchyNodeOptions = computed(() =>
-  hierarchyNodeList.value.map(n => ({ value: n.name_de, label: n.name_de }))
-)
-
-async function loadMasterHierarchyNodes() {
-  try {
-    const { data: hData } = await hierarchiesApi.list({ perPage: 100 })
-    const hierarchies = hData.data || hData
-    const masterHierarchy = hierarchies.find(h => h.hierarchy_type === 'master')
-    if (!masterHierarchy) return
-    const { data: nData } = await hierarchiesApi.searchNodes({ filters: { hierarchy_id: masterHierarchy.id }, perPage: 500 })
-    hierarchyNodeList.value = nData.data || nData
-  } catch { /* silently fail */ }
-}
-
 const quickLookupConfig = computed(() => ({
   sku: { type: 'text', placeholder: 'SKU...' },
   name: { type: 'text', placeholder: 'Name...' },
   'product_type.name_de': { type: 'select', options: productTypeOptions.value },
   'manufacturer.name': { type: 'select', options: manufacturerOptions.value },
-  'master_hierarchy_node.name_de': { type: 'select', options: hierarchyNodeOptions.value },
+  'master_hierarchy_node.name_de': { type: 'hierarchy-node' },
   status: { type: 'select', options: statusOptions },
   workflow_status: { type: 'select', options: [
     { value: 'editing', label: 'In Bearbeitung' },
@@ -170,34 +168,52 @@ const quickLookupConfig = computed(() => ({
   ean: { type: 'text', placeholder: 'EAN...' },
 }))
 
-function getCellValueForFilter(row, colKey) {
-  const keys = colKey.split('.')
-  let val = row
-  for (const k of keys) val = val?.[k]
-  return val
+// Master-Hierarchie-Knoten-Auswahl für das Quick Lookup — nutzt den gleichen
+// Picker-Dialog wie der Produkteditor (Masterhierarchie + Knoten wählen).
+const showHierarchyQuickLookupPicker = ref(false)
+const quickLookupHierarchyLabel = ref('')
+let hierarchyQuickLookupSetValue = null
+
+function openHierarchyQuickLookupPicker(setValue) {
+  hierarchyQuickLookupSetValue = setValue
+  showHierarchyQuickLookupPicker.value = true
 }
 
-const filteredItems = computed(() => {
-  if (!showQuickLookup.value) return store.items
-  const filters = quickLookupFilters.value
-  const activeFiltersArr = Object.entries(filters).filter(([, v]) => v !== '' && v != null)
-  if (activeFiltersArr.length === 0) return store.items
+function onHierarchyQuickLookupSelected(node) {
+  quickLookupHierarchyLabel.value = [node.hierarchy?.name_de, node.name_de].filter(Boolean).join(' / ')
+  hierarchyQuickLookupSetValue?.(node.id)
+}
 
-  return store.items.filter(row => {
-    return activeFiltersArr.every(([colKey, filterVal]) => {
-      const cellVal = getCellValueForFilter(row, colKey)
-      if (cellVal == null || cellVal === '—') return false
-      const config = quickLookupConfig.value[colKey]
-      if (config?.type === 'select') {
-        return String(cellVal) === String(filterVal)
-      }
-      return String(cellVal).toLowerCase().startsWith(String(filterVal).toLowerCase())
-    })
-  })
-})
+function clearHierarchyQuickLookup(setValue) {
+  quickLookupHierarchyLabel.value = ''
+  setValue('')
+}
+
+function applyQuickLookupFilters() {
+  const mapped = {}
+  for (const [colKey, value] of Object.entries(quickLookupFilters.value)) {
+    if (value === '' || value == null) continue
+    const field = QUICK_LOOKUP_FIELD_MAP[colKey]
+    if (!field) continue
+    mapped[field] = value
+  }
+  store.setFilters(mapped)
+  fetchWithAttributes()
+}
 
 function onQuickLookupChange(filters) {
   quickLookupFilters.value = filters
+  applyQuickLookupFilters()
+}
+
+function toggleQuickLookup() {
+  showQuickLookup.value = !showQuickLookup.value
+  if (!showQuickLookup.value && Object.keys(quickLookupFilters.value).length > 0) {
+    quickLookupFilters.value = {}
+    quickLookupHierarchyLabel.value = ''
+    pimTableRef.value?.clearQuickLookup()
+    applyQuickLookupFilters()
+  }
 }
 
 // Excel export
@@ -223,6 +239,26 @@ async function exportExcel() {
 const exportError = ref(null)
 const deleteTarget = ref(null)
 const deleting = ref(false)
+
+// Quick Export — Popup-Menü, das Excel- und XLIFF-Export bündelt
+const showQuickExportMenu = ref(false)
+const quickExportRef = ref(null)
+
+function onQuickExportExcel() {
+  showQuickExportMenu.value = false
+  exportExcel()
+}
+
+function onQuickExportXliff() {
+  showQuickExportMenu.value = false
+  showXliffPanel.value = true
+}
+
+function onQuickExportClickOutside(event) {
+  if (quickExportRef.value && !quickExportRef.value.contains(event.target)) {
+    showQuickExportMenu.value = false
+  }
+}
 
 function handleSort(field, order) {
   store.setSort(field, order)
@@ -473,9 +509,14 @@ onMounted(async () => {
   fetchWithAttributes()
   attrStore.fetchProductTypes()
   loadManufacturers()
-  loadMasterHierarchyNodes()
   loadWatchlistIds()
   loadColumnProfiles()
+
+  document.addEventListener('click', onQuickExportClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onQuickExportClickOutside)
 })
 </script>
 
@@ -524,20 +565,44 @@ onMounted(async () => {
         <button
           class="pim-btn pim-btn-secondary text-xs"
           :class="showQuickLookup ? 'bg-[var(--color-accent-light)] text-[var(--color-accent)]' : ''"
-          @click="showQuickLookup = !showQuickLookup"
+          @click="toggleQuickLookup"
           title="Quick Lookup"
         >
           <ListFilter class="w-3.5 h-3.5" :stroke-width="1.75" />
           <span class="hidden sm:inline">Quick Lookup</span>
         </button>
-        <button class="pim-btn pim-btn-secondary text-xs" :disabled="excelExporting" @click="exportExcel">
-          <FileSpreadsheet class="w-3.5 h-3.5" :stroke-width="1.75" />
-          {{ excelExporting ? 'Export...' : 'Excel' }}
-        </button>
-        <button class="pim-btn pim-btn-secondary text-xs" @click="showXliffPanel = !showXliffPanel">
-          <Languages class="w-3.5 h-3.5" :stroke-width="1.75" />
-          XLIFF
-        </button>
+        <div class="relative" ref="quickExportRef">
+          <button
+            class="pim-btn pim-btn-secondary text-xs"
+            :class="showQuickExportMenu ? 'bg-[var(--color-accent-light)] text-[var(--color-accent)]' : ''"
+            @click="showQuickExportMenu = !showQuickExportMenu"
+            title="Quick Export"
+          >
+            <Download class="w-3.5 h-3.5" :stroke-width="1.75" />
+            <span class="hidden sm:inline">Quick Export</span>
+            <ChevronDown class="w-3 h-3" :stroke-width="2" />
+          </button>
+          <div
+            v-if="showQuickExportMenu"
+            class="absolute right-0 top-full mt-1 z-30 w-48 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg overflow-hidden py-1"
+          >
+            <button
+              class="w-full flex items-center gap-2 px-3 py-2 text-xs text-left text-[var(--color-text-primary)] hover:bg-[var(--color-bg)] disabled:opacity-50"
+              :disabled="excelExporting"
+              @click="onQuickExportExcel"
+            >
+              <FileSpreadsheet class="w-3.5 h-3.5 shrink-0" :stroke-width="1.75" />
+              {{ excelExporting ? 'Export...' : 'Excel-Export' }}
+            </button>
+            <button
+              class="w-full flex items-center gap-2 px-3 py-2 text-xs text-left text-[var(--color-text-primary)] hover:bg-[var(--color-bg)]"
+              @click="onQuickExportXliff"
+            >
+              <Languages class="w-3.5 h-3.5 shrink-0" :stroke-width="1.75" />
+              XLIFF Export / Import
+            </button>
+          </div>
+        </div>
         <button v-if="authStore.hasPermission('products.create')" class="pim-btn pim-btn-primary" @click="openCreatePanel" data-testid="btn-new-product">
           <Plus class="w-4 h-4" :stroke-width="2" />
           {{ t('product.newProduct') }}
@@ -614,7 +679,7 @@ onMounted(async () => {
         </span>
 
         <!-- Select all pages hint -->
-        <template v-if="!allPagesSelected && selectedProductIds.length === filteredItems.length && store.meta.total > filteredItems.length">
+        <template v-if="!allPagesSelected && selectedProductIds.length === store.items.length && store.meta.total > store.items.length">
           <button
             class="pim-btn pim-btn-secondary text-xs border-dashed"
             :disabled="selectingAll"
@@ -716,12 +781,12 @@ onMounted(async () => {
       <div v-if="store.loading" class="flex items-center justify-center py-16">
         <div class="animate-spin w-6 h-6 border-2 border-[var(--color-accent)] border-t-transparent rounded-full" />
       </div>
-      <div v-else-if="filteredItems.length === 0" class="text-center py-16 text-sm text-[var(--color-text-tertiary)]">
+      <div v-else-if="store.items.length === 0" class="text-center py-16 text-sm text-[var(--color-text-tertiary)]">
         Keine Produkte gefunden
       </div>
       <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
         <div
-          v-for="row in filteredItems"
+          v-for="row in store.items"
           :key="row.id"
           class="pim-card overflow-hidden group cursor-pointer hover:shadow-md transition-shadow"
           @click="openProduct(row)"
@@ -768,7 +833,7 @@ onMounted(async () => {
       v-else
       ref="pimTableRef"
       :columns="visibleColumns"
-      :rows="filteredItems"
+      :rows="store.items"
       :loading="store.loading"
       :sortField="store.sort.field"
       :sortOrder="store.sort.order"
@@ -783,6 +848,26 @@ onMounted(async () => {
       @select="handleSelect"
       @quick-lookup-change="onQuickLookupChange"
     >
+      <template #quicklookup-master_hierarchy_node.name_de="{ value, setValue }">
+        <div class="flex items-center gap-1">
+          <button
+            type="button"
+            class="pim-input text-xs flex-1 py-1 px-2 text-left truncate"
+            @click="openHierarchyQuickLookupPicker(setValue)"
+          >
+            {{ quickLookupHierarchyLabel || 'Knoten wählen…' }}
+          </button>
+          <button
+            v-if="value"
+            type="button"
+            class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] shrink-0"
+            title="Zurücksetzen"
+            @click.stop="clearHierarchyQuickLookup(setValue)"
+          >
+            <X class="w-3 h-3" :stroke-width="2" />
+          </button>
+        </div>
+      </template>
       <template #cell-thumbnail="{ row }">
         <div class="w-8 h-8 rounded bg-[var(--color-bg)] overflow-hidden flex items-center justify-center border border-[var(--color-border)]">
           <img
@@ -970,6 +1055,12 @@ onMounted(async () => {
     <BulkAssignHierarchyNodeDialog
       v-model:open="showAssignHierarchy"
       :productIds="selectedProductIds"
+    />
+
+    <!-- Quick Lookup: Master-Hierarchie-Knoten-Filter -->
+    <MasterHierarchyNodePickerDialog
+      v-model:open="showHierarchyQuickLookupPicker"
+      @select="onHierarchyQuickLookupSelected"
     />
   </div>
 </template>

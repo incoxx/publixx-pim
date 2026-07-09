@@ -33,8 +33,13 @@ function clearSelection() {
   emit('select', [])
 }
 
-defineExpose({ setSelectedIds, clearSelection, selectedIds })
 const quickLookupValues = ref({})
+
+function clearQuickLookup() {
+  quickLookupValues.value = {}
+}
+
+defineExpose({ setSelectedIds, clearSelection, selectedIds, clearQuickLookup })
 
 // Debounce timer for text inputs
 let debounceTimer = null
@@ -193,31 +198,37 @@ function getColStyle(col) {
               :key="'ql-' + col.key"
               class="px-2 py-1.5"
             >
-              <template v-if="quickLookupConfig[col.key]?.type === 'text'">
-                <input
-                  type="text"
-                  :value="quickLookupValues[col.key] || ''"
-                  @input="onQuickLookupInput(col.key, $event.target.value)"
-                  :placeholder="quickLookupConfig[col.key]?.placeholder || '...'"
-                  class="pim-input text-xs w-full py-1 px-2"
-                />
-              </template>
-              <template v-else-if="quickLookupConfig[col.key]?.type === 'select'">
-                <select
-                  :value="quickLookupValues[col.key] || ''"
-                  @change="onQuickLookupSelect(col.key, $event.target.value)"
-                  class="pim-input text-xs w-full py-1 px-2"
-                >
-                  <option value="">—</option>
-                  <option
-                    v-for="opt in quickLookupConfig[col.key].options"
-                    :key="opt.value"
-                    :value="opt.value"
+              <slot
+                :name="'quicklookup-' + col.key"
+                :value="quickLookupValues[col.key]"
+                :setValue="(v) => onQuickLookupSelect(col.key, v)"
+              >
+                <template v-if="quickLookupConfig[col.key]?.type === 'text'">
+                  <input
+                    type="text"
+                    :value="quickLookupValues[col.key] || ''"
+                    @input="onQuickLookupInput(col.key, $event.target.value)"
+                    :placeholder="quickLookupConfig[col.key]?.placeholder || '...'"
+                    class="pim-input text-xs w-full py-1 px-2"
+                  />
+                </template>
+                <template v-else-if="quickLookupConfig[col.key]?.type === 'select'">
+                  <select
+                    :value="quickLookupValues[col.key] || ''"
+                    @change="onQuickLookupSelect(col.key, $event.target.value)"
+                    class="pim-input text-xs w-full py-1 px-2"
                   >
-                    {{ opt.label }}
-                  </option>
-                </select>
-              </template>
+                    <option value="">—</option>
+                    <option
+                      v-for="opt in quickLookupConfig[col.key].options"
+                      :key="opt.value"
+                      :value="opt.value"
+                    >
+                      {{ opt.label }}
+                    </option>
+                  </select>
+                </template>
+              </slot>
             </th>
             <th v-if="showActions" class="w-10"></th>
           </tr>
