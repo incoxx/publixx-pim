@@ -21,11 +21,13 @@ const loadError = ref('')
 
 const pdfTemplateOptions = ref([])
 const priceTypeOptions = ref([])
-// Jede existierende Attributgruppe ist frei waehlbar -- kein Scope-Filter mehr auf den
-// Mitglieds-Attributen (siehe attributeViewOptions unten).
+// Jede existierende Attributsicht ist frei waehlbar (AttributeView, /attribute-views --
+// nicht zu verwechseln mit "Attributgruppen" = AttributeType, /attribute-types: dort ist
+// jedes Attribut max. EINER Gruppe zugeordnet; eine Attributsicht kann dagegen von 0..n
+// Attributen genutzt werden, das passt zu "diese Attribute erscheinen in der Collection").
 const rawAttributeViews = ref([])
 const attributeViewOptions = computed(() => rawAttributeViews.value.map(v => ({ value: v.technical_name, label: v.name_de })))
-// Rabatt-Attribut-Auswahl ist auf die Mitglieder der aktuell gewaehlten Positions-Attributgruppe
+// Rabatt-Attribut-Auswahl ist auf die Mitglieder der aktuell gewaehlten Positions-Attributsicht
 // beschraenkt -- kein zusaetzlicher API-Call noetig, die Attribute sind schon mitgeladen.
 const itemAttributeOptions = computed(() => {
   const view = rawAttributeViews.value.find(v => v.technical_name === formData.value.default_item_attribute_groups)
@@ -118,32 +120,32 @@ const fields = computed(() => [
       { value: 'opentrans', label: 'openTRANS' },
     ],
   },
-  // Attribut-Gruppe (Standard-Vorbelegung beim Anlegen einer Collection) -- jede bestehende
-  // Attributgruppe ist frei waehlbar, bewusst nur eine Selectbox pro Rolle.
+  // Attributsicht (Standard-Vorbelegung beim Anlegen einer Collection) -- jede bestehende
+  // Attributsicht (AttributeView) ist frei waehlbar, bewusst nur eine Selectbox pro Rolle.
   {
     key: 'default_attribute_groups',
-    label: 'Attributgruppe — Kopfdaten',
+    label: 'Attributsicht — Kopfdaten',
     type: 'select',
     options: [{ value: '', label: 'Keine' }, ...attributeViewOptions.value],
-    hint: 'Jedes Attribut dieser Gruppe wird automatisch in der Kopfdaten-Karte einer Collection angezeigt und im Export gerendert (Reihenfolge = Attribut-Position in der Gruppe).',
+    hint: 'Jedes Attribut dieser Sicht wird automatisch in der Kopfdaten-Karte einer Collection angezeigt und im Export gerendert (Reihenfolge = Attribut-Position in der Sicht).',
   },
   {
     key: 'default_item_attribute_groups',
-    label: 'Attributgruppe — Positionen',
+    label: 'Attributsicht — Positionen',
     type: 'select',
     options: [{ value: '', label: 'Keine' }, ...attributeViewOptions.value],
-    hint: 'Jedes Attribut dieser Gruppe wird automatisch im "Attribute"-Panel jeder Position angezeigt und im Export als Zeile unter der Position gerendert.',
+    hint: 'Jedes Attribut dieser Sicht wird automatisch im "Attribute"-Panel jeder Position angezeigt und im Export als Zeile unter der Position gerendert.',
   },
   // Rabatt bleibt eine Einzelrollen-Zuordnung, weil er rechnerisch in die Positionssumme
-  // eingeht -- alle rein darstellenden Positions-Attribute kommen aus der Gruppe oben.
+  // eingeht -- alle rein darstellenden Positions-Attribute kommen aus der Sicht oben.
   {
     key: 'default_discount_attribute',
     label: 'Rabatt-Attribut (Position)',
     type: 'select',
     options: [{ value: '', label: 'Keines' }, ...itemAttributeOptions.value],
     hint: formData.value.default_item_attribute_groups
-      ? 'Wird als eigene Spalte in der Positionstabelle gerechnet, nicht als Anzeigezeile. Nur Attribute der oben gewählten Positions-Attributgruppe stehen zur Auswahl.'
-      : 'Erst eine Attributgruppe — Positionen wählen, dann steht hier ein Attribut daraus zur Auswahl.',
+      ? 'Wird als eigene Spalte in der Positionstabelle gerechnet, nicht als Anzeigezeile. Nur Attribute der oben gewählten Positions-Attributsicht stehen zur Auswahl.'
+      : 'Erst eine Attributsicht — Positionen wählen, dann steht hier ein Attribut daraus zur Auswahl.',
   },
 ])
 
@@ -154,9 +156,9 @@ onMounted(async () => {
   const [pdfRes, priceRes, viewsRes] = await Promise.allSettled([
     pdfTemplatesApi.list(),
     priceTypes.list(),
-    // include=attributes: liefert jede Attributgruppe direkt mit ihren Mitglieds-Attributen --
-    // deckt sowohl die Gruppen-Auswahl als auch die Rabatt-Attribut-Auswahl (aus der gewaehlten
-    // Positions-Gruppe) ohne weiteren API-Call ab. per_page explizit hoch setzen -- ohne das
+    // include=attributes: liefert jede Attributsicht direkt mit ihren Mitglieds-Attributen --
+    // deckt sowohl die Sicht-Auswahl als auch die Rabatt-Attribut-Auswahl (aus der gewaehlten
+    // Positions-Sicht) ohne weiteren API-Call ab. per_page explizit hoch setzen -- ohne das
     // liefert die Liste nur die Standard-Seitengroesse (25).
     attributeViews.list({ include: 'attributes', per_page: 200 }),
   ])
@@ -169,7 +171,7 @@ onMounted(async () => {
   if (viewsRes.status === 'fulfilled') {
     rawAttributeViews.value = viewsRes.value.data.data || viewsRes.value.data
   } else {
-    loadError.value = 'Attributgruppen konnten nicht geladen werden: ' + (viewsRes.reason?.response?.data?.message || viewsRes.reason?.message || 'unbekannter Fehler')
+    loadError.value = 'Attributsichten konnten nicht geladen werden: ' + (viewsRes.reason?.response?.data?.message || viewsRes.reason?.message || 'unbekannter Fehler')
   }
 })
 

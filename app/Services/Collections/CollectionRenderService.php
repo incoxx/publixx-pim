@@ -161,7 +161,7 @@ class CollectionRenderService
 
         $discountPercent = (float) ($this->findValueByTechnicalName($item->attributeValues, $type->default_discount_attribute) ?? 0);
         // Rabatt hat bereits seine eigene Tabellenspalte -- falls dasselbe Attribut auch Mitglied
-        // der Positions-Attributgruppe ist (z.B. Demo-Typ "angebot"), nicht zusaetzlich als
+        // der Positions-Attributsicht ist (z.B. Demo-Typ "angebot"), nicht zusaetzlich als
         // generische Anzeigezeile duplizieren.
         $displayAttributes = $this->resolveGroupDisplayValues(
             $item->attributeValues,
@@ -326,15 +326,18 @@ class CollectionRenderService
     }
 
     /**
-     * Loest die einer oder mehreren Attributgruppen (AttributeView.technical_name, aus
+     * Loest die einer oder mehreren Attributsichten (AttributeView.technical_name, aus
      * collection_types.default_attribute_groups/default_item_attribute_groups) zugeordneten
      * Attribute auf und liefert fuer jedes davon Label + gesetzten Wert -- in der Reihenfolge
      * Attribute.position (gleiche Sortierkonvention wie an jeder anderen Stelle im Repo, z.B.
      * Composite-Kindattribute). Attribute ohne gesetzten Wert werden nicht mitgeliefert, damit
      * die Positions-/Kopfdaten-Ausgabe keine leeren "Label:" Zeilen zeigt. Ersetzt die vorherigen
      * Einzelrollen-Felder default_line_text_attribute/default_payment_terms_attribute/
-     * default_cover_text_attribute -- beliebig viele, vom Nutzer in der Attributgruppe selbst
-     * geordnete Attribute statt genau eines pro fest programmierter Rolle.
+     * default_cover_text_attribute -- beliebig viele, vom Nutzer in der Attributsicht selbst
+     * geordnete Attribute statt genau eines pro fest programmierter Rolle. Bewusst AttributeView
+     * (0..n Attribute pro Sicht, /attribute-views) statt AttributeType ("Attributgruppen",
+     * /attribute-types, max. 1 Gruppe pro Attribut) -- letzteres passt nicht zu "mehrere
+     * Attribute pro Collection-Typ frei zusammenstellen".
      *
      * @param  EloquentCollection<int, CollectionAttributeValue>  $attributeValues
      * @param  array<int, string>  $groupTechnicalNames
