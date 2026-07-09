@@ -323,6 +323,7 @@ const copying = ref(false)
 function handleSort(field, order) {
   sortField.value = field
   sortOrder.value = order
+  store.setPage(1)
   loadWithFilters()
 }
 

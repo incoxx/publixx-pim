@@ -35,14 +35,15 @@ function clearSelection() {
 
 const quickLookupValues = ref({})
 
+// Debounce timer for text inputs
+let debounceTimer = null
+
 function clearQuickLookup() {
   quickLookupValues.value = {}
+  clearTimeout(debounceTimer)
 }
 
 defineExpose({ setSelectedIds, clearSelection, selectedIds, clearQuickLookup })
-
-// Debounce timer for text inputs
-let debounceTimer = null
 
 function onQuickLookupInput(colKey, value) {
   quickLookupValues.value = { ...quickLookupValues.value, [colKey]: value }

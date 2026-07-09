@@ -77,6 +77,7 @@ const deleting = ref(false)
 function handleSort(field, order) {
   sortField.value = field
   sortOrder.value = order
+  store.setPage(1)
   loadWithFilters()
 }
 
@@ -98,6 +99,9 @@ async function confirmDelete({ force } = {}) {
   try {
     await store.deleteEntry(deleteTarget.value.id, { force })
     deleteTarget.value = null
+    // Neu laden statt nur lokal zu entfernen, damit meta.total und die Pagination
+    // (z.B. eine dadurch leer gewordene letzte Seite) mit dem Server konsistent bleiben.
+    await loadWithFilters()
   } finally {
     deleting.value = false
   }

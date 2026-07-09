@@ -35,7 +35,7 @@ async function fetchRelationTypes(options = {}) {
 }
 
 const { search, activeFilters, setSearch, removeFilter, clearFilters } = useFilters(() => {
-  fetchRelationTypes({ search: search.value })
+  reload()
 })
 
 const columns = [

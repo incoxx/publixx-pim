@@ -34,6 +34,7 @@ const licenseStore = useLicenseStore()
 const recordNavigatorStore = useRecordNavigatorStore()
 
 const items = ref([])
+const pimTableRef = ref(null)
 const loading = ref(false)
 const error = ref(null)
 
@@ -416,7 +417,7 @@ onMounted(async () => {
           v-if="meta.total > 0"
           class="pim-btn pim-btn-secondary text-xs"
           :class="showQuickLookup ? 'bg-[var(--color-accent-light)] text-[var(--color-accent)]' : ''"
-          @click="toggleQuickLookup()"
+          @click="toggleQuickLookup(pimTableRef)"
           title="Quick Lookup"
         >
           <ListFilter class="w-3.5 h-3.5" :stroke-width="1.75" />
@@ -608,6 +609,7 @@ onMounted(async () => {
 
     <!-- Table -->
     <PimTable
+      ref="pimTableRef"
       :columns="visibleColumns"
       :rows="tableRows"
       :loading="loading"

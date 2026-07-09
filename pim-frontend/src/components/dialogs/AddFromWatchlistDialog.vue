@@ -32,11 +32,22 @@ watch(() => props.open, async (isOpen) => {
   }
 })
 
+// Dieser Dialog zeigt die komplette Merkliste in einer einzigen scrollbaren Liste
+// (keine Pagination-UI) — da das Backend inzwischen paginiert (max. 100/Seite),
+// müssen alle Seiten geladen werden, damit "Alle auswählen" wirklich alles erfasst.
 async function loadWatchlist() {
   loading.value = true
   try {
-    const { data } = await watchlistApi.list()
-    items.value = data.data || data
+    const all = []
+    let page = 1
+    let lastPage = 1
+    do {
+      const { data } = await watchlistApi.list({ page, per_page: 100 })
+      all.push(...(data.data || data))
+      lastPage = data.meta?.last_page || 1
+      page++
+    } while (page <= lastPage)
+    items.value = all
   } catch {
     error.value = 'Merkliste konnte nicht geladen werden'
   } finally {

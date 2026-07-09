@@ -39,9 +39,8 @@ onMounted(async () => {
   loading.value = true
   try {
     const { data } = await watchlistApi.list({ per_page: 8 })
-    const payload = data.data || data
-    items.value = Array.isArray(payload) ? payload : (payload.data || [])
-    totalCount.value = payload.total || payload.meta?.total || items.value.length
+    items.value = data.data || data
+    totalCount.value = data.meta?.total ?? items.value.length
   } catch { /* ignore */ }
   loading.value = false
 })

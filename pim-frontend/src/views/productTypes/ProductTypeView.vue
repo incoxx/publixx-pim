@@ -35,7 +35,7 @@ async function fetchProductTypes(options = {}) {
 }
 
 const { search, activeFilters, setSearch, removeFilter, clearFilters } = useFilters(() => {
-  fetchProductTypes({ search: search.value })
+  reload()
 })
 
 const columns = [
