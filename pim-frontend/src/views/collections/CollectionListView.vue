@@ -17,6 +17,7 @@ import AddressForm from '@/components/shared/AddressForm.vue'
 import EntityPickerDialog from '@/components/shared/EntityPickerDialog.vue'
 import CollectionFormPanel from '@/components/panels/CollectionFormPanel.vue'
 import CollectionMatchQueue from '@/components/collections/CollectionMatchQueue.vue'
+import CollectionShareLinksPanel from '@/components/collections/CollectionShareLinksPanel.vue'
 
 const VueDraggable = defineAsyncComponent(() => import('vue-draggable-plus').then((m) => m.VueDraggable))
 
@@ -367,6 +368,8 @@ onMounted(() => {
       </div>
 
       <CollectionMatchQueue :collection-id="selected.id" @resolved="store.fetchItems(selected.id)" />
+
+      <CollectionShareLinksPanel :collection-id="selected.id" />
 
       <!-- Adresse (fuer ein Angebot) -- pro Collection eingefroren, unabhaengig von der
            Organisation-Live-Adresse, siehe CollectionRenderService::resolveAddress() -->

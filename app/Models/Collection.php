@@ -98,4 +98,9 @@ class Collection extends Model
     {
         return $this->hasMany(CollectionRenderJob::class);
     }
+
+    public function shareLinks(): HasMany
+    {
+        return $this->hasMany(CollectionShareLink::class);
+    }
 }

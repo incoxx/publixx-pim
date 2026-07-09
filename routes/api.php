@@ -1089,6 +1089,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::post('collections/{collection}/render/preview', [\App\Http\Controllers\Api\V1\CollectionRenderController::class, 'preview']);
         Route::get('collection-render-jobs/{id}', [\App\Http\Controllers\Api\V1\CollectionRenderController::class, 'jobStatus']);
         Route::get('collection-render-jobs/{id}/download', [\App\Http\Controllers\Api\V1\CollectionRenderController::class, 'jobDownload']);
+
+        Route::get('collections/{collection}/share-links', [\App\Http\Controllers\Api\V1\CollectionShareLinkController::class, 'index']);
+        Route::post('collections/{collection}/share-links', [\App\Http\Controllers\Api\V1\CollectionShareLinkController::class, 'store']);
+        Route::delete('collections/{collection}/share-links/{shareLink}', [\App\Http\Controllers\Api\V1\CollectionShareLinkController::class, 'destroy']);
     });
 
     // =====================================================================

@@ -34,27 +34,7 @@ class CollectionRenderService
     {
         $startTime = microtime(true);
 
-        $collection->load([
-            'collectionType.defaultRenderTemplate',
-            'organization.logoMedia',
-            'items' => function ($query) use ($limit) {
-                if ($limit !== null) {
-                    $query->limit($limit);
-                }
-            },
-            'items.product',
-            'items.unit',
-            'items.attributeValues.attribute',
-            'attributeValues.attribute',
-        ]);
-
-        $headerVm = $this->buildHeaderViewModel($collection);
-        $items = $this->buildItemViewModels($collection);
-
-        $grandTotal = array_sum(array_map(
-            fn (array $item) => $item['price_warning'] ? 0.0 : (float) ($item['line_total'] ?? 0.0),
-            $items
-        ));
+        ['header' => $headerVm, 'items' => $items, 'grandTotal' => $grandTotal] = $this->buildRenderViewModel($collection, $limit);
 
         $outputDir = storage_path('app/collections/renders');
         if (!is_dir($outputDir)) {
@@ -81,6 +61,53 @@ class CollectionRenderService
             'duration' => $duration,
             'item_count' => count($items),
         ];
+    }
+
+    /**
+     * Browser-HTML-Variante fuer den passwortgeschuetzten Freigabe-Link (CollectionShareLink) --
+     * nutzt dieselbe Datenaufloesung wie render(), gibt aber rohes HTML statt eines Dateipfads
+     * zurueck. Reine String-Rueckgabe statt Dateiablage, da es hier keinen Download/Job-Kontext
+     * gibt, der einen persistenten Pfad braucht (anders als render()'s PDF/XLSX-Dateien).
+     */
+    public function renderHtml(Collection $collection): string
+    {
+        ['header' => $headerVm, 'items' => $items, 'grandTotal' => $grandTotal] = $this->buildRenderViewModel($collection);
+
+        return view('collections.shared.collection-document', [
+            'header' => $headerVm,
+            'items' => $items,
+            'grandTotal' => $grandTotal,
+        ])->render();
+    }
+
+    /**
+     * @return array{header: array, items: array, grandTotal: float}
+     */
+    private function buildRenderViewModel(Collection $collection, ?int $limit = null): array
+    {
+        $collection->load([
+            'collectionType.defaultRenderTemplate',
+            'organization.logoMedia',
+            'items' => function ($query) use ($limit) {
+                if ($limit !== null) {
+                    $query->limit($limit);
+                }
+            },
+            'items.product',
+            'items.unit',
+            'items.attributeValues.attribute',
+            'attributeValues.attribute',
+        ]);
+
+        $headerVm = $this->buildHeaderViewModel($collection);
+        $items = $this->buildItemViewModels($collection);
+
+        $grandTotal = array_sum(array_map(
+            fn (array $item) => $item['price_warning'] ? 0.0 : (float) ($item['line_total'] ?? 0.0),
+            $items
+        ));
+
+        return ['header' => $headerVm, 'items' => $items, 'grandTotal' => $grandTotal];
     }
 
     private function writePdf(array $headerVm, array $items, float $grandTotal, Collection $collection, string $outputPath): void
