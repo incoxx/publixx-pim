@@ -15,6 +15,9 @@ const props = defineProps({
 const authStore = useAuthStore()
 const loading = ref(false)
 const errors = ref({})
+// Nur fuer attribute-views/attributes -- pdf-templates ist bewusst optional (eigenes,
+// separat lizenzierbares Modul) und wird unten weiterhin still ignoriert, wenn es fehlschlaegt.
+const loadError = ref('')
 
 const pdfTemplateOptions = ref([])
 const priceTypeOptions = ref([])
@@ -40,8 +43,11 @@ const formData = ref(
         default_render_template_id: props.collectionType.default_render_template_id || '',
         default_price_type: props.collectionType.default_price_type || '',
         allowed_export_formats: props.collectionType.allowed_export_formats || [],
-        default_attribute_groups: props.collectionType.default_attribute_groups || [],
-        default_item_attribute_groups: props.collectionType.default_item_attribute_groups || [],
+        // Backend/Rendering speichern weiterhin ein Array (mehrere Gruppen waeren technisch
+        // moeglich) -- die UI bietet bewusst nur eine einzelne Selectbox pro Rolle an, daher
+        // hier auf das erste (einzige) Element reduziert.
+        default_attribute_groups: props.collectionType.default_attribute_groups?.[0] || '',
+        default_item_attribute_groups: props.collectionType.default_item_attribute_groups?.[0] || '',
         default_discount_attribute: props.collectionType.default_discount_attribute || '',
       }
     : {
@@ -58,8 +64,8 @@ const formData = ref(
         default_render_template_id: '',
         default_price_type: '',
         allowed_export_formats: [],
-        default_attribute_groups: [],
-        default_item_attribute_groups: [],
+        default_attribute_groups: '',
+        default_item_attribute_groups: '',
         default_discount_attribute: '',
       }
 )
@@ -105,20 +111,25 @@ const fields = computed(() => [
       { value: 'opentrans', label: 'openTRANS' },
     ],
   },
-  // Attribut-Gruppen (Standard-Vorbelegung beim Anlegen einer Collection)
+  // Attribut-Gruppe (Standard-Vorbelegung beim Anlegen einer Collection) -- bewusst nur eine
+  // einzelne Selectbox pro Rolle, nicht mehrere gleichzeitig zuordenbar.
   {
     key: 'default_attribute_groups',
-    label: 'Attributgruppen — Kopfdaten',
-    type: 'multiselect',
-    options: headerAttributeViewOptions.value,
-    hint: 'Jedes Attribut dieser Gruppe(n) wird automatisch in der Kopfdaten-Karte einer Collection angezeigt und im Export gerendert (Reihenfolge = Attribut-Position in der Gruppe). Nur Gruppen mit mindestens einem Collection-Attribut werden hier angeboten.',
+    label: 'Attributgruppe — Kopfdaten',
+    type: 'select',
+    options: [{ value: '', label: 'Keine' }, ...headerAttributeViewOptions.value],
+    hint: headerAttributeViewOptions.value.length
+      ? 'Jedes Attribut dieser Gruppe wird automatisch in der Kopfdaten-Karte einer Collection angezeigt und im Export gerendert (Reihenfolge = Attribut-Position in der Gruppe).'
+      : 'Keine passende Attributgruppe gefunden. Dafür zuerst unter Attribute → Attribute ein Attribut mit "Gilt für: Collection" anlegen und es unter Attribute → Attributgruppen einer Gruppe zuordnen — erst dann taucht die Gruppe hier auf.',
   },
   {
     key: 'default_item_attribute_groups',
-    label: 'Attributgruppen — Positionen',
-    type: 'multiselect',
-    options: itemAttributeViewOptions.value,
-    hint: 'Jedes Attribut dieser Gruppe(n) wird automatisch im "Attribute"-Panel jeder Position angezeigt und im Export als Zeile unter der Position gerendert. Nur Gruppen mit mindestens einem Positions-Attribut werden hier angeboten.',
+    label: 'Attributgruppe — Positionen',
+    type: 'select',
+    options: [{ value: '', label: 'Keine' }, ...itemAttributeViewOptions.value],
+    hint: itemAttributeViewOptions.value.length
+      ? 'Jedes Attribut dieser Gruppe wird automatisch im "Attribute"-Panel jeder Position angezeigt und im Export als Zeile unter der Position gerendert.'
+      : 'Keine passende Attributgruppe gefunden. Dafür zuerst unter Attribute → Attribute ein Attribut mit "Gilt für: Collection-Position" anlegen und es unter Attribute → Attributgruppen einer Gruppe zuordnen — erst dann taucht die Gruppe hier auf.',
   },
   // Rabatt bleibt eine Einzelrollen-Zuordnung, weil er rechnerisch in die Positionssumme
   // eingeht -- alle rein darstellenden Positions-Attribute kommen aus der Gruppe oben.
@@ -141,7 +152,10 @@ onMounted(async () => {
     // include=attributes: Attributgruppen (AttributeView) sind generisch fuer alle Entitaeten
     // (Produkte, Collections, ...) -- ob eine Gruppe hier ueberhaupt sinnvoll ist, ergibt sich
     // erst daraus, ob sie mindestens ein Attribut mit passendem applies_to enthaelt (s.u.).
-    attributeViews.list({ include: 'attributes' }),
+    // per_page explizit hoch setzen -- ohne das liefert die Liste nur die Standard-Seitengroesse
+    // (25), wodurch relevante Gruppen bei vielen vorhandenen Attributgruppen unsichtbar bleiben
+    // koennen, obwohl sie existieren.
+    attributeViews.list({ include: 'attributes', per_page: 200 }),
     // Nur fuer die Rabatt-Attribut-Einzelauswahl -- alle anderen Positions-/Kopfdaten-Attribute
     // kommen ueber die Attributgruppen-Mehrfachauswahl oben.
     attributesApi.list({ filters: { applies_to: 'collection_item' }, perPage: 200 }),
@@ -159,9 +173,13 @@ onMounted(async () => {
       .map(v => ({ value: v.technical_name, label: v.name_de }))
     headerAttributeViewOptions.value = viewsWithScope('collection')
     itemAttributeViewOptions.value = viewsWithScope('collection_item')
+  } else {
+    loadError.value = 'Attributgruppen konnten nicht geladen werden: ' + (viewsRes.reason?.response?.data?.message || viewsRes.reason?.message || 'unbekannter Fehler')
   }
   if (itemAttrRes.status === 'fulfilled') {
     itemAttributeOptions.value = (itemAttrRes.value.data.data || itemAttrRes.value.data).map(a => ({ value: a.technical_name, label: a.name_de }))
+  } else if (!loadError.value) {
+    loadError.value = 'Attribute konnten nicht geladen werden: ' + (itemAttrRes.reason?.response?.data?.message || itemAttrRes.reason?.message || 'unbekannter Fehler')
   }
 })
 
@@ -173,6 +191,10 @@ async function handleSubmit(data) {
     default_render_template_id: data.default_render_template_id || null,
     default_price_type: data.default_price_type || null,
     default_discount_attribute: data.default_discount_attribute || null,
+    // Backend/Rendering erwarten weiterhin ein Array -- die Selectbox liefert nur einen
+    // einzelnen technical_name oder einen leeren String.
+    default_attribute_groups: data.default_attribute_groups ? [data.default_attribute_groups] : [],
+    default_item_attribute_groups: data.default_item_attribute_groups ? [data.default_item_attribute_groups] : [],
   }
   try {
     if (isEdit.value) {
@@ -200,6 +222,7 @@ async function handleSubmit(data) {
     <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-4">
       {{ isEdit ? 'Collection-Typ bearbeiten' : 'Neuer Collection-Typ' }}
     </h3>
+    <p v-if="loadError" class="text-xs text-[var(--color-error)] mb-3">{{ loadError }}</p>
     <PimForm
       :fields="fields"
       :modelValue="formData"
