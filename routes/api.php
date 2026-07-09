@@ -1052,6 +1052,46 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     });
 
     // =====================================================================
+    // Collections (Enterprise: collections) -- kuratierte, empfaengerbezogene
+    // Produktkollektionen (Angebot, RFQ, Katalogauszug, Planungsliste, ...)
+    // =====================================================================
+    Route::middleware('module:collections')->group(function () {
+        Route::apiResource('collection-types', \App\Http\Controllers\Api\V1\CollectionTypeController::class)
+            ->parameters(['collection-types' => 'collectionType']);
+        Route::get('collection-types/{collectionType}/dependencies', [\App\Http\Controllers\Api\V1\CollectionTypeController::class, 'dependencies']);
+
+        // Vor apiResource('collections', ...) registriert, damit "import" nicht als
+        // {collection}-Parameter interpretiert wird.
+        Route::post('collections/import', [\App\Http\Controllers\Api\V1\CollectionImportController::class, 'import']);
+
+        Route::apiResource('collections', \App\Http\Controllers\Api\V1\CollectionController::class)
+            ->parameters(['collections' => 'collection']);
+
+        Route::get('collections/{collection}/attribute-values', [\App\Http\Controllers\Api\V1\CollectionAttributeValueController::class, 'indexForCollection']);
+        Route::put('collections/{collection}/attribute-values', [\App\Http\Controllers\Api\V1\CollectionAttributeValueController::class, 'bulkUpdateForCollection']);
+
+        Route::get('collections/{collection}/items', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'index']);
+        Route::post('collections/{collection}/items', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'store']);
+        // Vor items/{item}, sonst wuerde {item} "bulk" schlucken.
+        Route::post('collections/{collection}/items/bulk', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'bulkStore']);
+        Route::patch('collections/{collection}/items/reorder', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'reorder']);
+        // Vor items/{item}, sonst wuerde {item} "needs-review" schlucken.
+        Route::get('collections/{collection}/items/needs-review', [\App\Http\Controllers\Api\V1\CollectionItemMatchController::class, 'needsReview']);
+        Route::get('collections/{collection}/items/{item}', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'show']);
+        Route::put('collections/{collection}/items/{item}', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'update']);
+        Route::delete('collections/{collection}/items/{item}', [\App\Http\Controllers\Api\V1\CollectionItemController::class, 'destroy']);
+        Route::post('collections/{collection}/items/{item}/confirm-match', [\App\Http\Controllers\Api\V1\CollectionItemMatchController::class, 'confirm']);
+
+        Route::get('collections/{collection}/items/{item}/attribute-values', [\App\Http\Controllers\Api\V1\CollectionAttributeValueController::class, 'indexForItem']);
+        Route::put('collections/{collection}/items/{item}/attribute-values', [\App\Http\Controllers\Api\V1\CollectionAttributeValueController::class, 'bulkUpdateForItem']);
+
+        Route::post('collections/{collection}/render', [\App\Http\Controllers\Api\V1\CollectionRenderController::class, 'execute']);
+        Route::post('collections/{collection}/render/preview', [\App\Http\Controllers\Api\V1\CollectionRenderController::class, 'preview']);
+        Route::get('collection-render-jobs/{id}', [\App\Http\Controllers\Api\V1\CollectionRenderController::class, 'jobStatus']);
+        Route::get('collection-render-jobs/{id}/download', [\App\Http\Controllers\Api\V1\CollectionRenderController::class, 'jobDownload']);
+    });
+
+    // =====================================================================
     // API Designer (Enterprise: api_designer)
     // =====================================================================
     Route::middleware('module:api_designer')->group(function () {

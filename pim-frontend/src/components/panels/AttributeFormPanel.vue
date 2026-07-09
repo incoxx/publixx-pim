@@ -94,6 +94,7 @@ const formData = ref(
         textarea_cols: null,
         description_de: '',
         status: 'active',
+        applies_to: ['product'],
       }
 )
 
@@ -299,6 +300,15 @@ const fields = computed(() => {
     { key: 'is_quick_search', label: 'Schnellsuche', type: 'boolean', hint: 'Attribut-Werte als Teaser in der Schnellsuche anzeigen' },
     { key: 'is_primary', label: 'Primärattribut', type: 'boolean', hint: 'Im Produkteditor direkt in den Stammdaten sichtbar' },
     { key: 'description_de', label: 'Beschreibung', type: 'textarea' },
+    {
+      key: 'applies_to', label: 'Ebene', type: 'multiselect', fullWidth: true,
+      hint: 'Auf welchen Ebenen ist dieses Attribut wählbar?',
+      options: [
+        { value: 'product', label: 'Produkt' },
+        { value: 'collection', label: 'Collection' },
+        { value: 'collection_item', label: 'Collection-Position' },
+      ],
+    },
   )
 
   return base

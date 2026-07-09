@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             DemoProductSeeder::class,
             DemoMediaSeeder::class,
             EtimDemoSeeder::class,
+            DemoCollectionSeeder::class,
             // Nach den Demo-Daten: vordefinierte Seiten-Templates (referenzieren
             // Demo-Produkte/-Kategorien für die Commerce-Sektionen).
             ContentTemplateSeeder::class,

@@ -5,7 +5,7 @@ import { useLocaleStore } from '@/stores/locale'
 import {
   Star, Trash2, Download, FileSpreadsheet, FileText,
   Languages, Archive, X, GitCompareArrows, Pencil, Settings, ListFilter,
-  Code2, ChevronDown, ChevronUp, FolderTree,
+  Code2, ChevronDown, ChevronUp, FolderTree, FolderOpen,
 } from 'lucide-vue-next'
 import { useAttributeStore } from '@/stores/attributes'
 import watchlistApi from '@/api/watchlist'
@@ -23,6 +23,7 @@ import PdfTemplatePickerModal from '@/components/pdf-templates/PdfTemplatePicker
 import { useLicenseStore } from '@/stores/license'
 import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialog.vue'
 import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierarchyNodeDialog.vue'
+import BulkAddToCollectionDialog from '@/components/dialogs/BulkAddToCollectionDialog.vue'
 import { useRecordNavigatorStore } from '@/stores/recordNavigator'
 
 const router = useRouter()
@@ -318,6 +319,7 @@ const watchlistProductIds = computed(() => items.value.map(i => i.product_id).fi
 // ─── Bulk Assign to Project ──────────────────────────
 const showAssignProject = ref(false)
 const showAssignHierarchy = ref(false)
+const showAddToCollection = ref(false)
 const selectedProductIdsForBulk = computed(() =>
   selectedIds.value.map(id => items.value.find(i => i.id === id)?.product_id).filter(Boolean)
 )
@@ -532,6 +534,15 @@ onMounted(async () => {
       >
         <FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />
         <span class="hidden sm:inline">Projekt zuordnen</span>
+      </button>
+      <button
+        v-if="licenseStore.isModuleActive('collections')"
+        class="pim-btn pim-btn-secondary text-xs"
+        data-testid="add-to-collection-trigger"
+        @click="showAddToCollection = true"
+      >
+        <FolderOpen class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">In Collection übertragen</span>
       </button>
       <button
         class="pim-btn pim-btn-secondary text-xs"
@@ -756,6 +767,12 @@ onMounted(async () => {
     <!-- Bulk Assign to Hierarchy Node Dialog -->
     <BulkAssignHierarchyNodeDialog
       v-model:open="showAssignHierarchy"
+      :productIds="selectedProductIdsForBulk"
+    />
+
+    <!-- Merkliste -> Collection uebertragen -->
+    <BulkAddToCollectionDialog
+      v-model:open="showAddToCollection"
       :productIds="selectedProductIdsForBulk"
     />
   </div>

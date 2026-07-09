@@ -45,6 +45,7 @@ class PrimaryImageResolver
             ->join('media', 'media.id', '=', 'product_media_assignments.media_id')
             ->where('product_media_assignments.product_id', $productId)
             ->where('product_media_assignments.is_primary', true)
+            ->where('media.media_type', 'image')
             ->value('media.file_name');
         if ($image) {
             return $image;
@@ -73,7 +74,7 @@ class PrimaryImageResolver
             }
         }
 
-        $primary = $media->first(fn (Media $m) => (bool) $m->pivot->is_primary);
+        $primary = $media->first(fn (Media $m) => (bool) $m->pivot->is_primary && $m->media_type === 'image');
         if ($primary) {
             return $primary;
         }

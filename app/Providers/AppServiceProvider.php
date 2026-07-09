@@ -111,6 +111,12 @@ class AppServiceProvider extends ServiceProvider
         // ─── Observers ─────────────────────────────────────────────────
         Media::observe(MediaObserver::class);
 
+        // ─── Collections: Morph-Map fuer polymorphe collection_attribute_values ──
+        \Illuminate\Database\Eloquent\Relations\Relation::morphMap([
+            'collection' => \App\Models\Collection::class,
+            'collection_item' => \App\Models\CollectionItem::class,
+        ]);
+
         // ─── SSO: Register Azure AD Socialite Driver ─────────────────
         Event::listen(SocialiteWasCalled::class, AzureExtendSocialite::class.'@handle');
 
@@ -158,6 +164,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(CanvaExportProfile::class, CanvaExportProfilePolicy::class);
         Gate::policy(AttributeMapping::class, AttributeMappingPolicy::class);
         Gate::policy(\App\Models\ProductReferenceProfile::class, \App\Policies\ProductReferenceProfilePolicy::class);
+
+        // ─── Collections ──────────────────────────────────────────────
+        Gate::policy(\App\Models\CollectionType::class, \App\Policies\CollectionTypePolicy::class);
+        Gate::policy(\App\Models\Collection::class, \App\Policies\CollectionPolicy::class);
 
         // ─── Strukturierter Content (CMS-Modul) ──────────────────────
         Gate::policy(\App\Models\ContentPage::class, \App\Policies\ContentPagePolicy::class);

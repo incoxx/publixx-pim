@@ -95,6 +95,10 @@ return [
             'name' => 'E-Commerce',
             'description' => 'Warenkorbarten, Adress- & Zahlungsverwaltung, Bestellabwicklung für KMUs',
         ],
+        'collections' => [
+            'name' => 'Collections',
+            'description' => 'Kuratierte, empfängerbezogene Produktkollektionen (Angebote, RFQ, Kataloge)',
+        ],
     ],
 
 ];

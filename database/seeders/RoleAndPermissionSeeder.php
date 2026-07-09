@@ -143,6 +143,9 @@ class RoleAndPermissionSeeder extends Seeder
             'ecommerce-address-types.view', 'ecommerce-address-types.create', 'ecommerce-address-types.edit', 'ecommerce-address-types.delete',
             'ecommerce-payment-types.view', 'ecommerce-payment-types.create', 'ecommerce-payment-types.edit', 'ecommerce-payment-types.delete',
             'ecommerce-orders.view', 'ecommerce-orders.edit',
+            // Collections (kuratierte, empfängerbezogene Produktkollektionen)
+            'collection-types.view', 'collection-types.create', 'collection-types.edit', 'collection-types.delete',
+            'collections.view', 'collections.create', 'collections.edit', 'collections.delete',
         ];
 
         foreach ($permissions as $permissionName) {
@@ -243,6 +246,8 @@ class RoleAndPermissionSeeder extends Seeder
             'copilot.use', 'copilot.execute',
             'semantic-search.view',
             'excel-templates.view',
+            'collection-types.view',
+            'collections.view', 'collections.create', 'collections.edit',
         ]);
 
         // ─── 4. Viewer (Nur Lesen, ohne Benutzerverwaltung) ─────────
