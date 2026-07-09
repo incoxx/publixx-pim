@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import {
   Plus, X, Save, Search, AlertCircle, Check,
   Trash2, ImageOff, Wand2, Settings, Link2,
+  ArrowUp, ArrowDown, ArrowUpDown,
 } from 'lucide-vue-next'
 import { mediaMotifs } from '@/api/mediaMotifs'
 import mediaApi from '@/api/media'
@@ -24,6 +25,8 @@ const searchTerm = ref('')
 const usedFilter = ref('all') // all | used | unused
 const licenseExpiredOnly = ref(false)
 let listSearchDebounce = null
+const sortField = ref('created_at')
+const sortOrder = ref('desc')
 
 async function fetchItems(targetPage = 1) {
   loading.value = true
@@ -37,6 +40,8 @@ async function fetchItems(targetPage = 1) {
       perPage: 25,
       search: searchTerm.value || undefined,
       filters: Object.keys(filters).length ? filters : undefined,
+      sort: sortField.value,
+      order: sortOrder.value,
     })
     items.value = data.data || []
     meta.value = data.meta || null
@@ -52,6 +57,12 @@ function onSearchInput() {
 }
 
 function onFilterChange() {
+  fetchItems(1)
+}
+
+function handleSort(field) {
+  sortOrder.value = sortField.value === field && sortOrder.value === 'asc' ? 'desc' : 'asc'
+  sortField.value = field
   fetchItems(1)
 }
 
@@ -464,11 +475,51 @@ onMounted(() => {
         <thead>
           <tr class="bg-[var(--color-bg)] border-b border-[var(--color-border)]">
             <th class="w-14 px-3 py-2.5"></th>
-            <th class="px-3 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Titel</th>
-            <th class="px-3 py-2.5 text-center font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Renditions</th>
+            <th
+              class="px-3 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)] cursor-pointer select-none hover:text-[var(--color-text-secondary)]"
+              @click="handleSort('title_de')"
+            >
+              <div class="flex items-center gap-1">
+                <span>Titel</span>
+                <ArrowUp v-if="sortField === 'title_de' && sortOrder === 'asc'" class="w-3 h-3 text-[var(--color-accent)]" />
+                <ArrowDown v-else-if="sortField === 'title_de' && sortOrder === 'desc'" class="w-3 h-3 text-[var(--color-accent)]" />
+                <ArrowUpDown v-else class="w-3 h-3 opacity-30" />
+              </div>
+            </th>
+            <th
+              class="px-3 py-2.5 text-center font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)] cursor-pointer select-none hover:text-[var(--color-text-secondary)]"
+              @click="handleSort('renditions_count')"
+            >
+              <div class="flex items-center justify-center gap-1">
+                <span>Renditions</span>
+                <ArrowUp v-if="sortField === 'renditions_count' && sortOrder === 'asc'" class="w-3 h-3 text-[var(--color-accent)]" />
+                <ArrowDown v-else-if="sortField === 'renditions_count' && sortOrder === 'desc'" class="w-3 h-3 text-[var(--color-accent)]" />
+                <ArrowUpDown v-else class="w-3 h-3 opacity-30" />
+              </div>
+            </th>
             <th class="px-3 py-2.5 text-center font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Verwendet</th>
-            <th class="px-3 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Lizenz</th>
-            <th class="px-3 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Gültigkeit</th>
+            <th
+              class="px-3 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)] cursor-pointer select-none hover:text-[var(--color-text-secondary)]"
+              @click="handleSort('license_type')"
+            >
+              <div class="flex items-center gap-1">
+                <span>Lizenz</span>
+                <ArrowUp v-if="sortField === 'license_type' && sortOrder === 'asc'" class="w-3 h-3 text-[var(--color-accent)]" />
+                <ArrowDown v-else-if="sortField === 'license_type' && sortOrder === 'desc'" class="w-3 h-3 text-[var(--color-accent)]" />
+                <ArrowUpDown v-else class="w-3 h-3 opacity-30" />
+              </div>
+            </th>
+            <th
+              class="px-3 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)] cursor-pointer select-none hover:text-[var(--color-text-secondary)]"
+              @click="handleSort('valid_until')"
+            >
+              <div class="flex items-center gap-1">
+                <span>Gültigkeit</span>
+                <ArrowUp v-if="sortField === 'valid_until' && sortOrder === 'asc'" class="w-3 h-3 text-[var(--color-accent)]" />
+                <ArrowDown v-else-if="sortField === 'valid_until' && sortOrder === 'desc'" class="w-3 h-3 text-[var(--color-accent)]" />
+                <ArrowUpDown v-else class="w-3 h-3 opacity-30" />
+              </div>
+            </th>
           </tr>
         </thead>
         <tbody>

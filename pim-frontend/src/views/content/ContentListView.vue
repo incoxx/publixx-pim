@@ -1,12 +1,13 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDebounceFn } from '@vueuse/core'
 import { useAuthStore } from '@/stores/auth'
 import { useContentStore } from '@/stores/content'
+import { useServerQuickLookup } from '@/composables/useServerQuickLookup'
 import PimTable from '@/components/shared/PimTable.vue'
 import ContentPageFormPanel from '@/components/panels/ContentPageFormPanel.vue'
-import { Plus, Search, ChevronLeft, ChevronRight, Globe } from 'lucide-vue-next'
+import { Plus, Search, ChevronLeft, ChevronRight, Globe, ListFilter } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -15,6 +16,43 @@ const contentStore = useContentStore()
 const statusLabels = {
   draft: 'Entwurf', active: 'Aktiv', inactive: 'Inaktiv', archived: 'Archiviert',
 }
+
+const pimTableRef = ref(null)
+
+// Quick Lookup — filtert serverseitig über die komplette Treffermenge
+const quickLookupConfig = computed(() => ({
+  title: { type: 'text', placeholder: 'Titel...' },
+  slug: { type: 'text', placeholder: 'Slug...' },
+  content_type: {
+    type: 'select',
+    options: contentStore.contentTypes.map(t => ({ value: t.id, label: t.name_de || t.technical_name })),
+  },
+  status: {
+    type: 'select',
+    options: Object.entries(statusLabels).map(([value, label]) => ({ value, label })),
+  },
+}))
+
+const QUICK_LOOKUP_FIELD_MAP = {
+  title: 'title',
+  slug: 'slug',
+  content_type: 'content_type_id',
+  status: 'status',
+}
+
+function applyQuickLookupFilters(rawFilters) {
+  const mapped = {}
+  for (const [colKey, value] of Object.entries(rawFilters)) {
+    if (value === '' || value == null) continue
+    const field = QUICK_LOOKUP_FIELD_MAP[colKey]
+    if (!field) continue
+    mapped[field] = value
+  }
+  contentStore.setFilters(mapped)
+  load()
+}
+
+const { showQuickLookup, onQuickLookupChange, toggleQuickLookup } = useServerQuickLookup(applyQuickLookupFilters)
 
 const columns = [
   { key: 'title', label: 'Titel', sortable: true },
@@ -37,6 +75,7 @@ async function load() {
 
 function onSort(field, order) {
   contentStore.setSort(field, order)
+  contentStore.setPage(1)
   load()
 }
 
@@ -67,7 +106,10 @@ function goToPage(page) {
   load()
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  contentStore.loadContentTypes()
+})
 </script>
 
 <template>
@@ -85,6 +127,15 @@ onMounted(load)
             @input="onSearch"
           />
         </div>
+        <button
+          class="pim-btn pim-btn-secondary text-xs"
+          :class="showQuickLookup ? 'bg-[var(--color-accent-light)] text-[var(--color-accent)]' : ''"
+          @click="toggleQuickLookup(pimTableRef)"
+          title="Quick Lookup"
+        >
+          <ListFilter class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Quick Lookup</span>
+        </button>
         <button class="pim-btn pim-btn-secondary text-xs" @click="router.push({ name: 'website-preview' })">
           <Globe class="w-3.5 h-3.5" :stroke-width="2" /> Website-Vorschau
         </button>
@@ -95,15 +146,19 @@ onMounted(load)
     </div>
 
     <PimTable
+      ref="pimTableRef"
       :columns="columns"
       :rows="contentStore.items"
       :loading="contentStore.loading"
       :sort-field="contentStore.sort.field"
       :sort-order="contentStore.sort.order"
+      :quickLookup="showQuickLookup"
+      :quickLookupConfig="quickLookupConfig"
       empty-text="Noch keine Content-Seiten"
       @sort="onSort"
       @row-click="openPage"
       @row-action="deletePage"
+      @quick-lookup-change="onQuickLookupChange"
     >
       <template #pagination>
         <div v-if="contentStore.meta.last_page > 1" class="flex items-center justify-between pt-2">
