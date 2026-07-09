@@ -5,6 +5,7 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { useFilters } from '@/composables/useFilters'
+import { useServerQuickLookup } from '@/composables/useServerQuickLookup'
 import { Plus, Filter, X, Pencil, ListFilter, Copy, Trash2, MoreHorizontal, CheckCheck, Search, ChevronDown, ChevronRight } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
@@ -23,16 +24,28 @@ const authStore = useAuthStore()
 // ─── Filters ─────────────────────────────────────────
 const filterOpen = ref(false)
 const activeFilterEntries = ref({})
+const sortField = ref('position')
+const sortOrder = ref('asc')
 
 const { search, activeFilters, setSearch, removeFilter, clearFilters } = useFilters(() => {
   store.setPage(1)
   loadWithFilters()
 })
 
+function buildFilters() {
+  return { ...activeFilterEntries.value, ...quickLookupMappedFilters.value }
+}
+
 async function loadWithFilters() {
-  const opts = { search: search.value, include: 'attributeType,valueList,unitGroup,children,attributeViews' }
-  if (Object.keys(activeFilterEntries.value).length > 0) {
-    opts.filters = { ...activeFilterEntries.value }
+  const opts = {
+    search: search.value,
+    sort: sortField.value,
+    order: sortOrder.value,
+    include: 'attributeType,valueList,unitGroup,children,attributeViews',
+  }
+  const filters = buildFilters()
+  if (Object.keys(filters).length > 0) {
+    opts.filters = filters
   }
   await store.fetchAttributes(opts)
 }
@@ -57,6 +70,8 @@ function applyFilterPanel() {
 function clearAllFilters() {
   activeFilterEntries.value = {}
   pendingFilterEntries.value = {}
+  quickLookupMappedFilters.value = {}
+  pimTableRef.value?.clearQuickLookup?.()
   selectedHierarchyId.value = ''
   hierarchyNodes.value = []
   clearFilters()
@@ -103,49 +118,43 @@ const attributeTypeOptions = computed(() => [
   ...store.types.map(t => ({ value: t.id, label: t.name_de || t.technical_name })),
 ])
 
-// ─── Quick Lookup ────────────────────────────────────
-const showQuickLookup = ref(false)
-const quickLookupFilters = ref({})
-
+// ─── Quick Lookup — filtert serverseitig über die komplette Treffermenge ────
 const quickLookupConfig = computed(() => ({
   technical_name: { type: 'text', placeholder: 'Techn. Name...' },
   name_de: { type: 'text', placeholder: 'Name...' },
   data_type: { type: 'select', options: dataTypeOptions.filter(o => o.value !== '') },
   'attribute_type.name_de': {
     type: 'select',
-    options: store.types.map(t => ({ value: t.name_de || t.technical_name, label: t.name_de || t.technical_name })),
+    options: store.types.map(t => ({ value: t.id, label: t.name_de || t.technical_name })),
   },
 }))
 
-function getCellValueForFilter(row, colKey) {
-  const keys = colKey.split('.')
-  let val = row
-  for (const k of keys) val = val?.[k]
-  return val
+// Spalten-Key → Backend-Filterfeld. technical_name/name_de werden per Präfix-Suche
+// (LIKE 'wert%'), data_type/attribute_type_id per Exakt-Match gefiltert (siehe
+// AttributeController::ALLOWED_FILTERS bzw. ALLOWED_PREFIX_FILTERS).
+const QUICK_LOOKUP_FIELD_MAP = {
+  technical_name: 'technical_name',
+  name_de: 'name_de',
+  data_type: 'data_type',
+  'attribute_type.name_de': 'attribute_type_id',
 }
 
-const filteredItems = computed(() => {
-  if (!showQuickLookup.value) return store.items
-  const filters = quickLookupFilters.value
-  const activeFiltersArr = Object.entries(filters).filter(([, v]) => v !== '' && v != null)
-  if (activeFiltersArr.length === 0) return store.items
+const quickLookupMappedFilters = ref({})
 
-  return store.items.filter(row => {
-    return activeFiltersArr.every(([colKey, filterVal]) => {
-      const cellVal = getCellValueForFilter(row, colKey)
-      if (cellVal == null || cellVal === '—') return false
-      const config = quickLookupConfig.value[colKey]
-      if (config?.type === 'select') {
-        return String(cellVal) === String(filterVal)
-      }
-      return String(cellVal).toLowerCase().includes(String(filterVal).toLowerCase())
-    })
-  })
-})
-
-function onQuickLookupChange(values) {
-  quickLookupFilters.value = values
+function applyQuickLookupFilters(rawFilters) {
+  const mapped = {}
+  for (const [colKey, value] of Object.entries(rawFilters)) {
+    if (value === '' || value == null) continue
+    const field = QUICK_LOOKUP_FIELD_MAP[colKey]
+    if (!field) continue
+    mapped[field] = value
+  }
+  quickLookupMappedFilters.value = mapped
+  store.setPage(1)
+  loadWithFilters()
 }
+
+const { showQuickLookup, onQuickLookupChange, toggleQuickLookup } = useServerQuickLookup(applyQuickLookupFilters)
 
 // ─── Hierarchy data for filter ──────────────────────
 const hierarchies = ref([])
@@ -222,8 +231,9 @@ async function selectAllPages() {
   selectingAll.value = true
   try {
     const params = { search: search.value }
-    if (Object.keys(activeFilterEntries.value).length > 0) {
-      params.filter = { ...activeFilterEntries.value }
+    const filters = buildFilters()
+    if (Object.keys(filters).length > 0) {
+      params.filter = filters
     }
     const { data } = await attributesApi.allIds(params)
     const ids = data.ids || []
@@ -311,7 +321,9 @@ const actionMenuRow = ref(null)
 const copying = ref(false)
 
 function handleSort(field, order) {
-  store.fetchAttributes({ sort: field, order, search: search.value, filters: activeFilterEntries.value, include: 'attributeType,valueList,unitGroup,children,attributeViews' })
+  sortField.value = field
+  sortOrder.value = order
+  loadWithFilters()
 }
 
 function handlePageChange() {
@@ -397,7 +409,7 @@ onBeforeUnmount(() => {
         <button
           class="pim-btn pim-btn-secondary text-xs"
           :class="showQuickLookup ? 'bg-[var(--color-accent-light)] text-[var(--color-accent)]' : ''"
-          @click="showQuickLookup = !showQuickLookup"
+          @click="toggleQuickLookup(pimTableRef)"
           title="Quick Lookup"
         >
           <ListFilter class="w-3.5 h-3.5" :stroke-width="1.75" />
@@ -640,8 +652,10 @@ onBeforeUnmount(() => {
     <PimTable
       ref="pimTableRef"
       :columns="columns"
-      :rows="filteredItems"
+      :rows="store.items"
       :loading="store.loading"
+      :sortField="sortField"
+      :sortOrder="sortOrder"
       selectable
       :showActions="authStore.hasPermission('attributes.create') || authStore.hasPermission('attributes.delete')"
       emptyText="Keine Attribute gefunden"

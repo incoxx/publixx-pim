@@ -40,6 +40,14 @@ function buildParams(options = {}) {
       params[`filters[${attrId}]`] = value
     }
   }
+  // Quick Lookup — eigenständige Präfix-Filter, unabhängig von der Fassetten-Auswahl
+  if (options.name) params.name = options.name
+  if (options.sku) params.sku = options.sku
+  if (options.quickAttributes) {
+    for (const [attrId, value] of Object.entries(options.quickAttributes)) {
+      params[`quick_attributes[${attrId}]`] = value
+    }
+  }
   return params
 }
 

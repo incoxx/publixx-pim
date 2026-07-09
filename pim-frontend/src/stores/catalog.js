@@ -17,6 +17,11 @@ export const useCatalogStore = defineStore('catalog', () => {
   const facets = ref([])
   const activeFilters = reactive({}) // { attributeId: 'value1,value2' or 'min:max' or '1'/'0' }
 
+  // --- Quick Lookup — eigenständige Präfix-Filter (Name/SKU/Attribut-Spalten),
+  // unabhängig von der Fassetten-Auswahl. Filtert serverseitig über die komplette
+  // Treffermenge, nicht nur die aktuell angezeigte Seite.
+  const quickLookupFilters = reactive({ name: '', sku: '', attributes: {} })
+
   const meta = ref({
     current_page: 1,
     last_page: 1,
@@ -105,7 +110,7 @@ export const useCatalogStore = defineStore('catalog', () => {
     loading.value = true
     error.value = null
     try {
-      // Search overrides all other filters (category + facets)
+      // Search overrides all other filters (category + facets + quick lookup)
       const isSearching = search.value && search.value.trim().length > 0
       const filtersPayload = isSearching
         ? undefined
@@ -124,6 +129,11 @@ export const useCatalogStore = defineStore('catalog', () => {
         hierarchyType: hierarchyType.value,
         lang: locale.value,
         filters: filtersPayload,
+        name: !isSearching ? (quickLookupFilters.name || undefined) : undefined,
+        sku: !isSearching ? (quickLookupFilters.sku || undefined) : undefined,
+        quickAttributes: !isSearching && Object.keys(quickLookupFilters.attributes).length > 0
+          ? quickLookupFilters.attributes
+          : undefined,
       })
       // Response is now a bare array; pagination info in headers
       const rawProducts = Array.isArray(resp.data) ? resp.data : (resp.data.data || resp.data)
@@ -306,6 +316,27 @@ export const useCatalogStore = defineStore('catalog', () => {
 
   const activeFilterCount = computed(() => Object.keys(activeFilters).length)
 
+  // Quick Lookup
+  function setQuickLookupFilter(key, value) {
+    if (key === 'name' || key === 'sku') {
+      quickLookupFilters[key] = value
+    } else {
+      quickLookupFilters.attributes = { ...quickLookupFilters.attributes, [key]: value }
+    }
+    meta.value.current_page = 1
+  }
+
+  function clearQuickLookupFilters() {
+    quickLookupFilters.name = ''
+    quickLookupFilters.sku = ''
+    quickLookupFilters.attributes = {}
+    meta.value.current_page = 1
+  }
+
+  const quickLookupActive = computed(() =>
+    quickLookupFilters.name !== '' || quickLookupFilters.sku !== '' || Object.keys(quickLookupFilters.attributes).length > 0
+  )
+
   // --- Category Assets ---
   const categoryAssets = ref([])
   const categoryAssetsLoading = ref(false)
@@ -371,6 +402,10 @@ export const useCatalogStore = defineStore('catalog', () => {
     setFilter,
     clearFilter,
     clearAllFilters,
+    quickLookupFilters,
+    quickLookupActive,
+    setQuickLookupFilter,
+    clearQuickLookupFilters,
     categoryAssets,
     categoryAssetsLoading,
     fetchCategoryAssets,

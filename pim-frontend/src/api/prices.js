@@ -19,8 +19,8 @@ export const priceTypes = {
 }
 
 export const relationTypes = {
-  list() {
-    return client.get('/relation-types')
+  list(params = {}) {
+    return client.get('/relation-types', { params: buildParams(params) })
   },
   create(data) {
     return client.post('/relation-types', data)

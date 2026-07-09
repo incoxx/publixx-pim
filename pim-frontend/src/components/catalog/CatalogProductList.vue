@@ -31,41 +31,24 @@ const attrColumns = computed(() => {
   return []
 })
 
-// Quick lookup filters
+// Quick Lookup — filtert serverseitig über die komplette Treffermenge, nicht nur
+// die aktuell angezeigte Seite (siehe stores/catalog.js: quickLookupFilters).
 const showQuickLookup = ref(false)
-const quickFilters = ref({})
 let debounceTimer = null
 
 function onFilterInput(key, value) {
-  quickFilters.value = { ...quickFilters.value, [key]: value }
+  store.setQuickLookupFilter(key, value)
   clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => { /* reactivity handles it */ }, 0)
+  debounceTimer = setTimeout(() => store.fetchProducts(), 300)
 }
 
-// Client-side filtering
-const filteredProducts = computed(() => {
-  if (!showQuickLookup.value) return props.products
-  const filters = Object.entries(quickFilters.value).filter(([, v]) => v && v.trim())
-  if (filters.length === 0) return props.products
-
-  return props.products.filter(product => {
-    return filters.every(([key, filterVal]) => {
-      const lowerFilter = filterVal.toLowerCase()
-      if (key === 'name') {
-        return (product.name || '').toLowerCase().includes(lowerFilter)
-      }
-      if (key === 'sku') {
-        return (product.sku || '').toLowerCase().includes(lowerFilter)
-      }
-      if (key === 'price') {
-        return String(product.price || '').includes(filterVal)
-      }
-      // Attribute column
-      const attr = (product.card_attributes || []).find(a => a.attribute_id === key || a.technical_name === key)
-      return attr && (attr.value || '').toLowerCase().includes(lowerFilter)
-    })
-  })
-})
+function toggleQuickLookup() {
+  showQuickLookup.value = !showQuickLookup.value
+  if (!showQuickLookup.value && store.quickLookupActive) {
+    store.clearQuickLookupFilters()
+    store.fetchProducts()
+  }
+}
 
 // Sort handling
 function handleSort(field) {
@@ -109,7 +92,7 @@ function onImgError(productId) { brokenImages[productId] = true }
       <button
         class="btn btn-xs gap-1"
         :class="showQuickLookup ? 'btn-primary' : 'btn-ghost'"
-        @click="showQuickLookup = !showQuickLookup; quickFilters = {}"
+        @click="toggleQuickLookup"
       >
         <Search class="w-3 h-3" />
         Quick Lookup
@@ -179,7 +162,7 @@ function onImgError(productId) { brokenImages[productId] = true }
             <th class="px-2 py-1.5">
               <input
                 type="text"
-                :value="quickFilters.name || ''"
+                :value="store.quickLookupFilters.name"
                 @input="onFilterInput('name', $event.target.value)"
                 placeholder="Name..."
                 class="input input-xs input-bordered w-full"
@@ -188,7 +171,7 @@ function onImgError(productId) { brokenImages[productId] = true }
             <th v-if="showSku" class="px-2 py-1.5">
               <input
                 type="text"
-                :value="quickFilters.sku || ''"
+                :value="store.quickLookupFilters.sku"
                 @input="onFilterInput('sku', $event.target.value)"
                 placeholder="SKU..."
                 class="input input-xs input-bordered w-full"
@@ -197,33 +180,25 @@ function onImgError(productId) { brokenImages[productId] = true }
             <th v-for="col in attrColumns" :key="'ql-' + col.attribute_id" class="px-2 py-1.5">
               <input
                 type="text"
-                :value="quickFilters[col.attribute_id] || ''"
+                :value="store.quickLookupFilters.attributes[col.attribute_id] || ''"
                 @input="onFilterInput(col.attribute_id, $event.target.value)"
                 :placeholder="col.label + '...'"
                 class="input input-xs input-bordered w-full"
               />
             </th>
-            <th v-if="showPrice" class="px-2 py-1.5">
-              <input
-                type="text"
-                :value="quickFilters.price || ''"
-                @input="onFilterInput('price', $event.target.value)"
-                placeholder="Preis..."
-                class="input input-xs input-bordered w-full text-right"
-              />
-            </th>
+            <th v-if="showPrice" class="px-2 py-1.5"></th>
             <th class="w-10"></th>
           </tr>
         </thead>
 
         <tbody>
-          <tr v-if="filteredProducts.length === 0">
+          <tr v-if="props.products.length === 0">
             <td :colspan="3 + attrColumns.length + (showSku ? 1 : 0) + (showPrice ? 1 : 0)" class="py-12 text-center text-sm text-base-content/40">
               Keine Ergebnisse
             </td>
           </tr>
           <tr
-            v-for="(product, index) in filteredProducts"
+            v-for="(product, index) in props.products"
             :key="product.id"
             class="border-b border-base-200 hover:bg-base-200/30 transition-colors cursor-pointer group catalog-list-enter"
             :style="{ animationDelay: `${Math.min(index * 20, 200)}ms` }"

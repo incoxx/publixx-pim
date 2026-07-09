@@ -27,6 +27,23 @@ use Illuminate\Support\Facades\Log;
 class ProductSearchController extends Controller
 {
     use ProductSearchFilters;
+
+    /**
+     * Quick-Lookup-Präfixfilter (LIKE 'wert%') auf sku/name/ean — unabhängig von der
+     * kombinierten Freitextsuche (applyTextSearch), damit einzelne Spalten gezielt
+     * gefiltert werden können (Quick Lookup im Such-Assistenten).
+     */
+    private function applyQuickLookupPrefixFilters($query, array $validated): void
+    {
+        foreach (['sku', 'name', 'ean'] as $field) {
+            $value = $validated[$field] ?? null;
+            if ($value === null || $value === '') {
+                continue;
+            }
+            $query->where($field, 'LIKE', $value.'%');
+        }
+    }
+
     /**
      * POST /api/v1/products/search
      */
@@ -46,6 +63,9 @@ class ProductSearchController extends Controller
             'product_type_ids.*' => 'string|uuid',
             'manufacturer_ids' => 'nullable|array',
             'manufacturer_ids.*' => 'string|uuid',
+            'sku' => 'nullable|string|max:255',
+            'name' => 'nullable|string|max:255',
+            'ean' => 'nullable|string|max:255',
             'attribute_columns' => 'nullable|array',
             'attribute_columns.*' => 'string|uuid',
             'attribute_filters' => 'nullable|array',
@@ -97,6 +117,9 @@ class ProductSearchController extends Controller
         if (!empty($manufacturerIds)) {
             $query->whereIn('manufacturer_id', $manufacturerIds);
         }
+
+        // ── Quick-Lookup-Präfixfilter (sku/name/ean) ──
+        $this->applyQuickLookupPrefixFilters($query, $validated);
 
         // ── Text search with multiple modes ──
         if ($searchTerm) {
@@ -216,6 +239,9 @@ class ProductSearchController extends Controller
             'product_type_ids.*' => 'string|uuid',
             'manufacturer_ids' => 'nullable|array',
             'manufacturer_ids.*' => 'string|uuid',
+            'sku' => 'nullable|string|max:255',
+            'name' => 'nullable|string|max:255',
+            'ean' => 'nullable|string|max:255',
             'attribute_filters' => 'nullable|array',
             'attribute_filters.*.attribute_id' => 'required|string|uuid',
             'attribute_filters.*.value' => 'nullable',
@@ -243,6 +269,8 @@ class ProductSearchController extends Controller
         if (!empty($manufacturerIds)) {
             $query->whereIn('manufacturer_id', $manufacturerIds);
         }
+
+        $this->applyQuickLookupPrefixFilters($query, $validated);
 
         $searchTerm = $validated['search'] ?? null;
         $searchMode = $validated['search_mode'] ?? 'like';
@@ -307,6 +335,9 @@ class ProductSearchController extends Controller
             'product_type_ids.*' => 'string|uuid',
             'manufacturer_ids' => 'nullable|array',
             'manufacturer_ids.*' => 'string|uuid',
+            'sku' => 'nullable|string|max:255',
+            'name' => 'nullable|string|max:255',
+            'ean' => 'nullable|string|max:255',
             'attribute_filter_groups' => 'nullable|array',
             'attribute_filters' => 'nullable|array',
             'attribute_filters.*.attribute_id' => 'required|string|uuid',
@@ -332,6 +363,8 @@ class ProductSearchController extends Controller
         if (!empty($validated['manufacturer_ids'] ?? [])) {
             $query->whereIn('manufacturer_id', $validated['manufacturer_ids']);
         }
+
+        $this->applyQuickLookupPrefixFilters($query, $validated);
 
         if ($searchTerm = $validated['search'] ?? null) {
             $this->applyTextSearch($query, $searchTerm, $validated['search_mode'] ?? 'like');

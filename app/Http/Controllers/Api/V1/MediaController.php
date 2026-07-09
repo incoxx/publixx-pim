@@ -36,7 +36,11 @@ class MediaController extends Controller
     use ChecksDeletionConstraints;
     use ChecksInstanceRestrictions;
 
-    private const ALLOWED_FILTERS = ['media_type', 'mime_type', 'asset_folder_id', 'usage_purpose', 'file_status'];
+    private const ALLOWED_FILTERS = ['media_type', 'asset_folder_id', 'usage_purpose', 'file_status'];
+
+    // Felder, die per Präfix-Suche (LIKE 'wert%') statt Exakt-Match gefiltert werden,
+    // für das Quick-Lookup im Medien-Menü bzw. im Medien-Picker-Dialog.
+    private const ALLOWED_PREFIX_FILTERS = ['file_name', 'title_de', 'alt_text_de', 'mime_type'];
 
     private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff', 'tif', 'pdf', 'eps', 'ai', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'];
 
@@ -307,6 +311,15 @@ class MediaController extends Controller
             }
             // asset_folder_id aus Filtern entfernen, da wir es manuell behandelt haben
             unset($filters['asset_folder_id']);
+        }
+
+        $prefixFilters = array_intersect_key($filters, array_flip(self::ALLOWED_PREFIX_FILTERS));
+        foreach ($prefixFilters as $field => $value) {
+            if (!is_string($value) || $value === '') {
+                continue;
+            }
+            $column = preg_replace('/[^a-zA-Z0-9_]/', '', $field);
+            $query->where($column, 'LIKE', $value.'%');
         }
 
         $this->applyFilters($query, array_intersect_key(

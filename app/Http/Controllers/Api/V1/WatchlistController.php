@@ -25,15 +25,60 @@ use ZipArchive;
 
 class WatchlistController extends Controller
 {
+    private const ALLOWED_FILTERS = ['status', 'product_type_id'];
+
+    // Felder, die per Präfix-Suche (LIKE 'wert%') statt Exakt-Match gefiltert werden,
+    // für das Quick-Lookup in der Merkliste (Spalten liegen auf der products-Tabelle).
+    private const ALLOWED_PREFIX_FILTERS = ['sku', 'name', 'ean'];
+
     /**
      * GET /api/v1/watchlist
      */
     public function index(Request $request): JsonResponse
     {
-        $items = WatchlistItem::where('user_id', $request->user()->id)
+        $query = WatchlistItem::query()
+            ->where('watchlist_items.user_id', $request->user()->id)
+            ->join('products', 'products.id', '=', 'watchlist_items.product_id')
             ->with('product.productType')
-            ->orderBy('created_at', 'desc')
-            ->get();
+            ->select('watchlist_items.*');
+
+        $rawFilters = $request->query('filter', []);
+
+        $prefixFilters = array_intersect_key($rawFilters, array_flip(self::ALLOWED_PREFIX_FILTERS));
+        foreach ($prefixFilters as $field => $value) {
+            if (!is_string($value) || $value === '') {
+                continue;
+            }
+            $column = preg_replace('/[^a-zA-Z0-9_]/', '', $field);
+            $query->where("products.{$column}", 'LIKE', $value.'%');
+        }
+
+        $this->applyFilters($query, array_intersect_key(
+            $rawFilters,
+            array_flip(self::ALLOWED_FILTERS)
+        ));
+
+        // Quick-Lookup auf dynamische Attribut-Spalten: filter[attributes][<attribute_id>]=wert
+        // (Präfix-Suche auf value_string, analog zu den übrigen Textfeldern oben).
+        $attributeFilters = $rawFilters['attributes'] ?? [];
+        if (is_array($attributeFilters)) {
+            foreach ($attributeFilters as $attributeId => $value) {
+                if (!is_string($value) || $value === '') {
+                    continue;
+                }
+                $query->whereExists(function ($q) use ($attributeId, $value) {
+                    $q->select(DB::raw(1))
+                        ->from('product_attribute_values')
+                        ->whereColumn('product_attribute_values.product_id', 'watchlist_items.product_id')
+                        ->where('product_attribute_values.attribute_id', $attributeId)
+                        ->where('product_attribute_values.value_string', 'LIKE', $value.'%');
+                });
+            }
+        }
+
+        $query->orderByDesc('watchlist_items.created_at');
+
+        $paginated = $query->paginate($this->getPerPage($request));
 
         // Optionally load attribute column values
         $attributeColumns = $request->input('attribute_columns', []);
@@ -41,7 +86,7 @@ class WatchlistController extends Controller
 
         if (!empty($attributeColumns) && is_array($attributeColumns)) {
             $language = $request->input('language', 'de');
-            $productIds = $items->pluck('product_id')->filter();
+            $productIds = collect($paginated->items())->pluck('product_id')->filter();
             $attrValuesMap = ProductAttributeValue::whereIn('product_id', $productIds)
                 ->whereIn('attribute_id', $attributeColumns)
                 ->where(fn ($q) => $q->where('language', $language)->orWhereNull('language'))
@@ -50,12 +95,13 @@ class WatchlistController extends Controller
                 ->groupBy('product_id');
         }
 
-        $data = $items->map(function (WatchlistItem $item) use ($attributeColumns, $attrValuesMap) {
+        $data = collect($paginated->items())->map(function (WatchlistItem $item) use ($attributeColumns, $attrValuesMap) {
             $productData = $item->product ? [
                 'id' => $item->product->id,
                 'sku' => $item->product->sku,
                 'name' => $item->product->name,
                 'status' => $item->product->status,
+                'ean' => $item->product->ean,
                 'product_type' => $item->product->productType ? [
                     'id' => $item->product->productType->id,
                     'name_de' => $item->product->productType->name_de,
@@ -94,7 +140,15 @@ class WatchlistController extends Controller
             ];
         });
 
-        return response()->json(['data' => $data]);
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+            ],
+        ]);
     }
 
     /**

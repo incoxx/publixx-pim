@@ -33,6 +33,10 @@ class AttributeController extends Controller
         'is_internal', 'is_primary', 'source_system',
     ];
 
+    // Felder, die per Präfix-Suche (LIKE 'wert%') statt Exakt-Match gefiltert werden,
+    // z.B. für das Quick-Lookup im Attribute-Menü.
+    private const ALLOWED_PREFIX_FILTERS = ['technical_name', 'name_de'];
+
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', Attribute::class);
@@ -40,8 +44,19 @@ class AttributeController extends Controller
         $query = Attribute::query()
             ->with($this->parseIncludes($request, self::ALLOWED_INCLUDES));
 
+        $rawFilters = $request->query('filter', []);
+
+        $prefixFilters = array_intersect_key($rawFilters, array_flip(self::ALLOWED_PREFIX_FILTERS));
+        foreach ($prefixFilters as $field => $value) {
+            if (!is_string($value) || $value === '') {
+                continue;
+            }
+            $column = preg_replace('/[^a-zA-Z0-9_]/', '', $field);
+            $query->where($column, 'LIKE', $value.'%');
+        }
+
         $this->applyFilters($query, array_intersect_key(
-            $request->query('filter', []),
+            $rawFilters,
             array_flip(self::ALLOWED_FILTERS)
         ));
 

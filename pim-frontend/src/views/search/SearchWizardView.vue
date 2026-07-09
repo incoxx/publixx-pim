@@ -9,6 +9,7 @@ import {
   Trash2, CheckCheck, FileOutput, LayoutGrid, List,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
+import { useServerQuickLookup } from '@/composables/useServerQuickLookup'
 import searchApi from '@/api/search'
 import searchProfilesApi from '@/api/searchProfiles'
 import { useColumnProfiles } from '@/composables/useColumnProfiles'
@@ -308,12 +309,17 @@ const selectedProductTypes = ref([])
 const selectedManufacturers = ref([])
 const manufacturerList = ref([])
 
+// Quick Lookup — filtert serverseitig über die komplette Treffermenge, nicht nur
+// die aktuell angezeigte Seite. quickLookupMappedFilters wird in buildSearchParams()
+// mit den übrigen Filtern (Panel, Query Builder) zusammengeführt.
+const quickLookupMappedFilters = ref({})
+
 // Live count: debounced update when query builder changes
 watch(autoShowFilterColumns, (val) => {
   localStorage.setItem('search:autoShowFilterColumns', val ? 'true' : 'false')
 })
 
-watch(attributeFilterGroups, () => {
+watch([attributeFilterGroups, quickLookupMappedFilters], () => {
   if (liveCountTimer) clearTimeout(liveCountTimer)
   if (!attributeFilterGroups.value.rules?.length) {
     liveCount.value = null
@@ -330,10 +336,6 @@ watch(attributeFilterGroups, () => {
   }, 600)
 }, { deep: true })
 
-// Quick Lookup
-const showQuickLookup = ref(false)
-const quickLookupFilters = ref({})
-
 // Watchlist quick-add
 const watchlistIds = ref(new Set())
 
@@ -345,7 +347,7 @@ const selectingAll = ref(false)
 // Wenn Filter sich ändern und "alle Seiten" selektiert waren → Auswahl verwerfen,
 // da die IDs zur alten Suche gehören und nicht mehr zur aktuellen passen.
 watch(
-  [attributeFilterGroups, statusFilter, selectedCategories, selectedProductTypes, selectedManufacturers, missingTranslationFilter, searchInput],
+  [attributeFilterGroups, statusFilter, selectedCategories, selectedProductTypes, selectedManufacturers, missingTranslationFilter, searchInput, quickLookupMappedFilters],
   () => {
     if (allPagesSelected.value) {
       selectedProductIds.value = []
@@ -401,11 +403,11 @@ const statusOptions = [
 ]
 
 const productTypeOptions = computed(() =>
-  attrStore.prodTypes.map(pt => ({ value: pt.name_de || pt.technical_name, label: pt.name_de || pt.technical_name }))
+  attrStore.prodTypes.map(pt => ({ value: pt.id, label: pt.name_de || pt.technical_name }))
 )
 
 const manufacturerQuickOptions = computed(() =>
-  manufacturerList.value.map(m => ({ value: m.name, label: m.name }))
+  manufacturerList.value.map(m => ({ value: m.id, label: m.name }))
 )
 
 const quickLookupConfig = computed(() => {
@@ -423,8 +425,10 @@ const quickLookupConfig = computed(() => {
     if (attr.data_type === 'Selection' || attr.data_type === 'Dictionary') {
       config[key] = {
         type: 'select',
+        // Wert = Werteliste-Eintrags-ID, damit der Backend-Operator 'eq' (Vergleich
+        // gegen value_selection_id) greift — siehe ProductSearchFilters::applyAttributeFilter().
         options: (attr.value_list?.entries || []).map(e => ({
-          value: e.display_value_de || e.code,
+          value: e.id,
           label: e.display_value_de || e.code,
         })),
       }
@@ -435,36 +439,38 @@ const quickLookupConfig = computed(() => {
   return config
 })
 
-function getCellValueForFilter(row, colKey) {
-  const keys = colKey.split('.')
-  let val = row
-  for (const k of keys) val = val?.[k]
-  return val
+// Spalten-Key → Backend-Parameter. sku/name/status/ean sind flache Präfix-/Exakt-Filter,
+// product_type/manufacturer werden mit der Panel-Auswahl zur Vereinigungsmenge
+// zusammengeführt (siehe buildSearchParams()), attributes.{id} landet im
+// attribute_filters-Array (starts_with für Text, eq für Selection/Dictionary).
+const QUICK_LOOKUP_FIELD_MAP = {
+  sku: 'sku',
+  name: 'name',
+  status: 'status',
+  ean: 'ean',
+  'product_type.name_de': 'product_type_id',
+  'manufacturer.name': 'manufacturer_id',
 }
 
-const filteredResults = computed(() => {
-  if (!showQuickLookup.value) return results.value
-  const filters = quickLookupFilters.value
-  const activeFilters = Object.entries(filters).filter(([, v]) => v !== '' && v != null)
-  if (activeFilters.length === 0) return results.value
-
-  return results.value.filter(row => {
-    return activeFilters.every(([colKey, filterVal]) => {
-      const cellVal = getCellValueForFilter(row, colKey)
-      if (cellVal == null || cellVal === '—') return false
-      const config = quickLookupConfig.value[colKey]
-      if (config?.type === 'select') {
-        return String(cellVal) === String(filterVal)
-      }
-      // Text: prefix match
-      return String(cellVal).toLowerCase().startsWith(String(filterVal).toLowerCase())
-    })
-  })
-})
-
-function onQuickLookupChange(filters) {
-  quickLookupFilters.value = filters
+function applyQuickLookupFilters(rawFilters) {
+  const mapped = {}
+  const attributeFilters = {}
+  for (const [colKey, value] of Object.entries(rawFilters)) {
+    if (value === '' || value == null) continue
+    if (colKey.startsWith('attributes.')) {
+      attributeFilters[colKey.replace('attributes.', '')] = value
+      continue
+    }
+    const field = QUICK_LOOKUP_FIELD_MAP[colKey]
+    if (!field) continue
+    mapped[field] = value
+  }
+  if (Object.keys(attributeFilters).length > 0) mapped.attributes = attributeFilters
+  quickLookupMappedFilters.value = mapped
+  doSearch(1)
 }
+
+const { showQuickLookup, onQuickLookupChange, toggleQuickLookup } = useServerQuickLookup(applyQuickLookupFilters)
 
 const translatableSearchAttributes = computed(() => {
   return searchableAttributes.value.filter(a => a.is_translatable && (a.data_type === 'String' || a.data_type === 'RichText'))
@@ -841,16 +847,32 @@ function buildSearchParams() {
     const h = hierarchies.value.find(h => h.id === selectedHierarchyId.value)
     if (h?.hierarchy_type) params.hierarchy_type = h.hierarchy_type
   }
-  if (selectedProductTypes.value.length > 0) params.product_type_ids = selectedProductTypes.value
-  if (selectedManufacturers.value.length > 0) params.manufacturer_ids = selectedManufacturers.value
-  if (statusFilter.value) params.status = statusFilter.value
+  // Produkttyp/Hersteller: Panel-Auswahl + Quick-Lookup-Auswahl zur Vereinigungsmenge
+  // zusammengeführt, da beide denselben Backend-Parameter nutzen.
+  const productTypeIds = new Set(selectedProductTypes.value)
+  if (quickLookupMappedFilters.value.product_type_id) productTypeIds.add(quickLookupMappedFilters.value.product_type_id)
+  if (productTypeIds.size > 0) params.product_type_ids = [...productTypeIds]
+
+  const manufacturerIds = new Set(selectedManufacturers.value)
+  if (quickLookupMappedFilters.value.manufacturer_id) manufacturerIds.add(quickLookupMappedFilters.value.manufacturer_id)
+  if (manufacturerIds.size > 0) params.manufacturer_ids = [...manufacturerIds]
+
+  if (statusFilter.value) {
+    params.status = statusFilter.value
+  } else if (quickLookupMappedFilters.value.status) {
+    params.status = quickLookupMappedFilters.value.status
+  }
+
+  if (quickLookupMappedFilters.value.sku) params.sku = quickLookupMappedFilters.value.sku
+  if (quickLookupMappedFilters.value.name) params.name = quickLookupMappedFilters.value.name
+  if (quickLookupMappedFilters.value.ean) params.ean = quickLookupMappedFilters.value.ean
 
   // Attribut-Filter (Query Builder) — wird auch von selectAllPages() benötigt
   if (attributeFilterGroups.value.rules && attributeFilterGroups.value.rules.length > 0) {
     params.attribute_filter_groups = attributeFilterGroups.value
   }
 
-  // Legacy Flat-Filter
+  // Legacy Flat-Filter (Filter-Panel) + Quick-Lookup-Attributspalten zusammengeführt
   const attrFilters = []
   for (const attr of searchableAttributes.value) {
     const val = attributeFilters.value[attr.id]
@@ -866,6 +888,12 @@ function buildSearchParams() {
     } else {
       filter.operator = 'eq'
     }
+    attrFilters.push(filter)
+  }
+  for (const [attrId, value] of Object.entries(quickLookupMappedFilters.value.attributes || {})) {
+    const attr = searchableAttributes.value.find(a => a.id === attrId)
+    const filter = { attribute_id: attrId, value }
+    filter.operator = (attr?.data_type === 'Selection' || attr?.data_type === 'Dictionary') ? 'eq' : 'starts_with'
     attrFilters.push(filter)
   }
   if (attrFilters.length > 0) params.attribute_filters = attrFilters
@@ -1158,7 +1186,7 @@ const apiCallDisplay = computed(() => {
         v-if="searchCategory === 'products'"
         class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4"
         :class="showQuickLookup ? 'bg-[var(--color-accent-light)] text-[var(--color-accent)]' : ''"
-        @click="showQuickLookup = !showQuickLookup"
+        @click="toggleQuickLookup(searchTableRef)"
         title="Quick Lookup"
       >
         <ListFilter class="w-4 h-4" :stroke-width="1.75" />
@@ -1444,7 +1472,7 @@ const apiCallDisplay = computed(() => {
         </span>
 
         <!-- Select all pages hint -->
-        <template v-if="!allPagesSelected && selectedProductIds.length === filteredResults.length && resultMeta.total > filteredResults.length">
+        <template v-if="!allPagesSelected && selectedProductIds.length === results.length && resultMeta.total > results.length">
           <button
             class="pim-btn pim-btn-secondary text-xs border-dashed"
             :disabled="selectingAll"
@@ -1584,7 +1612,7 @@ const apiCallDisplay = computed(() => {
     <div v-if="viewMode === 'grid' && searchCategory === 'products' && results.length > 0">
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
         <div
-          v-for="row in (searchCategory === 'products' ? filteredResults : results)"
+          v-for="row in results"
           :key="row.id"
           class="pim-card overflow-hidden group cursor-pointer hover:shadow-md transition-shadow"
           @click="openResult(row)"
@@ -1631,7 +1659,7 @@ const apiCallDisplay = computed(() => {
       ref="searchTableRef"
       v-if="results.length > 0 && (viewMode === 'list' || searchCategory !== 'products')"
       :columns="columns"
-      :rows="searchCategory === 'products' ? filteredResults : results"
+      :rows="results"
       :loading="loading"
       :sortField="sortField"
       :sortOrder="sortOrder"

@@ -28,6 +28,7 @@ class AttributeTypeController extends Controller
             ->with($this->parseIncludes($request, self::ALLOWED_INCLUDES));
 
         $this->applyInstanceRestrictionFilter($query, AttributeType::class);
+        $this->applySearch($query, $request, ['name_de', 'name_en', 'technical_name']);
         $this->applySorting($query, $request, 'sort_order', 'asc');
 
         return AttributeTypeResource::collection(

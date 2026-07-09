@@ -232,6 +232,43 @@ class CatalogController extends BaseController
                     }
                 }
             }
+
+            // Quick-Lookup: eigenständige Präfix-Filter (LIKE 'wert%') auf Name/SKU,
+            // unabhängig von der Fassetten-Auswahl oben — nur aktiv, wenn keine
+            // Volltextsuche läuft (siehe "Search overrides all other filters").
+            $quickName = trim((string) $request->query('name', ''));
+            if ($quickName !== '') {
+                $query->where(function ($q) use ($quickName) {
+                    $q->where('products_search_index.name_de', 'LIKE', $quickName.'%')
+                      ->orWhere('products_search_index.name_en', 'LIKE', $quickName.'%');
+                });
+            }
+
+            $quickSku = trim((string) $request->query('sku', ''));
+            if ($quickSku !== '') {
+                $query->where('products_search_index.sku', 'LIKE', $quickSku.'%');
+            }
+
+            // Quick-Lookup auf dynamische Attribut-Spalten (card_attributes): Freitext-
+            // Präfixsuche, unabhängig von der exakten Fassetten-Auswahl oben.
+            $quickAttributes = $request->query('quick_attributes', []);
+            if (is_array($quickAttributes)) {
+                $qaIdx = 0;
+                foreach ($quickAttributes as $qaAttrId => $qaValue) {
+                    if (!is_string($qaAttrId) || $qaValue === '' || $qaValue === null) {
+                        continue;
+                    }
+                    $qaAlias = "pav_ql{$qaIdx}";
+                    $qaIdx++;
+                    $query->whereExists(function ($sub) use ($qaAlias, $qaAttrId, $qaValue) {
+                        $sub->select(DB::raw(1))
+                            ->from("product_attribute_values as {$qaAlias}")
+                            ->whereColumn("{$qaAlias}.product_id", 'products.id')
+                            ->where("{$qaAlias}.attribute_id", $qaAttrId)
+                            ->where("{$qaAlias}.value_string", 'LIKE', $qaValue.'%');
+                    });
+                }
+            }
         }
 
         $selectColumns = [

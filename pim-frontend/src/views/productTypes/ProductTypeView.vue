@@ -15,11 +15,17 @@ const authStore = useAuthStore()
 
 const items = ref([])
 const loading = ref(false)
+const sortField = ref('sort_order')
+const sortOrder = ref('asc')
 
 async function fetchProductTypes(options = {}) {
   loading.value = true
   try {
-    const { data } = await productTypes.list()
+    const { data } = await productTypes.list({
+      sort: sortField.value,
+      order: sortOrder.value,
+      ...options,
+    })
     items.value = data.data || data
   } catch {
     items.value = []
@@ -45,16 +51,22 @@ const deleteTarget = ref(null)
 const deleting = ref(false)
 
 function handleSort(field, order) {
-  fetchProductTypes({ sort: field, order })
+  sortField.value = field
+  sortOrder.value = order
+  fetchProductTypes({ search: search.value })
+}
+
+function reload() {
+  fetchProductTypes({ search: search.value })
 }
 
 function openCreatePanel() {
-  authStore.openPanel(markRaw(ProductTypeFormPanel), { productType: null, onSaved: fetchProductTypes })
+  authStore.openPanel(markRaw(ProductTypeFormPanel), { productType: null, onSaved: reload })
 }
 
 function openEditPanel(row) {
   if (!authStore.hasPermission('product-types.edit')) return
-  authStore.openPanel(markRaw(ProductTypeFormPanel), { productType: row, onSaved: fetchProductTypes })
+  authStore.openPanel(markRaw(ProductTypeFormPanel), { productType: row, onSaved: reload })
 }
 
 function handleRowAction(row) {
@@ -100,6 +112,8 @@ onMounted(() => {
       :columns="columns"
       :rows="items"
       :loading="loading"
+      :sortField="sortField"
+      :sortOrder="sortOrder"
       selectable
       :showActions="authStore.hasPermission('product-types.delete')"
       emptyText="Keine Produkttypen gefunden"

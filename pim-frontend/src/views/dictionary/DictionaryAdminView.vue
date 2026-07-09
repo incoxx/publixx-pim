@@ -15,13 +15,16 @@ const authStore = useAuthStore()
 // ─── Filters ─────────────────────────────────────────
 const filterOpen = ref(false)
 const activeFilterEntries = ref({})
+const sortField = ref('short_text_de')
+const sortOrder = ref('asc')
 
 const { search, activeFilters, setSearch, removeFilter, clearFilters } = useFilters(() => {
+  store.setPage(1)
   loadWithFilters()
 })
 
 function loadWithFilters() {
-  const opts = { search: search.value }
+  const opts = { search: search.value, sort: sortField.value, order: sortOrder.value }
   if (Object.keys(activeFilterEntries.value).length > 0) {
     opts.filters = { ...activeFilterEntries.value }
   }
@@ -34,12 +37,20 @@ function setFilter(key, value) {
   } else {
     activeFilterEntries.value[key] = value
   }
+  store.setPage(1)
   loadWithFilters()
 }
 
 function clearAllFilters() {
   activeFilterEntries.value = {}
   clearFilters()
+  store.setPage(1)
+  loadWithFilters()
+}
+
+function handlePageChange(page) {
+  if (page < 1 || page > store.meta.last_page) return
+  store.setPage(page)
   loadWithFilters()
 }
 
@@ -64,7 +75,9 @@ const deleteTarget = ref(null)
 const deleting = ref(false)
 
 function handleSort(field, order) {
-  store.fetchEntries({ sort: field, order, filters: activeFilterEntries.value })
+  sortField.value = field
+  sortOrder.value = order
+  loadWithFilters()
 }
 
 function openCreatePanel() {
@@ -167,6 +180,8 @@ onMounted(() => {
       :columns="columns"
       :rows="store.items"
       :loading="store.loading"
+      :sortField="sortField"
+      :sortOrder="sortOrder"
       selectable
       :showActions="authStore.hasPermission('attributes.delete')"
       emptyText="Keine Wörterbucheinträge gefunden"
@@ -185,6 +200,28 @@ onMounted(() => {
         <span :class="value === 'active' ? 'text-[var(--color-success)]' : 'text-[var(--color-text-tertiary)]'">
           {{ value === 'active' ? 'Aktiv' : 'Inaktiv' }}
         </span>
+      </template>
+
+      <!-- Pagination -->
+      <template #pagination>
+        <div class="flex items-center justify-between px-4 py-3 border-t border-[var(--color-border)]">
+          <span class="text-xs text-[var(--color-text-tertiary)]">{{ store.meta.total }} Einträge</span>
+          <div class="flex items-center gap-1">
+            <button
+              class="pim-btn pim-btn-ghost text-xs"
+              :disabled="store.meta.current_page <= 1"
+              @click="handlePageChange(store.meta.current_page - 1)"
+            >Zurück</button>
+            <span class="text-xs text-[var(--color-text-secondary)] px-2">
+              {{ store.meta.current_page }} / {{ store.meta.last_page }}
+            </span>
+            <button
+              class="pim-btn pim-btn-ghost text-xs"
+              :disabled="store.meta.current_page >= store.meta.last_page"
+              @click="handlePageChange(store.meta.current_page + 1)"
+            >Weiter</button>
+          </div>
+        </div>
       </template>
     </PimTable>
 
