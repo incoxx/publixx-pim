@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { collectionTypes } from '@/api/collections'
-import attributesApi, { attributeViews } from '@/api/attributes'
+import { attributeViews } from '@/api/attributes'
 import { priceTypes } from '@/api/prices'
 import pdfTemplatesApi from '@/api/pdfTemplates'
 import PimForm from '@/components/shared/PimForm.vue'
@@ -15,15 +15,22 @@ const props = defineProps({
 const authStore = useAuthStore()
 const loading = ref(false)
 const errors = ref({})
-// Nur fuer attribute-views/attributes -- pdf-templates ist bewusst optional (eigenes,
-// separat lizenzierbares Modul) und wird unten weiterhin still ignoriert, wenn es fehlschlaegt.
+// Nur fuer attribute-views -- pdf-templates ist bewusst optional (eigenes, separat
+// lizenzierbares Modul) und wird unten weiterhin still ignoriert, wenn es fehlschlaegt.
 const loadError = ref('')
 
 const pdfTemplateOptions = ref([])
 const priceTypeOptions = ref([])
-const headerAttributeViewOptions = ref([])
-const itemAttributeViewOptions = ref([])
-const itemAttributeOptions = ref([])
+// Jede existierende Attributgruppe ist frei waehlbar -- kein Scope-Filter mehr auf den
+// Mitglieds-Attributen (siehe attributeViewOptions unten).
+const rawAttributeViews = ref([])
+const attributeViewOptions = computed(() => rawAttributeViews.value.map(v => ({ value: v.technical_name, label: v.name_de })))
+// Rabatt-Attribut-Auswahl ist auf die Mitglieder der aktuell gewaehlten Positions-Attributgruppe
+// beschraenkt -- kein zusaetzlicher API-Call noetig, die Attribute sind schon mitgeladen.
+const itemAttributeOptions = computed(() => {
+  const view = rawAttributeViews.value.find(v => v.technical_name === formData.value.default_item_attribute_groups)
+  return (view?.attributes || []).map(a => ({ value: a.technical_name, label: a.name_de }))
+})
 
 const isEdit = computed(() => !!props.collectionType)
 
@@ -111,25 +118,21 @@ const fields = computed(() => [
       { value: 'opentrans', label: 'openTRANS' },
     ],
   },
-  // Attribut-Gruppe (Standard-Vorbelegung beim Anlegen einer Collection) -- bewusst nur eine
-  // einzelne Selectbox pro Rolle, nicht mehrere gleichzeitig zuordenbar.
+  // Attribut-Gruppe (Standard-Vorbelegung beim Anlegen einer Collection) -- jede bestehende
+  // Attributgruppe ist frei waehlbar, bewusst nur eine Selectbox pro Rolle.
   {
     key: 'default_attribute_groups',
     label: 'Attributgruppe — Kopfdaten',
     type: 'select',
-    options: [{ value: '', label: 'Keine' }, ...headerAttributeViewOptions.value],
-    hint: headerAttributeViewOptions.value.length
-      ? 'Jedes Attribut dieser Gruppe wird automatisch in der Kopfdaten-Karte einer Collection angezeigt und im Export gerendert (Reihenfolge = Attribut-Position in der Gruppe).'
-      : 'Keine passende Attributgruppe gefunden. Dafür zuerst unter Attribute → Attribute ein Attribut mit "Gilt für: Collection" anlegen und es unter Attribute → Attributgruppen einer Gruppe zuordnen — erst dann taucht die Gruppe hier auf.',
+    options: [{ value: '', label: 'Keine' }, ...attributeViewOptions.value],
+    hint: 'Jedes Attribut dieser Gruppe wird automatisch in der Kopfdaten-Karte einer Collection angezeigt und im Export gerendert (Reihenfolge = Attribut-Position in der Gruppe).',
   },
   {
     key: 'default_item_attribute_groups',
     label: 'Attributgruppe — Positionen',
     type: 'select',
-    options: [{ value: '', label: 'Keine' }, ...itemAttributeViewOptions.value],
-    hint: itemAttributeViewOptions.value.length
-      ? 'Jedes Attribut dieser Gruppe wird automatisch im "Attribute"-Panel jeder Position angezeigt und im Export als Zeile unter der Position gerendert.'
-      : 'Keine passende Attributgruppe gefunden. Dafür zuerst unter Attribute → Attribute ein Attribut mit "Gilt für: Collection-Position" anlegen und es unter Attribute → Attributgruppen einer Gruppe zuordnen — erst dann taucht die Gruppe hier auf.',
+    options: [{ value: '', label: 'Keine' }, ...attributeViewOptions.value],
+    hint: 'Jedes Attribut dieser Gruppe wird automatisch im "Attribute"-Panel jeder Position angezeigt und im Export als Zeile unter der Position gerendert.',
   },
   // Rabatt bleibt eine Einzelrollen-Zuordnung, weil er rechnerisch in die Positionssumme
   // eingeht -- alle rein darstellenden Positions-Attribute kommen aus der Gruppe oben.
@@ -138,7 +141,9 @@ const fields = computed(() => [
     label: 'Rabatt-Attribut (Position)',
     type: 'select',
     options: [{ value: '', label: 'Keines' }, ...itemAttributeOptions.value],
-    hint: 'Wird als eigene Spalte in der Positionstabelle gerechnet, nicht als Anzeigezeile — auch wenn es Mitglied einer Attributgruppe oben ist.',
+    hint: formData.value.default_item_attribute_groups
+      ? 'Wird als eigene Spalte in der Positionstabelle gerechnet, nicht als Anzeigezeile. Nur Attribute der oben gewählten Positions-Attributgruppe stehen zur Auswahl.'
+      : 'Erst eine Attributgruppe — Positionen wählen, dann steht hier ein Attribut daraus zur Auswahl.',
   },
 ])
 
@@ -146,19 +151,14 @@ onMounted(async () => {
   // Promise.allSettled statt Promise.all: PDF-Vorlagen sind ein eigenes, separat lizenzierbares
   // Enterprise-Modul (pdf_templates) -- ohne diese Lizenz liefert der Endpoint 403. Das darf nicht
   // dazu fuehren, dass auch die uebrigen (unabhaengigen) Auswahllisten leer bleiben.
-  const [pdfRes, priceRes, viewsRes, itemAttrRes] = await Promise.allSettled([
+  const [pdfRes, priceRes, viewsRes] = await Promise.allSettled([
     pdfTemplatesApi.list(),
     priceTypes.list(),
-    // include=attributes: Attributgruppen (AttributeView) sind generisch fuer alle Entitaeten
-    // (Produkte, Collections, ...) -- ob eine Gruppe hier ueberhaupt sinnvoll ist, ergibt sich
-    // erst daraus, ob sie mindestens ein Attribut mit passendem applies_to enthaelt (s.u.).
-    // per_page explizit hoch setzen -- ohne das liefert die Liste nur die Standard-Seitengroesse
-    // (25), wodurch relevante Gruppen bei vielen vorhandenen Attributgruppen unsichtbar bleiben
-    // koennen, obwohl sie existieren.
+    // include=attributes: liefert jede Attributgruppe direkt mit ihren Mitglieds-Attributen --
+    // deckt sowohl die Gruppen-Auswahl als auch die Rabatt-Attribut-Auswahl (aus der gewaehlten
+    // Positions-Gruppe) ohne weiteren API-Call ab. per_page explizit hoch setzen -- ohne das
+    // liefert die Liste nur die Standard-Seitengroesse (25).
     attributeViews.list({ include: 'attributes', per_page: 200 }),
-    // Nur fuer die Rabatt-Attribut-Einzelauswahl -- alle anderen Positions-/Kopfdaten-Attribute
-    // kommen ueber die Attributgruppen-Mehrfachauswahl oben.
-    attributesApi.list({ filters: { applies_to: 'collection_item' }, perPage: 200 }),
   ])
   if (pdfRes.status === 'fulfilled') {
     pdfTemplateOptions.value = (pdfRes.value.data.data || pdfRes.value.data).map(t => ({ value: t.id, label: t.name }))
@@ -167,19 +167,9 @@ onMounted(async () => {
     priceTypeOptions.value = (priceRes.value.data.data || priceRes.value.data).map(t => ({ value: t.technical_name, label: t.name_de }))
   }
   if (viewsRes.status === 'fulfilled') {
-    const views = viewsRes.value.data.data || viewsRes.value.data
-    const viewsWithScope = (scope) => views
-      .filter(v => (v.attributes || []).some(a => (a.applies_to || []).includes(scope)))
-      .map(v => ({ value: v.technical_name, label: v.name_de }))
-    headerAttributeViewOptions.value = viewsWithScope('collection')
-    itemAttributeViewOptions.value = viewsWithScope('collection_item')
+    rawAttributeViews.value = viewsRes.value.data.data || viewsRes.value.data
   } else {
     loadError.value = 'Attributgruppen konnten nicht geladen werden: ' + (viewsRes.reason?.response?.data?.message || viewsRes.reason?.message || 'unbekannter Fehler')
-  }
-  if (itemAttrRes.status === 'fulfilled') {
-    itemAttributeOptions.value = (itemAttrRes.value.data.data || itemAttrRes.value.data).map(a => ({ value: a.technical_name, label: a.name_de }))
-  } else if (!loadError.value) {
-    loadError.value = 'Attribute konnten nicht geladen werden: ' + (itemAttrRes.reason?.response?.data?.message || itemAttrRes.reason?.message || 'unbekannter Fehler')
   }
 })
 

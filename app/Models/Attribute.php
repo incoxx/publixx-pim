@@ -60,7 +60,6 @@ class Attribute extends Model
         'source_attribute_name',
         'source_attribute_key',
         'status',
-        'applies_to',
     ];
 
     protected function casts(): array
@@ -89,7 +88,6 @@ class Attribute extends Model
             'is_quick_search' => 'boolean',
             'is_primary' => 'boolean',
             'position' => 'integer',
-            'applies_to' => 'array',
         ];
     }
 

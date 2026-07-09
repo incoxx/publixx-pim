@@ -128,10 +128,10 @@ const collectionAttrDefs = ref([])
 const collectionAttrValues = ref({})
 
 async function loadCollectionAttributes() {
-  // Auf die dem Collection-Typ zugeordnete(n) Attributgruppe(n) beschraenkt (default_attribute_groups).
-  // Bewusst KEIN Fallback auf "alle applies_to=collection Attribute" ohne zugeordnete Gruppe --
-  // CollectionRenderService::resolveGroupDisplayValues() rendert bei leeren Gruppen ebenfalls
-  // nichts. Ein Fallback wuerde hier Werte editierbar machen, die im Export nie erscheinen.
+  // Auf die dem Collection-Typ zugeordnete Attributgruppe beschraenkt (default_attribute_groups).
+  // Bewusst KEIN Fallback auf "alle Attribute" ohne zugeordnete Gruppe -- CollectionRenderService::
+  // resolveGroupDisplayValues() rendert bei leerer Gruppe ebenfalls nichts. Ein Fallback wuerde
+  // hier Werte editierbar machen, die im Export nie erscheinen.
   const groups = selected.value.collection_type?.default_attribute_groups
   if (!groups?.length) {
     collectionAttrDefs.value = []
@@ -139,7 +139,7 @@ async function loadCollectionAttributes() {
     return
   }
   const { data: defs } = await attributesApi.list({
-    filters: { applies_to: 'collection', is_internal: 0, attribute_view: groups.join(',') },
+    filters: { is_internal: 0, attribute_view: groups.join(',') },
     perPage: 100,
   })
   collectionAttrDefs.value = defs.data
@@ -174,14 +174,13 @@ async function toggleItemAttributes(item) {
   }
   expandedItemId.value = item.id
   if (!itemAttrDefs.value.length) {
-    // Auf die dem Collection-Typ zugeordnete(n) Attributgruppe(n) beschraenkt (default_item_attribute_groups).
-    // Bewusst KEIN Fallback auf "alle applies_to=collection_item Attribute" ohne zugeordnete Gruppe
+    // Auf die dem Collection-Typ zugeordnete Attributgruppe beschraenkt (default_item_attribute_groups)
     // -- siehe loadCollectionAttributes()/CollectionRenderService::resolveGroupDisplayValues().
     const groups = selected.value.collection_type?.default_item_attribute_groups
     let defs = []
     if (groups?.length) {
       const { data } = await attributesApi.list({
-        filters: { applies_to: 'collection_item', is_internal: 0, attribute_view: groups.join(',') },
+        filters: { is_internal: 0, attribute_view: groups.join(',') },
         perPage: 100,
       })
       defs = data.data
@@ -190,7 +189,7 @@ async function toggleItemAttributes(item) {
     // zugeordneten Gruppe ist -- ohne UI-Zugriff waere der Rabatt sonst nicht pflegbar.
     const discountTechnicalName = selected.value.collection_type?.default_discount_attribute
     if (discountTechnicalName && !defs.some((a) => a.technical_name === discountTechnicalName)) {
-      const { data } = await attributesApi.list({ filters: { applies_to: 'collection_item' }, search: discountTechnicalName, perPage: 5 })
+      const { data } = await attributesApi.list({ search: discountTechnicalName, perPage: 5 })
       const match = (data.data || []).find((a) => a.technical_name === discountTechnicalName)
       if (match) defs = [...defs, match]
     }

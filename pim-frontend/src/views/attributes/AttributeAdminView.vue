@@ -98,13 +98,6 @@ const statusOptions = [
   { value: 'inactive', label: 'Inaktiv' },
 ]
 
-const appliesToFilterOptions = [
-  { value: '', label: 'Alle' },
-  { value: 'product', label: 'Produkt' },
-  { value: 'collection', label: 'Collection' },
-  { value: 'collection_item', label: 'Collection-Position' },
-]
-
 const attributeTypeOptions = computed(() => [
   { value: '', label: 'Alle Gruppen' },
   ...store.types.map(t => ({ value: t.id, label: t.name_de || t.technical_name })),
@@ -574,12 +567,6 @@ onBeforeUnmount(() => {
           <select class="pim-input text-xs" :value="pendingFilterEntries.status ?? ''" @change="setFilter('status', $event.target.value)">
             <option value="">Alle</option>
             <option v-for="o in statusOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Ebene</label>
-          <select class="pim-input text-xs" :value="pendingFilterEntries.applies_to ?? ''" @change="setFilter('applies_to', $event.target.value)">
-            <option v-for="o in appliesToFilterOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </div>
       </div>
