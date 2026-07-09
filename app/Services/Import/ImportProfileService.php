@@ -199,7 +199,8 @@ class ImportProfileService
     }
 
     /**
-     * Auto-Generate: Erstellt fehlende Attribute, ordnet sie der AttributeView und der Kategorie zu.
+     * Auto-Generate: Erstellt fehlende Attribute, ordnet sie der Kategorie (verpflichtend)
+     * und optional einer AttributeView zu.
      *
      * @param  array  $columns  [{header: string, auto_generate: bool, detected_type: string, override_type?: string}]
      * @return array{created: array, existing: array, assigned_to_category: int, assigned_to_view: int}
@@ -207,11 +208,11 @@ class ImportProfileService
     public function autoGenerateAttributes(
         array $columns,
         string $hierarchyNodeId,
-        string $attributeViewId,
+        ?string $attributeViewId = null,
         ?string $attributeTypeId = null,
     ): array {
         $hierarchyNode = HierarchyNode::findOrFail($hierarchyNodeId);
-        $attributeView = AttributeView::findOrFail($attributeViewId);
+        $attributeView = $attributeViewId ? AttributeView::findOrFail($attributeViewId) : null;
 
         $created = [];
         $existing = [];
@@ -226,10 +227,10 @@ class ImportProfileService
             ->pluck('attribute_id')
             ->toArray();
 
-        // Bestehende View-Zuordnungen laden
-        $existingViewAssignments = AttributeViewAssignment::where('attribute_view_id', $attributeViewId)
-            ->pluck('attribute_id')
-            ->toArray();
+        // Bestehende View-Zuordnungen laden (nur relevant, wenn eine Attribut-Sicht gewählt wurde)
+        $existingViewAssignments = $attributeViewId
+            ? AttributeViewAssignment::where('attribute_view_id', $attributeViewId)->pluck('attribute_id')->toArray()
+            : [];
 
         $maxSort = HierarchyNodeAttributeAssignment::where('hierarchy_node_id', $hierarchyNodeId)
             ->max('attribute_sort') ?? 0;
@@ -282,7 +283,7 @@ class ImportProfileService
                 HierarchyNodeAttributeAssignment::create([
                     'hierarchy_node_id' => $hierarchyNodeId,
                     'attribute_id' => $attribute->id,
-                    'collection_name' => $attributeView->name_de,
+                    'collection_name' => $attributeView?->name_de ?? 'Import',
                     'attribute_sort' => $maxSort,
                     'access_hierarchy' => 'visible',
                     'access_product' => 'editable',
@@ -293,8 +294,8 @@ class ImportProfileService
                 $assignedToCategory++;
             }
 
-            // Attribut der AttributeView zuordnen
-            if (!in_array($attribute->id, $existingViewAssignments)) {
+            // Attribut der AttributeView zuordnen (nur wenn eine Sicht gewählt wurde)
+            if ($attributeViewId && !in_array($attribute->id, $existingViewAssignments)) {
                 AttributeViewAssignment::create([
                     'attribute_id' => $attribute->id,
                     'attribute_view_id' => $attributeViewId,
@@ -313,20 +314,20 @@ class ImportProfileService
     }
 
     /**
-     * Konvertiert einen Spaltennamen in einen technical_name.
-     * z.B. "Farbe (RAL)" → "farbe_ral"
+     * Konvertiert einen Spaltennamen in einen technical_name (kebab-case).
+     * z.B. "3. Lieferzeit in Kalendertage" → "3-lieferzeit-in-kalendertage"
      */
     private function toTechnicalName(string $header): string
     {
         $name = mb_strtolower($header);
         // Umlaute ersetzen
         $name = str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $name);
-        // Alles was kein Buchstabe/Zahl ist → Unterstrich
-        $name = preg_replace('/[^a-z0-9]+/', '_', $name);
-        // Mehrere Unterstriche zusammenfassen, Anfang/Ende trimmen
-        $name = trim(preg_replace('/_+/', '_', $name), '_');
+        // Alles was kein Buchstabe/Zahl ist → Bindestrich
+        $name = preg_replace('/[^a-z0-9]+/', '-', $name);
+        // Mehrere Bindestriche zusammenfassen, Anfang/Ende trimmen
+        $name = trim(preg_replace('/-+/', '-', $name), '-');
 
-        return $name ?: 'attr_' . Str::random(6);
+        return $name ?: 'attr-' . Str::random(6);
     }
 
     /**

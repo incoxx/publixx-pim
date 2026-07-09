@@ -247,6 +247,7 @@ const allUnmappedChecked = computed(() =>
 )
 
 function toggleAllAutoGenerate() {
+  if (!selectedNodeId.value) return
   const allChecked = autoGenerateSelectedCount.value === columnMappings.value.filter(m => !m.target_attribute_id).length
   for (const m of columnMappings.value) {
     if (!m.target_attribute_id) {
@@ -256,8 +257,8 @@ function toggleAllAutoGenerate() {
 }
 
 async function runAutoGenerate() {
-  if (!selectedNodeId.value || !selectedViewId.value) {
-    error.value = 'Bitte Kategorie und Attribut-Sicht auswählen'
+  if (!selectedNodeId.value) {
+    error.value = 'Bitte oben eine Hierarchie und einen Knoten (Kategorie) auswählen'
     return
   }
   const columns = columnMappings.value
@@ -277,7 +278,7 @@ async function runAutoGenerate() {
   try {
     const { data } = await importProfilesApi.autoGenerateAttributes({
       hierarchy_node_id: selectedNodeId.value,
-      attribute_view_id: selectedViewId.value,
+      attribute_view_id: selectedViewId.value || undefined,
       attribute_type_id: selectedAttributeTypeId.value || undefined,
       columns,
     })
@@ -722,6 +723,10 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
           </button>
         </div>
 
+        <div v-if="!selectedNodeId" class="text-[10px] text-amber-600">
+          Bitte oben eine Hierarchie und einen Knoten (Kategorie) auswählen, um Attribute automatisch anlegen zu können.
+        </div>
+
         <div class="space-y-2 max-h-[400px] overflow-y-auto">
           <!-- Header mit Select-All Checkbox -->
           <div class="flex items-center gap-2 p-2 rounded-lg bg-[var(--color-bg)] border-b border-[var(--color-border)] sticky top-0 z-10">
@@ -729,9 +734,10 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
               type="checkbox"
               :checked="allUnmappedChecked"
               :indeterminate="autoGenerateSelectedCount > 0 && !allUnmappedChecked"
+              :disabled="!selectedNodeId"
               @change="toggleAllAutoGenerate"
               class="checkbox checkbox-xs checkbox-accent shrink-0"
-              title="Alle nicht zugeordneten auswählen / abwählen"
+              :title="selectedNodeId ? 'Alle nicht zugeordneten auswählen / abwählen' : 'Bitte zuerst Kategorie auswählen'"
             />
             <span class="text-[10px] font-medium text-[var(--color-text-tertiary)]">Alle auswählen ({{ autoGenerateSelectedCount }}/{{ unmappedCount }})</span>
           </div>
@@ -748,9 +754,9 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
             <input
               type="checkbox"
               v-model="autoGenerateChecked[mapping.source]"
-              :disabled="!!mapping.target_attribute_id"
+              :disabled="!!mapping.target_attribute_id || !selectedNodeId"
               class="checkbox checkbox-xs checkbox-accent shrink-0"
-              :title="mapping.target_attribute_id ? 'Bereits zugeordnet' : 'Für Auto-Anlage markieren'"
+              :title="mapping.target_attribute_id ? 'Bereits zugeordnet' : (!selectedNodeId ? 'Bitte zuerst Kategorie auswählen' : 'Attribut anlegen (falls nicht vorhanden)')"
             />
             <span class="text-xs font-mono text-[var(--color-text-secondary)] w-36 truncate" :title="mapping.source">
               {{ mapping.source }}
@@ -814,7 +820,7 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
             <div>
               <label class="block text-[10px] font-medium text-[var(--color-text-secondary)] mb-1">Attribut-Sicht</label>
               <select class="pim-input text-xs w-full" v-model="selectedViewId">
-                <option :value="null">— Sicht wählen —</option>
+                <option :value="null">— Optional —</option>
                 <option v-for="v in attributeViews" :key="v.id" :value="v.id">{{ v.name_de || v.technical_name }}</option>
               </select>
             </div>
@@ -829,7 +835,7 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
 
           <button
             class="pim-btn pim-btn-primary text-xs"
-            :disabled="autoGenerating || autoGenerateSelectedCount === 0 || !selectedNodeId || !selectedViewId"
+            :disabled="autoGenerating || autoGenerateSelectedCount === 0 || !selectedNodeId"
             @click="runAutoGenerate"
           >
             <Plus v-if="!autoGenerating" class="w-3.5 h-3.5" :stroke-width="2" />

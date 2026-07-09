@@ -117,8 +117,9 @@ class ImportProfileController extends Controller
     }
 
     /**
-     * Auto-Generate: Erstellt fehlende Attribute aus Excel-Spalten,
-     * ordnet sie einer AttributeView und einer Kategorie (HierarchyNode) zu.
+     * Auto-Generate: Erstellt fehlende Attribute aus Excel-Spalten und ordnet sie
+     * der Kategorie (HierarchyNode, verpflichtend) sowie optional einer AttributeView
+     * und einer Attributgruppe zu.
      */
     public function autoGenerateAttributes(Request $request): JsonResponse
     {
@@ -126,7 +127,7 @@ class ImportProfileController extends Controller
 
         $validated = $request->validate([
             'hierarchy_node_id' => 'required|string|uuid|exists:hierarchy_nodes,id',
-            'attribute_view_id' => 'required|string|uuid|exists:attribute_views,id',
+            'attribute_view_id' => 'nullable|string|uuid|exists:attribute_views,id',
             'attribute_type_id' => 'nullable|string|uuid|exists:attribute_types,id',
             'columns' => 'required|array|min:1',
             'columns.*.header' => 'required|string|max:255',
@@ -138,7 +139,7 @@ class ImportProfileController extends Controller
         $result = $this->importService->autoGenerateAttributes(
             $validated['columns'],
             $validated['hierarchy_node_id'],
-            $validated['attribute_view_id'],
+            $validated['attribute_view_id'] ?? null,
             $validated['attribute_type_id'] ?? null,
         );
 
