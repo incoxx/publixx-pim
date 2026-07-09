@@ -10,7 +10,8 @@
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Noto Sans', DejaVu Sans, sans-serif; font-size: 10pt; color: #1f2937; }
-        .page { position: relative; width: 210mm; }
+        {{-- padding statt eines leeren Randes: Inhalte lagen zuvor bis an die physische Papierkante --}}
+        .page { position: relative; width: 210mm; padding: 15mm; }
 
         {{-- overflow:hidden -- default_render_template_id ist nur als nullable|uuid validiert,
              eine fuer die ganzseitige Produkt-Vorlage gedachte PdfTemplate (Elemente bei
@@ -23,9 +24,9 @@
         .doc-meta .ref { color: #4b5563; }
 
         .address-block { white-space: pre-line; margin-bottom: 4mm; }
-        .cover-text { margin-bottom: 4mm; }
-        .payment-terms { margin-bottom: 6mm; }
-        .payment-terms .label { font-weight: bold; }
+        .header-attributes { margin-bottom: 6mm; }
+        .header-attribute { margin-bottom: 1mm; }
+        .header-attribute .label { font-weight: bold; }
 
         table.items { width: 100%; border-collapse: collapse; font-size: 9pt; }
         table.items th {
@@ -35,6 +36,7 @@
         table.items td { border: 1px solid #e5e7eb; padding: 2mm; vertical-align: top; }
         table.items td.num { text-align: right; }
         table.items tr.line-text td { border-top: none; color: #4b5563; font-size: 8.5pt; padding-top: 0; }
+        table.items tr.line-text .label { font-weight: bold; }
 
         .totals { width: 100%; margin-top: 4mm; }
         .totals td { padding: 1mm 2mm; }

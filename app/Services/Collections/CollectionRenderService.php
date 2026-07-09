@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Collections;
 
+use App\Models\Attribute;
+use App\Models\AttributeView;
 use App\Models\Collection;
 use App\Models\CollectionAttributeValue;
 use App\Models\CollectionItem;
@@ -96,7 +98,9 @@ class CollectionRenderService
             'items.product',
             'items.unit',
             'items.attributeValues.attribute',
+            'items.attributeValues.valueListEntry',
             'attributeValues.attribute',
+            'attributeValues.valueListEntry',
         ]);
 
         $headerVm = $this->buildHeaderViewModel($collection);
@@ -133,7 +137,7 @@ class CollectionRenderService
     }
 
     /**
-     * @return array<int, array{position:int,name:?string,sku:?string,quantity:float,unit_label:?string,unit_price:?float,currency:?string,discount_percent:float,line_text:?string,line_total:?float,price_warning:bool}>
+     * @return array<int, array{position:int,name:?string,sku:?string,quantity:float,unit_label:?string,unit_price:?float,currency:?string,discount_percent:float,display_attributes:array,line_total:?float,price_warning:bool}>
      */
     private function buildItemViewModels(Collection $collection): array
     {
@@ -156,9 +160,20 @@ class CollectionRenderService
         $priceWarning = (bool) ($data['price_warning'] ?? false);
 
         $discountPercent = (float) ($this->findValueByTechnicalName($item->attributeValues, $type->default_discount_attribute) ?? 0);
-        $lineText = $this->findValueByTechnicalName($item->attributeValues, $type->default_line_text_attribute);
+        // Rabatt hat bereits seine eigene Tabellenspalte -- falls dasselbe Attribut auch Mitglied
+        // der Positions-Attributgruppe ist (z.B. Demo-Typ "angebot"), nicht zusaetzlich als
+        // generische Anzeigezeile duplizieren.
+        $displayAttributes = $this->resolveGroupDisplayValues(
+            $item->attributeValues,
+            $type->default_item_attribute_groups ?? [],
+            $type->default_discount_attribute
+        );
 
         $unitPrice = $price['amount'] ?? null;
+        // Kein Preis ermittelbar (egal ob PriceResolver keinen fand ODER eine Freitextposition
+        // schlicht nie einen bekam) -- immer als "Preis auf Anfrage" kennzeichnen statt eine
+        // leere Zelle zu rendern, die wie ein Darstellungsfehler aussieht.
+        $priceWarning = $priceWarning || $unitPrice === null;
         $lineTotal = ($unitPrice !== null && !$priceWarning)
             ? round($unitPrice * (float) $item->quantity * (1 - $discountPercent / 100), 2)
             : null;
@@ -172,7 +187,7 @@ class CollectionRenderService
             'unit_price' => $unitPrice,
             'currency' => $price['currency'] ?? $currency,
             'discount_percent' => $discountPercent,
-            'line_text' => $lineText,
+            'display_attributes' => $displayAttributes,
             'line_total' => $lineTotal,
             'price_warning' => $priceWarning,
         ];
@@ -197,8 +212,7 @@ class CollectionRenderService
         $type = $collection->collectionType;
         $organization = $collection->organization;
 
-        $paymentTerms = $this->findValueByTechnicalName($collection->attributeValues, $type->default_payment_terms_attribute);
-        $coverText = $this->findValueByTechnicalName($collection->attributeValues, $type->default_cover_text_attribute);
+        $displayAttributes = $this->resolveGroupDisplayValues($collection->attributeValues, $type->default_attribute_groups ?? []);
 
         $templateElements = $this->headerResolver->resolve(
             $type->defaultRenderTemplate,
@@ -213,8 +227,7 @@ class CollectionRenderService
             'reference' => $collection->reference,
             'organization_name' => $address['name'],
             'address_block' => $address['block'],
-            'payment_terms' => $paymentTerms,
-            'cover_text' => $coverText,
+            'display_attributes' => $displayAttributes,
             'valid_from' => $collection->valid_from?->format('d.m.Y'),
             'valid_until' => $collection->valid_until?->format('d.m.Y'),
             'currency' => $collection->currency ?? $organization?->currency ?? 'EUR',
@@ -288,12 +301,8 @@ class CollectionRenderService
 
     /**
      * Loest einen Wert ueber den EXAKTEN, pro Collection-Typ konfigurierten technical_name auf
-     * (collection_types.default_discount_attribute/default_line_text_attribute/
-     * default_payment_terms_attribute/default_cover_text_attribute -- gleiches Muster wie
-     * default_price_type). Ersetzt das fruehere Suffix-Matching (str_ends_with gegen
-     * '-rabatt'/'-positionstext'/...), das nur fuer die exakte Namenskonvention des
-     * Demo-Typs 'angebot' funktionierte und bei jedem anderen collection_type oder einer
-     * zufaelligen Namensueberschneidung stillschweigend falsch/leer aufloeste. Ist fuer den
+     * (aktuell nur noch collection_types.default_discount_attribute -- der einzige verbleibende
+     * Einzelrollen-Wert, weil er rechnerisch in die Positionssumme eingeht). Ist fuer den
      * Collection-Typ kein Attribut konfiguriert ($technicalName === null), wird nichts
      * aufgeloest -- kein Rateversuch ueber alle Attributwerte hinweg.
      *
@@ -314,6 +323,63 @@ class CollectionRenderService
         }
 
         return $match->value_string ?? ($match->value_number !== null ? (string) $match->value_number : null);
+    }
+
+    /**
+     * Loest die einer oder mehreren Attributgruppen (AttributeView.technical_name, aus
+     * collection_types.default_attribute_groups/default_item_attribute_groups) zugeordneten
+     * Attribute auf und liefert fuer jedes davon Label + gesetzten Wert -- in der Reihenfolge
+     * Attribute.position (gleiche Sortierkonvention wie an jeder anderen Stelle im Repo, z.B.
+     * Composite-Kindattribute). Attribute ohne gesetzten Wert werden nicht mitgeliefert, damit
+     * die Positions-/Kopfdaten-Ausgabe keine leeren "Label:" Zeilen zeigt. Ersetzt die vorherigen
+     * Einzelrollen-Felder default_line_text_attribute/default_payment_terms_attribute/
+     * default_cover_text_attribute -- beliebig viele, vom Nutzer in der Attributgruppe selbst
+     * geordnete Attribute statt genau eines pro fest programmierter Rolle.
+     *
+     * @param  EloquentCollection<int, CollectionAttributeValue>  $attributeValues
+     * @param  array<int, string>  $groupTechnicalNames
+     * @param  string|null  $excludeTechnicalName  z.B. default_discount_attribute -- hat bereits
+     *         eine eigene Tabellenspalte, wird hier nicht zusaetzlich als Anzeigezeile dupliziert.
+     * @return array<int, array{label: string, value: string}>
+     */
+    private function resolveGroupDisplayValues(EloquentCollection $attributeValues, array $groupTechnicalNames, ?string $excludeTechnicalName = null): array
+    {
+        if (empty($groupTechnicalNames)) {
+            return [];
+        }
+
+        $attributeIds = AttributeView::whereIn('technical_name', $groupTechnicalNames)
+            ->with(['attributes' => fn ($q) => $q->orderBy('position')])
+            ->get()
+            ->flatMap(fn (AttributeView $view) => $view->attributes)
+            ->unique('id')
+            ->reject(fn (Attribute $attribute) => $excludeTechnicalName !== null && $attribute->technical_name === $excludeTechnicalName)
+            ->values();
+
+        $result = [];
+        foreach ($attributeIds as $attribute) {
+            /** @var Attribute $attribute */
+            $match = $attributeValues->first(
+                fn (CollectionAttributeValue $value) => $value->attribute_id === $attribute->id
+            );
+
+            if ($match === null) {
+                continue;
+            }
+
+            $value = $match->value_string
+                ?? ($match->value_number !== null ? (string) $match->value_number : null)
+                ?? ($match->value_flag !== null ? ($match->value_flag ? 'Ja' : 'Nein') : null)
+                ?? $match->valueListEntry?->display_value_de;
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            $result[] = ['label' => $attribute->name_de, 'value' => $value];
+        }
+
+        return $result;
     }
 
     /**

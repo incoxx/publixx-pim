@@ -61,12 +61,12 @@
 @endif</div>
     @endif
 
-    @if (!empty($header['cover_text']))
-        <div class="cover-text">{!! nl2br(e($header['cover_text'])) !!}</div>
-    @endif
-
-    @if (!empty($header['payment_terms']))
-        <div class="payment-terms"><span class="label">Zahlungsbedingungen:</span> {{ $header['payment_terms'] }}</div>
+    @if (!empty($header['display_attributes']))
+        <div class="header-attributes">
+            @foreach ($header['display_attributes'] as $attr)
+                <div class="header-attribute"><span class="label">{{ $attr['label'] }}:</span> {!! nl2br(e($attr['value'])) !!}</div>
+            @endforeach
+        </div>
     @endif
 
     <table class="items">
@@ -103,12 +103,12 @@
                         <td class="num">{{ $item['line_total'] !== null ? number_format($item['line_total'], 2, ',', '.') . ' ' . $item['currency'] : '' }}</td>
                     @endif
                 </tr>
-                @if (!empty($item['line_text']))
+                @foreach ($item['display_attributes'] ?? [] as $attr)
                     <tr class="line-text">
                         <td></td>
-                        <td colspan="6">{{ $item['line_text'] }}</td>
+                        <td colspan="6"><span class="label">{{ $attr['label'] }}:</span> {{ $attr['value'] }}</td>
                     </tr>
-                @endif
+                @endforeach
             @endforeach
         </tbody>
     </table>

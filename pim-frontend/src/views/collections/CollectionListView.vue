@@ -99,6 +99,9 @@ async function selectCollection(row) {
   selected.value = data.data
   addressDraft.value = { ...(selected.value.address || {}) }
   expandedItemId.value = null
+  // itemAttrDefs haengt vom Collection-Typ ab (default_item_attribute_groups) -- Cache aus
+  // toggleItemAttributes() beim Wechsel auf eine andere Collection ungueltig machen.
+  itemAttrDefs.value = []
   await store.fetchItems(row.id)
   await loadCollectionAttributes()
 }
@@ -125,7 +128,20 @@ const collectionAttrDefs = ref([])
 const collectionAttrValues = ref({})
 
 async function loadCollectionAttributes() {
-  const { data: defs } = await attributesApi.list({ filters: { applies_to: 'collection', is_internal: 0 }, perPage: 100 })
+  // Auf die dem Collection-Typ zugeordnete(n) Attributgruppe(n) beschraenkt (default_attribute_groups).
+  // Bewusst KEIN Fallback auf "alle applies_to=collection Attribute" ohne zugeordnete Gruppe --
+  // CollectionRenderService::resolveGroupDisplayValues() rendert bei leeren Gruppen ebenfalls
+  // nichts. Ein Fallback wuerde hier Werte editierbar machen, die im Export nie erscheinen.
+  const groups = selected.value.collection_type?.default_attribute_groups
+  if (!groups?.length) {
+    collectionAttrDefs.value = []
+    collectionAttrValues.value = {}
+    return
+  }
+  const { data: defs } = await attributesApi.list({
+    filters: { applies_to: 'collection', is_internal: 0, attribute_view: groups.join(',') },
+    perPage: 100,
+  })
   collectionAttrDefs.value = defs.data
   const { data: vals } = await collectionsApi.getAttributeValues(selected.value.id)
   const map = {}
@@ -158,8 +174,27 @@ async function toggleItemAttributes(item) {
   }
   expandedItemId.value = item.id
   if (!itemAttrDefs.value.length) {
-    const { data: defs } = await attributesApi.list({ filters: { applies_to: 'collection_item', is_internal: 0 }, perPage: 100 })
-    itemAttrDefs.value = defs.data
+    // Auf die dem Collection-Typ zugeordnete(n) Attributgruppe(n) beschraenkt (default_item_attribute_groups).
+    // Bewusst KEIN Fallback auf "alle applies_to=collection_item Attribute" ohne zugeordnete Gruppe
+    // -- siehe loadCollectionAttributes()/CollectionRenderService::resolveGroupDisplayValues().
+    const groups = selected.value.collection_type?.default_item_attribute_groups
+    let defs = []
+    if (groups?.length) {
+      const { data } = await attributesApi.list({
+        filters: { applies_to: 'collection_item', is_internal: 0, attribute_view: groups.join(',') },
+        perPage: 100,
+      })
+      defs = data.data
+    }
+    // Rabatt-Attribut braucht immer ein Eingabefeld, auch wenn es (noch) kein Mitglied der
+    // zugeordneten Gruppe ist -- ohne UI-Zugriff waere der Rabatt sonst nicht pflegbar.
+    const discountTechnicalName = selected.value.collection_type?.default_discount_attribute
+    if (discountTechnicalName && !defs.some((a) => a.technical_name === discountTechnicalName)) {
+      const { data } = await attributesApi.list({ filters: { applies_to: 'collection_item' }, search: discountTechnicalName, perPage: 5 })
+      const match = (data.data || []).find((a) => a.technical_name === discountTechnicalName)
+      if (match) defs = [...defs, match]
+    }
+    itemAttrDefs.value = defs
   }
   const { data: vals } = await collectionItemsApi.getAttributeValues(selected.value.id, item.id)
   const map = {}

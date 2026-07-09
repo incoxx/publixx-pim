@@ -18,7 +18,7 @@ class CollectionXlsxWriter
     private const HEADERS = ['Pos.', 'SKU', 'Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', 'Rabatt %', 'Positionssumme'];
 
     /**
-     * @param  array  $headerVm  {name, reference, organization_name, address_block, payment_terms, cover_text, currency}
+     * @param  array  $headerVm  {name, reference, organization_name, address_block, display_attributes, currency}
      * @param  array<int, array>  $items  Normalisierte Zeilen aus CollectionRenderService::normalizeItemViewModel()
      */
     public function writeToFile(array $headerVm, array $items, float $grandTotal, string $outputPath): void
@@ -38,8 +38,8 @@ class CollectionXlsxWriter
             $sheet->setCellValue([1, $row], $headerVm['organization_name']);
             $row++;
         }
-        if (!empty($headerVm['payment_terms'])) {
-            $sheet->setCellValue([1, $row], 'Zahlungsbedingungen: ' . $headerVm['payment_terms']);
+        foreach ($headerVm['display_attributes'] ?? [] as $attr) {
+            $sheet->setCellValue([1, $row], $attr['label'] . ': ' . $attr['value']);
             $row++;
         }
 
@@ -72,6 +72,11 @@ class CollectionXlsxWriter
             $sheet->setCellValue([7, $row], $item['discount_percent'] ?? '');
 
             $row++;
+
+            foreach ($item['display_attributes'] ?? [] as $attr) {
+                $sheet->setCellValue([3, $row], $attr['label'] . ': ' . $attr['value']);
+                $row++;
+            }
         }
 
         $sheet->setCellValue([7, $row], 'Gesamt');
