@@ -128,9 +128,9 @@ const collectionAttrDefs = ref([])
 const collectionAttrValues = ref({})
 
 async function loadCollectionAttributes() {
-  // Auf die dem Collection-Typ zugeordnete Attributgruppe beschraenkt (default_attribute_groups).
-  // Bewusst KEIN Fallback auf "alle Attribute" ohne zugeordnete Gruppe -- CollectionRenderService::
-  // resolveGroupDisplayValues() rendert bei leerer Gruppe ebenfalls nichts. Ein Fallback wuerde
+  // Auf die dem Collection-Typ zugeordnete Attributsicht beschraenkt (default_attribute_groups).
+  // Bewusst KEIN Fallback auf "alle Attribute" ohne zugeordnete Sicht -- CollectionRenderService::
+  // resolveGroupDisplayValues() rendert bei leerer Sicht ebenfalls nichts. Ein Fallback wuerde
   // hier Werte editierbar machen, die im Export nie erscheinen.
   const groups = selected.value.collection_type?.default_attribute_groups
   if (!groups?.length) {
@@ -174,7 +174,7 @@ async function toggleItemAttributes(item) {
   }
   expandedItemId.value = item.id
   if (!itemAttrDefs.value.length) {
-    // Auf die dem Collection-Typ zugeordnete Attributgruppe beschraenkt (default_item_attribute_groups)
+    // Auf die dem Collection-Typ zugeordnete Attributsicht beschraenkt (default_item_attribute_groups)
     // -- siehe loadCollectionAttributes()/CollectionRenderService::resolveGroupDisplayValues().
     const groups = selected.value.collection_type?.default_item_attribute_groups
     let defs = []

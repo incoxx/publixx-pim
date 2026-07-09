@@ -190,7 +190,7 @@ class AttributeController extends Controller
     /**
      * filter[attribute_view]=technical_name1,technical_name2 -- z.B. genutzt von Collections,
      * um Kopfdaten-/Positions-Attribute auf die dem jeweiligen CollectionType zugeordnete(n)
-     * Attributgruppe(n) zu beschraenken (siehe CollectionType.default_attribute_groups/
+     * Attributsicht(en) zu beschraenken (siehe CollectionType.default_attribute_groups/
      * default_item_attribute_groups).
      */
     private function applyAttributeViewFilter($query, Request $request): void
