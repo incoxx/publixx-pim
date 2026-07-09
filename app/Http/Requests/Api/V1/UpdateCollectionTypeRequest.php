@@ -19,7 +19,7 @@ class UpdateCollectionTypeRequest extends FormRequest
         return [
             'technical_name' => [
                 'sometimes', 'string', 'max:100',
-                Rule::unique('collection_types', 'technical_name')->ignore($this->route('collection_type')),
+                Rule::unique('collection_types', 'technical_name')->ignore($this->route('collectionType')),
             ],
             'name_de' => 'sometimes|string|max:255',
             'name_en' => 'nullable|string|max:255',
