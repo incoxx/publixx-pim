@@ -1,8 +1,8 @@
-import client from './client'
+import client, { buildParams } from './client'
 
 export const priceRegions = {
-  list() {
-    return client.get('/price-regions')
+  list(params = {}) {
+    return client.get('/price-regions', { params: buildParams(params) })
   },
   create(data) {
     return client.post('/price-regions', data)

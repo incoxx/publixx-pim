@@ -1,8 +1,8 @@
 import client, { buildParams } from './client'
 
 export const priceTypes = {
-  list() {
-    return client.get('/price-types')
+  list(params = {}) {
+    return client.get('/price-types', { params: buildParams(params) })
   },
   create(data) {
     return client.post('/price-types', data)

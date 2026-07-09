@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, markRaw } from 'vue'
+import { ref, computed, onMounted, markRaw } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { referenceProfiles } from '@/api/referenceProfiles'
 import { Plus } from 'lucide-vue-next'
@@ -39,6 +39,30 @@ const columns = [
 
 const deleteTarget = ref(null)
 const deleting = ref(false)
+
+// Backend liefert die komplette, unpaginierte Liste (kleine Referenzdatenmenge) —
+// Sortierung läuft daher clientseitig über die bereits vollständig geladenen items.
+const sortField = ref('name')
+const sortOrder = ref('asc')
+
+const sortedItems = computed(() => {
+  const list = [...items.value]
+  list.sort((a, b) => {
+    const av = a[sortField.value]
+    const bv = b[sortField.value]
+    if (av == null && bv == null) return 0
+    if (av == null) return -1
+    if (bv == null) return 1
+    const cmp = String(av).localeCompare(String(bv), 'de', { numeric: true, sensitivity: 'base' })
+    return sortOrder.value === 'asc' ? cmp : -cmp
+  })
+  return list
+})
+
+function handleSort(field, order) {
+  sortField.value = field
+  sortOrder.value = order
+}
 
 function openCreatePanel() {
   authStore.openPanel(markRaw(ReferenceProfileFormPanel), { profile: null, onSaved: fetchProfiles }, '640px')
@@ -87,10 +111,13 @@ onMounted(fetchProfiles)
 
     <PimTable
       :columns="columns"
-      :rows="items"
+      :rows="sortedItems"
       :loading="loading"
+      :sortField="sortField"
+      :sortOrder="sortOrder"
       :showActions="canDelete()"
       emptyText="Noch keine Referenz-Profile angelegt"
+      @sort="handleSort"
       @row-click="openEditPanel"
       @row-action="handleRowAction"
     >

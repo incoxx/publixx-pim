@@ -19,20 +19,43 @@ const formErrors = ref({})
 const formSaving = ref(false)
 
 const columns = [
-  { key: 'technical_name', label: 'Technischer Name', mono: true },
-  { key: 'name_de', label: 'Name (DE)' },
-  { key: 'name_en', label: 'Name (EN)' },
-  { key: 'sort_order', label: 'Sortierung', width: '100px' },
+  { key: 'technical_name', label: 'Technischer Name', mono: true, sortable: true },
+  { key: 'name_de', label: 'Name (DE)', sortable: true },
+  { key: 'name_en', label: 'Name (EN)', sortable: true },
+  { key: 'sort_order', label: 'Sortierung', width: '100px', sortable: true },
 ]
 
 const tableRows = computed(() => items.value)
 
+const meta = ref({ current_page: 1, last_page: 1, total: 0, per_page: 25 })
+const sortField = ref('sort_order')
+const sortOrder = ref('asc')
+
 async function fetchItems() {
   loading.value = true
   try {
-    const { data } = await mediaLanguages.list()
+    const { data } = await mediaLanguages.list({
+      sort: sortField.value,
+      order: sortOrder.value,
+      perPage: meta.value.per_page,
+      page: meta.value.current_page,
+    })
     items.value = data.data || data
+    if (data.meta) meta.value = data.meta
   } finally { loading.value = false }
+}
+
+function handleSort(field, order) {
+  sortField.value = field
+  sortOrder.value = order
+  meta.value.current_page = 1
+  fetchItems()
+}
+
+function handlePageChange(page) {
+  if (page < 1 || page > meta.value.last_page) return
+  meta.value.current_page = page
+  fetchItems()
 }
 
 function openForm(item = null) {
@@ -139,11 +162,25 @@ onMounted(() => {
       :columns="columns"
       :rows="tableRows"
       :loading="loading"
+      :sortField="sortField"
+      :sortOrder="sortOrder"
       :showActions="authStore.hasPermission('media-languages.delete')"
       emptyText="Keine Sprachen vorhanden"
+      @sort="handleSort"
       @row-click="openForm"
       @row-action="(row) => deleteTarget = row"
-    />
+    >
+      <template #pagination>
+        <div class="flex items-center justify-between px-4 py-3 border-t border-[var(--color-border)]">
+          <span class="text-xs text-[var(--color-text-tertiary)]">{{ meta.total }} Sprachen</span>
+          <div class="flex items-center gap-1">
+            <button class="pim-btn pim-btn-ghost text-xs" :disabled="meta.current_page <= 1" @click="handlePageChange(meta.current_page - 1)">Zurück</button>
+            <span class="text-xs text-[var(--color-text-secondary)] px-2">{{ meta.current_page }} / {{ meta.last_page }}</span>
+            <button class="pim-btn pim-btn-ghost text-xs" :disabled="meta.current_page >= meta.last_page" @click="handlePageChange(meta.current_page + 1)">Weiter</button>
+          </div>
+        </div>
+      </template>
+    </PimTable>
 
     <PimDeleteConfirmDialog
       :open="!!deleteTarget"

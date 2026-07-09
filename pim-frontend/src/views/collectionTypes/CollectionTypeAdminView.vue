@@ -15,6 +15,9 @@ const search = ref('')
 const deleteTarget = ref(null)
 const deleting = ref(false)
 const deleteError = ref('')
+const meta = ref({ current_page: 1, last_page: 1, total: 0, per_page: 25 })
+const sortField = ref('sort_order')
+const sortOrder = ref('asc')
 
 const columns = [
   { key: 'technical_name', label: 'Code', sortable: true, mono: true },
@@ -29,11 +32,31 @@ const columns = [
 async function fetchTypes() {
   loading.value = true
   try {
-    const { data } = await collectionTypes.list({ search: search.value, perPage: 100 })
+    const { data } = await collectionTypes.list({
+      search: search.value,
+      sort: sortField.value,
+      order: sortOrder.value,
+      perPage: meta.value.per_page,
+      page: meta.value.current_page,
+    })
     items.value = data.data || data
+    if (data.meta) meta.value = data.meta
   } finally {
     loading.value = false
   }
+}
+
+function handleSort(field, order) {
+  sortField.value = field
+  sortOrder.value = order
+  meta.value.current_page = 1
+  fetchTypes()
+}
+
+function handlePageChange(page) {
+  if (page < 1 || page > meta.value.last_page) return
+  meta.value.current_page = page
+  fetchTypes()
 }
 
 function openCreatePanel() {
@@ -86,15 +109,18 @@ onMounted(() => fetchTypes())
     <PimFilterBar
       :search="search"
       placeholder="Collection-Typen durchsuchen…"
-      @update:search="v => { search = v; fetchTypes() }"
+      @update:search="v => { search = v; meta.current_page = 1; fetchTypes() }"
     />
 
     <PimTable
       :columns="columns"
       :rows="items"
       :loading="loading"
+      :sortField="sortField"
+      :sortOrder="sortOrder"
       :showActions="authStore.hasPermission('collection-types.delete')"
       emptyText="Keine Collection-Typen gefunden"
+      @sort="handleSort"
       @row-click="openEditPanel"
       @row-action="handleRowAction"
     >
@@ -106,6 +132,18 @@ onMounted(() => fetchTypes())
       </template>
       <template #cell-is_active="{ value }">
         <span :class="value ? 'text-[var(--color-success)]' : 'text-[var(--color-text-tertiary)]'">{{ value ? 'Ja' : 'Nein' }}</span>
+      </template>
+
+      <!-- Pagination -->
+      <template #pagination>
+        <div class="flex items-center justify-between px-4 py-3 border-t border-[var(--color-border)]">
+          <span class="text-xs text-[var(--color-text-tertiary)]">{{ meta.total }} Collection-Typen</span>
+          <div class="flex items-center gap-1">
+            <button class="pim-btn pim-btn-ghost text-xs" :disabled="meta.current_page <= 1" @click="handlePageChange(meta.current_page - 1)">Zurück</button>
+            <span class="text-xs text-[var(--color-text-secondary)] px-2">{{ meta.current_page }} / {{ meta.last_page }}</span>
+            <button class="pim-btn pim-btn-ghost text-xs" :disabled="meta.current_page >= meta.last_page" @click="handlePageChange(meta.current_page + 1)">Weiter</button>
+          </div>
+        </div>
       </template>
     </PimTable>
 

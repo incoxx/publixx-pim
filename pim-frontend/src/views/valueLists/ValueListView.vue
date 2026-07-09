@@ -14,6 +14,9 @@ const loading = ref(false)
 const search = ref('')
 const deleteTarget = ref(null)
 const deleting = ref(false)
+const meta = ref({ current_page: 1, last_page: 1, total: 0, per_page: 25 })
+const sortField = ref('name_de')
+const sortOrder = ref('asc')
 
 // Detail / Entries state
 const selectedList = ref(null)
@@ -43,12 +46,33 @@ const columns = [
 async function fetchLists() {
   loading.value = true
   try {
-    const { data } = await valueLists.list({ include: 'entries,attributes', search: search.value || undefined })
+    const { data } = await valueLists.list({
+      include: 'entries,attributes',
+      search: search.value || undefined,
+      sort: sortField.value,
+      order: sortOrder.value,
+      perPage: meta.value.per_page,
+      page: meta.value.current_page,
+    })
     items.value = (data.data || data).map(item => ({
       ...item,
       entries_count: item.entries?.length ?? item.entries_count ?? 0,
     }))
+    if (data.meta) meta.value = data.meta
   } finally { loading.value = false }
+}
+
+function handleSort(field, order) {
+  sortField.value = field
+  sortOrder.value = order
+  meta.value.current_page = 1
+  fetchLists()
+}
+
+function handlePageChange(page) {
+  if (page < 1 || page > meta.value.last_page) return
+  meta.value.current_page = page
+  fetchLists()
 }
 
 function openCreatePanel() {
@@ -198,17 +222,31 @@ onMounted(() => fetchLists())
         <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Wertelisten</h2>
         <button v-if="authStore.hasPermission('value-lists.create')" class="pim-btn pim-btn-primary" @click="openCreatePanel"><Plus class="w-4 h-4" :stroke-width="2" /> Neue Werteliste</button>
       </div>
-      <PimFilterBar :search="search" placeholder="Wertelisten durchsuchen..." @update:search="v => { search = v; fetchLists() }" />
+      <PimFilterBar :search="search" placeholder="Wertelisten durchsuchen..." @update:search="v => { search = v; meta.current_page = 1; fetchLists() }" />
       <PimTable
         :columns="columns"
         :rows="items"
         :loading="loading"
+        :sortField="sortField"
+        :sortOrder="sortOrder"
         :activeRowId="selectedList?.id"
         :showActions="authStore.hasPermission('value-lists.delete')"
         emptyText="Keine Wertelisten"
+        @sort="handleSort"
         @row-click="selectList"
         @row-action="handleRowAction"
-      />
+      >
+        <template #pagination>
+          <div class="flex items-center justify-between px-4 py-3 border-t border-[var(--color-border)]">
+            <span class="text-xs text-[var(--color-text-tertiary)]">{{ meta.total }} Wertelisten</span>
+            <div class="flex items-center gap-1">
+              <button class="pim-btn pim-btn-ghost text-xs" :disabled="meta.current_page <= 1" @click="handlePageChange(meta.current_page - 1)">Zurück</button>
+              <span class="text-xs text-[var(--color-text-secondary)] px-2">{{ meta.current_page }} / {{ meta.last_page }}</span>
+              <button class="pim-btn pim-btn-ghost text-xs" :disabled="meta.current_page >= meta.last_page" @click="handlePageChange(meta.current_page + 1)">Weiter</button>
+            </div>
+          </div>
+        </template>
+      </PimTable>
     </div>
 
     <!-- Right: Entry management -->

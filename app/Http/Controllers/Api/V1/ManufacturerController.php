@@ -27,6 +27,7 @@ class ManufacturerController extends Controller
             ->withCount('products')
             ->with($this->parseIncludes($request, self::ALLOWED_INCLUDES));
 
+        $this->applySearch($query, $request, ['name', 'city', 'country']);
         $this->applySorting($query, $request, 'name', 'asc');
 
         return ManufacturerResource::collection(
