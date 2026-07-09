@@ -8,6 +8,7 @@ import {
   Code2, ChevronDown, ChevronUp, FolderTree, FolderOpen,
 } from 'lucide-vue-next'
 import { useAttributeStore } from '@/stores/attributes'
+import { useServerQuickLookup } from '@/composables/useServerQuickLookup'
 import watchlistApi from '@/api/watchlist'
 import productsApi from '@/api/products'
 import searchApi from '@/api/search'
@@ -33,8 +34,13 @@ const licenseStore = useLicenseStore()
 const recordNavigatorStore = useRecordNavigatorStore()
 
 const items = ref([])
+const pimTableRef = ref(null)
 const loading = ref(false)
 const error = ref(null)
+
+// Pagination — Merkliste wird serverseitig paginiert
+const currentPage = ref(1)
+const meta = ref({ current_page: 1, last_page: 1, total: 0, per_page: 25 })
 
 // Export state
 const showExportPanel = ref(false)
@@ -102,10 +108,8 @@ const { visibleColumns, allColumns, visibleKeys, toggleColumn, moveColumn, reset
 
 const { columnProfiles, selectedColumnProfileId, loadColumnProfiles, loadColumnProfile, saveColumnProfile, updateColumnProfile, deleteColumnProfile } = useColumnProfiles('watchlist', visibleKeys)
 
-// Quick Lookup
-const showQuickLookup = ref(false)
-const quickLookupFilters = ref({})
-
+// Quick Lookup — filtert serverseitig über die komplette Treffermenge, nicht nur
+// die aktuell angezeigte Seite.
 const statusOptions = [
   { value: 'active', label: 'Aktiv' },
   { value: 'draft', label: 'Entwurf' },
@@ -114,7 +118,7 @@ const statusOptions = [
 ]
 
 const productTypeOptions = computed(() =>
-  attrStore.prodTypes.map(pt => ({ value: pt.name_de || pt.technical_name, label: pt.name_de || pt.technical_name }))
+  attrStore.prodTypes.map(pt => ({ value: pt.id, label: pt.name_de || pt.technical_name }))
 )
 
 const quickLookupConfig = computed(() => {
@@ -131,16 +135,38 @@ const quickLookupConfig = computed(() => {
   return config
 })
 
-function getCellValueForFilter(row, colKey) {
-  const keys = colKey.split('.')
-  let val = row
-  for (const k of keys) val = val?.[k]
-  return val
+// Spalten-Key → Backend-Filterfeld. product.attributes.{id} landet im verschachtelten
+// filter[attributes][id]-Parameter (siehe WatchlistController::index()).
+const QUICK_LOOKUP_FIELD_MAP = {
+  'product.sku': 'sku',
+  'product.name': 'name',
+  'product.status': 'status',
+  'product.product_type.name_de': 'product_type_id',
+  'product.ean': 'ean',
 }
 
-function onQuickLookupChange(filters) {
-  quickLookupFilters.value = filters
+const quickLookupMappedFilters = ref({})
+
+function applyQuickLookupFilters(rawFilters) {
+  const mapped = {}
+  const attributeFilters = {}
+  for (const [colKey, value] of Object.entries(rawFilters)) {
+    if (value === '' || value == null) continue
+    if (colKey.startsWith('product.attributes.')) {
+      attributeFilters[colKey.replace('product.attributes.', '')] = value
+      continue
+    }
+    const field = QUICK_LOOKUP_FIELD_MAP[colKey]
+    if (!field) continue
+    mapped[field] = value
+  }
+  if (Object.keys(attributeFilters).length > 0) mapped.attributes = attributeFilters
+  quickLookupMappedFilters.value = mapped
+  currentPage.value = 1
+  loadWatchlist()
 }
+
+const { showQuickLookup, onQuickLookupChange, toggleQuickLookup } = useServerQuickLookup(applyQuickLookupFilters)
 
 const tableRows = computed(() =>
   items.value.map(item => ({
@@ -150,26 +176,6 @@ const tableRows = computed(() =>
   }))
 )
 
-const filteredTableRows = computed(() => {
-  const rows = tableRows.value
-  if (!showQuickLookup.value) return rows
-  const filters = quickLookupFilters.value
-  const activeFiltersArr = Object.entries(filters).filter(([, v]) => v !== '' && v != null)
-  if (activeFiltersArr.length === 0) return rows
-
-  return rows.filter(row => {
-    return activeFiltersArr.every(([colKey, filterVal]) => {
-      const cellVal = getCellValueForFilter(row, colKey)
-      if (cellVal == null || cellVal === '—') return false
-      const config = quickLookupConfig.value[colKey]
-      if (config?.type === 'select') {
-        return String(cellVal) === String(filterVal)
-      }
-      return String(cellVal).toLowerCase().startsWith(String(filterVal).toLowerCase())
-    })
-  })
-})
-
 async function loadWatchlist() {
   loading.value = true
   error.value = null
@@ -177,13 +183,23 @@ async function loadWatchlist() {
     const attrIds = visibleKeys.value
       .filter(k => k.startsWith('product.attributes.'))
       .map(k => k.replace('product.attributes.', ''))
-    const params = {}
+    const params = { page: currentPage.value }
     if (attrIds.length > 0) {
       params.attribute_columns = attrIds
       params.language = 'de'
     }
+    for (const [field, value] of Object.entries(quickLookupMappedFilters.value)) {
+      if (field === 'attributes') {
+        for (const [attrId, val] of Object.entries(value)) {
+          params[`filter[attributes][${attrId}]`] = val
+        }
+      } else {
+        params[`filter[${field}]`] = value
+      }
+    }
     const { data } = await watchlistApi.list(params)
     items.value = data.data || data
+    if (data.meta) meta.value = data.meta
   } catch (e) {
     error.value = 'Fehler beim Laden der Merkliste'
   } finally {
@@ -191,8 +207,14 @@ async function loadWatchlist() {
   }
 }
 
+function goToPage(page) {
+  if (page < 1 || page > meta.value.last_page) return
+  currentPage.value = page
+  loadWatchlist()
+}
+
 function openProduct(row) {
-  const ids = filteredTableRows.value.map(r => r.product_id).filter(Boolean)
+  const ids = tableRows.value.map(r => r.product_id).filter(Boolean)
   recordNavigatorStore.setContext('Merkliste', ids)
   router.push(`/products/${row.product_id}`)
 }
@@ -205,8 +227,8 @@ async function confirmDelete() {
   deleting.value = true
   try {
     await watchlistApi.remove(deleteTarget.value.id)
-    items.value = items.value.filter(i => i.id !== deleteTarget.value.id)
     deleteTarget.value = null
+    await Promise.all([loadWatchlist(), loadWatchlistProductIds()])
   } finally {
     deleting.value = false
   }
@@ -220,7 +242,9 @@ async function exportExcel() {
       const col = allColumns.value.find(c => c.key === k)
       return col?.exportKey || k
     })
-    const productIds = items.value.map(i => i.product_id).filter(Boolean)
+    // Export bezieht sich immer auf die gesamte Merkliste, nicht nur die aktuell
+    // angezeigte Seite.
+    const productIds = watchlistProductIds.value
     const resp = await productsApi.exportExcel({
       columns: exportColumns,
       product_ids: productIds,
@@ -298,7 +322,7 @@ async function bulkRemoveSelected() {
   try {
     await watchlistApi.bulkRemove(selectedIds.value)
     selectedIds.value = []
-    await loadWatchlist()
+    await Promise.all([loadWatchlist(), loadWatchlistProductIds()])
   } catch (e) { console.error('Bulk remove failed', e) }
   finally { bulkRemoving.value = false }
 }
@@ -309,12 +333,22 @@ async function removeAllItems() {
   try {
     await watchlistApi.removeAll()
     selectedIds.value = []
-    await loadWatchlist()
+    await Promise.all([loadWatchlist(), loadWatchlistProductIds()])
   } catch (e) { console.error('Remove all failed', e) }
   finally { bulkRemoving.value = false }
 }
 
-const watchlistProductIds = computed(() => items.value.map(i => i.product_id).filter(Boolean))
+// Vollständige Produkt-ID-Liste der Merkliste (für Export/Report/PDF-Vorlage —
+// diese Aktionen beziehen sich immer auf die ganze Merkliste, nicht auf die
+// gerade angezeigte, paginierte Seite).
+const watchlistProductIds = ref([])
+
+async function loadWatchlistProductIds() {
+  try {
+    const { data } = await watchlistApi.productIds()
+    watchlistProductIds.value = data.data || data || []
+  } catch (e) { /* ignore */ }
+}
 
 // ─── Bulk Assign to Project ──────────────────────────
 const showAssignProject = ref(false)
@@ -341,6 +375,7 @@ onMounted(async () => {
     searchableAttributes.value = data.data || data
   } catch (e) { /* ignore */ }
   loadWatchlist()
+  loadWatchlistProductIds()
   loadColumnProfiles()
 })
 </script>
@@ -355,12 +390,12 @@ onMounted(async () => {
         </div>
         <div>
           <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Merkliste</h2>
-          <p class="text-xs text-[var(--color-text-tertiary)]">{{ items.length }} Produkt{{ items.length !== 1 ? 'e' : '' }} gespeichert</p>
+          <p class="text-xs text-[var(--color-text-tertiary)]">{{ meta.total }} Produkt{{ meta.total !== 1 ? 'e' : '' }} gespeichert</p>
         </div>
       </div>
       <div class="flex items-center gap-2">
         <ColumnConfigPopover
-          v-if="items.length > 0"
+          v-if="meta.total > 0"
           :allColumns="allColumns"
           :visibleKeys="visibleKeys"
           @toggle="toggleColumn"
@@ -369,7 +404,7 @@ onMounted(async () => {
           @reorder="visibleKeys = $event"
         />
         <ProfileSelector
-          v-if="items.length > 0"
+          v-if="meta.total > 0"
           :profiles="columnProfiles"
           v-model="selectedColumnProfileId"
           label="Spaltenprofil"
@@ -379,17 +414,17 @@ onMounted(async () => {
           @delete="deleteColumnProfile"
         />
         <button
-          v-if="items.length > 0"
+          v-if="meta.total > 0"
           class="pim-btn pim-btn-secondary text-xs"
           :class="showQuickLookup ? 'bg-[var(--color-accent-light)] text-[var(--color-accent)]' : ''"
-          @click="showQuickLookup = !showQuickLookup"
+          @click="toggleQuickLookup(pimTableRef)"
           title="Quick Lookup"
         >
           <ListFilter class="w-3.5 h-3.5" :stroke-width="1.75" />
           <span class="hidden sm:inline">Quick Lookup</span>
         </button>
         <button
-          v-if="items.length > 0"
+          v-if="meta.total > 0"
           class="pim-btn pim-btn-secondary text-xs"
           @click="showExportPanel = !showExportPanel"
         >
@@ -397,7 +432,7 @@ onMounted(async () => {
           Export
         </button>
         <button
-          v-if="items.length > 0"
+          v-if="meta.total > 0"
           class="pim-btn pim-btn-danger text-xs"
           @click="showRemoveAllConfirm = true"
         >
@@ -408,7 +443,7 @@ onMounted(async () => {
     </div>
 
     <!-- Export Panel -->
-    <div v-if="showExportPanel && items.length > 0" class="pim-card p-4 space-y-3">
+    <div v-if="showExportPanel && meta.total > 0" class="pim-card p-4 space-y-3">
       <div class="flex items-center justify-between">
         <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
           <Download class="inline w-4 h-4 -mt-0.5 mr-1" :stroke-width="1.75" />
@@ -574,8 +609,9 @@ onMounted(async () => {
 
     <!-- Table -->
     <PimTable
+      ref="pimTableRef"
       :columns="visibleColumns"
-      :rows="filteredTableRows"
+      :rows="tableRows"
       :loading="loading"
       selectable
       showActions
@@ -610,10 +646,22 @@ onMounted(async () => {
           {{ value ? new Date(value).toLocaleDateString('de-DE') : '—' }}
         </span>
       </template>
+
+      <!-- Pagination -->
+      <template #pagination>
+        <div class="flex items-center justify-between px-4 py-3 border-t border-[var(--color-border)]">
+          <span class="text-xs text-[var(--color-text-tertiary)]">{{ meta.total }} Produkte</span>
+          <div class="flex items-center gap-1">
+            <button class="pim-btn pim-btn-ghost text-xs" :disabled="meta.current_page <= 1" @click="goToPage(meta.current_page - 1)">Zurück</button>
+            <span class="text-xs text-[var(--color-text-secondary)] px-2">{{ meta.current_page }} / {{ meta.last_page }}</span>
+            <button class="pim-btn pim-btn-ghost text-xs" :disabled="meta.current_page >= meta.last_page" @click="goToPage(meta.current_page + 1)">Weiter</button>
+          </div>
+        </div>
+      </template>
     </PimTable>
 
     <!-- Empty state -->
-    <div v-if="!loading && items.length === 0 && !error" class="text-center py-16">
+    <div v-if="!loading && meta.total === 0 && !error" class="text-center py-16">
       <Star class="w-10 h-10 mx-auto mb-3 text-[var(--color-border-strong)]" :stroke-width="1.5" />
       <p class="text-sm text-[var(--color-text-tertiary)]">Noch keine Produkte auf der Merkliste</p>
       <p class="text-xs text-[var(--color-text-tertiary)] mt-1">
@@ -622,7 +670,7 @@ onMounted(async () => {
     </div>
 
     <!-- API Call Display -->
-    <div v-if="items.length > 0" class="mt-4">
+    <div v-if="meta.total > 0" class="mt-4">
       <button
         class="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
         @click="showApiCall = !showApiCall"
@@ -660,7 +708,7 @@ onMounted(async () => {
     <PimConfirmDialog
       :open="showRemoveAllConfirm"
       title="Alle Einträge entfernen?"
-      :message="`Alle ${items.length} Produkte werden von der Merkliste entfernt. Diese Aktion kann nicht rückgängig gemacht werden.`"
+      :message="`Alle ${meta.total} Produkte werden von der Merkliste entfernt. Diese Aktion kann nicht rückgängig gemacht werden.`"
       confirm-label="Alle entfernen"
       :danger="true"
       :loading="bulkRemoving"

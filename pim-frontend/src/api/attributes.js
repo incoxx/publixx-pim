@@ -74,7 +74,7 @@ export default {
 
 export const attributeTypes = {
   list(params = {}) {
-    return client.get('/attribute-types', { params })
+    return client.get('/attribute-types', { params: buildParams(params) })
   },
 
   get(id, params = {}) {
@@ -243,8 +243,8 @@ export const attributeViews = {
 }
 
 export const productTypes = {
-  list() {
-    return client.get('/product-types')
+  list(params = {}) {
+    return client.get('/product-types', { params: buildParams(params) })
   },
 
   get(id) {

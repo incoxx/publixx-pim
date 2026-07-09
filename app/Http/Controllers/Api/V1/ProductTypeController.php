@@ -29,6 +29,7 @@ class ProductTypeController extends Controller
             $request->query('filter', []),
             array_flip(['is_active'])
         ));
+        $this->applySearch($query, $request, ['name_de', 'name_en', 'technical_name']);
         $this->applySorting($query, $request, 'sort_order', 'asc');
 
         return ProductTypeResource::collection(

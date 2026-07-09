@@ -232,6 +232,45 @@ class CatalogController extends BaseController
                     }
                 }
             }
+
+            // Quick-Lookup: eigenständige Präfix-Filter (LIKE 'wert%') auf Name/SKU,
+            // unabhängig von der Fassetten-Auswahl oben — nur aktiv, wenn keine
+            // Volltextsuche läuft (siehe "Search overrides all other filters").
+            $quickName = trim((string) $request->query('name', ''));
+            if ($quickName !== '') {
+                $escapedName = addcslashes($quickName, '%_');
+                $query->where(function ($q) use ($escapedName) {
+                    $q->where('products_search_index.name_de', 'LIKE', $escapedName.'%')
+                      ->orWhere('products_search_index.name_en', 'LIKE', $escapedName.'%');
+                });
+            }
+
+            $quickSku = trim((string) $request->query('sku', ''));
+            if ($quickSku !== '') {
+                $query->where('products_search_index.sku', 'LIKE', addcslashes($quickSku, '%_').'%');
+            }
+
+            // Quick-Lookup auf dynamische Attribut-Spalten (card_attributes): Freitext-
+            // Präfixsuche, unabhängig von der exakten Fassetten-Auswahl oben.
+            $quickAttributes = $request->query('quick_attributes', []);
+            if (is_array($quickAttributes)) {
+                $qaIdx = 0;
+                foreach ($quickAttributes as $qaAttrId => $qaValue) {
+                    if (!is_string($qaAttrId) || $qaValue === '' || $qaValue === null) {
+                        continue;
+                    }
+                    $qaAlias = "pav_ql{$qaIdx}";
+                    $qaIdx++;
+                    $escapedQaValue = addcslashes($qaValue, '%_');
+                    $query->whereExists(function ($sub) use ($qaAlias, $qaAttrId, $escapedQaValue) {
+                        $sub->select(DB::raw(1))
+                            ->from("product_attribute_values as {$qaAlias}")
+                            ->whereColumn("{$qaAlias}.product_id", 'products.id')
+                            ->where("{$qaAlias}.attribute_id", $qaAttrId)
+                            ->where("{$qaAlias}.value_string", 'LIKE', $escapedQaValue.'%');
+                    });
+                }
+            }
         }
 
         $selectColumns = [
@@ -288,7 +327,8 @@ class CatalogController extends BaseController
         // Dynamische Kategorie-Counts: bei Suche oder aktiven Facetten-Filtern.
         // Ermöglicht dem Frontend, Kategorien ohne Treffer auszugrauen und Treffer-Counts anzuzeigen.
         $categoryCounts = null;
-        $hasActiveFilters = !$isSearchActive && !empty($filters) && is_array($filters) && count($filters) > 0;
+        $hasQuickLookup = (($quickName ?? '') !== '') || (($quickSku ?? '') !== '') || !empty($quickAttributes ?? []);
+        $hasActiveFilters = !$isSearchActive && (($hasQuickLookup) || (!empty($filters) && is_array($filters) && count($filters) > 0));
         if ($isSearchActive || $hasActiveFilters) {
             $countQuery = (clone $query)->reorder()
                 ->select('products.master_hierarchy_node_id', DB::raw('COUNT(DISTINCT products.id) as cnt'))

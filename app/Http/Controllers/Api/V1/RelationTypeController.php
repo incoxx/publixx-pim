@@ -21,6 +21,7 @@ class RelationTypeController extends Controller
         $this->authorize('viewAny', ProductRelationType::class);
 
         $query = ProductRelationType::with('defaultAttributes');
+        $this->applySearch($query, $request, ['name_de', 'name_en', 'technical_name']);
         $this->applySorting($query, $request, 'name_de', 'asc');
 
         return RelationTypeResource::collection(

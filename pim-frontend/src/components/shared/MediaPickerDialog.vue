@@ -47,6 +47,18 @@ const totalItems = ref(0)
 const perPage = 24
 let searchTimer = null
 
+// Spalten-Key → Backend-Filterfeld. file_name/mime_type/title/alt_text werden per
+// Präfix-Suche (LIKE 'wert%'), media_type/usage_purpose per Exakt-Match gefiltert
+// (siehe MediaController::ALLOWED_FILTERS bzw. ALLOWED_PREFIX_FILTERS).
+const QUICK_LOOKUP_FIELD_MAP = {
+  file_name: 'file_name',
+  mime_type: 'mime_type',
+  title: 'title_de',
+  media_type: 'media_type',
+  usage_purpose: 'usage_purpose',
+  alt_text: 'alt_text_de',
+}
+
 async function loadMedia(page = 1) {
   loading.value = true
   try {
@@ -58,6 +70,14 @@ async function loadMedia(page = 1) {
     }
     if (selectedFolderId.value) {
       filters.asset_folder_id = selectedFolderId.value
+    }
+    if (showQuickLookup.value) {
+      for (const [colKey, value] of Object.entries(quickLookupFilters.value)) {
+        if (value === '' || value == null) continue
+        const field = QUICK_LOOKUP_FIELD_MAP[colKey]
+        if (!field) continue
+        filters[field] = value
+      }
     }
     if (Object.keys(filters).length) params.filters = filters
     const { data } = await mediaApi.list(params)
@@ -149,7 +169,7 @@ function handleItemClick(item) {
   }
 }
 
-// ─── Quick Lookup ────────────────────────────────────
+// ─── Quick Lookup — filtert serverseitig über die komplette Treffermenge ────
 const showQuickLookup = ref(false)
 const quickLookupFilters = ref({})
 
@@ -157,30 +177,22 @@ watch(showQuickLookup, (val) => {
   if (!val) quickLookupFilters.value = {}
 })
 
+let quickLookupDebounce = null
+watch(quickLookupFilters, () => {
+  clearTimeout(quickLookupDebounce)
+  quickLookupDebounce = setTimeout(() => {
+    currentPage.value = 1
+    clearSelection()
+    loadMedia(1)
+  }, 300)
+}, { deep: true })
+
 // ─── Filter & Display ────────────────────────────────
+// Quick Lookup läuft serverseitig (siehe loadMedia); hier bleibt nur der
+// clientseitige Ausschluss bereits zugeordneter Medien (excludeMediaIds).
 const filteredMedia = computed(() => {
-  let items = media.value
-  if (props.excludeMediaIds.length) {
-    items = items.filter(m => !props.excludeMediaIds.includes(m.id))
-  }
-  if (!showQuickLookup.value) return items
-  const filters = quickLookupFilters.value
-  const active = Object.entries(filters).filter(([, v]) => v !== '' && v != null)
-  if (active.length === 0) return items
-  return items.filter(item => {
-    return active.every(([key, val]) => {
-      const v = val.toLowerCase()
-      switch (key) {
-        case 'file_name': return (item.file_name || '').toLowerCase().includes(v)
-        case 'mime_type': return (item.mime_type || '').toLowerCase().includes(v)
-        case 'title': return (item.title_de || '').toLowerCase().includes(v)
-        case 'media_type': return (item.media_type || '') === val
-        case 'usage_purpose': return (item.usage_purpose || '') === val
-        case 'alt_text': return (item.alt_text_de || '').toLowerCase().includes(v)
-        default: return true
-      }
-    })
-  })
+  if (!props.excludeMediaIds.length) return media.value
+  return media.value.filter(m => !props.excludeMediaIds.includes(m.id))
 })
 
 // ─── Watchers ────────────────────────────────────────

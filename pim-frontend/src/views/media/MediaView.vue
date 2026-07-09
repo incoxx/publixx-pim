@@ -45,28 +45,17 @@ const showMoveDialog = ref(false)
 const moveFolderId = ref(null)
 const moving = ref(false)
 
-// Quick Lookup
+// Quick Lookup — filtert serverseitig über die komplette Treffermenge, nicht nur
+// die aktuell geladene Seite.
 const showQuickLookup = ref(false)
 const quickLookupFilters = ref({ title: '', file_name: '', media_type: '', usage_purpose: '' })
 
-const displayItems = computed(() => {
-  if (!showQuickLookup.value) return items.value
-  const f = quickLookupFilters.value
-  const active = Object.entries(f).filter(([, v]) => v !== '' && v != null)
-  if (active.length === 0) return items.value
-  return items.value.filter(item => {
-    return active.every(([key, val]) => {
-      if (key === 'title') {
-        const title = (item.title_de || item.file_name || '').toLowerCase()
-        return title.includes(val.toLowerCase())
-      }
-      if (key === 'file_name') return (item.file_name || '').toLowerCase().includes(val.toLowerCase())
-      if (key === 'media_type') return item.media_type === val
-      if (key === 'usage_purpose') return item.usage_purpose === val
-      return true
-    })
-  })
-})
+function toggleQuickLookup() {
+  showQuickLookup.value = !showQuickLookup.value
+  if (!showQuickLookup.value && Object.values(quickLookupFilters.value).some(v => v !== '')) {
+    quickLookupFilters.value = { title: '', file_name: '', media_type: '', usage_purpose: '' }
+  }
+}
 
 // Drag & Drop visual state
 const isDragging = ref(false)
@@ -164,6 +153,13 @@ const filterOptions = computed(() => {
   if (usagePurposeFilter.value) filters.usage_purpose = usagePurposeFilter.value
   if (keywordFilter.value.trim()) filters.keywords = keywordFilter.value.trim()
   if (missingOnlyFilter.value) filters.is_missing = '1'
+  if (showQuickLookup.value) {
+    const ql = quickLookupFilters.value
+    if (ql.title.trim()) filters.title_de = ql.title.trim()
+    if (ql.file_name.trim()) filters.file_name = ql.file_name.trim()
+    if (ql.media_type) filters.media_type = ql.media_type
+    if (ql.usage_purpose) filters.usage_purpose = ql.usage_purpose
+  }
   if (Object.keys(filters).length) opts.filters = filters
   if (searchTerm.value) opts.search = searchTerm.value
   // include_descendants wird von buildParams als ?include_descendants=1/0 gesetzt
@@ -909,6 +905,11 @@ watch(keywordFilter, () => {
   keywordFilterDebounce = setTimeout(() => { clearSelection(); currentPage.value = 1; fetchMedia() }, 300)
 })
 watch(missingOnlyFilter, (val) => { clearSelection(); currentPage.value = 1; fetchMedia(); bulkDeleteForce.value = val })
+let quickLookupDebounce = null
+watch(quickLookupFilters, () => {
+  clearTimeout(quickLookupDebounce)
+  quickLookupDebounce = setTimeout(() => { clearSelection(); currentPage.value = 1; fetchMedia() }, 300)
+}, { deep: true })
 watch(selectedFolderId, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
 watch(includeDescendants, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
 watch(showRenditions, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
@@ -1087,7 +1088,7 @@ onMounted(() => {
           </button>
 
           <button :class="['pim-btn pim-btn-ghost p-1.5', showQuickLookup ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]' : '']"
-                  @click="showQuickLookup = !showQuickLookup" title="Quick Lookup">
+                  @click="toggleQuickLookup" title="Quick Lookup">
             <Filter class="w-4 h-4" :stroke-width="1.75" />
           </button>
 
@@ -1260,9 +1261,9 @@ onMounted(() => {
       </div>
 
       <!-- Grid -->
-      <div v-else-if="displayItems.length > 0 && viewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+      <div v-else-if="items.length > 0 && viewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         <div
-          v-for="(item, index) in displayItems"
+          v-for="(item, index) in items"
           :key="item.id"
           class="pim-card overflow-hidden group cursor-pointer hover:shadow-lg hover:-translate-y-0.5
                  transition-all duration-300 relative media-card-enter"
@@ -1337,7 +1338,7 @@ onMounted(() => {
       </div>
 
       <!-- List view -->
-      <div v-else-if="displayItems.length > 0 && viewMode === 'list'" class="pim-card overflow-hidden">
+      <div v-else-if="items.length > 0 && viewMode === 'list'" class="pim-card overflow-hidden">
         <!-- Column header -->
         <div class="grid grid-cols-[36px_44px_1fr_1fr_80px_80px_72px_36px] gap-3 items-center
                     px-3 py-2 text-[10px] font-medium text-[var(--color-text-secondary)] uppercase tracking-wider
@@ -1393,7 +1394,7 @@ onMounted(() => {
 
         <!-- Data rows -->
         <div
-          v-for="(item, index) in displayItems"
+          v-for="(item, index) in items"
           :key="item.id"
           class="grid grid-cols-[36px_44px_1fr_1fr_80px_80px_72px_36px] gap-3 items-center
                  px-3 py-2 cursor-pointer transition-colors duration-150 group

@@ -71,14 +71,7 @@ class ProductController extends Controller
 
         $rawFilters = $request->query('filter', []);
 
-        $prefixFilters = array_intersect_key($rawFilters, array_flip(self::ALLOWED_PREFIX_FILTERS));
-        foreach ($prefixFilters as $field => $value) {
-            if (!is_string($value) || $value === '') {
-                continue;
-            }
-            $column = preg_replace('/[^a-zA-Z0-9_]/', '', $field);
-            $query->where("products.{$column}", 'LIKE', $value.'%');
-        }
+        $this->applyPrefixFilters($query, $rawFilters, self::ALLOWED_PREFIX_FILTERS, 'products');
 
         $filters = array_intersect_key(
             $rawFilters,

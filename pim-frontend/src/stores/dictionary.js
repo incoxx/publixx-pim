@@ -40,8 +40,12 @@ export const useDictionaryStore = defineStore('dictionary', () => {
     items.value = items.value.filter(e => e.id !== id)
   }
 
+  function setPage(page) {
+    meta.value = { ...meta.value, current_page: page }
+  }
+
   return {
     items, loading, error, meta,
-    fetchEntries, createEntry, updateEntry, deleteEntry,
+    fetchEntries, createEntry, updateEntry, deleteEntry, setPage,
   }
 })

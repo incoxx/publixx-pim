@@ -293,7 +293,7 @@ onMounted(async () => {
   try {
     const [permResponse, atResponse, mutResponse] = await Promise.all([
       roles.listPermissions(),
-      import('@/api/attributes').then(m => m.attributeTypes.list({ per_page: 100 })),
+      import('@/api/attributes').then(m => m.attributeTypes.list({ perPage: 100 })),
       import('@/api/mediaUsageTypes').then(m => m.default.list()),
     ])
 
