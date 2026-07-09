@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Upload, Image, ImageOff, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw, ExternalLink, Package, FolderTree, Eye, Filter, Archive, ToggleLeft, ToggleRight, Table, Layers, Images } from 'lucide-vue-next'
+import { Upload, Image, ImageOff, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw, ExternalLink, Package, FolderTree, Eye, Filter, Archive, ToggleLeft, ToggleRight, Table, Layers, Images, ArrowUp, ArrowDown } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
 import { mediaLanguages as mediaLanguagesApi } from '@/api/mediaLanguages'
@@ -145,9 +145,23 @@ async function fetchUsage(mediaId, page = 1) {
   }
 }
 
+// Sortierung
+const sortField = ref('created_at')
+const sortOrder = ref('desc')
+const sortFieldOptions = [
+  { value: 'created_at', label: 'Hochgeladen' },
+  { value: 'title_de', label: 'Titel' },
+  { value: 'file_name', label: 'Dateiname' },
+  { value: 'file_size', label: 'Dateigröße' },
+]
+
+function toggleSortOrder() {
+  sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+}
+
 // Build filter options
 const filterOptions = computed(() => {
-  const opts = { perPage: 50, sort: 'created_at', order: 'desc', page: currentPage.value }
+  const opts = { perPage: 50, sort: sortField.value, order: sortOrder.value, page: currentPage.value }
   const filters = {}
   if (selectedFolderId.value) filters.asset_folder_id = selectedFolderId.value
   if (usagePurposeFilter.value) filters.usage_purpose = usagePurposeFilter.value
@@ -899,6 +913,7 @@ onUnmounted(() => {
   document.removeEventListener('click', handleDocClick, true)
 })
 watch(usagePurposeFilter, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
+watch([sortField, sortOrder], () => { clearSelection(); currentPage.value = 1; fetchMedia() })
 let keywordFilterDebounce = null
 watch(keywordFilter, () => {
   clearTimeout(keywordFilterDebounce)
@@ -1045,6 +1060,17 @@ onMounted(() => {
               placeholder="Schlagwort…"
               title="Nach Schlagwort filtern (exakt, mehrere kommagetrennt)"
             />
+          </div>
+
+          <!-- Sortierung -->
+          <div class="flex items-center gap-1">
+            <select v-model="sortField" class="pim-select text-xs max-sm:hidden">
+              <option v-for="o in sortFieldOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+            </select>
+            <button class="pim-btn pim-btn-ghost p-1.5 max-sm:hidden" @click="toggleSortOrder" :title="sortOrder === 'asc' ? 'Aufsteigend' : 'Absteigend'">
+              <ArrowUp v-if="sortOrder === 'asc'" class="w-4 h-4" :stroke-width="1.75" />
+              <ArrowDown v-else class="w-4 h-4" :stroke-width="1.75" />
+            </button>
           </div>
 
           <!-- Usage filter -->

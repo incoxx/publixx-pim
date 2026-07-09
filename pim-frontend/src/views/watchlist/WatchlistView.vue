@@ -41,6 +41,10 @@ const error = ref(null)
 // Pagination — Merkliste wird serverseitig paginiert
 const currentPage = ref(1)
 const meta = ref({ current_page: 1, last_page: 1, total: 0, per_page: 25 })
+// sortColumnKey hält den PimTable-Spalten-Key (z.B. 'product.sku'), nicht das
+// Backend-Sortierfeld — für die Pfeil-Anzeige/Toggle-Logik in PimTable.vue.
+const sortColumnKey = ref('created_at')
+const sortOrder = ref('desc')
 
 // Export state
 const showExportPanel = ref(false)
@@ -81,12 +85,20 @@ const compareRows = computed(() => {
 })
 
 const defaultWatchlistColumns = [
-  { key: 'product.sku', label: 'SKU', mono: true, exportKey: 'sku' },
-  { key: 'product.name', label: 'Name', exportKey: 'name' },
-  { key: 'product.status', label: 'Status', exportKey: 'status' },
+  { key: 'product.sku', label: 'SKU', mono: true, exportKey: 'sku', sortable: true },
+  { key: 'product.name', label: 'Name', exportKey: 'name', sortable: true },
+  { key: 'product.status', label: 'Status', exportKey: 'status', sortable: true },
   { key: 'product.product_type.name_de', label: 'Typ', exportKey: 'product_type' },
-  { key: 'created_at', label: 'Hinzugefügt', exportKey: 'created_at' },
+  { key: 'created_at', label: 'Hinzugefügt', exportKey: 'created_at', sortable: true },
 ]
+
+// Spalten-Key → Backend-Sortierfeld (siehe WatchlistController::SORT_COLUMN_MAP).
+const SORT_FIELD_MAP = {
+  'product.sku': 'sku',
+  'product.name': 'name',
+  'product.status': 'status',
+  created_at: 'created_at',
+}
 
 const extraWatchlistColumns = [
   { key: 'product.ean', label: 'EAN', mono: true, exportKey: 'ean' },
@@ -183,7 +195,11 @@ async function loadWatchlist() {
     const attrIds = visibleKeys.value
       .filter(k => k.startsWith('product.attributes.'))
       .map(k => k.replace('product.attributes.', ''))
-    const params = { page: currentPage.value }
+    const params = {
+      page: currentPage.value,
+      sort: SORT_FIELD_MAP[sortColumnKey.value] ?? sortColumnKey.value,
+      order: sortOrder.value,
+    }
     if (attrIds.length > 0) {
       params.attribute_columns = attrIds
       params.language = 'de'
@@ -205,6 +221,13 @@ async function loadWatchlist() {
   } finally {
     loading.value = false
   }
+}
+
+function handleSort(field, order) {
+  sortColumnKey.value = field
+  sortOrder.value = order
+  currentPage.value = 1
+  loadWatchlist()
 }
 
 function goToPage(page) {
@@ -613,11 +636,14 @@ onMounted(async () => {
       :columns="visibleColumns"
       :rows="tableRows"
       :loading="loading"
+      :sortField="sortColumnKey"
+      :sortOrder="sortOrder"
       selectable
       showActions
       emptyText="Keine Produkte auf der Merkliste"
       :quickLookup="showQuickLookup"
       :quickLookupConfig="quickLookupConfig"
+      @sort="handleSort"
       @row-click="openProduct"
       @row-action="handleRowAction"
       @select="handleSelect"

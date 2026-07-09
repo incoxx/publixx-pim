@@ -22,6 +22,10 @@ class ContentPageController extends Controller
 
     private const ALLOWED_INCLUDES = ['contentType', 'sections', 'sections.sectionType'];
 
+    // Felder, die per Präfix-Suche (LIKE 'wert%') statt Exakt-Match gefiltert werden,
+    // für das Quick-Lookup in der Content-Liste.
+    private const ALLOWED_PREFIX_FILTERS = ['title', 'slug'];
+
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', ContentPage::class);
@@ -29,8 +33,12 @@ class ContentPageController extends Controller
         $query = ContentPage::query()
             ->with($this->parseIncludes($request, self::ALLOWED_INCLUDES));
 
+        $rawFilters = $request->query('filter', []);
+
+        $this->applyPrefixFilters($query, $rawFilters, self::ALLOWED_PREFIX_FILTERS);
+
         $this->applyFilters($query, array_intersect_key(
-            $request->query('filter', []),
+            $rawFilters,
             array_flip(['content_type_id', 'status'])
         ));
 

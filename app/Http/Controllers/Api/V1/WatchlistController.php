@@ -31,6 +31,16 @@ class WatchlistController extends Controller
     // für das Quick-Lookup in der Merkliste (Spalten liegen auf der products-Tabelle).
     private const ALLOWED_PREFIX_FILTERS = ['sku', 'name', 'ean'];
 
+    // Sortier-Spalte (Frontend-Key → tabellenqualifizierte Spalte) — nötig, weil
+    // sowohl watchlist_items als auch products eine created_at-Spalte haben und
+    // die übrigen Sortierfelder auf products liegen, nicht auf watchlist_items.
+    private const SORT_COLUMN_MAP = [
+        'sku' => 'products.sku',
+        'name' => 'products.name',
+        'status' => 'products.status',
+        'created_at' => 'watchlist_items.created_at',
+    ];
+
     /**
      * GET /api/v1/watchlist
      */
@@ -70,7 +80,9 @@ class WatchlistController extends Controller
             }
         }
 
-        $query->orderByDesc('watchlist_items.created_at');
+        $sort = $request->query('sort', 'created_at');
+        $order = strtolower($request->query('order', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $query->orderBy(self::SORT_COLUMN_MAP[$sort] ?? 'watchlist_items.created_at', $order);
 
         $paginated = $query->paginate($this->getPerPage($request));
 
