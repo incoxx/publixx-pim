@@ -18,7 +18,8 @@ const errors = ref({})
 
 const pdfTemplateOptions = ref([])
 const priceTypeOptions = ref([])
-const attributeViewOptions = ref([])
+const headerAttributeViewOptions = ref([])
+const itemAttributeViewOptions = ref([])
 const collectionAttributeOptions = ref([])
 const itemAttributeOptions = ref([])
 
@@ -116,15 +117,15 @@ const fields = computed(() => [
     key: 'default_attribute_groups',
     label: 'Attributgruppen — Kopfdaten',
     type: 'multiselect',
-    options: attributeViewOptions.value,
-    hint: 'Attributgruppen, die auf Collection-Ebene (Kopfdaten) standardmäßig zugeordnet werden.',
+    options: headerAttributeViewOptions.value,
+    hint: 'Attributgruppen, die auf Collection-Ebene (Kopfdaten) standardmäßig zugeordnet werden. Nur Gruppen mit mindestens einem Collection-Attribut werden hier angeboten.',
   },
   {
     key: 'default_item_attribute_groups',
     label: 'Attributgruppen — Positionen',
     type: 'multiselect',
-    options: attributeViewOptions.value,
-    hint: 'Attributgruppen, die auf Positions-Ebene standardmäßig zugeordnet werden.',
+    options: itemAttributeViewOptions.value,
+    hint: 'Attributgruppen, die auf Positions-Ebene standardmäßig zugeordnet werden. Nur Gruppen mit mindestens einem Positions-Attribut werden hier angeboten.',
   },
   // Feld-Zuordnung für die Render-Pipeline (MappingResolver-Quellfelder)
   {
@@ -160,7 +161,10 @@ onMounted(async () => {
   const [pdfRes, priceRes, viewsRes, collectionAttrRes, itemAttrRes] = await Promise.allSettled([
     pdfTemplatesApi.list(),
     priceTypes.list(),
-    attributeViews.list(),
+    // include=attributes: Attributgruppen (AttributeView) sind generisch fuer alle Entitaeten
+    // (Produkte, Collections, ...) -- ob eine Gruppe hier ueberhaupt sinnvoll ist, ergibt sich
+    // erst daraus, ob sie mindestens ein Attribut mit passendem applies_to enthaelt (s.u.).
+    attributeViews.list({ include: 'attributes' }),
     attributesApi.list({ filters: { applies_to: 'collection' }, perPage: 200 }),
     attributesApi.list({ filters: { applies_to: 'collection_item' }, perPage: 200 }),
   ])
@@ -171,7 +175,12 @@ onMounted(async () => {
     priceTypeOptions.value = (priceRes.value.data.data || priceRes.value.data).map(t => ({ value: t.technical_name, label: t.name_de }))
   }
   if (viewsRes.status === 'fulfilled') {
-    attributeViewOptions.value = (viewsRes.value.data.data || viewsRes.value.data).map(v => ({ value: v.technical_name, label: v.name_de }))
+    const views = viewsRes.value.data.data || viewsRes.value.data
+    const viewsWithScope = (scope) => views
+      .filter(v => (v.attributes || []).some(a => (a.applies_to || []).includes(scope)))
+      .map(v => ({ value: v.technical_name, label: v.name_de }))
+    headerAttributeViewOptions.value = viewsWithScope('collection')
+    itemAttributeViewOptions.value = viewsWithScope('collection_item')
   }
   if (collectionAttrRes.status === 'fulfilled') {
     collectionAttributeOptions.value = (collectionAttrRes.value.data.data || collectionAttrRes.value.data).map(a => ({ value: a.technical_name, label: a.name_de }))
