@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Import;
 
 use App\Events\ImportCompleted;
+use App\Jobs\ExecuteFlatImportJob;
 use App\Jobs\ExecuteImportJob;
 use App\Models\ImportJob;
 use App\Models\ImportJobError;
@@ -12,6 +13,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 /**
  * Orchestriert den 3-Phasen-Import-Prozess:
@@ -271,8 +273,36 @@ class ImportService
 
     /**
      * Führt einen Flat-Import mit Benutzer-definierten Spalten-Mappings aus.
+     * Große Dateien (> ASYNC_THRESHOLD Zeilen) laufen wie beim Vorlagen-Import
+     * asynchron über die Queue, damit der HTTP-Request nicht am Client-Timeout
+     * scheitert, während der Import serverseitig eigentlich erfolgreich durchläuft.
      */
     public function executeFlatImport(ImportJob $importJob, array $options): ImportJob
+    {
+        $fullPath = Storage::disk('local')->path($importJob->file_path);
+        $totalRows = $this->countFlatImportRows($fullPath);
+
+        if ($totalRows > self::ASYNC_THRESHOLD) {
+            return $this->executeFlatImportAsync($importJob, $options, $totalRows);
+        }
+
+        return $this->executeFlatImportSync($importJob, $options);
+    }
+
+    /**
+     * Liest nur die Blatt-Dimensionen (ohne die Zellwerte zu laden), um die
+     * Zeilenzahl für die Async-Entscheidung günstig zu ermitteln.
+     */
+    private function countFlatImportRows(string $filePath): int
+    {
+        $reader = IOFactory::createReaderForFile($filePath);
+        $info = $reader->listWorksheetInfo($filePath);
+        $totalRows = (int) ($info[0]['totalRows'] ?? 1);
+
+        return max(0, $totalRows - 1); // Header-Zeile abziehen
+    }
+
+    private function executeFlatImportSync(ImportJob $importJob, array $options): ImportJob
     {
         $importJob->update([
             'status' => 'executing',
@@ -321,6 +351,31 @@ class ImportService
             $this->logger->error($importJob, 'execution', "Flat-Import fehlgeschlagen: {$e->getMessage()}");
             throw $e;
         }
+
+        return $importJob->fresh();
+    }
+
+    /**
+     * Asynchrone Ausführung eines Flat-Imports via Queue (große Datei).
+     */
+    private function executeFlatImportAsync(ImportJob $importJob, array $options, int $totalRows): ImportJob
+    {
+        $importJob->update([
+            'status' => 'executing',
+            'started_at' => now(),
+        ]);
+
+        ExecuteFlatImportJob::dispatch($importJob->id, $options);
+
+        Log::channel('import')->info("Flat-Import in Queue eingereiht: {$importJob->id}", [
+            'total_rows' => $totalRows,
+        ]);
+
+        $this->logger->info(
+            $importJob,
+            'execution',
+            "Import zu groß für sofortige Verarbeitung ({$totalRows} Zeilen) — läuft im Hintergrund über die Warteschlange 'import'.",
+        );
 
         return $importJob->fresh();
     }

@@ -69,6 +69,11 @@ class ImportController extends Controller
     {
         $this->authorize('update', $import);
 
+        // Kleinere Importe laufen synchron in diesem Request; ohne diese Direktiven würde
+        // PHP-FPM den Worker nach max_execution_time killen, bevor der Import fertig ist.
+        set_time_limit(0);
+        ignore_user_abort(true);
+
         if ($import->status !== 'validated') {
             return $this->errorResponse(
                 'urn:anypim:import:invalid-state',

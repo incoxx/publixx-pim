@@ -402,7 +402,15 @@ async function executeImport() {
     await importsApi.execute(importJob.value.id, executePayload)
     await pollStatus()
   } catch (e) {
-    error.value = e.response?.data?.message || 'Import fehlgeschlagen'
+    if (e.response) {
+      // Echte Server-Antwort (z.B. Validierungsfehler) — Import wurde tatsächlich abgelehnt
+      error.value = e.response?.data?.message || 'Import fehlgeschlagen'
+    } else {
+      // Client-seitiger Timeout/Netzwerkabbruch: der Import kann serverseitig trotzdem
+      // weiterlaufen (große Datei) oder bereits fertig sein — echten Status abfragen,
+      // statt vorschnell einen Fehler anzuzeigen (pollStatus() wirft selbst nicht).
+      await pollStatus()
+    }
   } finally {
     executing.value = false
     if (logPolling.value) { clearInterval(logPolling.value); logPolling.value = null }
