@@ -18,6 +18,7 @@ class CollectionResource extends JsonResource
             'organization_id' => $this->organization_id,
             'organization' => new OrganizationResource($this->whenLoaded('organization')),
             'organization_snapshot' => $this->organization_snapshot,
+            'address' => $this->address,
             'reference' => $this->reference,
             'name' => $this->name,
             'status' => $this->status,

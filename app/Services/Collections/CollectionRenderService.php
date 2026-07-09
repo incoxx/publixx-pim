@@ -9,6 +9,7 @@ use App\Models\CollectionAttributeValue;
 use App\Models\CollectionItem;
 use App\Models\CollectionRenderJob;
 use App\Models\CollectionType;
+use App\Models\Organization;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
@@ -33,27 +34,7 @@ class CollectionRenderService
     {
         $startTime = microtime(true);
 
-        $collection->load([
-            'collectionType.defaultRenderTemplate',
-            'organization.logoMedia',
-            'items' => function ($query) use ($limit) {
-                if ($limit !== null) {
-                    $query->limit($limit);
-                }
-            },
-            'items.product',
-            'items.unit',
-            'items.attributeValues.attribute',
-            'attributeValues.attribute',
-        ]);
-
-        $headerVm = $this->buildHeaderViewModel($collection);
-        $items = $this->buildItemViewModels($collection);
-
-        $grandTotal = array_sum(array_map(
-            fn (array $item) => $item['price_warning'] ? 0.0 : (float) ($item['line_total'] ?? 0.0),
-            $items
-        ));
+        ['header' => $headerVm, 'items' => $items, 'grandTotal' => $grandTotal] = $this->buildRenderViewModel($collection, $limit);
 
         $outputDir = storage_path('app/collections/renders');
         if (!is_dir($outputDir)) {
@@ -80,6 +61,53 @@ class CollectionRenderService
             'duration' => $duration,
             'item_count' => count($items),
         ];
+    }
+
+    /**
+     * Browser-HTML-Variante fuer den passwortgeschuetzten Freigabe-Link (CollectionShareLink) --
+     * nutzt dieselbe Datenaufloesung wie render(), gibt aber rohes HTML statt eines Dateipfads
+     * zurueck. Reine String-Rueckgabe statt Dateiablage, da es hier keinen Download/Job-Kontext
+     * gibt, der einen persistenten Pfad braucht (anders als render()'s PDF/XLSX-Dateien).
+     */
+    public function renderHtml(Collection $collection): string
+    {
+        ['header' => $headerVm, 'items' => $items, 'grandTotal' => $grandTotal] = $this->buildRenderViewModel($collection);
+
+        return view('collections.shared.collection-document', [
+            'header' => $headerVm,
+            'items' => $items,
+            'grandTotal' => $grandTotal,
+        ])->render();
+    }
+
+    /**
+     * @return array{header: array, items: array, grandTotal: float}
+     */
+    private function buildRenderViewModel(Collection $collection, ?int $limit = null): array
+    {
+        $collection->load([
+            'collectionType.defaultRenderTemplate',
+            'organization.logoMedia',
+            'items' => function ($query) use ($limit) {
+                if ($limit !== null) {
+                    $query->limit($limit);
+                }
+            },
+            'items.product',
+            'items.unit',
+            'items.attributeValues.attribute',
+            'attributeValues.attribute',
+        ]);
+
+        $headerVm = $this->buildHeaderViewModel($collection);
+        $items = $this->buildItemViewModels($collection);
+
+        $grandTotal = array_sum(array_map(
+            fn (array $item) => $item['price_warning'] ? 0.0 : (float) ($item['line_total'] ?? 0.0),
+            $items
+        ));
+
+        return ['header' => $headerVm, 'items' => $items, 'grandTotal' => $grandTotal];
     }
 
     private function writePdf(array $headerVm, array $items, float $grandTotal, Collection $collection, string $outputPath): void
@@ -178,11 +206,13 @@ class CollectionRenderService
             $organization
         );
 
+        $address = $this->resolveAddress($collection, $organization);
+
         return [
             'name' => $collection->name,
             'reference' => $collection->reference,
-            'organization_name' => $organization?->name,
-            'address_block' => $organization?->address_block,
+            'organization_name' => $address['name'],
+            'address_block' => $address['block'],
             'payment_terms' => $paymentTerms,
             'cover_text' => $coverText,
             'valid_from' => $collection->valid_from?->format('d.m.Y'),
@@ -193,17 +223,60 @@ class CollectionRenderService
     }
 
     /**
+     * Bevorzugt die strukturierte, pro Collection eingefrorene Adresse (Nutzeranfrage: "Adresse
+     * in der Collection hinterlegen fuer ein Angebot") gegenueber der Organisation-Live-Adresse --
+     * gleiches Prinzip wie ecommerce_orders.billing_address, das den Warenkorb zum Bestellzeitpunkt
+     * einfriert statt live auf den Kunden zu zeigen. Faellt auf organization.address_block zurueck,
+     * wenn fuer diese Collection keine eigene Adresse gepflegt wurde -- Blade-Template bleibt
+     * unveraendert (liest weiterhin nur organization_name/address_block).
+     *
+     * @return array{name: ?string, block: ?string}
+     */
+    private function resolveAddress(Collection $collection, ?Organization $organization): array
+    {
+        $address = $collection->address;
+
+        if (empty($address)) {
+            return ['name' => $organization?->name, 'block' => $organization?->address_block];
+        }
+
+        $lines = [];
+        if (!empty($address['contact_name'])) {
+            $lines[] = $address['contact_name'];
+        }
+        if (!empty($address['street'])) {
+            $lines[] = $address['street'];
+        }
+        $cityLine = trim(($address['postal_code'] ?? '') . ' ' . ($address['city'] ?? ''));
+        if ($cityLine !== '') {
+            $lines[] = $cityLine;
+        }
+        if (!empty($address['country'])) {
+            $lines[] = $address['country'];
+        }
+        $contactLine = trim(implode(' · ', array_filter([$address['email'] ?? null, $address['phone'] ?? null])));
+        if ($contactLine !== '') {
+            $lines[] = $contactLine;
+        }
+
+        return [
+            'name' => $address['company'] ?? $organization?->name,
+            'block' => $lines === [] ? null : implode("\n", $lines),
+        ];
+    }
+
+    /**
      * @return array<string, string|int|float>
      */
     private function buildHeaderTextContext(Collection $collection): array
     {
-        $organization = $collection->organization;
+        $address = $this->resolveAddress($collection, $collection->organization);
 
         $context = [
             'collection.name' => $collection->name ?? '',
             'collection.reference' => $collection->reference ?? '',
-            'organization.name' => $organization?->name ?? '',
-            'organization.address_block' => $organization?->address_block ?? '',
+            'organization.name' => $address['name'] ?? '',
+            'organization.address_block' => $address['block'] ?? '',
         ];
 
         if ($collection->valid_until !== null) {

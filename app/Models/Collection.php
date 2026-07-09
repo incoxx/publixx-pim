@@ -18,6 +18,7 @@ class Collection extends Model
         'collection_type_id',
         'organization_id',
         'organization_snapshot',
+        'address',
         'reference',
         'name',
         'status',
@@ -35,6 +36,7 @@ class Collection extends Model
     {
         return [
             'organization_snapshot' => 'array',
+            'address' => 'array',
             'valid_from' => 'date',
             'valid_until' => 'date',
             'frozen_at' => 'datetime',
@@ -95,5 +97,10 @@ class Collection extends Model
     public function renderJobs(): HasMany
     {
         return $this->hasMany(CollectionRenderJob::class);
+    }
+
+    public function shareLinks(): HasMany
+    {
+        return $this->hasMany(CollectionShareLink::class);
     }
 }

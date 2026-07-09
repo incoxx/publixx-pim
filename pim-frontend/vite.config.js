@@ -25,6 +25,11 @@ export default defineConfig({
   },
   build: {
     assetsDir: 'pim-assets',
+    // Gzip-Groessenberechnung nach dem Bundling ist rein kosmetisch (nur fuer die
+    // Terminal-Ausgabe), belastet bei den grossen Chunks dieses Projekts (siehe
+    // "chunks larger than 500 kB"-Warnung) aber den Speicher zusaetzlich und hat
+    // bei Deploys mit wenig RAM zu OOM-Abstuerzen des Build-Prozesses gefuehrt.
+    reportCompressedSize: false,
     rollupOptions: {
       output: {
         manualChunks: {

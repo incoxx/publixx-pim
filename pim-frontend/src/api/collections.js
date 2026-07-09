@@ -71,6 +71,18 @@ export const collectionRenders = {
   },
 }
 
+export const collectionShareLinks = {
+  list(collectionId) {
+    return client.get(`/collections/${collectionId}/share-links`)
+  },
+  create(collectionId, { password, expiresAt = null } = {}) {
+    return client.post(`/collections/${collectionId}/share-links`, { password, expires_at: expiresAt })
+  },
+  delete(collectionId, linkId) {
+    return client.delete(`/collections/${collectionId}/share-links/${linkId}`)
+  },
+}
+
 export const collectionItems = {
   list(collectionId, options = {}) {
     return client.get(`/collections/${collectionId}/items`, { params: buildParams(options) })

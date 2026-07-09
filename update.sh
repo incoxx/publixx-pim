@@ -461,6 +461,11 @@ elif [ -d "$FRONTEND_DIR" ]; then
         info "Subdirectory-Modus: Base-Path=${VITE_BASE_PATH}"
     fi
 
+    # Absicherung gegen "JavaScript heap out of memory" beim Vite-Build (grosser
+    # Modul-Graph + mehrere Chunks > 500 kB). Gilt fuer den Rest des Skripts,
+    # deckt damit auch die catalog-embed- und Doku-Builds weiter unten ab.
+    export NODE_OPTIONS="--max-old-space-size=4096"
+
     npm run build 2>&1
 
     # Build-Output nach public/ kopieren
