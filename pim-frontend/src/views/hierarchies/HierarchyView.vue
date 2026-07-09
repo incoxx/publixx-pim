@@ -1321,7 +1321,7 @@ onMounted(async () => {
                       <ChevronDown class="w-3.5 h-3.5" :stroke-width="2" />
                     </button>
                     <button
-                      class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all ml-1"
+                      class="p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all ml-1"
                       @click="removeNodeAttribute(assignment)"
                       title="Entfernen"
                     >

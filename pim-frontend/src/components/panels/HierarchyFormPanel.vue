@@ -337,7 +337,7 @@ onMounted(() => {
                   {{ scopeLabels[assignment.scope || 'node'] }}
                 </button>
                 <button
-                  class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all"
+                  class="p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all"
                   @click="removeAttribute(assignment)"
                   title="Entfernen"
                 >
