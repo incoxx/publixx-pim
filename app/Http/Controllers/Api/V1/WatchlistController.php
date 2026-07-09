@@ -44,14 +44,7 @@ class WatchlistController extends Controller
 
         $rawFilters = $request->query('filter', []);
 
-        $prefixFilters = array_intersect_key($rawFilters, array_flip(self::ALLOWED_PREFIX_FILTERS));
-        foreach ($prefixFilters as $field => $value) {
-            if (!is_string($value) || $value === '') {
-                continue;
-            }
-            $column = preg_replace('/[^a-zA-Z0-9_]/', '', $field);
-            $query->where("products.{$column}", 'LIKE', $value.'%');
-        }
+        $this->applyPrefixFilters($query, $rawFilters, self::ALLOWED_PREFIX_FILTERS, 'products');
 
         $this->applyFilters($query, array_intersect_key(
             $rawFilters,
@@ -66,12 +59,13 @@ class WatchlistController extends Controller
                 if (!is_string($value) || $value === '') {
                     continue;
                 }
-                $query->whereExists(function ($q) use ($attributeId, $value) {
+                $escapedValue = addcslashes($value, '%_');
+                $query->whereExists(function ($q) use ($attributeId, $escapedValue) {
                     $q->select(DB::raw(1))
                         ->from('product_attribute_values')
                         ->whereColumn('product_attribute_values.product_id', 'watchlist_items.product_id')
                         ->where('product_attribute_values.attribute_id', $attributeId)
-                        ->where('product_attribute_values.value_string', 'LIKE', $value.'%');
+                        ->where('product_attribute_values.value_string', 'LIKE', $escapedValue.'%');
                 });
             }
         }

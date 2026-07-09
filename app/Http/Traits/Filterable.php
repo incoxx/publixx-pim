@@ -38,6 +38,30 @@ trait Filterable
     }
 
     /**
+     * Apply ?filter[field]=value als Präfix-Suche (LIKE 'wert%') für die angegebenen
+     * Felder — z.B. für Quick-Lookup-Spalten in einer Tabellenansicht, wo pro Spalte
+     * gefiltert werden soll statt über eine kombinierte Freitextsuche (applySearch).
+     * Escaped LIKE-Sonderzeichen (%, _) im Nutzerwert, damit sie wörtlich behandelt
+     * werden statt als Wildcard.
+     */
+    protected function applyPrefixFilters(Builder|Relation $query, array $filters, array $allowedPrefixFields, ?string $tableAlias = null): Builder|Relation
+    {
+        $prefixFilters = array_intersect_key($filters, array_flip($allowedPrefixFields));
+
+        foreach ($prefixFilters as $field => $value) {
+            if (!is_string($value) || $value === '') {
+                continue;
+            }
+            $column = preg_replace('/[^a-zA-Z0-9_]/', '', $field);
+            $qualifiedColumn = $tableAlias ? "{$tableAlias}.{$column}" : $column;
+            $escaped = addcslashes($value, '%_');
+            $query->where($qualifiedColumn, 'LIKE', $escaped.'%');
+        }
+
+        return $query;
+    }
+
+    /**
      * Apply ?sort=field&order=asc|desc sorting.
      */
     protected function applySorting(Builder|Relation $query, Request $request, string $defaultSort = 'created_at', string $defaultOrder = 'desc'): Builder|Relation

@@ -313,14 +313,7 @@ class MediaController extends Controller
             unset($filters['asset_folder_id']);
         }
 
-        $prefixFilters = array_intersect_key($filters, array_flip(self::ALLOWED_PREFIX_FILTERS));
-        foreach ($prefixFilters as $field => $value) {
-            if (!is_string($value) || $value === '') {
-                continue;
-            }
-            $column = preg_replace('/[^a-zA-Z0-9_]/', '', $field);
-            $query->where($column, 'LIKE', $value.'%');
-        }
+        $this->applyPrefixFilters($query, $filters, self::ALLOWED_PREFIX_FILTERS);
 
         $this->applyFilters($query, array_intersect_key(
             $filters,

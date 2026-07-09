@@ -40,7 +40,7 @@ class ProductSearchController extends Controller
             if ($value === null || $value === '') {
                 continue;
             }
-            $query->where($field, 'LIKE', $value.'%');
+            $query->where($field, 'LIKE', addcslashes($value, '%_').'%');
         }
     }
 
