@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
 import { FolderOpen } from 'lucide-vue-next'
 import PimTree from '@/components/shared/PimTree.vue'
+import AssetCatalogFacets from '@/components/assetCatalog/AssetCatalogFacets.vue'
 
 const { t } = useI18n()
 const store = useAssetCatalogStore()
@@ -29,6 +30,8 @@ function toggleExpand(nodeId) {
   expandedIds.value = s
 }
 
+// Facetten werden über den selectedFolderId-Watcher in AssetCatalogFacets.vue
+// automatisch neu geladen — hier nur die Asset-Liste anstoßen.
 function selectFolder(node) {
   if (store.selectedFolderId === node.id) {
     store.clearFolder()
@@ -51,32 +54,39 @@ function selectAll() {
       <h3 class="text-sm font-semibold text-base-content/70">{{ t('assetCatalog.folders') }}</h3>
     </div>
 
-    <div class="flex-1 overflow-y-auto p-2">
-      <!-- All folders -->
-      <button
-        class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors"
-        :class="!store.selectedFolderId ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-base-200'"
-        @click="selectAll"
-      >
-        <FolderOpen class="w-4 h-4 flex-none" />
-        <span>{{ t('assetCatalog.allFolders') }}</span>
-        <span class="ml-auto text-xs text-base-content/40">{{ store.meta.total }}</span>
-      </button>
+    <div class="flex-1 overflow-y-auto">
+      <div class="p-2">
+        <!-- All folders -->
+        <button
+          class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors"
+          :class="!store.selectedFolderId ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-base-200'"
+          @click="selectAll"
+        >
+          <FolderOpen class="w-4 h-4 flex-none" />
+          <span>{{ t('assetCatalog.allFolders') }}</span>
+          <span class="ml-auto text-xs text-base-content/40">{{ store.meta.total }}</span>
+        </button>
 
-      <!-- Folder tree -->
-      <PimTree
-        v-if="treeNodes.length > 0"
-        :nodes="treeNodes"
-        :selectedId="store.selectedFolderId"
-        :expandedIds="expandedIds"
-        :draggable="false"
-        :showActions="false"
-        @select="selectFolder"
-        @toggle="toggleExpand"
-      />
+        <!-- Folder tree -->
+        <PimTree
+          v-if="treeNodes.length > 0"
+          :nodes="treeNodes"
+          :selectedId="store.selectedFolderId"
+          :expandedIds="expandedIds"
+          :draggable="false"
+          :showActions="false"
+          @select="selectFolder"
+          @toggle="toggleExpand"
+        />
 
-      <div v-else-if="!store.foldersLoading" class="px-3 py-4 text-xs text-base-content/30 text-center">
-        {{ t('assetCatalog.noFolders') }}
+        <div v-else-if="!store.foldersLoading" class="px-3 py-4 text-xs text-base-content/30 text-center">
+          {{ t('assetCatalog.noFolders') }}
+        </div>
+      </div>
+
+      <!-- Facettensuche -->
+      <div class="border-t border-base-300">
+        <AssetCatalogFacets />
       </div>
     </div>
   </div>

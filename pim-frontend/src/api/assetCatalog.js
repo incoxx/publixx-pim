@@ -12,6 +12,11 @@ function buildParams(options = {}) {
   if (options.mediaType) params.media_type = options.mediaType
   if (options.usageType) params.usage_type = options.usageType
   if (options.lang) params.lang = options.lang
+  if (options.filters) {
+    for (const [attrId, value] of Object.entries(options.filters)) {
+      params[`filters[${attrId}]`] = value
+    }
+  }
   return params
 }
 
@@ -26,6 +31,10 @@ export default {
 
   getFolders(options = {}) {
     return catalogClient.get('/asset-catalog/folders', { params: buildParams(options) })
+  },
+
+  getFacets(options = {}) {
+    return catalogClient.get('/asset-catalog/facets', { params: buildParams(options) })
   },
 
   getUsageTypes() {

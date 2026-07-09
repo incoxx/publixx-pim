@@ -6,11 +6,15 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Resources\Api\V1\AssetCatalogResource;
 use App\Http\Resources\Api\V1\MediaUsageTypeResource;
+use App\Models\Attribute;
+use App\Models\DictionaryEntry;
 use App\Models\Hierarchy;
+use App\Models\HierarchyAttributeAssignment;
 use App\Models\HierarchyNode;
 use App\Models\HierarchyNodeMediaAssignment;
 use App\Models\Media;
 use App\Models\MediaAttributeValue;
+use App\Models\ValueListEntry;
 use App\Models\MediaCountry;
 use App\Models\MediaLanguage;
 use App\Models\MediaUsageType;
@@ -101,6 +105,9 @@ class AssetCatalogController extends BaseController
                 $q->where('usage_type_id', $usageTypeId);
             });
         }
+
+        // Attribut-Facetten-Filter (aus /asset-catalog/facets ausgewählte Werte)
+        $this->applyFacetFilters($query, $request->query('filters', []));
 
         // Enhanced search
         if ($isSearchActive) {
@@ -432,6 +439,255 @@ class AssetCatalogController extends BaseController
     }
 
     /**
+     * GET /api/v1/asset-catalog/facets
+     *
+     * Verfügbare Facetten-Filter für den Asset-Katalog: die Attribute, die in der
+     * Asset-Hierarchie (hierarchy_type=asset) als Facette markiert sind
+     * (hierarchy_attribute_assignments.is_facet), in ihrer festgelegten Reihenfolge
+     * (sort_order), mit Werteverteilung über die aktuell gefilterte Asset-Menge.
+     */
+    public function facets(Request $request): JsonResponse
+    {
+        $lang = $request->query('lang', 'de');
+
+        $hierarchy = Hierarchy::where('hierarchy_type', 'asset')->orderBy('name_de')->first();
+        if (!$hierarchy) {
+            return response()->json(['facets' => []]);
+        }
+
+        $facetAssignments = HierarchyAttributeAssignment::where('hierarchy_id', $hierarchy->id)
+            ->where('is_facet', true)
+            ->orderBy('sort_order')
+            ->with('attribute')
+            ->get();
+
+        if ($facetAssignments->isEmpty()) {
+            return response()->json(['facets' => []]);
+        }
+
+        $baseQuery = Media::query()->excludingRestrictionSensitive($request->user());
+        $this->applyBaseAssetFilters($baseQuery, $request);
+
+        $filters = $request->query('filters', []);
+        if (!is_array($filters)) {
+            $filters = [];
+        }
+
+        $facets = [];
+
+        foreach ($facetAssignments as $assignment) {
+            $attr = $assignment->attribute;
+            if (!$attr) {
+                continue;
+            }
+            $attrId = $attr->id;
+
+            $label = $lang === 'en' && $attr->name_en ? $attr->name_en : ($attr->name_de ?: $attr->technical_name);
+            $dataType = $attr->data_type;
+
+            // Alle Filter AUSSER dem der eigenen Facette anwenden, damit die eigene
+            // Facette weiterhin alle verfügbaren Werte zeigt, während andere Facetten
+            // die aktuelle Auswahl widerspiegeln.
+            $filteredMediaQuery = clone $baseQuery;
+            $otherFilters = array_diff_key($filters, [$attrId => true]);
+            $this->applyFacetFilters($filteredMediaQuery, $otherFilters);
+
+            $baseValueQuery = MediaAttributeValue::where('attribute_id', $attrId)
+                ->whereIn('media_id', $filteredMediaQuery->select('id'));
+
+            if ($dataType === 'MultiSelection') {
+                // MultiSelection: JSON-Arrays auswerten, Einzelwerte zählen
+                $rows = (clone $baseValueQuery)
+                    ->whereNotNull('value_string')
+                    ->where('value_string', '!=', '')
+                    ->select('value_string', 'media_id')
+                    ->get();
+
+                $valueCounts = [];
+                foreach ($rows as $row) {
+                    $ids = json_decode($row->value_string, true);
+                    if (!is_array($ids)) continue;
+                    $seen = [];
+                    foreach ($ids as $id) {
+                        if (isset($seen[$id])) continue;
+                        $seen[$id] = true;
+                        $valueCounts[$id] = ($valueCounts[$id] ?? 0) + 1;
+                    }
+                }
+
+                arsort($valueCounts);
+                $topIds = array_keys(array_slice($valueCounts, 0, 50, true));
+                $entries = ValueListEntry::whereIn('id', $topIds)->get()->keyBy('id');
+                $values = [];
+                foreach ($topIds as $id) {
+                    $entry = $entries->get($id);
+                    if (!$entry) continue;
+                    $displayValue = $lang === 'en' && $entry->display_value_en
+                        ? $entry->display_value_en
+                        : $entry->display_value_de;
+                    $values[] = [
+                        'value' => $displayValue,
+                        'value_id' => $id,
+                        'count' => $valueCounts[$id],
+                    ];
+                }
+
+                $facets[] = [
+                    'attribute_id' => $attrId,
+                    'label' => $label,
+                    'data_type' => 'ValueList',
+                    'values' => $values,
+                ];
+            } elseif (in_array($dataType, ['ValueList', 'Selection', 'Dictionary'])) {
+                $rows = (clone $baseValueQuery)
+                    ->whereNotNull('value_selection_id')
+                    ->select('value_selection_id', DB::raw('COUNT(DISTINCT media_id) as cnt'))
+                    ->groupBy('value_selection_id')
+                    ->orderByDesc('cnt')
+                    ->limit(50)
+                    ->get();
+
+                $entryIds = $rows->pluck('value_selection_id')->toArray();
+                $entries = $dataType === 'Dictionary'
+                    ? DictionaryEntry::whereIn('id', $entryIds)->get()->keyBy('id')
+                    : ValueListEntry::whereIn('id', $entryIds)->get()->keyBy('id');
+
+                $values = [];
+                foreach ($rows as $row) {
+                    $entry = $entries->get($row->value_selection_id);
+                    if (!$entry) {
+                        continue;
+                    }
+                    if ($dataType === 'Dictionary') {
+                        $displayValue = $lang === 'en' && $entry->short_text_en
+                            ? $entry->short_text_en
+                            : $entry->short_text_de;
+                    } else {
+                        $displayValue = $lang === 'en' && $entry->display_value_en
+                            ? $entry->display_value_en
+                            : $entry->display_value_de;
+                    }
+                    $values[] = [
+                        'value' => $displayValue,
+                        'value_id' => $row->value_selection_id,
+                        'count' => $row->cnt,
+                    ];
+                }
+
+                $facets[] = [
+                    'attribute_id' => $attrId,
+                    'label' => $label,
+                    'data_type' => 'ValueList',
+                    'values' => $values,
+                ];
+            } elseif ($dataType === 'Boolean' || $dataType === 'Flag') {
+                $counts = (clone $baseValueQuery)
+                    ->whereNotNull('value_flag')
+                    ->select('value_flag', DB::raw('COUNT(DISTINCT media_id) as cnt'))
+                    ->groupBy('value_flag')
+                    ->get()
+                    ->keyBy('value_flag');
+
+                $facets[] = [
+                    'attribute_id' => $attrId,
+                    'label' => $label,
+                    'data_type' => 'Boolean',
+                    'values' => [
+                        ['value' => 'Ja', 'filter_value' => '1', 'count' => $counts->get(1)?->cnt ?? 0],
+                        ['value' => 'Nein', 'filter_value' => '0', 'count' => $counts->get(0)?->cnt ?? 0],
+                    ],
+                ];
+            } elseif (in_array($dataType, ['Decimal', 'Integer', 'Number', 'Float'])) {
+                $stats = (clone $baseValueQuery)
+                    ->whereNotNull('value_number')
+                    ->select(
+                        DB::raw('MIN(value_number) as min_val'),
+                        DB::raw('MAX(value_number) as max_val'),
+                        DB::raw('COUNT(DISTINCT media_id) as cnt')
+                    )
+                    ->first();
+
+                $unit = null;
+                $firstWithUnit = (clone $baseValueQuery)->whereNotNull('unit_id')->first();
+                if ($firstWithUnit && $firstWithUnit->unit) {
+                    $unit = $firstWithUnit->unit->abbreviation;
+                }
+
+                $facets[] = [
+                    'attribute_id' => $attrId,
+                    'label' => $label,
+                    'data_type' => 'Decimal',
+                    'min' => $stats->min_val !== null ? (float) $stats->min_val : null,
+                    'max' => $stats->max_val !== null ? (float) $stats->max_val : null,
+                    'count' => $stats->cnt ?? 0,
+                    'unit' => $unit,
+                ];
+            } elseif ($dataType === 'DelimitedValue') {
+                $delimiter = $attr->delimiter ?? '|';
+                $rows = (clone $baseValueQuery)
+                    ->whereNotNull('value_string')
+                    ->where('value_string', '!=', '')
+                    ->select('value_string', 'media_id')
+                    ->get();
+
+                $valueCounts = [];
+                foreach ($rows as $row) {
+                    $parts = array_map('trim', explode($delimiter, $row->value_string));
+                    $seen = [];
+                    foreach ($parts as $part) {
+                        if ($part === '' || isset($seen[$part])) {
+                            continue;
+                        }
+                        $seen[$part] = true;
+                        $valueCounts[$part] = ($valueCounts[$part] ?? 0) + 1;
+                    }
+                }
+
+                arsort($valueCounts);
+                $values = [];
+                foreach (array_slice($valueCounts, 0, 50, true) as $val => $cnt) {
+                    $values[] = [
+                        'value' => (string) $val,
+                        'value_id' => (string) $val,
+                        'count' => $cnt,
+                    ];
+                }
+
+                $facets[] = [
+                    'attribute_id' => $attrId,
+                    'label' => $label,
+                    'data_type' => 'DelimitedValueList',
+                    'values' => $values,
+                ];
+            } elseif ($dataType === 'Text' || $dataType === 'String') {
+                $rows = (clone $baseValueQuery)
+                    ->whereNotNull('value_string')
+                    ->where('value_string', '!=', '')
+                    ->select('value_string', DB::raw('COUNT(DISTINCT media_id) as cnt'))
+                    ->groupBy('value_string')
+                    ->orderByDesc('cnt')
+                    ->limit(20)
+                    ->get();
+
+                $values = $rows->map(fn ($r) => [
+                    'value' => $r->value_string,
+                    'value_id' => $r->value_string,
+                    'count' => $r->cnt,
+                ])->toArray();
+
+                $facets[] = [
+                    'attribute_id' => $attrId,
+                    'label' => $label,
+                    'data_type' => 'Text',
+                    'values' => $values,
+                ];
+            }
+        }
+
+        return response()->json(['facets' => $facets]);
+    }
+
+    /**
      * GET /api/v1/asset-catalog/assets/{media}
      *
      * Single asset detail with all metadata.
@@ -503,9 +759,23 @@ class AssetCatalogController extends BaseController
             }
         }
 
+        // Attribut-Reihenfolge aus der Asset-Hierarchie: Facetten zuerst (in ihrer
+        // festgelegten Reihenfolge), danach die übrigen zugeordneten Attribute.
+        $attributeOrder = collect();
+        if ($medium->assetFolder?->hierarchy_id) {
+            $attributeOrder = HierarchyAttributeAssignment::where('hierarchy_id', $medium->assetFolder->hierarchy_id)
+                ->get(['attribute_id', 'is_facet', 'sort_order'])
+                ->keyBy('attribute_id');
+        }
+
         return response()->json([
             'data' => (new AssetCatalogResource($medium))
-                ->additional(['lang' => $lang, 'breadcrumb' => $breadcrumb, 'hierarchy_nodes' => $hierarchyNodes])
+                ->additional([
+                    'lang' => $lang,
+                    'breadcrumb' => $breadcrumb,
+                    'hierarchy_nodes' => $hierarchyNodes,
+                    'attribute_order' => $attributeOrder,
+                ])
                 ->resolve(),
         ]);
     }
@@ -774,6 +1044,126 @@ class AssetCatalogController extends BaseController
             'Content-Type' => 'application/zip',
             'X-Skipped-Count' => (string) $skippedCount,
         ]);
+    }
+
+    /**
+     * Basis-Filter (Ordner/Nutzungsart/Medientyp/Verwendungstyp), gemeinsam genutzt von
+     * assets() und facets(), damit Facetten-Zählungen dieselbe Grundmenge sehen wie die Liste.
+     */
+    private function applyBaseAssetFilters($query, Request $request): void
+    {
+        $folderId = $request->query('folder');
+        $usagePurpose = $request->query('usage_purpose');
+        $mediaType = $request->query('media_type');
+        $usageTypeId = $request->query('usage_type');
+
+        if ($folderId) {
+            $node = HierarchyNode::find($folderId);
+            if ($node) {
+                $descendantPrefix = $node->path === '/'
+                    ? "/{$node->id}/"
+                    : "{$node->path}{$node->id}/";
+
+                $descendantIds = HierarchyNode::where('path', 'like', $descendantPrefix . '%')
+                    ->pluck('id')
+                    ->toArray();
+                $descendantIds[] = $node->id;
+
+                $query->whereIn('asset_folder_id', $descendantIds);
+            }
+        }
+
+        if ($usagePurpose && in_array($usagePurpose, ['print', 'web', 'both'])) {
+            $query->where(function ($q) use ($usagePurpose) {
+                $q->where('usage_purpose', $usagePurpose)
+                    ->orWhere('usage_purpose', 'both');
+            });
+        }
+
+        if ($mediaType) {
+            $query->where('media_type', $mediaType);
+        }
+
+        if ($usageTypeId) {
+            $query->whereHas('productAssignments', function ($q) use ($usageTypeId) {
+                $q->where('usage_type_id', $usageTypeId);
+            });
+        }
+    }
+
+    /**
+     * Wendet Attribut-Facetten-Filter (aus /asset-catalog/facets ausgewählte Werte) auf eine
+     * Media-Query an. $filters hat die Form [attribute_id => filterValue].
+     */
+    private function applyFacetFilters($query, $filters): void
+    {
+        if (!is_array($filters) || empty($filters)) {
+            return;
+        }
+
+        $filterAttributes = Attribute::whereIn('id', array_keys($filters))->get()->keyBy('id');
+
+        foreach ($filters as $filterAttrId => $filterValue) {
+            if (empty($filterValue)) {
+                continue;
+            }
+
+            $filterAttr = $filterAttributes->get($filterAttrId);
+
+            $query->whereIn('id', function ($sub) use ($filterAttrId, $filterValue, $filterAttr) {
+                $sub->select('media_id')
+                    ->from('media_attribute_values')
+                    ->where('attribute_id', $filterAttrId);
+
+                if ($filterAttr && $filterAttr->data_type === 'MultiSelection') {
+                    // MultiSelection: JSON-Array enthält value_selection_ids
+                    $values = array_map('urldecode', array_filter(explode(',', (string) $filterValue)));
+                    if (!empty($values)) {
+                        $sub->where(function ($q) use ($values) {
+                            foreach ($values as $v) {
+                                $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $v);
+                                $q->orWhere('value_string', 'LIKE', '%"' . $escaped . '"%');
+                            }
+                        });
+                    }
+                } elseif ($filterAttr && $filterAttr->data_type === 'DelimitedValue') {
+                    // DelimitedValue: LIKE-basierte Suche nach Einzelwerten
+                    $values = array_map('urldecode', array_filter(explode(',', (string) $filterValue)));
+                    if (!empty($values)) {
+                        $delimiter = $filterAttr->delimiter ?? '|';
+                        $sub->where(function ($q) use ($values, $delimiter) {
+                            foreach ($values as $v) {
+                                $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $v);
+                                $q->orWhere(function ($inner) use ($escaped, $delimiter) {
+                                    $inner->where('value_string', $escaped)
+                                          ->orWhere('value_string', 'LIKE', $escaped . $delimiter . '%')
+                                          ->orWhere('value_string', 'LIKE', '%' . $delimiter . $escaped)
+                                          ->orWhere('value_string', 'LIKE', '%' . $delimiter . $escaped . $delimiter . '%');
+                                });
+                            }
+                        });
+                    }
+                } elseif (str_contains((string) $filterValue, ':')) {
+                    [$min, $max] = explode(':', (string) $filterValue, 2);
+                    if ($min !== '') {
+                        $sub->where('value_number', '>=', (float) $min);
+                    }
+                    if ($max !== '') {
+                        $sub->where('value_number', '<=', (float) $max);
+                    }
+                } elseif ($filterValue === '0' || $filterValue === '1') {
+                    $sub->where('value_flag', '=', $filterValue === '1');
+                } else {
+                    $values = array_map('urldecode', array_filter(explode(',', (string) $filterValue)));
+                    if (!empty($values)) {
+                        $sub->where(function ($q) use ($values) {
+                            $q->whereIn('value_selection_id', $values)
+                              ->orWhereIn('value_string', $values);
+                        });
+                    }
+                }
+            });
+        }
     }
 
     /**

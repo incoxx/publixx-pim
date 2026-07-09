@@ -41,6 +41,7 @@ class HierarchyAttributeAssignmentController extends Controller
             'attribute_id' => 'required|uuid|exists:attributes,id',
             'sort_order' => 'sometimes|integer|min:0',
             'scope' => 'sometimes|string|in:node,relationship,both',
+            'is_facet' => 'sometimes|boolean',
         ]);
 
         $exists = $hierarchy->attributeAssignments()
@@ -58,6 +59,7 @@ class HierarchyAttributeAssignmentController extends Controller
             'attribute_id' => $data['attribute_id'],
             'sort_order' => $data['sort_order'] ?? $maxSort + 1,
             'scope' => $data['scope'] ?? 'node',
+            'is_facet' => $data['is_facet'] ?? false,
         ]);
 
         $assignment->load('attribute');
@@ -105,6 +107,7 @@ class HierarchyAttributeAssignmentController extends Controller
         $data = $request->validate([
             'sort_order' => 'sometimes|integer|min:0',
             'scope' => 'sometimes|string|in:node,relationship,both',
+            'is_facet' => 'sometimes|boolean',
         ]);
 
         $hierarchyAttributeAssignment->update($data);

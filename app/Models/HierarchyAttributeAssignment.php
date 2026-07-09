@@ -19,12 +19,14 @@ class HierarchyAttributeAssignment extends Model
         'attribute_id',
         'sort_order',
         'scope',
+        'is_facet',
     ];
 
     protected function casts(): array
     {
         return [
             'sort_order' => 'integer',
+            'is_facet' => 'boolean',
         ];
     }
 

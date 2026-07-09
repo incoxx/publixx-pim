@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import hierarchiesApi from '@/api/hierarchies'
 import attributesApi from '@/api/attributes'
 import PimForm from '@/components/shared/PimForm.vue'
-import { Plus, Trash2, Search, ChevronUp, ChevronDown } from 'lucide-vue-next'
+import { Plus, Trash2, Search, ChevronUp, ChevronDown, Tag } from 'lucide-vue-next'
 
 const props = defineProps({
   hierarchy: { type: Object, default: null },
@@ -151,6 +151,39 @@ async function toggleScope(assignment) {
   } catch { /* ignore */ }
 }
 
+async function toggleFacet(assignment) {
+  const nextValue = !assignment.is_facet
+  try {
+    await hierarchiesApi.updateHierarchyAttribute(assignment.id, { is_facet: nextValue })
+    assignment.is_facet = nextValue
+  } catch { /* ignore */ }
+}
+
+// Reihenfolge: nutzt dasselbe sort_order-Feld wie die allgemeine Zuordnung —
+// die Facetten-Reihenfolge in der Suche ist die relative Reihenfolge der
+// facet-markierten Einträge innerhalb dieser Liste.
+async function moveAttribute(index, direction) {
+  const targetIndex = index + direction
+  if (targetIndex < 0 || targetIndex >= assignedAttrs.value.length) return
+
+  const current = assignedAttrs.value[index]
+  const target = assignedAttrs.value[targetIndex]
+  const currentSort = current.sort_order ?? index
+  const targetSort = target.sort_order ?? targetIndex
+
+  try {
+    await Promise.all([
+      hierarchiesApi.updateHierarchyAttribute(current.id, { sort_order: targetSort }),
+      hierarchiesApi.updateHierarchyAttribute(target.id, { sort_order: currentSort }),
+    ])
+    current.sort_order = targetSort
+    target.sort_order = currentSort
+    const list = [...assignedAttrs.value]
+    ;[list[index], list[targetIndex]] = [list[targetIndex], list[index]]
+    assignedAttrs.value = list
+  } catch { /* ignore */ }
+}
+
 watch(showPicker, (open) => {
   if (open) {
     pickerSearch.value = ''
@@ -253,15 +286,44 @@ onMounted(() => {
         <template v-else-if="assignedAttrs.length > 0">
           <div class="space-y-1">
             <div
-              v-for="assignment in assignedAttrs"
+              v-for="(assignment, index) in assignedAttrs"
               :key="assignment.id"
               class="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--color-bg)] group"
             >
-              <div class="flex items-center gap-2 min-w-0">
+              <div class="flex items-center gap-1 shrink-0">
+                <button
+                  class="p-0.5 rounded hover:bg-[var(--color-surface)] text-[var(--color-text-tertiary)] disabled:opacity-20 disabled:cursor-not-allowed"
+                  :disabled="index === 0"
+                  @click="moveAttribute(index, -1)"
+                  title="Nach oben"
+                >
+                  <ChevronUp class="w-3.5 h-3.5" :stroke-width="2" />
+                </button>
+                <button
+                  class="p-0.5 rounded hover:bg-[var(--color-surface)] text-[var(--color-text-tertiary)] disabled:opacity-20 disabled:cursor-not-allowed"
+                  :disabled="index === assignedAttrs.length - 1"
+                  @click="moveAttribute(index, 1)"
+                  title="Nach unten"
+                >
+                  <ChevronDown class="w-3.5 h-3.5" :stroke-width="2" />
+                </button>
+              </div>
+              <div class="flex items-center gap-2 min-w-0 flex-1 ml-1">
                 <span class="text-xs font-medium truncate">{{ assignment.attribute?.name_de || assignment.attribute?.technical_name || '—' }}</span>
                 <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ assignment.attribute?.data_type }}</span>
               </div>
               <div class="flex items-center gap-1.5 shrink-0">
+                <button
+                  class="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full transition-colors cursor-pointer"
+                  :class="assignment.is_facet
+                    ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
+                    : 'bg-[var(--color-surface)] text-[var(--color-text-tertiary)]'"
+                  @click="toggleFacet(assignment)"
+                  title="Als Facette in der Facettensuche verwenden (klicken zum Umschalten)"
+                >
+                  <Tag class="w-3 h-3" :stroke-width="2" />
+                  Facette
+                </button>
                 <button
                   class="px-1.5 py-0.5 text-[10px] font-medium rounded-full transition-colors cursor-pointer"
                   :class="{
