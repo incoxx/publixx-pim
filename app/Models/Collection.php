@@ -18,6 +18,7 @@ class Collection extends Model
         'collection_type_id',
         'organization_id',
         'organization_snapshot',
+        'address',
         'reference',
         'name',
         'status',
@@ -35,6 +36,7 @@ class Collection extends Model
     {
         return [
             'organization_snapshot' => 'array',
+            'address' => 'array',
             'valid_from' => 'date',
             'valid_until' => 'date',
             'frozen_at' => 'datetime',

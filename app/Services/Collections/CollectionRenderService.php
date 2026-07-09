@@ -9,6 +9,7 @@ use App\Models\CollectionAttributeValue;
 use App\Models\CollectionItem;
 use App\Models\CollectionRenderJob;
 use App\Models\CollectionType;
+use App\Models\Organization;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
@@ -178,11 +179,13 @@ class CollectionRenderService
             $organization
         );
 
+        $address = $this->resolveAddress($collection, $organization);
+
         return [
             'name' => $collection->name,
             'reference' => $collection->reference,
-            'organization_name' => $organization?->name,
-            'address_block' => $organization?->address_block,
+            'organization_name' => $address['name'],
+            'address_block' => $address['block'],
             'payment_terms' => $paymentTerms,
             'cover_text' => $coverText,
             'valid_from' => $collection->valid_from?->format('d.m.Y'),
@@ -193,17 +196,60 @@ class CollectionRenderService
     }
 
     /**
+     * Bevorzugt die strukturierte, pro Collection eingefrorene Adresse (Nutzeranfrage: "Adresse
+     * in der Collection hinterlegen fuer ein Angebot") gegenueber der Organisation-Live-Adresse --
+     * gleiches Prinzip wie ecommerce_orders.billing_address, das den Warenkorb zum Bestellzeitpunkt
+     * einfriert statt live auf den Kunden zu zeigen. Faellt auf organization.address_block zurueck,
+     * wenn fuer diese Collection keine eigene Adresse gepflegt wurde -- Blade-Template bleibt
+     * unveraendert (liest weiterhin nur organization_name/address_block).
+     *
+     * @return array{name: ?string, block: ?string}
+     */
+    private function resolveAddress(Collection $collection, ?Organization $organization): array
+    {
+        $address = $collection->address;
+
+        if (empty($address)) {
+            return ['name' => $organization?->name, 'block' => $organization?->address_block];
+        }
+
+        $lines = [];
+        if (!empty($address['contact_name'])) {
+            $lines[] = $address['contact_name'];
+        }
+        if (!empty($address['street'])) {
+            $lines[] = $address['street'];
+        }
+        $cityLine = trim(($address['postal_code'] ?? '') . ' ' . ($address['city'] ?? ''));
+        if ($cityLine !== '') {
+            $lines[] = $cityLine;
+        }
+        if (!empty($address['country'])) {
+            $lines[] = $address['country'];
+        }
+        $contactLine = trim(implode(' · ', array_filter([$address['email'] ?? null, $address['phone'] ?? null])));
+        if ($contactLine !== '') {
+            $lines[] = $contactLine;
+        }
+
+        return [
+            'name' => $address['company'] ?? $organization?->name,
+            'block' => $lines === [] ? null : implode("\n", $lines),
+        ];
+    }
+
+    /**
      * @return array<string, string|int|float>
      */
     private function buildHeaderTextContext(Collection $collection): array
     {
-        $organization = $collection->organization;
+        $address = $this->resolveAddress($collection, $collection->organization);
 
         $context = [
             'collection.name' => $collection->name ?? '',
             'collection.reference' => $collection->reference ?? '',
-            'organization.name' => $organization?->name ?? '',
-            'organization.address_block' => $organization?->address_block ?? '',
+            'organization.name' => $address['name'] ?? '',
+            'organization.address_block' => $address['block'] ?? '',
         ];
 
         if ($collection->valid_until !== null) {

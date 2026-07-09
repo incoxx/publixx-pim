@@ -13,6 +13,7 @@ import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
+import AddressForm from '@/components/shared/AddressForm.vue'
 import EntityPickerDialog from '@/components/shared/EntityPickerDialog.vue'
 import CollectionFormPanel from '@/components/panels/CollectionFormPanel.vue'
 import CollectionMatchQueue from '@/components/collections/CollectionMatchQueue.vue'
@@ -93,9 +94,27 @@ async function confirmDelete() {
 async function selectCollection(row) {
   const { data } = await collectionsApi.get(row.id, { include: 'collectionType,organization' })
   selected.value = data.data
+  addressDraft.value = { ...(selected.value.address || {}) }
   expandedItemId.value = null
   await store.fetchItems(row.id)
   await loadCollectionAttributes()
+}
+
+// ─── Adresse (fuer ein Angebot) ───
+const addressDraft = ref({})
+const savingAddress = ref(false)
+
+async function saveAddress() {
+  savingAddress.value = true
+  try {
+    const { data } = await collectionsApi.update(selected.value.id, { address: addressDraft.value })
+    selected.value.address = (data.data || data).address
+    toastStore.showToast('Adresse gespeichert', 'success')
+  } catch (e) {
+    toastStore.showToast(e.response?.data?.message || 'Adresse konnte nicht gespeichert werden', 'error')
+  } finally {
+    savingAddress.value = false
+  }
 }
 
 // ─── Collection-level attributes (Zahlungsbedingungen, Kopftext, ...) ───
@@ -348,6 +367,16 @@ onMounted(() => {
       </div>
 
       <CollectionMatchQueue :collection-id="selected.id" @resolved="store.fetchItems(selected.id)" />
+
+      <!-- Adresse (fuer ein Angebot) -- pro Collection eingefroren, unabhaengig von der
+           Organisation-Live-Adresse, siehe CollectionRenderService::resolveAddress() -->
+      <div class="pim-card p-4 space-y-3">
+        <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Adresse</h4>
+        <AddressForm v-model="addressDraft" />
+        <button class="pim-btn pim-btn-secondary text-xs" data-testid="save-address" :disabled="savingAddress" @click="saveAddress">
+          {{ savingAddress ? 'Speichere...' : 'Speichern' }}
+        </button>
+      </div>
 
       <!-- Collection-level attributes -->
       <div v-if="collectionAttrDefs.length" class="pim-card p-4 space-y-3">
