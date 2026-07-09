@@ -22,6 +22,7 @@ class CollectionItem extends Model
         'unit_id',
         'snapshot',
         'snapshot_at',
+        'hidden_attribute_ids',
     ];
 
     protected function casts(): array
@@ -31,6 +32,7 @@ class CollectionItem extends Model
             'quantity' => 'decimal:6',
             'snapshot' => 'array',
             'snapshot_at' => 'datetime',
+            'hidden_attribute_ids' => 'array',
         ];
     }
 

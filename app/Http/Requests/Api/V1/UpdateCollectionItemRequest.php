@@ -29,6 +29,11 @@ class UpdateCollectionItemRequest extends FormRequest
             'snapshot.resolved_price' => 'nullable|array',
             'snapshot.resolved_price.amount' => 'nullable|numeric|min:0',
             'snapshot.resolved_price.currency' => 'nullable|string|max:3',
+            // Blendet einzelne Attribute der zugeordneten Positions-Attributsicht fuer GENAU
+            // diese Position aus (z.B. "Farbe" bei einer Position ohne Farbvariante) -- die
+            // Sichtzuordnung/Werte selbst bleiben unangetastet.
+            'hidden_attribute_ids' => 'sometimes|nullable|array',
+            'hidden_attribute_ids.*' => 'uuid|exists:attributes,id',
         ];
     }
 

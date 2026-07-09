@@ -10,6 +10,7 @@ use App\Models\Attribute;
 use App\Models\Collection;
 use App\Models\CollectionAttributeValue;
 use App\Models\CollectionItem;
+use App\Models\ProductAttributeValue;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 
@@ -43,15 +44,40 @@ class CollectionAttributeValueController extends Controller
 
     /**
      * GET /collections/{collection}/items/{item}/attribute-values
+     *
+     * Fuer produktgebundene Positionen: Attribute, fuer die noch KEIN eigener Positions-Wert
+     * gespeichert wurde, werden mit dem aktuellen Wert des verknuepften Produkts vorbelegt (z.B.
+     * "Hauptkamera" einer per Attributsicht zugeordneten, eigentlich produktbezogenen Gruppe) --
+     * sonst zeigt das Attribute-Panel bei jeder frisch hinzugefuegten Position leere Felder,
+     * obwohl das Produkt selbst laengst einen Wert hat. Ein expliziter Positions-Wert (einmal
+     * gespeichert, auch wenn identisch zum vorbelegten Produktwert) hat immer Vorrang und wird
+     * nie durch den Produktwert ueberschrieben. Betrifft nur die Editier-Ansicht -- das Rendering
+     * (CollectionRenderService::resolveGroupDisplayValues()) liest weiterhin ausschliesslich
+     * explizit gespeicherte Positions-Werte, damit im Export nur bewusst bestaetigte Daten
+     * erscheinen, nicht automatisch nachgezogene Live-Produktdaten.
      */
     public function indexForItem(Collection $collection, CollectionItem $item): AnonymousResourceCollection
     {
         $this->authorize('view', $collection);
         abort_if($item->collection_id !== $collection->id, 404);
 
-        return CollectionAttributeValueResource::collection(
-            $this->valuesQuery('collection_item', $item->id)->get()
-        );
+        $itemValues = $this->valuesQuery('collection_item', $item->id)->get();
+
+        $productValues = collect();
+        if ($item->product_id !== null) {
+            $coveredAttributeIds = $itemValues->pluck('attribute_id')->all();
+
+            $productValues = ProductAttributeValue::query()
+                ->with(['attribute', 'unit', 'valueListEntry'])
+                ->where('product_id', $item->product_id)
+                ->where('multiplied_index', 0)
+                ->whereNotIn('attribute_id', $coveredAttributeIds)
+                ->where(fn ($q) => $q->whereNull('language')->orWhere('language', $collection->language ?? 'de'))
+                ->whereHas('attribute', fn ($q) => $q->where('is_internal', false))
+                ->get();
+        }
+
+        return CollectionAttributeValueResource::collection($itemValues->concat($productValues));
     }
 
     /**
