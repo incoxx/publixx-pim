@@ -47,6 +47,7 @@ class AttributeController extends Controller
 
         $this->applyHierarchyNodeFilter($query, $request);
         $this->applyAppliesToFilter($query, $request);
+        $this->applyAttributeViewFilter($query, $request);
 
         $this->applySearch($query, $request, ['name_de', 'name_en', 'technical_name']);
         $this->applySorting($query, $request, 'position', 'asc');
@@ -199,6 +200,27 @@ class AttributeController extends Controller
         if ($appliesTo) {
             $query->whereJsonContains('applies_to', $appliesTo);
         }
+    }
+
+    /**
+     * filter[attribute_view]=technical_name1,technical_name2 -- z.B. genutzt von Collections,
+     * um Kopfdaten-/Positions-Attribute auf die dem jeweiligen CollectionType zugeordnete(n)
+     * Attributgruppe(n) zu beschraenken, statt pauschal alle applies_to-passenden Attribute
+     * zu zeigen (siehe CollectionType.default_attribute_groups/default_item_attribute_groups).
+     */
+    private function applyAttributeViewFilter($query, Request $request): void
+    {
+        $viewNames = $request->query('filter', [])['attribute_view'] ?? null;
+
+        if (!$viewNames) {
+            return;
+        }
+
+        $names = is_array($viewNames) ? $viewNames : explode(',', $viewNames);
+
+        $query->whereHas('attributeViews', function ($q) use ($names) {
+            $q->whereIn('technical_name', $names);
+        });
     }
 
     /**

@@ -27,10 +27,10 @@ class CollectionType extends Model
         'default_item_attribute_groups',
         'default_render_template_id',
         'default_price_type',
+        // Nur der Rabatt bleibt eine Einzelrollen-Zuordnung -- er geht rechnerisch in die
+        // Positionssumme ein. Alle rein darstellenden Kopfdaten-/Positions-Attribute kommen
+        // aus default_attribute_groups/default_item_attribute_groups (siehe CollectionRenderService).
         'default_discount_attribute',
-        'default_line_text_attribute',
-        'default_payment_terms_attribute',
-        'default_cover_text_attribute',
         'requires_organization',
         'requires_snapshot',
         'allowed_export_formats',

@@ -91,12 +91,11 @@ class DemoCollectionSeeder extends Seeder
                 // (DemoAttributeSeeder) -- Grundlage fuer CollectionRenderService's
                 // buildEnrichmentRules() (Phase 2).
                 'default_price_type' => 'list_price',
-                // Explizite, typgebundene Zuordnung statt Namenskonvention-Raten
-                // (CollectionRenderService::findValueByTechnicalName()).
+                // Rabatt bleibt die einzige Einzelrollen-Zuordnung (geht in die Summe ein).
+                // Positionstext/Zahlungsbedingungen/Kopftext werden automatisch angezeigt, weil
+                // sie oben bereits header_view/item_view zugeordnet wurden (siehe
+                // CollectionRenderService::resolveGroupDisplayValues()).
                 'default_discount_attribute' => 'angebot-rabatt',
-                'default_line_text_attribute' => 'angebot-positionstext',
-                'default_payment_terms_attribute' => 'angebot-zahlungsbedingungen',
-                'default_cover_text_attribute' => 'angebot-kopftext',
                 'sort_order' => 10,
                 'is_active' => true,
             ]

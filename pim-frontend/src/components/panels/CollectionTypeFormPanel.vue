@@ -20,7 +20,6 @@ const pdfTemplateOptions = ref([])
 const priceTypeOptions = ref([])
 const headerAttributeViewOptions = ref([])
 const itemAttributeViewOptions = ref([])
-const collectionAttributeOptions = ref([])
 const itemAttributeOptions = ref([])
 
 const isEdit = computed(() => !!props.collectionType)
@@ -44,9 +43,6 @@ const formData = ref(
         default_attribute_groups: props.collectionType.default_attribute_groups || [],
         default_item_attribute_groups: props.collectionType.default_item_attribute_groups || [],
         default_discount_attribute: props.collectionType.default_discount_attribute || '',
-        default_line_text_attribute: props.collectionType.default_line_text_attribute || '',
-        default_payment_terms_attribute: props.collectionType.default_payment_terms_attribute || '',
-        default_cover_text_attribute: props.collectionType.default_cover_text_attribute || '',
       }
     : {
         technical_name: '',
@@ -65,9 +61,6 @@ const formData = ref(
         default_attribute_groups: [],
         default_item_attribute_groups: [],
         default_discount_attribute: '',
-        default_line_text_attribute: '',
-        default_payment_terms_attribute: '',
-        default_cover_text_attribute: '',
       }
 )
 
@@ -118,39 +111,23 @@ const fields = computed(() => [
     label: 'Attributgruppen — Kopfdaten',
     type: 'multiselect',
     options: headerAttributeViewOptions.value,
-    hint: 'Attributgruppen, die auf Collection-Ebene (Kopfdaten) standardmäßig zugeordnet werden. Nur Gruppen mit mindestens einem Collection-Attribut werden hier angeboten.',
+    hint: 'Jedes Attribut dieser Gruppe(n) wird automatisch in der Kopfdaten-Karte einer Collection angezeigt und im Export gerendert (Reihenfolge = Attribut-Position in der Gruppe). Nur Gruppen mit mindestens einem Collection-Attribut werden hier angeboten.',
   },
   {
     key: 'default_item_attribute_groups',
     label: 'Attributgruppen — Positionen',
     type: 'multiselect',
     options: itemAttributeViewOptions.value,
-    hint: 'Attributgruppen, die auf Positions-Ebene standardmäßig zugeordnet werden. Nur Gruppen mit mindestens einem Positions-Attribut werden hier angeboten.',
+    hint: 'Jedes Attribut dieser Gruppe(n) wird automatisch im "Attribute"-Panel jeder Position angezeigt und im Export als Zeile unter der Position gerendert. Nur Gruppen mit mindestens einem Positions-Attribut werden hier angeboten.',
   },
-  // Feld-Zuordnung für die Render-Pipeline (MappingResolver-Quellfelder)
+  // Rabatt bleibt eine Einzelrollen-Zuordnung, weil er rechnerisch in die Positionssumme
+  // eingeht -- alle rein darstellenden Positions-Attribute kommen aus der Gruppe oben.
   {
     key: 'default_discount_attribute',
     label: 'Rabatt-Attribut (Position)',
     type: 'select',
     options: [{ value: '', label: 'Keines' }, ...itemAttributeOptions.value],
-  },
-  {
-    key: 'default_line_text_attribute',
-    label: 'Positionstext-Attribut (Position)',
-    type: 'select',
-    options: [{ value: '', label: 'Keines' }, ...itemAttributeOptions.value],
-  },
-  {
-    key: 'default_payment_terms_attribute',
-    label: 'Zahlungsbedingungen-Attribut (Kopfdaten)',
-    type: 'select',
-    options: [{ value: '', label: 'Keines' }, ...collectionAttributeOptions.value],
-  },
-  {
-    key: 'default_cover_text_attribute',
-    label: 'Kopftext-Attribut (Kopfdaten)',
-    type: 'select',
-    options: [{ value: '', label: 'Keines' }, ...collectionAttributeOptions.value],
+    hint: 'Wird als eigene Spalte in der Positionstabelle gerechnet, nicht als Anzeigezeile — auch wenn es Mitglied einer Attributgruppe oben ist.',
   },
 ])
 
@@ -158,14 +135,15 @@ onMounted(async () => {
   // Promise.allSettled statt Promise.all: PDF-Vorlagen sind ein eigenes, separat lizenzierbares
   // Enterprise-Modul (pdf_templates) -- ohne diese Lizenz liefert der Endpoint 403. Das darf nicht
   // dazu fuehren, dass auch die uebrigen (unabhaengigen) Auswahllisten leer bleiben.
-  const [pdfRes, priceRes, viewsRes, collectionAttrRes, itemAttrRes] = await Promise.allSettled([
+  const [pdfRes, priceRes, viewsRes, itemAttrRes] = await Promise.allSettled([
     pdfTemplatesApi.list(),
     priceTypes.list(),
     // include=attributes: Attributgruppen (AttributeView) sind generisch fuer alle Entitaeten
     // (Produkte, Collections, ...) -- ob eine Gruppe hier ueberhaupt sinnvoll ist, ergibt sich
     // erst daraus, ob sie mindestens ein Attribut mit passendem applies_to enthaelt (s.u.).
     attributeViews.list({ include: 'attributes' }),
-    attributesApi.list({ filters: { applies_to: 'collection' }, perPage: 200 }),
+    // Nur fuer die Rabatt-Attribut-Einzelauswahl -- alle anderen Positions-/Kopfdaten-Attribute
+    // kommen ueber die Attributgruppen-Mehrfachauswahl oben.
     attributesApi.list({ filters: { applies_to: 'collection_item' }, perPage: 200 }),
   ])
   if (pdfRes.status === 'fulfilled') {
@@ -182,9 +160,6 @@ onMounted(async () => {
     headerAttributeViewOptions.value = viewsWithScope('collection')
     itemAttributeViewOptions.value = viewsWithScope('collection_item')
   }
-  if (collectionAttrRes.status === 'fulfilled') {
-    collectionAttributeOptions.value = (collectionAttrRes.value.data.data || collectionAttrRes.value.data).map(a => ({ value: a.technical_name, label: a.name_de }))
-  }
   if (itemAttrRes.status === 'fulfilled') {
     itemAttributeOptions.value = (itemAttrRes.value.data.data || itemAttrRes.value.data).map(a => ({ value: a.technical_name, label: a.name_de }))
   }
@@ -198,9 +173,6 @@ async function handleSubmit(data) {
     default_render_template_id: data.default_render_template_id || null,
     default_price_type: data.default_price_type || null,
     default_discount_attribute: data.default_discount_attribute || null,
-    default_line_text_attribute: data.default_line_text_attribute || null,
-    default_payment_terms_attribute: data.default_payment_terms_attribute || null,
-    default_cover_text_attribute: data.default_cover_text_attribute || null,
   }
   try {
     if (isEdit.value) {
