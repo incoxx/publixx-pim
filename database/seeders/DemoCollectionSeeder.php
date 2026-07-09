@@ -43,7 +43,6 @@ class DemoCollectionSeeder extends Seeder
             'angebot-zahlungsbedingungen',
             'Zahlungsbedingungen',
             'String',
-            ['collection'],
             $headerView,
             ['is_translatable' => true]
         );
@@ -51,7 +50,6 @@ class DemoCollectionSeeder extends Seeder
             'angebot-kopftext',
             'Kopftext',
             'String',
-            ['collection'],
             $headerView,
             ['is_translatable' => true, 'textarea_rows' => 6]
         );
@@ -60,7 +58,6 @@ class DemoCollectionSeeder extends Seeder
             'angebot-rabatt',
             'Rabatt',
             'Number',
-            ['collection_item'],
             $itemView,
             ['max_pre_decimal' => 3, 'max_post_decimal' => 2]
         );
@@ -68,7 +65,6 @@ class DemoCollectionSeeder extends Seeder
             'angebot-positionstext',
             'Positionstext',
             'String',
-            ['collection_item'],
             $itemView,
             ['is_translatable' => true, 'textarea_rows' => 2]
         );
@@ -109,7 +105,6 @@ class DemoCollectionSeeder extends Seeder
             [
                 'name_de' => $nameDe,
                 'data_type' => $dataType,
-                'applies_to' => ['collection_item'],
                 'is_internal' => true,
                 'is_hidden' => true,
                 'status' => 'active',
@@ -129,7 +124,6 @@ class DemoCollectionSeeder extends Seeder
         string $technicalName,
         string $nameDe,
         string $dataType,
-        array $appliesTo,
         AttributeView $view,
         array $extra = []
     ): Attribute {
@@ -138,7 +132,6 @@ class DemoCollectionSeeder extends Seeder
             array_merge([
                 'name_de' => $nameDe,
                 'data_type' => $dataType,
-                'applies_to' => $appliesTo,
                 'status' => 'active',
             ], $extra)
         );

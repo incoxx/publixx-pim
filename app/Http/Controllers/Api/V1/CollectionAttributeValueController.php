@@ -107,14 +107,6 @@ class CollectionAttributeValueController extends Controller
                     "Attribut '{$attribute->technical_name}' ist intern und kann nicht direkt geschrieben werden."
                 );
 
-                // Edge case #11: ein Attribut, dessen applies_to den Owner-Scope nicht
-                // enthaelt, darf hier nicht beschrieben werden.
-                abort_unless(
-                    in_array($ownerType === 'collection' ? 'collection' : 'collection_item', $attribute->applies_to ?? [], true),
-                    422,
-                    "Attribut '{$attribute->technical_name}' ist fuer diese Ebene nicht freigegeben (applies_to)."
-                );
-
                 $language = $entry['language'] ?? null;
                 $multipliedIndex = $entry['multiplied_index'] ?? 0;
 

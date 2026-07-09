@@ -64,8 +64,6 @@ class UpdateAttributeRequest extends FormRequest
             'source_attribute_name' => 'nullable|string|max:255',
             'source_attribute_key' => 'nullable|string|max:255',
             'status' => 'in:active,inactive',
-            'applies_to' => 'nullable|array',
-            'applies_to.*' => 'in:product,collection,collection_item',
         ];
     }
 
