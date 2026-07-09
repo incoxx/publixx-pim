@@ -45,6 +45,10 @@ class ProductController extends Controller
         'project_id',
     ];
 
+    // Felder, die per Präfix-Suche (LIKE 'wert%') statt Exakt-Match gefiltert werden,
+    // z.B. für das Quick-Lookup im Produkte-Menü.
+    private const ALLOWED_PREFIX_FILTERS = ['sku', 'name', 'ean'];
+
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', Product::class);
@@ -65,8 +69,19 @@ class ProductController extends Controller
             $this->constrainAttributeValuesForLanguages($query, $languages);
         }
 
+        $rawFilters = $request->query('filter', []);
+
+        $prefixFilters = array_intersect_key($rawFilters, array_flip(self::ALLOWED_PREFIX_FILTERS));
+        foreach ($prefixFilters as $field => $value) {
+            if (!is_string($value) || $value === '') {
+                continue;
+            }
+            $column = preg_replace('/[^a-zA-Z0-9_]/', '', $field);
+            $query->where("products.{$column}", 'LIKE', $value.'%');
+        }
+
         $filters = array_intersect_key(
-            $request->query('filter', []),
+            $rawFilters,
             array_flip(self::ALLOWED_FILTERS)
         );
 

@@ -43,7 +43,6 @@ class DemoCollectionSeeder extends Seeder
             'angebot-zahlungsbedingungen',
             'Zahlungsbedingungen',
             'String',
-            ['collection'],
             $headerView,
             ['is_translatable' => true]
         );
@@ -51,7 +50,6 @@ class DemoCollectionSeeder extends Seeder
             'angebot-kopftext',
             'Kopftext',
             'String',
-            ['collection'],
             $headerView,
             ['is_translatable' => true, 'textarea_rows' => 6]
         );
@@ -60,7 +58,6 @@ class DemoCollectionSeeder extends Seeder
             'angebot-rabatt',
             'Rabatt',
             'Number',
-            ['collection_item'],
             $itemView,
             ['max_pre_decimal' => 3, 'max_post_decimal' => 2]
         );
@@ -68,7 +65,6 @@ class DemoCollectionSeeder extends Seeder
             'angebot-positionstext',
             'Positionstext',
             'String',
-            ['collection_item'],
             $itemView,
             ['is_translatable' => true, 'textarea_rows' => 2]
         );
@@ -91,12 +87,11 @@ class DemoCollectionSeeder extends Seeder
                 // (DemoAttributeSeeder) -- Grundlage fuer CollectionRenderService's
                 // buildEnrichmentRules() (Phase 2).
                 'default_price_type' => 'list_price',
-                // Explizite, typgebundene Zuordnung statt Namenskonvention-Raten
-                // (CollectionRenderService::findValueByTechnicalName()).
+                // Rabatt bleibt die einzige Einzelrollen-Zuordnung (geht in die Summe ein).
+                // Positionstext/Zahlungsbedingungen/Kopftext werden automatisch angezeigt, weil
+                // sie oben bereits header_view/item_view zugeordnet wurden (siehe
+                // CollectionRenderService::resolveGroupDisplayValues()).
                 'default_discount_attribute' => 'angebot-rabatt',
-                'default_line_text_attribute' => 'angebot-positionstext',
-                'default_payment_terms_attribute' => 'angebot-zahlungsbedingungen',
-                'default_cover_text_attribute' => 'angebot-kopftext',
                 'sort_order' => 10,
                 'is_active' => true,
             ]
@@ -110,7 +105,6 @@ class DemoCollectionSeeder extends Seeder
             [
                 'name_de' => $nameDe,
                 'data_type' => $dataType,
-                'applies_to' => ['collection_item'],
                 'is_internal' => true,
                 'is_hidden' => true,
                 'status' => 'active',
@@ -130,7 +124,6 @@ class DemoCollectionSeeder extends Seeder
         string $technicalName,
         string $nameDe,
         string $dataType,
-        array $appliesTo,
         AttributeView $view,
         array $extra = []
     ): Attribute {
@@ -139,7 +132,6 @@ class DemoCollectionSeeder extends Seeder
             array_merge([
                 'name_de' => $nameDe,
                 'data_type' => $dataType,
-                'applies_to' => $appliesTo,
                 'status' => 'active',
             ], $extra)
         );

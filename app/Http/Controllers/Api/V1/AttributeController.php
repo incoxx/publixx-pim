@@ -46,7 +46,7 @@ class AttributeController extends Controller
         ));
 
         $this->applyHierarchyNodeFilter($query, $request);
-        $this->applyAppliesToFilter($query, $request);
+        $this->applyAttributeViewFilter($query, $request);
 
         $this->applySearch($query, $request, ['name_de', 'name_en', 'technical_name']);
         $this->applySorting($query, $request, 'position', 'asc');
@@ -188,17 +188,24 @@ class AttributeController extends Controller
     }
 
     /**
-     * Filter by Entitaets-Scope (applies_to ist ein JSON-Array: product/collection/
-     * collection_item) -- einfache Spaltengleichheit (Filterable::applyFilters) greift
-     * bei JSON-Containment nicht, daher eigene whereJsonContains()-Behandlung.
+     * filter[attribute_view]=technical_name1,technical_name2 -- z.B. genutzt von Collections,
+     * um Kopfdaten-/Positions-Attribute auf die dem jeweiligen CollectionType zugeordnete(n)
+     * Attributsicht(en) zu beschraenken (siehe CollectionType.default_attribute_groups/
+     * default_item_attribute_groups).
      */
-    private function applyAppliesToFilter($query, Request $request): void
+    private function applyAttributeViewFilter($query, Request $request): void
     {
-        $appliesTo = $request->query('filter', [])['applies_to'] ?? null;
+        $viewNames = $request->query('filter', [])['attribute_view'] ?? null;
 
-        if ($appliesTo) {
-            $query->whereJsonContains('applies_to', $appliesTo);
+        if (!$viewNames) {
+            return;
         }
+
+        $names = is_array($viewNames) ? $viewNames : explode(',', $viewNames);
+
+        $query->whereHas('attributeViews', function ($q) use ($names) {
+            $q->whereIn('technical_name', $names);
+        });
     }
 
     /**

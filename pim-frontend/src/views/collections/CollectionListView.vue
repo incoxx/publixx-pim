@@ -8,7 +8,7 @@ import { collections as collectionsApi, collectionItems as collectionItemsApi, c
 import { triggerDownload, blobErrorMessage } from '@/utils/download'
 import productsApi from '@/api/products'
 import { useRouter } from 'vue-router'
-import { Plus, ChevronLeft, Trash2, GripVertical, Upload, Eye, Download, Loader2 } from 'lucide-vue-next'
+import { Plus, ChevronLeft, Trash2, GripVertical, Upload, Eye, Download, Loader2, Star } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
@@ -18,6 +18,7 @@ import EntityPickerDialog from '@/components/shared/EntityPickerDialog.vue'
 import CollectionFormPanel from '@/components/panels/CollectionFormPanel.vue'
 import CollectionMatchQueue from '@/components/collections/CollectionMatchQueue.vue'
 import CollectionShareLinksPanel from '@/components/collections/CollectionShareLinksPanel.vue'
+import AddFromWatchlistDialog from '@/components/dialogs/AddFromWatchlistDialog.vue'
 
 const VueDraggable = defineAsyncComponent(() => import('vue-draggable-plus').then((m) => m.VueDraggable))
 
@@ -41,6 +42,7 @@ const deleting = ref(false)
 
 const selected = ref(null)
 const showProductPicker = ref(false)
+const showWatchlistPicker = ref(false)
 const expandedItemId = ref(null)
 
 // ─── Rendering: Vorschau + Export (sync/async), PdfTemplate-Kopfbereich siehe Backend ───
@@ -97,6 +99,9 @@ async function selectCollection(row) {
   selected.value = data.data
   addressDraft.value = { ...(selected.value.address || {}) }
   expandedItemId.value = null
+  // itemAttrDefs haengt vom Collection-Typ ab (default_item_attribute_groups) -- Cache aus
+  // toggleItemAttributes() beim Wechsel auf eine andere Collection ungueltig machen.
+  itemAttrDefs.value = []
   await store.fetchItems(row.id)
   await loadCollectionAttributes()
 }
@@ -123,7 +128,20 @@ const collectionAttrDefs = ref([])
 const collectionAttrValues = ref({})
 
 async function loadCollectionAttributes() {
-  const { data: defs } = await attributesApi.list({ filters: { applies_to: 'collection', is_internal: 0 }, perPage: 100 })
+  // Auf die dem Collection-Typ zugeordnete Attributsicht beschraenkt (default_attribute_groups).
+  // Bewusst KEIN Fallback auf "alle Attribute" ohne zugeordnete Sicht -- CollectionRenderService::
+  // resolveGroupDisplayValues() rendert bei leerer Sicht ebenfalls nichts. Ein Fallback wuerde
+  // hier Werte editierbar machen, die im Export nie erscheinen.
+  const groups = selected.value.collection_type?.default_attribute_groups
+  if (!groups?.length) {
+    collectionAttrDefs.value = []
+    collectionAttrValues.value = {}
+    return
+  }
+  const { data: defs } = await attributesApi.list({
+    filters: { is_internal: 0, attribute_view: groups.join(',') },
+    perPage: 100,
+  })
   collectionAttrDefs.value = defs.data
   const { data: vals } = await collectionsApi.getAttributeValues(selected.value.id)
   const map = {}
@@ -156,8 +174,26 @@ async function toggleItemAttributes(item) {
   }
   expandedItemId.value = item.id
   if (!itemAttrDefs.value.length) {
-    const { data: defs } = await attributesApi.list({ filters: { applies_to: 'collection_item', is_internal: 0 }, perPage: 100 })
-    itemAttrDefs.value = defs.data
+    // Auf die dem Collection-Typ zugeordnete Attributsicht beschraenkt (default_item_attribute_groups)
+    // -- siehe loadCollectionAttributes()/CollectionRenderService::resolveGroupDisplayValues().
+    const groups = selected.value.collection_type?.default_item_attribute_groups
+    let defs = []
+    if (groups?.length) {
+      const { data } = await attributesApi.list({
+        filters: { is_internal: 0, attribute_view: groups.join(',') },
+        perPage: 100,
+      })
+      defs = data.data
+    }
+    // Rabatt-Attribut braucht immer ein Eingabefeld, auch wenn es (noch) kein Mitglied der
+    // zugeordneten Gruppe ist -- ohne UI-Zugriff waere der Rabatt sonst nicht pflegbar.
+    const discountTechnicalName = selected.value.collection_type?.default_discount_attribute
+    if (discountTechnicalName && !defs.some((a) => a.technical_name === discountTechnicalName)) {
+      const { data } = await attributesApi.list({ search: discountTechnicalName, perPage: 5 })
+      const match = (data.data || []).find((a) => a.technical_name === discountTechnicalName)
+      if (match) defs = [...defs, match]
+    }
+    itemAttrDefs.value = defs
   }
   const { data: vals } = await collectionItemsApi.getAttributeValues(selected.value.id, item.id)
   const map = {}
@@ -199,6 +235,23 @@ async function removeItem(item) {
 async function updateQuantity(item, quantity) {
   if (quantity === item.quantity) return
   await store.updateItem(selected.value.id, item.id, { quantity })
+}
+
+// ─── Freitextpositionen: Name/Preis sind bei Positionen ohne product_id die einzige Quelle
+// (EnrichmentService leitet dort nichts von einem Produkt ab), daher direkt im snapshot editierbar.
+async function updateFreetextName(item, name) {
+  await store.updateItem(selected.value.id, item.id, { snapshot: { ...(item.snapshot || {}), name } })
+}
+
+async function updateFreetextPrice(item, rawAmount) {
+  const snapshot = { ...(item.snapshot || {}) }
+  const amount = rawAmount === '' ? null : parseFloat(rawAmount)
+  if (amount === null || Number.isNaN(amount)) {
+    delete snapshot.resolved_price
+  } else {
+    snapshot.resolved_price = { amount, currency: selected.value.currency || 'EUR' }
+  }
+  await store.updateItem(selected.value.id, item.id, { snapshot })
 }
 
 async function onReorder() {
@@ -403,6 +456,9 @@ onMounted(() => {
             <button class="pim-btn pim-btn-ghost text-xs" @click="addFreetextItem">
               <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Freitext
             </button>
+            <button class="pim-btn pim-btn-ghost text-xs" data-testid="add-from-watchlist-trigger" @click="showWatchlistPicker = true">
+              <Star class="w-3.5 h-3.5" :stroke-width="2" /> Aus Merkliste
+            </button>
             <button class="pim-btn pim-btn-primary text-xs" @click="showProductPicker = true">
               <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Produkt hinzufügen
             </button>
@@ -428,11 +484,31 @@ onMounted(() => {
             <div class="flex items-center gap-3 px-4 py-2.5">
               <GripVertical class="drag-handle w-3.5 h-3.5 text-[var(--color-text-tertiary)] cursor-grab shrink-0" />
               <div class="flex-1 min-w-0">
-                <p class="text-xs font-medium text-[var(--color-text-primary)] truncate">
-                  {{ item.product?.name || item.snapshot?.name || 'Freitextposition' }}
-                </p>
-                <p v-if="item.product?.sku" class="text-[10px] text-[var(--color-text-tertiary)] font-mono">{{ item.product.sku }}</p>
+                <template v-if="item.product_id">
+                  <p class="text-xs font-medium text-[var(--color-text-primary)] truncate">{{ item.product?.name }}</p>
+                  <p v-if="item.product?.sku" class="text-[10px] text-[var(--color-text-tertiary)] font-mono">{{ item.product.sku }}</p>
+                </template>
+                <input
+                  v-else
+                  type="text"
+                  class="pim-input text-xs w-full"
+                  placeholder="Freitext-Bezeichnung eingeben…"
+                  :value="item.snapshot?.name || ''"
+                  data-testid="freetext-name"
+                  @change="updateFreetextName(item, $event.target.value)"
+                />
               </div>
+              <input
+                v-if="!item.product_id"
+                type="number"
+                class="pim-input text-xs !w-24 text-right shrink-0"
+                placeholder="Preis"
+                :value="item.snapshot?.resolved_price?.amount ?? ''"
+                min="0"
+                step="0.01"
+                data-testid="freetext-price"
+                @change="updateFreetextPrice(item, $event.target.value)"
+              />
               <input
                 type="number"
                 class="pim-input text-xs !w-20 text-right shrink-0"
@@ -469,6 +545,14 @@ onMounted(() => {
       :labelFn="p => p.name"
       :sublabelFn="p => p.sku"
       @confirm="pickProduct"
+    />
+
+    <AddFromWatchlistDialog
+      v-if="selected"
+      v-model:open="showWatchlistPicker"
+      :collection-id="selected.id"
+      :existing-product-ids="store.currentItems.map(i => i.product_id).filter(Boolean)"
+      @added="store.fetchItems(selected.id)"
     />
 
     <PimDeleteConfirmDialog

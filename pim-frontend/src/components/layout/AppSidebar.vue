@@ -230,6 +230,15 @@ const sections = computed(() => {
             { icon: MapPin, label: () => 'Medien-Länder', to: '/media-countries', permission: 'media-countries.view' },
           ],
         },
+        {
+          key: 'grp-collections-config',
+          icon: Folders,
+          label: () => 'Collections',
+          module: 'collections',
+          children: [
+            { icon: Folders, label: () => 'Collection-Typen', to: '/collection-types', module: 'collections', permission: 'collection-types.view' },
+          ],
+        },
       ],
     },
     {
