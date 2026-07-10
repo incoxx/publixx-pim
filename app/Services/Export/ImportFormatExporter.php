@@ -22,6 +22,7 @@ use App\Models\ProductType;
 use App\Models\Unit;
 use App\Models\ValueList;
 use App\Models\ValueListEntry;
+use App\Services\Attributes\AttributeValuePresenter;
 use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -873,6 +874,12 @@ class ImportFormatExporter
      */
     private function resolveAttributeValue(ProductAttributeValue $pav): ?string
     {
+        // Referenz-/Mehrfach-Typen zentral auflösen (Skalar für flachen Export).
+        $presenter = new AttributeValuePresenter();
+        if ($presenter->handles($pav->attribute?->data_type)) {
+            return $presenter->displayValue($pav);
+        }
+
         // Selection: technical_name des ValueListEntry verwenden
         if ($pav->value_selection_id !== null) {
             if ($pav->value_string !== null && $pav->value_string !== '') {

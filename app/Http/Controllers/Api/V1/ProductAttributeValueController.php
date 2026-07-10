@@ -852,7 +852,7 @@ class ProductAttributeValueController extends Controller
                 'value_string' => $value,
                 'value_selection_id' => $entry['value_selection_id'] ?? null,
             ]),
-            'MultiSelection' => array_merge($columns, [
+            'MultiSelection', 'SimpleMultiSelect' => array_merge($columns, [
                 'value_string' => is_array($value) ? json_encode($value) : $value,
             ]),
             'RichText', 'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink',

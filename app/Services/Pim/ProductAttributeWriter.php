@@ -192,7 +192,7 @@ final class ProductAttributeWriter
                 'value_string'       => $value !== null ? (string) $value : null,
                 'value_selection_id' => $valueSelectionId,
             ]),
-            'MultiSelection'  => array_merge($columns, [
+            'MultiSelection', 'SimpleMultiSelect' => array_merge($columns, [
                 'value_string' => is_array($value) ? (string) json_encode($value) : (string) $value,
             ]),
             default           => array_merge($columns, ['value_string' => $value !== null ? (string) $value : null]),

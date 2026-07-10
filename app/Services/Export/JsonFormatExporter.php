@@ -7,6 +7,7 @@ namespace App\Services\Export;
 use App\Models\Attribute;
 use App\Models\AttributeType;
 use App\Models\AttributeView;
+use App\Services\Attributes\AttributeValuePresenter;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\HierarchyAttributeAssignment;
@@ -1167,6 +1168,12 @@ class JsonFormatExporter
 
     private function resolveAttributeValue(ProductAttributeValue $pav): mixed
     {
+        // Referenz-/Mehrfach-Typen zentral & strukturiert auflösen.
+        $presenter = new AttributeValuePresenter();
+        if ($presenter->handles($pav->attribute?->data_type)) {
+            return $presenter->exportValue($pav);
+        }
+
         if ($pav->value_selection_id !== null) {
             if ($pav->value_string !== null && $pav->value_string !== '') {
                 return $pav->value_string;

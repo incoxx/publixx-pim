@@ -11,6 +11,7 @@ use App\Models\MediaUsageType;
 use App\Models\OutputHierarchyProductAssignment;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Services\Attributes\AttributeValuePresenter;
 use App\Services\CompositeFormatResolver;
 use App\Services\Import\BmecatElementMap;
 use Illuminate\Support\Collection;
@@ -705,6 +706,12 @@ class BmecatFormatExporter
 
     private function resolveAttributeValue(ProductAttributeValue $av): ?string
     {
+        // Referenz-/Mehrfach-Typen zentral auflösen (Skalar für BMEcat).
+        $presenter = new AttributeValuePresenter();
+        if ($presenter->handles($av->attribute?->data_type)) {
+            return $presenter->displayValue($av);
+        }
+
         if ($av->value_string !== null && $av->value_string !== '') {
             return $av->value_string;
         }

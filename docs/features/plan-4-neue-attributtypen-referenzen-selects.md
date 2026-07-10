@@ -30,6 +30,8 @@ value_selection_id (FK → value_list_entries)
 
 `MultiSelection` behilft sich bereits, indem es ein JSON-Array **als String** in `value_string` ablegt (kein echtes JSON-Feld, kein FK-Array). Das ist das etablierte Muster, dem auch die 4 neuen Typen folgen sollten — **keine neue Spalte und keine Migration der Value-Tabellen nötig**.
 
+> **Optimierungs-Nachtrag (Abschnitt 7):** Die „~25 Switch-Stellen" sind kein Block von 25 Änderungen. Sie zerfallen in drei Funktionsklassen, von denen nur eine echten Neucode braucht. Details und die 3 minimalinvasiven Hebel stehen in **Abschnitt 7**.
+
 ### 1.2 `data_type` ist an ≥4 Stellen als Enum dupliziert, an ≥25 Stellen als Switch/Match
 
 - ENUM-Liste: `attributes`-Migration + 7 additive Migrationen (`ALTER TABLE ... MODIFY COLUMN`, nur MySQL-wirksam; SQLite hat einen eigenen CHECK-Constraint-Sync in `2026_06_12_000001_sync_data_type_enum_for_sqlite.php`)
@@ -180,6 +182,45 @@ Zusätzlich müssen die **4 duplizierten** `resolveAttributeValue()`-Methoden (`
 7. Preview: `ProductPreviewService.php`, `CatalogProductDetailResource.php`, `CatalogProductView.vue`
 8. Tests (Backend Feature-Tests je Typ, Frontend Komponenten-Tests für neue Picker-Zweige)
 9. Danach, falls gewünscht: Bulk-Editor, Import, PQL/Suche (Abschnitt 3.2) als Folge-Iteration
+
+---
+
+## 7. Minimalinvasive Reduktion der ~25 `data_type`-Switches
+
+Kernbefund aus der Code-Verifikation: **Alle Write-Switches und die PQL-Spaltenwahl haben bereits einen `default → value_string`-Zweig** (verifiziert in `ProductAttributeWriter.php:198`, `ProductAttributeValueController.php:861`, `PqlSqlGenerator.php:569`). Da alle 4 neuen Typen string-backed sind (`value_string`), greift dieser `default` automatisch. Es gibt außerdem noch **kein** `app/Enums/` und **keine** zentrale Typ-Konstante — sauberer Ausgangspunkt.
+
+### 7.1 Die „25" sind drei Buckets
+
+| Bucket | Frage | Sites | Aufwand für die 4 neuen Typen |
+|---|---|---|---|
+| **A — Storage-Routing (Schreiben)** | „In welche `value_*`-Spalte?" | ~10 | **0 Edits.** `default → value_string` greift. |
+| **B — Query-Spalte (PQL/Suche)** | „Auf welcher Spalte filtern?" | ~5 | **0 Edits.** PQL: `default → value_string`. Meilisearch/`SearchSchemaService`: opt-in `whereIn(['Number','Selection','Flag'])` → neue Typen sind nicht enthalten = nicht kaputt. |
+| **C — Value-Presentation (Anzeige/Export)** | „Wie rendern?" | ~5 im Umfang | **Einziger Bucket mit echtem Neucode** — Referenz-Auflösung (UUID → Produkt/Knoten) ist genuin neues Verhalten. |
+
+Ergebnis: Aus „25 Stellen anfassen" wird real **~5 echte Touch-Points + 1 neue Presenter-Klasse + 1 mechanische Enum-Dedup**. Die Speicherentscheidung `value_string` *ist* bereits die halbe Optimierung.
+
+### 7.2 Die drei Hebel
+
+**Hebel 1 — Eine Wahrheitsquelle für die Typ-Liste** (killt die Enum-Duplikation, rein mechanisch, ~0 Regressionsrisiko):
+`Attribute::DATA_TYPES`-Konstante im Model einführen. `StoreAttributeRequest`, `UpdateAttributeRequest`, `SheetValidator`, `TemplateGenerator` referenzieren sie (`Rule::in(Attribute::DATA_TYPES)` bzw. `= Attribute::DATA_TYPES`) statt hartkodierter Strings. Der *nächste* neue Typ berührt diese 4 Dateien null Mal. Zusätzlich `Attribute::storageColumn(string): string` und die Gruppen-Konstanten `REFERENCE_TYPES`/`MULTI_VALUE_TYPES` als wiederverwendbare Klassifikation.
+
+**Hebel 2 — Den `default`-Zweig bewusst ausnutzen** (Bucket A + B = 0 Edits): Weil alle 4 Typen in `value_string` liegen, sind Storage-Routing und Query-Spalte bereits korrekt. **Einzige Ausnahme:** `SimpleMultiSelect` kommt als Array rein und muss zu JSON kodiert werden (wie `MultiSelection`). Das wird an den **2 Write-Boundaries im Umfang** (`ProductAttributeValueController`, `MediaAttributeValueController`) plus `ProductAttributeWriter` behandelt — je eine Ein-Zeilen-Ergänzung am `MultiSelection`-Match-Arm, **nicht** in 10 Switches. Referenz-Typen + `SimpleSelect` brauchen null Write-Edits.
+
+**Hebel 3 — Ein zentraler `AttributeValuePresenter`** (killt Bucket-C-Duplikation): Referenz-Auflösung + `SimpleMultiSelect`-Decode leben in **einer** Klasse (`app/Services/Attributes/AttributeValuePresenter.php`). Die berührten Sites (`ProductPreviewService`, `CatalogProductDetailResource`, die 4 Export-`resolveAttributeValue()`) delegieren dorthin — hinter einem dünnen Guard am Anfang jedes bestehenden Switches:
+```php
+// Am Anfang der bestehenden resolveDisplayValue()/resolveAttributeValue():
+if (in_array($attr->data_type, Attribute::REFERENCE_TYPES, true) || $attr->data_type === 'SimpleMultiSelect') {
+    return $this->attributeValuePresenter->displayValue($attrValue, $lang);
+}
+// ... bestehender Switch unverändert für alle Alttypen
+```
+`SimpleSelect` braucht dort **keinen** Guard — es fällt korrekt in den bestehenden `default → value_string`. **Null Regressionsrisiko** für Alttypen, neue Logik an genau einer Stelle. Spätere opportunistische Migration der Alttypen in den Presenter ist ein separates, optionales Refactoring.
+
+### 7.3 Was bewusst NICHT angefasst wird (und warum es trotzdem funktioniert)
+
+- Die ~10 Write-Switches außerhalb der 3 Boundaries (Connectors, weitere `*_attribute_values`-Controller): string-backed Typen laufen über deren `default`. `SimpleMultiSelect`-Writes finden dort im MVP nicht statt (out of scope) → kein „Array"-Problem.
+- PQL/Meilisearch: unverändert lauffähig (s. Bucket B). Filterbarkeit nach Referenzen ist ein separates Zusatzfeature.
+- Bulk-Editor: eigener, reduzierter Switch; deckt schon heute nicht alle Typen ab. Referenzen erscheinen dort bis zur Folge-Iteration als Roh-UUID (dokumentiert, kein Blocker).
 
 ---
 
