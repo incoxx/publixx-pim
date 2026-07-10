@@ -830,9 +830,9 @@ class ProductPreviewService
             return null;
         }
 
-        // Referenz-/Mehrfach-Typen zentral auflösen.
-        if ($this->valuePresenter()->handles($attr->data_type)) {
-            return $this->valuePresenter()->displayValue($attrValue, $lang);
+        // Referenz-/Auswahl-Typen zentral auflösen (mit Labels für die Anzeige).
+        if ($this->valuePresenter()->handlesForDisplay($attr->data_type)) {
+            return $this->valuePresenter()->displayValue($attrValue, $lang, withLabels: true);
         }
 
         return match ($attr->data_type) {

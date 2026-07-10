@@ -376,6 +376,66 @@ class NewAttributeTypesTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────
+    //  Label::Wert-Syntax — Preview zeigt Label, Export den Rohwert
+    // ─────────────────────────────────────────────────────────────
+
+    private function makeSimpleValue(string $type, ?string $vs, array $options): ProductAttributeValue
+    {
+        $attr = new Attribute(['data_type' => $type, 'simple_options' => $options]);
+        $pav = new ProductAttributeValue(['value_string' => $vs]);
+        $pav->setRelation('attribute', $attr);
+
+        return $pav;
+    }
+
+    public function test_handles_for_display_adds_simple_select(): void
+    {
+        $presenter = new AttributeValuePresenter();
+        // Export-Guard: SimpleSelect NICHT enthalten (Rohwert im Export)
+        $this->assertFalse($presenter->handles('SimpleSelect'));
+        // Anzeige-Guard: SimpleSelect enthalten (Label in der Preview)
+        $this->assertTrue($presenter->handlesForDisplay('SimpleSelect'));
+        $this->assertTrue($presenter->handlesForDisplay('SimpleMultiSelect'));
+        $this->assertTrue($presenter->handlesForDisplay('ProductReference'));
+        $this->assertFalse($presenter->handlesForDisplay('String'));
+    }
+
+    public function test_simple_select_label_in_preview_value_in_export(): void
+    {
+        $pav = $this->makeSimpleValue('SimpleSelect', '#FF0000', ['Rot::#FF0000', 'Grün::#00FF00']);
+        $presenter = new AttributeValuePresenter();
+
+        // Preview: Label
+        $this->assertSame('Rot (#FF0000)', $presenter->displayValue($pav, 'de', withLabels: true));
+        // Export/flach: Rohwert
+        $this->assertSame('#FF0000', $presenter->displayValue($pav));
+        $this->assertSame('#FF0000', $presenter->exportValue($pav));
+    }
+
+    public function test_simple_multi_select_labels_in_preview(): void
+    {
+        $pav = $this->makeSimpleValue('SimpleMultiSelect', json_encode(['#FF0000', '#00FF00']), ['Rot::#FF0000', 'Grün::#00FF00']);
+        $presenter = new AttributeValuePresenter();
+
+        $this->assertSame('Rot (#FF0000), Grün (#00FF00)', $presenter->displayValue($pav, 'de', withLabels: true));
+        // Ohne Labels (Export flach): Rohwerte
+        $this->assertSame('#FF0000, #00FF00', $presenter->displayValue($pav));
+        // Strukturierter Export: Rohwert-Array
+        $this->assertSame(['#FF0000', '#00FF00'], $presenter->exportValue($pav));
+    }
+
+    public function test_option_without_label_and_unmatched_value_stay_raw(): void
+    {
+        $presenter = new AttributeValuePresenter();
+        // Option ohne "::" → Anzeige unverändert
+        $plain = $this->makeSimpleValue('SimpleSelect', '2', ['1', '2', '3']);
+        $this->assertSame('2', $presenter->displayValue($plain, 'de', withLabels: true));
+        // Wert ohne passende Option → Rohwert
+        $unmatched = $this->makeSimpleValue('SimpleSelect', '#ABCDEF', ['Rot::#FF0000']);
+        $this->assertSame('#ABCDEF', $presenter->displayValue($unmatched, 'de', withLabels: true));
+    }
+
+    // ─────────────────────────────────────────────────────────────
     //  Export via MappingResolver (type: 'reference')
     // ─────────────────────────────────────────────────────────────
 
