@@ -478,8 +478,12 @@ function handleDocClick() {
 function mapDataTypeToInput(dataType) {
   return {
     String: 'text', Number: 'number', Float: 'decimal', Date: 'date',
-    Flag: 'boolean', Selection: 'select', Dictionary: 'dictionary', RichText: 'richtext',
+    Flag: 'boolean', Selection: 'select', MultiSelection: 'multicombobox', Dictionary: 'dictionary', RichText: 'richtext',
     Hyperlink: 'hyperlink', ImageLink: 'imagelink', PdfLink: 'pdflink', VideoLink: 'videolink',
+    // Freie Selects nutzen die bestehenden Select-Inputs (Optionen aus simple_options)
+    SimpleSelect: 'select', SimpleMultiSelect: 'multicombobox',
+    // Referenz-Typen: eigene Picker-Zweige in PimAttributeInput
+    HierarchyNodeReference: 'hierarchyreference', ProductReference: 'productreference',
   }[dataType] || 'text'
 }
 
