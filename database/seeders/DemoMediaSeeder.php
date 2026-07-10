@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Models\Attribute;
+use App\Models\Hierarchy;
+use App\Models\HierarchyNode;
 use App\Models\Media;
+use App\Models\MediaAttributeValue;
 use App\Models\MediaUsageType;
 use App\Models\Product;
 use App\Models\ProductMediaAssignment;
@@ -54,6 +58,20 @@ class DemoMediaSeeder extends Seeder
             return;
         }
 
+        // Ordnerstruktur der Medien-Hierarchie (DemoHierarchySeeder) für die Ablage der Assets
+        $assetHierarchy = Hierarchy::where('technical_name', 'asset_medienstruktur')->first();
+        $produktbilderFolder = $assetHierarchy
+            ? HierarchyNode::where('hierarchy_id', $assetHierarchy->id)->where('name_de', 'Produktbilder')->first()
+            : null;
+        $marketingFolder = $assetHierarchy
+            ? HierarchyNode::where('hierarchy_id', $assetHierarchy->id)->where('name_de', 'Marketing & Kampagnen')->first()
+            : null;
+
+        // Referenz-Attribute, mit denen Assets per Metadaten direkt mit einem
+        // Produkt bzw. einem Master-Hierarchie-Knoten verlinkt werden können
+        $linkedProductAttr = Attribute::where('technical_name', 'media-linked-product-ref')->first();
+        $linkedCategoryAttr = Attribute::where('technical_name', 'media-linked-category-ref')->first();
+
         foreach ($products as $sku => $product) {
             $colors = self::PRODUCT_COLORS[$sku] ?? self::PRODUCT_COLORS['PD-18V-001'];
 
@@ -75,6 +93,7 @@ class DemoMediaSeeder extends Seeder
                 }
 
                 $fileSize = Storage::disk('public')->size($filePath);
+                $folder = $suffix === 'detail' ? $marketingFolder : $produktbilderFolder;
 
                 // Media-Record
                 $media = Media::firstOrCreate(
@@ -92,6 +111,7 @@ class DemoMediaSeeder extends Seeder
                         'alt_text_en' => $product->name,
                         'width' => $width,
                         'height' => $height,
+                        'asset_folder_id' => $folder?->id,
                     ]
                 );
 
@@ -108,6 +128,22 @@ class DemoMediaSeeder extends Seeder
                         'is_primary' => $suffix === 'main',
                     ]
                 );
+
+                // Metadaten-Relation: das Titelbild wird zusätzlich per Attribut direkt
+                // mit dem Produkt und dessen Master-Hierarchie-Knoten verlinkt — unabhängig
+                // von der klassischen Produkt-Medien-Zuordnung oben.
+                if ($suffix === 'main' && $linkedProductAttr) {
+                    MediaAttributeValue::firstOrCreate(
+                        ['media_id' => $media->id, 'attribute_id' => $linkedProductAttr->id, 'language' => null, 'multiplied_index' => 0],
+                        ['value_string' => $product->id]
+                    );
+                }
+                if ($suffix === 'main' && $linkedCategoryAttr && $product->master_hierarchy_node_id) {
+                    MediaAttributeValue::firstOrCreate(
+                        ['media_id' => $media->id, 'attribute_id' => $linkedCategoryAttr->id, 'language' => null, 'multiplied_index' => 0],
+                        ['value_string' => $product->master_hierarchy_node_id]
+                    );
+                }
             }
 
             $this->command?->info("Medien erzeugt für: {$sku} — {$product->name}");

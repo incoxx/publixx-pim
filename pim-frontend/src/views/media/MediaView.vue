@@ -982,6 +982,7 @@ onMounted(() => {
       class="w-56 flex-none pim-card p-3 space-y-2 self-start transition-transform duration-200
              max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-50 max-lg:w-64 max-lg:rounded-none max-lg:shadow-xl max-lg:overflow-y-auto"
       :class="sidebarOpen ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-full'"
+      data-testid="media-folder-sidebar"
     >
       <div class="flex items-center justify-between">
         <h3 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">Ordner</h3>
@@ -1521,7 +1522,8 @@ onMounted(() => {
     <!-- Detail Slide-over -->
     <Transition name="slide">
       <div v-if="detailOpen && detailItem" class="w-80 flex-none border-l border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-4 overflow-y-auto
-               max-lg:fixed max-lg:inset-y-0 max-lg:right-0 max-lg:z-50 max-lg:w-[85vw] max-lg:max-w-sm max-lg:shadow-xl max-lg:border-l">
+               max-lg:fixed max-lg:inset-y-0 max-lg:right-0 max-lg:z-50 max-lg:w-[85vw] max-lg:max-w-sm max-lg:shadow-xl max-lg:border-l"
+           data-testid="media-detail-panel">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Details</h3>
           <button class="pim-btn pim-btn-ghost p-1" @click="closeDetail"><X class="w-4 h-4" /></button>
@@ -1753,9 +1755,13 @@ onMounted(() => {
         <div v-if="assetAttrsLoading" class="border-t border-[var(--color-border)] pt-3 space-y-2">
           <div v-for="i in 2" :key="i" class="pim-skeleton h-12 rounded" />
         </div>
-        <div v-else-if="assetAttributes.length > 0" class="border-t border-[var(--color-border)] pt-3 space-y-3">
+        <div v-else-if="assetAttributes.length > 0" class="border-t border-[var(--color-border)] pt-3 space-y-3" data-testid="media-detail-attributes">
           <h4 class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">Attribute</h4>
-          <div v-for="assignment in assetAttributes" :key="assignment.id">
+          <div
+            v-for="assignment in assetAttributes"
+            :key="assignment.id"
+            :data-testid="'field-' + (assignment.attribute?.technical_name || assignment.attribute_id)"
+          >
             <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">
               {{ assignment.attribute?.name_de || assignment.attribute?.technical_name }}
             </label>

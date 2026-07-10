@@ -38,6 +38,9 @@ Alle `data-testid`-Attribute die von Video-Stories verwendet werden.
 | `watchlist-view` | Merkliste | `pim-frontend/src/views/watchlist/WatchlistView.vue` |
 | `calendar-view` | Planungskalender | `pim-frontend/src/views/calendar/CalendarView.vue` |
 | `media-view` | Medienverwaltung | `pim-frontend/src/views/media/MediaView.vue` |
+| `media-folder-sidebar` | Ordnerbaum (Medien-Hierarchie) | `pim-frontend/src/views/media/MediaView.vue` |
+| `media-detail-panel` | Detail-Slide-over für ein Medium | `pim-frontend/src/views/media/MediaView.vue` |
+| `media-detail-attributes` | Attribute/Metadaten-Block im Medien-Detail | `pim-frontend/src/views/media/MediaView.vue` |
 | `workflow-view` | Workflow-Aufgaben | `pim-frontend/src/views/workflow/WorkflowTaskView.vue` |
 
 ## Produkte – Buttons & Panels
@@ -81,6 +84,11 @@ Häufige `field-{key}` Werte:
 - `field-manufacturer_id` – Hersteller
 - `field-name_de` – Name (Deutsch)
 - `field-name_en` – Name (Englisch)
+
+Im Medien-Detail (`media-detail-attributes`) ist `field-{key}` der Attribut-`technical_name`,
+z.B. `field-media-linked-product-ref` (ProductReference) und `field-media-linked-category-ref`
+(HierarchyNodeReference) — Metadaten-Attribute, mit denen Assets direkt mit einem Produkt bzw.
+einem Hierarchie-Knoten verlinkt werden.
 
 ## Hierarchien
 
