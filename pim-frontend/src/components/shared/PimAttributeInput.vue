@@ -3,6 +3,8 @@ import { ref, computed, watch, defineAsyncComponent } from 'vue'
 import { Check, X } from 'lucide-vue-next'
 
 const PimRichTextEditor = defineAsyncComponent(() => import('./PimRichTextEditor.vue'))
+const PimHierarchyReferenceInput = defineAsyncComponent(() => import('./PimHierarchyReferenceInput.vue'))
+const PimProductReferenceInput = defineAsyncComponent(() => import('./PimProductReferenceInput.vue'))
 
 const props = defineProps({
   type: { type: String, default: 'text' },
@@ -493,6 +495,22 @@ function dvCancelEdit() {
     :placeholder="placeholder || '{}'"
     :disabled="disabled"
     @input="update($event.target.value)"
+  />
+
+  <!-- HierarchyNodeReference: Hierarchie/Knoten-Picker -->
+  <PimHierarchyReferenceInput
+    v-else-if="type === 'hierarchyreference'"
+    :modelValue="modelValue"
+    :disabled="disabled"
+    @update:modelValue="update($event)"
+  />
+
+  <!-- ProductReference: Produkt-Picker -->
+  <PimProductReferenceInput
+    v-else-if="type === 'productreference'"
+    :modelValue="modelValue"
+    :disabled="disabled"
+    @update:modelValue="update($event)"
   />
 
   <!-- Fallback: text -->
