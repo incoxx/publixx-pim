@@ -6,6 +6,7 @@ namespace App\Http\Resources\Api\V1;
 
 use App\Models\Attribute;
 use App\Models\ProductAttributeValue;
+use App\Services\Attributes\AttributeValuePresenter;
 use App\Services\CompositeFormatResolver;
 use App\Services\Media\PrimaryImageResolver;
 use Illuminate\Http\Request;
@@ -144,6 +145,14 @@ class CatalogProductDetailResource extends JsonResource
 
                 if ($linkData) {
                     $entry['link_data'] = $linkData;
+                }
+
+                // Für Referenz-Typen: strukturierte reference_data mitliefern (analog link_data).
+                if (in_array($attr->data_type, Attribute::REFERENCE_TYPES, true)) {
+                    $referenceData = $this->valuePresenter()->referenceData($attrValue, $lang);
+                    if ($referenceData) {
+                        $entry['reference_data'] = $referenceData;
+                    }
                 }
 
                 $attributes->push($entry);
@@ -411,8 +420,20 @@ class CatalogProductDetailResource extends JsonResource
         return collect(array_merge($newEntries, $attributes->toArray()))->values();
     }
 
+    private ?AttributeValuePresenter $valuePresenter = null;
+
+    private function valuePresenter(): AttributeValuePresenter
+    {
+        return $this->valuePresenter ??= new AttributeValuePresenter();
+    }
+
     private function resolveAttributeDisplayValue(ProductAttributeValue $attrValue, Attribute $attr, string $lang): ?string
     {
+        // Referenz-/Mehrfach-Typen zentral auflösen.
+        if ($this->valuePresenter()->handles($attr->data_type)) {
+            return $this->valuePresenter()->displayValue($attrValue, $lang);
+        }
+
         return match ($attr->data_type) {
             'String' => $attrValue->value_string,
             'Number', 'Float' => $attrValue->value_number !== null ? rtrim(rtrim((string) $attrValue->value_number, '0'), '.') : null,

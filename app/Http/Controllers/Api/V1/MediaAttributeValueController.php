@@ -101,6 +101,9 @@ class MediaAttributeValueController extends Controller
                 'value_string' => $value,
                 'value_selection_id' => $entry['value_selection_id'] ?? null,
             ]),
+            'MultiSelection', 'SimpleMultiSelect' => array_merge($columns, [
+                'value_string' => is_array($value) ? json_encode($value) : (string) $value,
+            ]),
             'RichText', 'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink' => array_merge($columns, ['value_string' => (string) $value]),
             default => array_merge($columns, ['value_string' => (string) $value]),
         };

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Import;
 
+use App\Models\Attribute;
+
 /**
  * Validiert geparste Sheet-Daten:
  * - Pflichtfeld-Prüfung
@@ -14,11 +16,8 @@ namespace App\Services\Import;
  */
 class SheetValidator
 {
-    /** Erlaubte Datentypen für Attribute. */
-    private const array VALID_DATA_TYPES = [
-        'String', 'Number', 'Float', 'Date', 'Flag', 'Selection', 'MultiSelection', 'Dictionary', 'Composite', 'RichText',
-        'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink', 'DelimitedValue', 'JsonArtefact',
-    ];
+    /** Erlaubte Datentypen für Attribute (zentrale Wahrheitsquelle im Attribute-Model). */
+    private const array VALID_DATA_TYPES = Attribute::DATA_TYPES;
 
     /** Erlaubte Produkt-Status. */
     private const array VALID_PRODUCT_STATUS = ['draft', 'active', 'inactive', 'discontinued'];

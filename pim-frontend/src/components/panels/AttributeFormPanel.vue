@@ -45,6 +45,8 @@ const dataTypeGroups = {
   flag: ['Flag'],
   date: ['Date'],
   composite: ['Composite'],
+  reference: ['HierarchyNodeReference', 'ProductReference'],
+  simpleSelection: ['SimpleSelect', 'SimpleMultiSelect'],
 }
 
 const dataTypeChangeWarning = computed(() => {
@@ -163,6 +165,10 @@ const fields = computed(() => {
         { value: 'ImageLink', label: 'Bild-Link' },
         { value: 'PdfLink', label: 'PDF-Link' },
         { value: 'VideoLink', label: 'Video-Link' },
+        { value: 'HierarchyNodeReference', label: 'Hierarchie-Referenz (Knoten)' },
+        { value: 'ProductReference', label: 'Produkt-Referenz' },
+        { value: 'SimpleSelect', label: 'Einfache Auswahl (freie Werte)' },
+        { value: 'SimpleMultiSelect', label: 'Einfache Mehrfachauswahl (freie Werte)' },
       ],
     },
     {
@@ -304,6 +310,10 @@ const fields = computed(() => {
   return base
 })
 
+// Freie Optionen für SimpleSelect/SimpleMultiSelect (eine pro Zeile).
+// Wird außerhalb von PimForm verwaltet und in doSave als Array gemerged.
+const simpleOptionsText = ref((props.attribute?.simple_options || []).join('\n'))
+
 // Verfügbare Kind-Attribute für den Composite-Picker
 const compositeChildOptions = computed(() => {
   if (formData.value.data_type !== 'Composite') return []
@@ -342,6 +352,13 @@ async function doSave(data) {
   errors.value = {}
   try {
     const { child_attribute_ids, ...attrData } = data
+    // SimpleSelect/SimpleMultiSelect: freie Optionen als Array übernehmen
+    if (['SimpleSelect', 'SimpleMultiSelect'].includes(data.data_type)) {
+      attrData.simple_options = simpleOptionsText.value
+        .split('\n')
+        .map(s => s.trim())
+        .filter(Boolean)
+    }
     // Convert empty strings to null for nullable FK fields
     if (!attrData.unit_group_id) attrData.unit_group_id = null
     if (!attrData.default_unit_id) attrData.default_unit_id = null
@@ -439,6 +456,22 @@ function cancelMigrate() {
         :options="compositeChildOptions"
         @update:modelValue="formData = { ...formData, child_attribute_ids: $event }"
       />
+    </div>
+
+    <!-- SimpleSelect/SimpleMultiSelect: freie Auswahloptionen (außerhalb PimForm) -->
+    <div v-if="['SimpleSelect', 'SimpleMultiSelect'].includes(formData.data_type)" class="mb-4 max-w-lg">
+      <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
+        Auswahloptionen
+      </label>
+      <textarea
+        v-model="simpleOptionsText"
+        rows="5"
+        placeholder="Ein Wert pro Zeile, z.B.&#10;1&#10;2&#10;3"
+        class="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-transparent text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
+      />
+      <p class="mt-1 text-[11px] text-[var(--color-text-secondary)]">
+        Eine Option pro Zeile. Ohne vordefinierte Werteliste — die Werte erscheinen im Produkteditor zur Auswahl.
+      </p>
     </div>
 
     <!-- Warnung bei inkompatiblem Typwechsel -->

@@ -8,6 +8,7 @@ use App\Models\Attribute;
 use App\Models\HierarchyNode;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Services\Attributes\AttributeValuePresenter;
 use App\Services\CompositeFormatResolver;
 use App\Services\Formatting\AttributeFormattingService;
 use App\Services\Inheritance\HierarchyInheritanceService;
@@ -218,6 +219,14 @@ class ProductPreviewService
 
                     if ($linkData) {
                         $attrEntry['link_data'] = $linkData;
+                    }
+
+                    // Für Referenz-Typen: strukturierte reference_data mitliefern (analog link_data).
+                    if (in_array($assignment->data_type, Attribute::REFERENCE_TYPES, true)) {
+                        $referenceData = $this->valuePresenter()->referenceData($attrValue, $lang);
+                        if ($referenceData) {
+                            $attrEntry['reference_data'] = $referenceData;
+                        }
                     }
 
                     $sections[$sectionIndex]['attributes'][] = $attrEntry;
@@ -807,11 +816,23 @@ class ProductPreviewService
     /**
      * Resolve attribute display value (pattern from CatalogProductDetailResource).
      */
+    private ?AttributeValuePresenter $valuePresenter = null;
+
+    private function valuePresenter(): AttributeValuePresenter
+    {
+        return $this->valuePresenter ??= new AttributeValuePresenter();
+    }
+
     private function resolveDisplayValue(ProductAttributeValue $attrValue, string $lang): ?string
     {
         $attr = $attrValue->attribute;
         if (!$attr) {
             return null;
+        }
+
+        // Referenz-/Mehrfach-Typen zentral auflösen.
+        if ($this->valuePresenter()->handles($attr->data_type)) {
+            return $this->valuePresenter()->displayValue($attrValue, $lang);
         }
 
         return match ($attr->data_type) {

@@ -8,6 +8,7 @@ use App\Models\Attribute;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\PublixxExportMapping;
+use App\Services\Attributes\AttributeValuePresenter;
 use App\Services\CompositeFormatResolver;
 use App\Services\Formatting\AttributeFormattingService;
 use Illuminate\Support\Arr;
@@ -78,6 +79,7 @@ class MappingResolver
             'variant_array' => $this->resolveVariantArray($product, $options),
             'relation_array' => $this->resolveRelationArray($source, $product, $options),
             'group' => $this->resolveGroup($source, $product, $language, $options),
+            'reference' => $this->resolveReference($source, $product, $language, $options),
             default => null,
         };
     }
@@ -538,6 +540,28 @@ class MappingResolver
     {
         $parts = explode(':', $source, 2);
         return $parts[1] ?? $parts[0];
+    }
+
+    /**
+     * reference: attribute:tech_name → strukturiertes Referenz-Objekt
+     * (ProductReference / HierarchyNodeReference) bzw. Werte-Array
+     * (SimpleMultiSelect). Delegiert an den zentralen AttributeValuePresenter.
+     */
+    protected function resolveReference(string $source, Product $product, string $language, array $options): mixed
+    {
+        $attrValue = $this->findAttributeValue($source, $product, $language, $options);
+        if ($attrValue === null) {
+            return null;
+        }
+
+        return $this->valuePresenter()->exportValue($attrValue, $language);
+    }
+
+    private ?AttributeValuePresenter $valuePresenter = null;
+
+    private function valuePresenter(): AttributeValuePresenter
+    {
+        return $this->valuePresenter ??= new AttributeValuePresenter();
     }
 
     /**

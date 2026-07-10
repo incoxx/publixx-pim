@@ -560,11 +560,23 @@ function mapDataTypeToInput(backendType) {
     'Dictionary': 'dictionary', 'Composite': 'composite', 'RichText': 'richtext', 'Textarea': 'textarea',
     'Hyperlink': 'hyperlink', 'ImageLink': 'imagelink', 'PdfLink': 'pdflink', 'VideoLink': 'videolink',
     'DelimitedValue': 'delimitedvalue', 'JsonArtefact': 'jsonartefact',
+    // Freie Selects nutzen die bestehenden Select-Inputs (Optionen aus simple_options)
+    'SimpleSelect': 'select', 'SimpleMultiSelect': 'multicombobox',
+    // Referenz-Typen: eigene Picker-Zweige in PimAttributeInput
+    'HierarchyNodeReference': 'hierarchyreference', 'ProductReference': 'productreference',
   }
   return map[backendType] || 'text'
 }
 
+function isMultiValueType(dataType) {
+  return dataType === 'MultiSelection' || dataType === 'SimpleMultiSelect'
+}
+
 function getSelectionOptions(attr) {
+  // Freie Selects: Optionen direkt aus simple_options (kein Werteliste-Lookup)
+  if (attr.data_type === 'SimpleSelect' || attr.data_type === 'SimpleMultiSelect') {
+    return (attr.simple_options || []).map(opt => ({ value: opt, label: opt }))
+  }
   // Try embedded value_list entries first (from attribute API with include)
   if (attr.value_list?.entries?.length) {
     return attr.value_list.entries.map(e => ({ value: e.id, label: e.display_value_de || e.value_de || e.label_de || e.code || e.technical_name }))
@@ -670,7 +682,13 @@ async function loadAttributeData(overrideNodeId = null, generation = null) {
           if (val.attribute && !ownAttributesById.has(attrId)) {
             ownAttributesById.set(attrId, val.attribute)
           }
-          const rawValue = val.value_string ?? val.value_number ?? val.value_date ?? val.value_flag ?? val.value_selection_id ?? ''
+          let rawValue = val.value_string ?? val.value_number ?? val.value_date ?? val.value_flag ?? val.value_selection_id ?? ''
+          // Mehrfachauswahl (MultiSelection/SimpleMultiSelect): JSON-Array-String → Array,
+          // damit die multicombobox-Eingabe die gespeicherten Werte korrekt anzeigt und
+          // beim Bearbeiten nicht zeichenweise korrumpiert.
+          if (isMultiValueType(val.attribute?.data_type) && typeof rawValue === 'string' && rawValue.startsWith('[')) {
+            try { const parsed = JSON.parse(rawValue); if (Array.isArray(parsed)) rawValue = parsed } catch { /* roh belassen */ }
+          }
           const mIdx = val.multiplied_index ?? 0
           if (mIdx > 0 || (val.attribute && val.attribute.is_multipliable)) {
             // Multipliable value — collect into array
@@ -3539,7 +3557,7 @@ onUnmounted(() => {
                   class="flex-1 min-w-0"
                   :type="mapDataTypeToInput(attr.data_type)"
                   :modelValue="attr.is_translatable ? translatedValues[`${attr.id}_${activeDataLang}`] : attributeValues[attr.id]"
-                  :options="attr.data_type === 'Selection' || attr.data_type === 'MultiSelection' ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
+                  :options="['Selection', 'MultiSelection', 'SimpleSelect', 'SimpleMultiSelect'].includes(attr.data_type) ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
                   :disabled="attr._access === 'read_only' || attr.is_readonly || isTabReadOnly"
                   :delimiter="attr.delimiter || '|'"
                   :min="attr.min_value != null ? Number(attr.min_value) : undefined"
@@ -3779,7 +3797,7 @@ onUnmounted(() => {
             v-else-if="attr.is_multipliable"
             :type="mapDataTypeToInput(attr.data_type)"
             :modelValue="multipliableValues[attr.id] || [{ value: null, multiplied_index: 0 }]"
-            :options="['Selection', 'MultiSelection'].includes(attr.data_type) ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
+            :options="['Selection', 'MultiSelection', 'SimpleSelect', 'SimpleMultiSelect'].includes(attr.data_type) ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
             :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
             :maxMultiplied="attr.max_multiplied"
             :unitGroup="attr.unit_group"
@@ -3807,7 +3825,7 @@ onUnmounted(() => {
               class="flex-1 min-w-0"
               :type="mapDataTypeToInput(attr.data_type)"
               :modelValue="translatedValues[`${attr.id}_${activeDataLang}`]"
-              :options="['Selection', 'MultiSelection'].includes(attr.data_type) ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
+              :options="['Selection', 'MultiSelection', 'SimpleSelect', 'SimpleMultiSelect'].includes(attr.data_type) ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
               :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
               :delimiter="attr.delimiter || '|'"
               :min="attr.min_value != null ? Number(attr.min_value) : undefined"
@@ -3849,7 +3867,7 @@ onUnmounted(() => {
               class="flex-1 min-w-0"
               :type="mapDataTypeToInput(attr.data_type)"
               :modelValue="attributeValues[attr.id]"
-              :options="['Selection', 'MultiSelection'].includes(attr.data_type) ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
+              :options="['Selection', 'MultiSelection', 'SimpleSelect', 'SimpleMultiSelect'].includes(attr.data_type) ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
               :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
               :delimiter="attr.delimiter || '|'"
               :min="attr.min_value != null ? Number(attr.min_value) : undefined"

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Models\Attribute;
 use App\Models\AttributeFormattingRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreAttributeRequest extends FormRequest
 {
@@ -23,10 +25,12 @@ class StoreAttributeRequest extends FormRequest
             'name_json' => 'nullable|array',
             'description_de' => 'nullable|string',
             'description_en' => 'nullable|string',
-            'data_type' => 'required|in:String,Number,Float,Date,Flag,Selection,MultiSelection,Dictionary,Composite,RichText,Hyperlink,ImageLink,PdfLink,VideoLink,DelimitedValue,JsonArtefact,Textarea',
+            'data_type' => ['required', Rule::in(Attribute::DATA_TYPES)],
             'delimiter' => 'nullable|string|max:10',
             'textarea_rows' => 'nullable|integer|min:1|max:50',
             'textarea_cols' => 'nullable|integer|min:10|max:200',
+            'simple_options' => 'nullable|array',
+            'simple_options.*' => 'string|max:255',
             'attribute_type_id' => 'nullable|uuid|exists:attribute_types,id',
             'value_list_id' => 'nullable|uuid|exists:value_lists,id',
             'formatting_rule_id' => 'nullable|uuid|exists:attribute_formatting_rules,id',

@@ -16,6 +16,43 @@ class Attribute extends Model
 {
     use HasDeletionConstraints, HasFactory, HasUuids;
 
+    /**
+     * Einzige Wahrheitsquelle für alle gültigen Attribut-Datentypen.
+     *
+     * Wird von Validierung (StoreAttributeRequest, UpdateAttributeRequest),
+     * Import (SheetValidator, TemplateGenerator) und Migrationen referenziert,
+     * damit die Typ-Liste nicht mehr an mehreren Stellen driften kann.
+     */
+    public const DATA_TYPES = [
+        'String', 'Number', 'Float', 'Date', 'Flag',
+        'Selection', 'MultiSelection', 'Dictionary', 'Composite', 'RichText',
+        'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink',
+        'DelimitedValue', 'JsonArtefact', 'Textarea',
+        'HierarchyNodeReference', 'ProductReference', 'SimpleSelect', 'SimpleMultiSelect',
+    ];
+
+    /**
+     * Datentypen, die ein anderes PIM-Objekt referenzieren.
+     * Der Zielwert wird als UUID in value_string abgelegt (kein DB-FK, da die
+     * Spalte typübergreifend genutzt wird und das Ziel je nach Typ variiert).
+     */
+    public const REFERENCE_TYPES = ['HierarchyNodeReference', 'ProductReference'];
+
+    /**
+     * Liefert die value_*-Spalte, in der ein Datentyp gespeichert wird.
+     * Zentrale Storage-Klassifikation der EAV-Spalten (value_string ist der
+     * Standard; nur Number/Float/Date/Flag weichen ab).
+     */
+    public static function storageColumn(string $dataType): string
+    {
+        return match ($dataType) {
+            'Number', 'Float' => 'value_number',
+            'Date'            => 'value_date',
+            'Flag'            => 'value_flag',
+            default           => 'value_string',
+        };
+    }
+
     protected $fillable = [
         'technical_name',
         'name_de',
@@ -55,6 +92,7 @@ class Attribute extends Model
         'delimiter',
         'textarea_rows',
         'textarea_cols',
+        'simple_options',
         'position',
         'source_system',
         'source_attribute_name',
@@ -66,6 +104,7 @@ class Attribute extends Model
     {
         return [
             'name_json' => 'array',
+            'simple_options' => 'array',
             'is_translatable' => 'boolean',
             'is_multipliable' => 'boolean',
             'max_multiplied' => 'integer',

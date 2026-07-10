@@ -163,7 +163,7 @@ class TemplateGenerator
      */
     private const array ENUM_HINTS = [
         '05_Attribute' => [
-            'E' => 'String, Number, Float, Date, Flag, Selection, Dictionary, Composite, RichText',
+            'E' => 'String, Number, Float, Date, Flag, Selection, MultiSelection, Dictionary, Composite, RichText, Hyperlink, ImageLink, PdfLink, VideoLink, DelimitedValue, JsonArtefact, Textarea, HierarchyNodeReference, ProductReference, SimpleSelect, SimpleMultiSelect',
             'R' => 'PIM, SAP ERP, Other',
         ],
         '06_Hierarchien' => [
