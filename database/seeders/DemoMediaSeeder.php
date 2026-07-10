@@ -115,6 +115,13 @@ class DemoMediaSeeder extends Seeder
                     ]
                 );
 
+                // firstOrCreate wendet den Werte-Array nur bei Neuanlage an — bei bereits
+                // vorhandenen Medien (aus früheren Seeder-Läufen vor Einführung der
+                // Ordnerstruktur) muss die Ordner-Zuordnung nachträglich gesetzt werden.
+                if ($media->asset_folder_id !== $folder?->id) {
+                    $media->update(['asset_folder_id' => $folder?->id]);
+                }
+
                 // Produkt-Zuordnung
                 $usageType = $usageTypes[$usageKey] ?? $galleryType;
                 ProductMediaAssignment::firstOrCreate(
