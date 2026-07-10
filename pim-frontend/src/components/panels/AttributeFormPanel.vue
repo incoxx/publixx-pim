@@ -466,11 +466,12 @@ function cancelMigrate() {
       <textarea
         v-model="simpleOptionsText"
         rows="5"
-        placeholder="Ein Wert pro Zeile, z.B.&#10;1&#10;2&#10;3"
+        placeholder="Ein Wert pro Zeile, z.B.&#10;1&#10;2&#10;3&#10;&#10;oder Label::Wert, z.B.&#10;Rot::#FF0000&#10;Grün::#00FF00"
         class="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-transparent text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
       />
       <p class="mt-1 text-[11px] text-[var(--color-text-secondary)]">
         Eine Option pro Zeile. Ohne vordefinierte Werteliste — die Werte erscheinen im Produkteditor zur Auswahl.
+        Optional <code>Label::Wert</code> (z.&nbsp;B. <code>Rot::#FF0000</code>): gespeichert wird der Wert, angezeigt wird „Label (Wert)".
       </p>
     </div>
 

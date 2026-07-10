@@ -264,7 +264,18 @@ class ProductAttributeValueController extends Controller
             ? Attribute::whereIn('id', $formattingAttrIds)->whereNotNull('formatting_rule_id')->with('formattingRule')->get()->keyBy('id')
             : collect();
 
-        $result = $effectiveAttributes->map(function ($assignment) use ($existingValues, $multipliedValues, $unitGroups, $compOpGroups, $effectiveAttributes, $formattingAttributes) {
+        // Freie Auswahloptionen (SimpleSelect/SimpleMultiSelect) via Eloquent nachladen,
+        // damit der Cast simple_options als Array (nicht JSON-String) liefert.
+        $simpleOptionAttrIds = $effectiveAttributes
+            ->filter(fn ($a) => in_array($a->data_type, ['SimpleSelect', 'SimpleMultiSelect'], true))
+            ->pluck('attribute_id')
+            ->unique()
+            ->all();
+        $simpleOptionsMap = !empty($simpleOptionAttrIds)
+            ? Attribute::whereIn('id', $simpleOptionAttrIds)->get()->pluck('simple_options', 'id')
+            : collect();
+
+        $result = $effectiveAttributes->map(function ($assignment) use ($existingValues, $multipliedValues, $unitGroups, $compOpGroups, $effectiveAttributes, $formattingAttributes, $simpleOptionsMap) {
             $pav = $existingValues->get($assignment->attribute_id);
             $value = null;
             $source = 'none';
@@ -322,6 +333,7 @@ class ProductAttributeValueController extends Controller
                 'delimiter' => $assignment->delimiter ?? null,
                 'textarea_rows' => $assignment->textarea_rows ?? null,
                 'textarea_cols' => $assignment->textarea_cols ?? null,
+                'simple_options' => $simpleOptionsMap[$assignment->attribute_id] ?? null,
                 'min_value' => $assignment->min_value ?? null,
                 'max_value' => $assignment->max_value ?? null,
                 'max_characters' => $assignment->max_characters ?? null,

@@ -45,9 +45,24 @@ class AttributeValuePresenter
     }
 
     /**
-     * Anzeigewert als String (Preview, Katalog, flache Exporte).
+     * Guard für menschenlesbare Anzeige (Preview/Katalog): wie {@see handles()},
+     * zusätzlich SimpleSelect, damit dort das Label ("Rot (#FF0000)") statt des
+     * rohen Werts erscheint. Exporte nutzen weiterhin {@see handles()} und
+     * erhalten den Rohwert.
      */
-    public function displayValue(ProductAttributeValue $pav, string $lang = 'de'): ?string
+    public function handlesForDisplay(?string $dataType): bool
+    {
+        return $this->handles($dataType) || $dataType === 'SimpleSelect';
+    }
+
+    /**
+     * Anzeigewert als String.
+     *
+     * @param bool $withLabels Bei SimpleSelect/SimpleMultiSelect die in
+     *   simple_options hinterlegten Labels auflösen ("Label (Wert)"). Für die
+     *   Preview true, für flache Exporte false (Rohwert bleibt exportiert).
+     */
+    public function displayValue(ProductAttributeValue $pav, string $lang = 'de', bool $withLabels = false): ?string
     {
         $type = $pav->attribute?->data_type;
 
@@ -65,12 +80,59 @@ class AttributeValuePresenter
 
         if ($type === 'SimpleMultiSelect') {
             $values = $this->simpleMultiValues($pav);
+            if ($values === []) {
+                return null;
+            }
+            if ($withLabels) {
+                $values = array_map(fn (string $v): string => $this->optionLabel($pav, $v), $values);
+            }
 
-            return $values === [] ? null : implode(', ', $values);
+            return implode(', ', $values);
         }
 
-        // SimpleSelect und alles andere: roher value_string.
+        if ($type === 'SimpleSelect') {
+            $value = $pav->value_string;
+            if ($value === null || $value === '') {
+                return null;
+            }
+
+            return $withLabels ? $this->optionLabel($pav, $value) : $value;
+        }
+
+        // Alles andere: roher value_string.
         return $pav->value_string;
+    }
+
+    /**
+     * Löst für einen gespeicherten Wert das in simple_options hinterlegte Label
+     * auf. Optionen haben die Form "Wert" oder "Label::Wert"; bei Treffer mit
+     * Label wird "Label (Wert)" geliefert, sonst der Rohwert.
+     */
+    private function optionLabel(ProductAttributeValue $pav, string $value): string
+    {
+        $options = $pav->attribute?->simple_options ?? [];
+        if (!is_array($options)) {
+            return $value;
+        }
+
+        foreach ($options as $option) {
+            $option = (string) $option;
+            $sep = strpos($option, '::');
+            if ($sep === false) {
+                if ($option === $value) {
+                    return $value;
+                }
+                continue;
+            }
+
+            $label = trim(substr($option, 0, $sep));
+            $optionValue = trim(substr($option, $sep + 2));
+            if ($optionValue === $value) {
+                return $label !== '' ? "{$label} ({$value})" : $value;
+            }
+        }
+
+        return $value;
     }
 
     /**
