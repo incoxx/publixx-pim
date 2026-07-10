@@ -11,6 +11,7 @@ use App\Models\DictionaryEntry;
 use App\Models\Hierarchy;
 use App\Models\HierarchyAttributeAssignment;
 use App\Models\HierarchyNode;
+use App\Models\HierarchyNodeAttributeAssignment;
 use App\Models\HierarchyNodeMediaAssignment;
 use App\Models\Media;
 use App\Models\MediaAttributeValue;
@@ -441,10 +442,10 @@ class AssetCatalogController extends BaseController
     /**
      * GET /api/v1/asset-catalog/facets
      *
-     * Verfügbare Facetten-Filter für den Asset-Katalog: die Attribute, die in der
-     * Asset-Hierarchie (hierarchy_type=asset) als Facette markiert sind
-     * (hierarchy_attribute_assignments.is_facet), in ihrer festgelegten Reihenfolge
-     * (sort_order), mit Werteverteilung über die aktuell gefilterte Asset-Menge.
+     * Verfügbare Facetten-Filter für den Asset-Katalog: die Attribute, die entweder an der
+     * Asset-Hierarchie selbst (hierarchy_attribute_assignments.is_facet) oder an einem ihrer
+     * Hierarchie-Knoten (hierarchy_node_attribute_assignments.is_facet) als Facette markiert
+     * sind, mit Werteverteilung über die aktuell gefilterte Asset-Menge.
      */
     public function facets(Request $request): JsonResponse
     {
@@ -455,13 +456,35 @@ class AssetCatalogController extends BaseController
             return response()->json(['facets' => []]);
         }
 
-        $facetAssignments = HierarchyAttributeAssignment::where('hierarchy_id', $hierarchy->id)
+        $hierarchyFacetAssignments = HierarchyAttributeAssignment::where('hierarchy_id', $hierarchy->id)
             ->where('is_facet', true)
             ->orderBy('sort_order')
             ->with('attribute')
             ->get();
 
-        if ($facetAssignments->isEmpty()) {
+        $nodeFacetAssignments = HierarchyNodeAttributeAssignment::whereIn(
+                'hierarchy_node_id',
+                $hierarchy->nodes()->pluck('id')
+            )
+            ->where('is_facet', true)
+            ->orderBy('collection_sort')
+            ->orderBy('attribute_sort')
+            ->with('attribute')
+            ->get();
+
+        // Nach Attribut-ID deduplizieren — Hierarchie-weite Zuordnung gewinnt, falls
+        // dasselbe Attribut aus Versehen an beiden Stellen als Facette markiert wurde.
+        $facetAttributes = collect();
+        $seenAttributeIds = [];
+        foreach ($hierarchyFacetAssignments->concat($nodeFacetAssignments) as $assignment) {
+            if (!$assignment->attribute || isset($seenAttributeIds[$assignment->attribute_id])) {
+                continue;
+            }
+            $seenAttributeIds[$assignment->attribute_id] = true;
+            $facetAttributes->push($assignment->attribute);
+        }
+
+        if ($facetAttributes->isEmpty()) {
             return response()->json(['facets' => []]);
         }
 
@@ -475,11 +498,7 @@ class AssetCatalogController extends BaseController
 
         $facets = [];
 
-        foreach ($facetAssignments as $assignment) {
-            $attr = $assignment->attribute;
-            if (!$attr) {
-                continue;
-            }
+        foreach ($facetAttributes as $attr) {
             $attrId = $attr->id;
 
             $label = $lang === 'en' && $attr->name_en ? $attr->name_en : ($attr->name_de ?: $attr->technical_name);
@@ -760,12 +779,22 @@ class AssetCatalogController extends BaseController
         }
 
         // Attribut-Reihenfolge aus der Asset-Hierarchie: Facetten zuerst (in ihrer
-        // festgelegten Reihenfolge), danach die übrigen zugeordneten Attribute.
+        // festgelegten Reihenfolge), danach die übrigen zugeordneten Attribute. Knoten-Zuordnung
+        // (spezifisch für den Asset-Ordner) gewinnt bei Überschneidung gegenüber der
+        // Hierarchie-weiten Zuordnung.
         $attributeOrder = collect();
         if ($medium->assetFolder?->hierarchy_id) {
             $attributeOrder = HierarchyAttributeAssignment::where('hierarchy_id', $medium->assetFolder->hierarchy_id)
                 ->get(['attribute_id', 'is_facet', 'sort_order'])
                 ->keyBy('attribute_id');
+        }
+        if ($medium->asset_folder_id) {
+            $nodeOrder = HierarchyNodeAttributeAssignment::where('hierarchy_node_id', $medium->asset_folder_id)
+                ->get(['attribute_id', 'is_facet', 'attribute_sort']);
+            foreach ($nodeOrder as $nodeAssignment) {
+                $nodeAssignment->sort_order = $nodeAssignment->attribute_sort;
+                $attributeOrder->put($nodeAssignment->attribute_id, $nodeAssignment);
+            }
         }
 
         return response()->json([
