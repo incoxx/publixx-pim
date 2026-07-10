@@ -221,6 +221,7 @@ if (in_array($attr->data_type, Attribute::REFERENCE_TYPES, true) || $attr->data_
 - Die ~10 Write-Switches außerhalb der 3 Boundaries (Connectors, weitere `*_attribute_values`-Controller): string-backed Typen laufen über deren `default`. `SimpleMultiSelect`-Writes finden dort im MVP nicht statt (out of scope) → kein „Array"-Problem.
 - PQL/Meilisearch: unverändert lauffähig (s. Bucket B). Filterbarkeit nach Referenzen ist ein separates Zusatzfeature.
 - Bulk-Editor: eigener, reduzierter Switch; deckt schon heute nicht alle Typen ab. Referenzen erscheinen dort bis zur Folge-Iteration als Roh-UUID (dokumentiert, kein Blocker).
+- **Excel-/CSV-Wert-Import für Referenztypen:** Die Attribut-**Definition** (Typ anlegen) funktioniert über den Import; das Einlesen von Referenz-**Werten** löst jedoch keine SKU/Pfad → UUID-Auflösung auf (der Wert landet roh in `value_string` über den bestehenden `default`-Branch von `ImportExecutor::mapValueToColumns`). Bis zur Folge-Iteration sollten Referenz-Werte im Produkteditor über die Picker gepflegt werden, nicht per Excel-Import. Eine SKU/Pfad-Auflösung im Import-Flow ist der geplante nächste Schritt (analog zur bestehenden `Selection`-Namensauflösung).
 
 ---
 

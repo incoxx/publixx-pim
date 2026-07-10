@@ -562,14 +562,14 @@ function mapDataTypeToInput(backendType) {
     'DelimitedValue': 'delimitedvalue', 'JsonArtefact': 'jsonartefact',
     // Freie Selects nutzen die bestehenden Select-Inputs (Optionen aus simple_options)
     'SimpleSelect': 'select', 'SimpleMultiSelect': 'multicombobox',
-    // Referenz-Typen: eigene Picker-Zweige (siehe isReferenceType/Template)
+    // Referenz-Typen: eigene Picker-Zweige in PimAttributeInput
     'HierarchyNodeReference': 'hierarchyreference', 'ProductReference': 'productreference',
   }
   return map[backendType] || 'text'
 }
 
-function isReferenceType(attr) {
-  return attr?.data_type === 'HierarchyNodeReference' || attr?.data_type === 'ProductReference'
+function isMultiValueType(dataType) {
+  return dataType === 'MultiSelection' || dataType === 'SimpleMultiSelect'
 }
 
 function getSelectionOptions(attr) {
@@ -682,7 +682,13 @@ async function loadAttributeData(overrideNodeId = null, generation = null) {
           if (val.attribute && !ownAttributesById.has(attrId)) {
             ownAttributesById.set(attrId, val.attribute)
           }
-          const rawValue = val.value_string ?? val.value_number ?? val.value_date ?? val.value_flag ?? val.value_selection_id ?? ''
+          let rawValue = val.value_string ?? val.value_number ?? val.value_date ?? val.value_flag ?? val.value_selection_id ?? ''
+          // Mehrfachauswahl (MultiSelection/SimpleMultiSelect): JSON-Array-String → Array,
+          // damit die multicombobox-Eingabe die gespeicherten Werte korrekt anzeigt und
+          // beim Bearbeiten nicht zeichenweise korrumpiert.
+          if (isMultiValueType(val.attribute?.data_type) && typeof rawValue === 'string' && rawValue.startsWith('[')) {
+            try { const parsed = JSON.parse(rawValue); if (Array.isArray(parsed)) rawValue = parsed } catch { /* roh belassen */ }
+          }
           const mIdx = val.multiplied_index ?? 0
           if (mIdx > 0 || (val.attribute && val.attribute.is_multipliable)) {
             // Multipliable value — collect into array

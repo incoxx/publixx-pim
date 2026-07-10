@@ -1166,12 +1166,18 @@ class JsonFormatExporter
 
     // ─── Wert-Hilfsmethoden ────────────────────────────────────
 
+    private ?AttributeValuePresenter $valuePresenter = null;
+
+    private function valuePresenter(): AttributeValuePresenter
+    {
+        return $this->valuePresenter ??= new AttributeValuePresenter();
+    }
+
     private function resolveAttributeValue(ProductAttributeValue $pav): mixed
     {
         // Referenz-/Mehrfach-Typen zentral & strukturiert auflösen.
-        $presenter = new AttributeValuePresenter();
-        if ($presenter->handles($pav->attribute?->data_type)) {
-            return $presenter->exportValue($pav);
+        if ($this->valuePresenter()->handles($pav->attribute?->data_type)) {
+            return $this->valuePresenter()->exportValue($pav);
         }
 
         if ($pav->value_selection_id !== null) {

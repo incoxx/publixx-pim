@@ -554,7 +554,14 @@ class MappingResolver
             return null;
         }
 
-        return (new AttributeValuePresenter())->exportValue($attrValue, $language);
+        return $this->valuePresenter()->exportValue($attrValue, $language);
+    }
+
+    private ?AttributeValuePresenter $valuePresenter = null;
+
+    private function valuePresenter(): AttributeValuePresenter
+    {
+        return $this->valuePresenter ??= new AttributeValuePresenter();
     }
 
     /**

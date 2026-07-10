@@ -223,7 +223,7 @@ class ProductPreviewService
 
                     // Für Referenz-Typen: strukturierte reference_data mitliefern (analog link_data).
                     if (in_array($assignment->data_type, Attribute::REFERENCE_TYPES, true)) {
-                        $referenceData = (new AttributeValuePresenter())->referenceData($attrValue, $lang);
+                        $referenceData = $this->valuePresenter()->referenceData($attrValue, $lang);
                         if ($referenceData) {
                             $attrEntry['reference_data'] = $referenceData;
                         }
@@ -816,6 +816,13 @@ class ProductPreviewService
     /**
      * Resolve attribute display value (pattern from CatalogProductDetailResource).
      */
+    private ?AttributeValuePresenter $valuePresenter = null;
+
+    private function valuePresenter(): AttributeValuePresenter
+    {
+        return $this->valuePresenter ??= new AttributeValuePresenter();
+    }
+
     private function resolveDisplayValue(ProductAttributeValue $attrValue, string $lang): ?string
     {
         $attr = $attrValue->attribute;
@@ -824,9 +831,8 @@ class ProductPreviewService
         }
 
         // Referenz-/Mehrfach-Typen zentral auflösen.
-        $presenter = new AttributeValuePresenter();
-        if ($presenter->handles($attr->data_type)) {
-            return $presenter->displayValue($attrValue, $lang);
+        if ($this->valuePresenter()->handles($attr->data_type)) {
+            return $this->valuePresenter()->displayValue($attrValue, $lang);
         }
 
         return match ($attr->data_type) {

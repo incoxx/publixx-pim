@@ -39,13 +39,9 @@ class Attribute extends Model
     public const REFERENCE_TYPES = ['HierarchyNodeReference', 'ProductReference'];
 
     /**
-     * Datentypen, deren Wert als JSON-Array in value_string liegt (Mehrfachauswahl).
-     */
-    public const MULTI_VALUE_TYPES = ['MultiSelection', 'SimpleMultiSelect'];
-
-    /**
      * Liefert die value_*-Spalte, in der ein Datentyp gespeichert wird.
-     * Zentrale Storage-Klassifikation — ersetzt die duplizierten Spalten-Switches.
+     * Zentrale Storage-Klassifikation der EAV-Spalten (value_string ist der
+     * Standard; nur Number/Float/Date/Flag weichen ab).
      */
     public static function storageColumn(string $dataType): string
     {

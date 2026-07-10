@@ -704,12 +704,18 @@ class BmecatFormatExporter
         return $this->resolveAttributeValue($av);
     }
 
+    private ?AttributeValuePresenter $valuePresenter = null;
+
+    private function valuePresenter(): AttributeValuePresenter
+    {
+        return $this->valuePresenter ??= new AttributeValuePresenter();
+    }
+
     private function resolveAttributeValue(ProductAttributeValue $av): ?string
     {
         // Referenz-/Mehrfach-Typen zentral auflösen (Skalar für BMEcat).
-        $presenter = new AttributeValuePresenter();
-        if ($presenter->handles($av->attribute?->data_type)) {
-            return $presenter->displayValue($av);
+        if ($this->valuePresenter()->handles($av->attribute?->data_type)) {
+            return $this->valuePresenter()->displayValue($av);
         }
 
         if ($av->value_string !== null && $av->value_string !== '') {

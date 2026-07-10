@@ -25,6 +25,16 @@ use App\Models\ProductAttributeValue;
 class AttributeValuePresenter
 {
     /**
+     * Identity-Cache für aufgelöste Referenzziele (pro Instanz/Request).
+     * Verhindert N+1-Queries, wenn viele Produkte dasselbe Ziel referenzieren
+     * (z. B. viele Produkte → gleicher Kategorie-Knoten). Wird eine Instanz
+     * über einen Export-/Preview-Lauf wiederverwendet, greift der Cache.
+     *
+     * @var array<string, array<string, mixed>|null>
+     */
+    private array $referenceCache = [];
+
+    /**
      * Übernimmt dieser Presenter die Auflösung für den Datentyp?
      * Aufrufer nutzen dies als Guard am Anfang ihres data_type-Switch.
      */
@@ -44,13 +54,13 @@ class AttributeValuePresenter
         if ($type === 'ProductReference') {
             $ref = $this->productReference($pav);
 
-            return $ref['name'] ?? $ref['sku'] ?? null;
+            return $ref === null ? null : ($ref['name'] ?? $ref['sku'] ?? null);
         }
 
         if ($type === 'HierarchyNodeReference') {
             $ref = $this->hierarchyNodeReference($pav, $lang);
 
-            return $ref['name'] ?? null;
+            return $ref === null ? null : ($ref['name'] ?? null);
         }
 
         if ($type === 'SimpleMultiSelect') {
@@ -122,18 +132,23 @@ class AttributeValuePresenter
             return null;
         }
 
-        $product = Product::query()->find($id, ['id', 'sku', 'name']);
-        if ($product === null) {
-            return ['id' => $id, 'type' => 'product', 'exists' => false, 'sku' => null, 'name' => null];
+        $cacheKey = 'product:' . $id;
+        if (array_key_exists($cacheKey, $this->referenceCache)) {
+            return $this->referenceCache[$cacheKey];
         }
 
-        return [
-            'id'     => $product->id,
-            'type'   => 'product',
-            'exists' => true,
-            'sku'    => $product->sku,
-            'name'   => $product->name,
-        ];
+        $product = Product::query()->find($id, ['id', 'sku', 'name']);
+        $result = $product === null
+            ? ['id' => $id, 'type' => 'product', 'exists' => false, 'sku' => null, 'name' => null]
+            : [
+                'id'     => $product->id,
+                'type'   => 'product',
+                'exists' => true,
+                'sku'    => $product->sku,
+                'name'   => $product->name,
+            ];
+
+        return $this->referenceCache[$cacheKey] = $result;
     }
 
     /**
@@ -146,20 +161,23 @@ class AttributeValuePresenter
             return null;
         }
 
-        $node = HierarchyNode::query()->find($id, ['id', 'name_de', 'name_en', 'path', 'hierarchy_id']);
-        if ($node === null) {
-            return ['id' => $id, 'type' => 'hierarchy_node', 'exists' => false, 'name' => null, 'path' => null];
+        $cacheKey = 'node:' . $lang . ':' . $id;
+        if (array_key_exists($cacheKey, $this->referenceCache)) {
+            return $this->referenceCache[$cacheKey];
         }
 
-        $name = $lang === 'en' && $node->name_en ? $node->name_en : $node->name_de;
+        $node = HierarchyNode::query()->find($id, ['id', 'name_de', 'name_en', 'path', 'hierarchy_id']);
+        $result = $node === null
+            ? ['id' => $id, 'type' => 'hierarchy_node', 'exists' => false, 'name' => null, 'path' => null]
+            : [
+                'id'           => $node->id,
+                'type'         => 'hierarchy_node',
+                'exists'       => true,
+                'name'         => $lang === 'en' && $node->name_en ? $node->name_en : $node->name_de,
+                'path'         => $node->path,
+                'hierarchy_id' => $node->hierarchy_id,
+            ];
 
-        return [
-            'id'           => $node->id,
-            'type'         => 'hierarchy_node',
-            'exists'       => true,
-            'name'         => $name,
-            'path'         => $node->path,
-            'hierarchy_id' => $node->hierarchy_id,
-        ];
+        return $this->referenceCache[$cacheKey] = $result;
     }
 }
