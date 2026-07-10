@@ -25,6 +25,7 @@ class StoreNodeAttributeAssignmentRequest extends FormRequest
             'access_hierarchy' => 'in:hidden,visible,editable',
             'access_product' => 'in:hidden,visible,editable',
             'access_variant' => 'in:hidden,visible,editable',
+            'is_facet' => 'boolean',
         ];
     }
 }

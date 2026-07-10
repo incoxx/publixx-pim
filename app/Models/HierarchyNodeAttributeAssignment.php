@@ -28,6 +28,7 @@ class HierarchyNodeAttributeAssignment extends Model
         'access_product',
         'access_variant',
         'parent_assignment_id',
+        'is_facet',
     ];
 
     protected function casts(): array
@@ -37,6 +38,7 @@ class HierarchyNodeAttributeAssignment extends Model
             'attribute_sort' => 'integer',
             'dont_inherit' => 'boolean',
             'is_required' => 'boolean',
+            'is_facet' => 'boolean',
         ];
     }
 

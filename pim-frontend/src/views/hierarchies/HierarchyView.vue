@@ -7,7 +7,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import {
   Plus, Edit3, Trash2, FolderPlus, Package, Search,
-  Copy, ChevronUp, ChevronDown, Settings, GripVertical, X, Save, Image, Layers,
+  Copy, ChevronUp, ChevronDown, Settings, GripVertical, X, Save, Image, Layers, Tag,
 } from 'lucide-vue-next'
 import hierarchiesApi from '@/api/hierarchies'
 import attributesApi from '@/api/attributes'
@@ -549,6 +549,18 @@ async function removeNodeAttribute(assignment) {
     await loadNodeAttributes(store.selectedNode.id)
   } catch (e) {
     showFeedback(e.response?.data?.title || 'Fehler beim Entfernen', 'error')
+  }
+}
+
+// Facette-Kennzeichnung für die Asset-Facettensuche — nur für Asset-Hierarchien relevant
+// (Produkt-Hierarchien nutzen weiterhin das theme-weite facet_attribute_ids-Setting).
+async function toggleNodeFacet(assignment) {
+  const nextValue = !assignment.is_facet
+  try {
+    await hierarchiesApi.updateNodeAttributeAssignment(assignment.id, { is_facet: nextValue })
+    assignment.is_facet = nextValue
+  } catch (e) {
+    showFeedback(e.response?.data?.title || 'Fehler beim Umschalten der Facette', 'error')
   }
 }
 
@@ -1304,6 +1316,18 @@ onMounted(async () => {
                 </div>
                 <div v-if="!assignment.is_inherited" class="flex items-center gap-0.5">
                   <template v-if="authStore.hasPermission('hierarchies.edit')">
+                    <button
+                      v-if="store.currentHierarchy?.hierarchy_type === 'asset'"
+                      class="flex items-center gap-1 px-1.5 py-0.5 mr-1 text-[10px] font-medium rounded-full transition-colors cursor-pointer"
+                      :class="assignment.is_facet
+                        ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
+                        : 'bg-[var(--color-surface)] text-[var(--color-text-tertiary)]'"
+                      @click="toggleNodeFacet(assignment)"
+                      title="Als Facette in der Asset-Facettensuche verwenden (klicken zum Umschalten)"
+                    >
+                      <Tag class="w-3 h-3" :stroke-width="2" />
+                      Facette
+                    </button>
                     <button
                       class="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-secondary)] transition-all disabled:opacity-20 disabled:cursor-default"
                       :disabled="idx === 0"
