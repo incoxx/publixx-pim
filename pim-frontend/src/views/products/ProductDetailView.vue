@@ -572,10 +572,23 @@ function isMultiValueType(dataType) {
   return dataType === 'MultiSelection' || dataType === 'SimpleMultiSelect'
 }
 
+function parseSimpleOption(opt) {
+  // Syntax "Label::value" → gespeichert wird value, angezeigt "Label (value)".
+  // Ohne "::" ist Label = value (unveränderte Anzeige).
+  const raw = String(opt)
+  const idx = raw.indexOf('::')
+  if (idx === -1) {
+    return { value: raw, label: raw }
+  }
+  const label = raw.slice(0, idx).trim()
+  const value = raw.slice(idx + 2).trim()
+  return { value, label: label ? `${label} (${value})` : value }
+}
+
 function getSelectionOptions(attr) {
   // Freie Selects: Optionen direkt aus simple_options (kein Werteliste-Lookup)
   if (attr.data_type === 'SimpleSelect' || attr.data_type === 'SimpleMultiSelect') {
-    return (attr.simple_options || []).map(opt => ({ value: opt, label: opt }))
+    return (attr.simple_options || []).map(parseSimpleOption)
   }
   // Try embedded value_list entries first (from attribute API with include)
   if (attr.value_list?.entries?.length) {
@@ -619,6 +632,8 @@ async function loadAttributeData(overrideNodeId = null, generation = null) {
         name_en: ra.attribute_name_en,
         data_type: ra.data_type,
         value_list_id: ra.value_list_id || null,
+        simple_options: ra.simple_options || null,
+        delimiter: ra.delimiter || null,
         is_mandatory: !!(ra.is_mandatory || ra.is_required),
         is_translatable: ra.is_translatable,
         is_variant_attribute: ra.is_variant_attribute || false,

@@ -126,6 +126,24 @@ class NewAttributeTypesTest extends TestCase
         $this->assertSame(['1', '2', '3'], $attr->simple_options);
     }
 
+    public function test_simple_options_round_trip_through_api(): void
+    {
+        // Regression: simple_options muss von AttributeResource zurückgegeben werden,
+        // sonst wirken die Optionen im Config-Panel nach dem Speichern "verloren".
+        $id = $this->postJson('/api/v1/attributes', [
+            'technical_name' => 'farbe',
+            'name_de' => 'Farbe',
+            'data_type' => 'SimpleSelect',
+            'simple_options' => ['Rot::#FF0000', 'Grün::#00FF00'],
+            'is_translatable' => false,
+            'is_multipliable' => false,
+        ])->assertCreated()->json('data.id');
+
+        $this->getJson("/api/v1/attributes/{$id}")
+            ->assertOk()
+            ->assertJsonPath('data.simple_options', ['Rot::#FF0000', 'Grün::#00FF00']);
+    }
+
     public function test_simple_select_rejects_non_string_options(): void
     {
         $this->postJson('/api/v1/attributes', [
