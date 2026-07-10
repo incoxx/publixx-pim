@@ -6,6 +6,7 @@ namespace Database\Seeders;
 
 use App\Models\Attribute;
 use App\Models\Hierarchy;
+use App\Models\HierarchyAttributeAssignment;
 use App\Models\HierarchyNode;
 use App\Models\HierarchyNodeAttributeAssignment;
 use Illuminate\Database\Seeder;
@@ -78,6 +79,51 @@ class DemoHierarchySeeder extends Seeder
                 'sort_order' => 0,
             ]
         );
+
+        // ----- Asset Hierarchy (Ordnerstruktur für Medien / /assetpreview) -----
+        $asset = Hierarchy::firstOrCreate(
+            ['technical_name' => 'asset_medienstruktur'],
+            [
+                'name_de' => 'Medien-Struktur',
+                'name_en' => 'Media Structure',
+                'hierarchy_type' => 'asset',
+                'description' => 'Ordnerstruktur der internen Mediendatenbank',
+            ]
+        );
+
+        $assetRoot = HierarchyNode::firstOrCreate(
+            ['hierarchy_id' => $asset->id, 'parent_node_id' => null],
+            [
+                'name_de' => 'Medien',
+                'name_en' => 'Media',
+                'path' => '/', // temporary, updated below
+                'depth' => 0,
+                'sort_order' => 0,
+            ]
+        );
+        $correctAssetRootPath = "/{$assetRoot->id}/";
+        if ($assetRoot->path !== $correctAssetRootPath) {
+            $assetRoot->update(['path' => $correctAssetRootPath]);
+        }
+
+        $this->createNode($asset, $assetRoot, 'Produktbilder', 'Product Images', 10);
+        $this->createNode($asset, $assetRoot, 'Marketing & Kampagnen', 'Marketing & Campaigns', 20);
+
+        // Referenz-Attribute hierarchieweit zuordnen: Medien lassen sich damit per
+        // Metadaten direkt mit einem Produkt oder einem Master-Hierarchie-Knoten verlinken.
+        $mediaRefAttrs = Attribute::whereIn('technical_name', [
+            'media-linked-product-ref', 'media-linked-category-ref',
+        ])->get()->keyBy('technical_name');
+
+        foreach (['media-linked-product-ref', 'media-linked-category-ref'] as $i => $technicalName) {
+            if (! isset($mediaRefAttrs[$technicalName])) {
+                continue;
+            }
+            HierarchyAttributeAssignment::firstOrCreate(
+                ['hierarchy_id' => $asset->id, 'attribute_id' => $mediaRefAttrs[$technicalName]->id],
+                ['sort_order' => $i]
+            );
+        }
 
         // ----- Assign attributes to hierarchy nodes -----
         $allAttrs = Attribute::whereIn('technical_name', [

@@ -273,6 +273,22 @@ class DemoAttributeSeeder extends Seeder
                 'max_characters' => 20,
                 'position' => 120,
             ],
+            [
+                'technical_name' => 'media-linked-product-ref',
+                'name_de' => 'Verknüpftes Produkt',
+                'name_en' => 'Linked Product',
+                'data_type' => 'ProductReference',
+                'attribute_type_id' => $atMarketing->id,
+                'position' => 130,
+            ],
+            [
+                'technical_name' => 'media-linked-category-ref',
+                'name_de' => 'Verknüpfte Kategorie',
+                'name_en' => 'Linked Category',
+                'data_type' => 'HierarchyNodeReference',
+                'attribute_type_id' => $atMarketing->id,
+                'position' => 140,
+            ],
         ];
 
         $createdAttrs = [];
