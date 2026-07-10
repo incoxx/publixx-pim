@@ -35,8 +35,8 @@ steps:
     action: navigate
     target: "/login"
     wait_for: "[data-testid='login-form']"
-    sprecher: "anyPIM verwaltet nicht nur Produktdaten, sondern auch alle Medien dazu. Heute zeigen wir, wie Medien organisiert sind, welche Metadaten sie tragen können — und wie sich Bilder per Attribut direkt mit Produkten verknüpfen lassen."
-    pause_after: 2000
+    sprecher: "anyPIM verwaltet auch alle Medien dazu. Heute geht's um Ordner, Metadaten – und die neue Produktverknüpfung per Attribut."
+    pause_after: 1500
 
   - id: "fill-email"
     action: fill
@@ -66,22 +66,22 @@ steps:
     target: "/media"
     wait_for: "[data-testid='media-view']"
     wait_timeout: 8000
-    sprecher: "Das ist die Medienverwaltung. Alle Bilder, PDFs und Videos an einem Ort – mit Suche, Filtern und Massenbearbeitung."
-    pause_after: 2500
+    sprecher: "Das ist die Medienverwaltung. Alle Bilder, PDFs und Videos an einem Ort."
+    pause_after: 1500
 
   # ── 2. MEDIEN-HIERARCHIE (ORDNERSTRUKTUR) ────────────────────────────────────
   - id: "highlight-folder-tree"
     action: highlight
     selector: "[data-testid='media-folder-sidebar']"
-    sprecher: "Links steht der Ordnerbaum. Medien sind – genau wie Produkte – in einer eigenen Hierarchie organisiert. Ordner und Unterordner lassen sich frei anlegen, und jeder Ordner kann eigene Attribut-Zuordnungen bekommen."
-    pause_after: 3500
+    sprecher: "Links steht der Ordnerbaum. Medien sind – genau wie Produkte – in einer eigenen Hierarchie organisiert."
+    pause_after: 2000
 
   - id: "click-folder-produktbilder"
     action: click
     selector: "text=Produktbilder"
     wait_timeout: 5000
-    sprecher: "Ein Klick auf 'Produktbilder' filtert die Ansicht auf diesen Ordner."
-    pause_after: 2000
+    sprecher: "Ein Klick auf 'Produktbilder' filtert auf diesen Ordner."
+    pause_after: 1800
 
   # ── 3. MEDIUM ÖFFNEN ──────────────────────────────────────────────────────────
   - id: "open-media-detail"
@@ -89,8 +89,8 @@ steps:
     selector: ".pim-card.cursor-pointer"
     wait_for: "[data-testid='media-detail-panel']"
     wait_timeout: 8000
-    sprecher: "Ein Klick auf ein Bild öffnet die Detailansicht rechts – mit Vorschau, Verwendungsnachweis und allen Metadaten."
-    pause_after: 2000
+    sprecher: "Ein Klick auf ein Bild öffnet die Detailansicht – mit Vorschau und allen Metadaten."
+    pause_after: 1800
 
   # ── 4. ATTRIBUTE (METADATEN) ──────────────────────────────────────────────────
   - id: "scroll-to-attributes"
@@ -102,28 +102,34 @@ steps:
   - id: "highlight-attributes"
     action: highlight
     selector: "[data-testid='media-detail-attributes']"
-    sprecher: "Jedes Medium kann eigene Attribute tragen – genau wie ein Produkt. Diese Metadaten kommen aus der Ordner-Hierarchie und lassen sich hier direkt am Bild pflegen."
-    pause_after: 3000
+    sprecher: "Jedes Medium kann eigene Attribute tragen – genau wie ein Produkt."
+    pause_after: 1800
 
   # ── 5. NEUES FEATURE: RELATIONEN ÜBER ATTRIBUTE ──────────────────────────────
   - id: "highlight-linked-product"
     action: highlight
     selector: "[data-testid='field-media-linked-product-ref']"
-    sprecher: "Und das ist neu: ein Attribut vom Typ 'Produkt-Referenz'. Damit wird dieses Bild direkt mit einem Produkt verknüpft – zusätzlich zur klassischen Bild-Zuordnung über Verwendungstypen."
-    pause_after: 3500
+    sprecher: "Neu: das Attribut 'Produkt-Referenz' verknüpft dieses Bild direkt mit einem Produkt."
+    pause_after: 2000
 
   - id: "click-change-product-ref"
     action: click
     selector: "[data-testid='field-media-linked-product-ref'] button:has-text('Ändern')"
     wait_timeout: 5000
-    sprecher: "Über 'Ändern' lässt sich die Verknüpfung jederzeit anpassen – mit Live-Suche nach SKU oder Produktname."
-    pause_after: 2500
+    sprecher: "Über 'Ändern' lässt sich die Verknüpfung jederzeit anpassen."
+    pause_after: 1800
 
   - id: "highlight-linked-category"
     action: highlight
     selector: "[data-testid='field-media-linked-category-ref']"
-    sprecher: "Das gleiche Prinzip funktioniert auch für Kategorien: eine 'Hierarchie-Referenz' verlinkt das Medium mit einem Knoten im Produktbaum. So lassen sich Assets rein über Metadaten mit Produkten und Hierarchien verbinden – ganz ohne manuelle Zuordnung in jedem einzelnen Produkt."
-    pause_after: 4000
+    sprecher: "Das gleiche Prinzip gibt es für Kategorien: eine Hierarchie-Referenz."
+    pause_after: 1800
+
+  - id: "highlight-linked-category-detail"
+    action: highlight
+    selector: "[data-testid='media-detail-attributes']"
+    sprecher: "So lassen sich Assets rein per Metadaten mit Produkten und Hierarchien verbinden."
+    pause_after: 2000
 
   # ── 6. /ASSETPREVIEW – INTERNE MEDIENDATENBANK ───────────────────────────────
   - id: "open-assetpreview"
@@ -131,17 +137,17 @@ steps:
     target: "/assetpreview"
     wait_for: "[data-theme='pim-catalog']"
     wait_timeout: 10000
-    sprecher: "Für den schnellen Zugriff ohne PIM-Oberfläche gibt es /assetpreview – die interne Mediendatenbank für alle Mitarbeiter, mit derselben Ordnerstruktur und denselben Metadaten."
-    pause_after: 3000
+    sprecher: "Und hier ist /assetpreview – dieselbe Mediendatenbank, ohne PIM-Oberfläche."
+    pause_after: 1800
 
   - id: "highlight-asset-catalog"
     action: highlight
     selector: "[data-theme='pim-catalog']"
-    sprecher: "Bilder durchsuchen, nach Verwendungszweck oder Dateityp filtern, direkt herunterladen – und dank der Metadaten-Verknüpfung ist jederzeit klar, zu welchem Produkt und welcher Kategorie ein Bild gehört."
-    pause_after: 3500
+    sprecher: "Bilder durchsuchen und filtern – dank der Verknüpfung immer klar, zu welchem Produkt sie gehören."
+    pause_after: 2000
 
   # ── ZUSAMMENFASSUNG ───────────────────────────────────────────────────────────
   - id: "end"
     action: wait
     duration: 2000
-    sprecher: "Medien in anyPIM: eine eigene Ordner-Hierarchie, frei konfigurierbare Metadaten – und mit Produkt- und Hierarchie-Referenzen jetzt auch direkte Verknüpfungen zwischen Assets, Produkten und Kategorien."
+    sprecher: "Medien in anyPIM: eigene Ordner, freie Metadaten – und direkte Verknüpfungen zu Produkten und Kategorien."

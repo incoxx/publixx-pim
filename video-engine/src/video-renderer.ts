@@ -100,10 +100,16 @@ export async function renderVideo(opts: RenderOptions): Promise<void> {
   // Untertitel einbrennen (optional)
   if (srtPath && fs.existsSync(srtPath)) {
     const escapedSrt = srtPath.replace(/[\\:]/g, '\\$&');
+    // Ohne explizite original_size nimmt libass für ein reines .srt (ohne ASS-Header)
+    // eine viel zu kleine interne Referenzauflösung an (klassischer SSA-Default) — die
+    // Schrift wird beim Hochskalieren auf die tatsächliche Videoauflösung riesig.
+    const { width, height } = getVideoDimensions(videoPath);
+    const originalSize = width && height ? `:original_size=${width}x${height}` : '';
+    const subtitleFilter = `subtitles='${escapedSrt}'${originalSize}:force_style='FontSize=22,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,BorderStyle=3,Outline=2'`;
     if (filters.length > 0 && filters.some(f => f.includes('[v]'))) {
-      filters.push(`[v]subtitles='${escapedSrt}':force_style='FontSize=22,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,BorderStyle=3,Outline=2'[vout]`);
+      filters.push(`[v]${subtitleFilter}[vout]`);
     } else {
-      filters.push(`[0:v]subtitles='${escapedSrt}':force_style='FontSize=22,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,BorderStyle=3,Outline=2'[vout]`);
+      filters.push(`[0:v]${subtitleFilter}[vout]`);
     }
   }
 
@@ -197,5 +203,19 @@ function getMediaDuration(filePath: string): number {
     return parseFloat(output) || 0;
   } catch {
     return 0;
+  }
+}
+
+/** Gibt Breite/Höhe des Video-Streams zurück (für den subtitles-Filter original_size) */
+function getVideoDimensions(filePath: string): { width: number; height: number } {
+  try {
+    const output = execSync(
+      `${ffprobeBin()} -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "${filePath}"`,
+      { encoding: 'utf-8', timeout: 5000 },
+    ).trim();
+    const [width, height] = output.split('x').map(Number);
+    return { width: width || 0, height: height || 0 };
+  } catch {
+    return { width: 0, height: 0 };
   }
 }
