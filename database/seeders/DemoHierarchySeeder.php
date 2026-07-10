@@ -81,15 +81,21 @@ class DemoHierarchySeeder extends Seeder
         );
 
         // ----- Asset Hierarchy (Ordnerstruktur für Medien / /assetpreview) -----
-        $asset = Hierarchy::firstOrCreate(
-            ['technical_name' => 'asset_medienstruktur'],
-            [
+        // MediaView und AssetCatalogController lösen "die" Asset-Hierarchie über
+        // Hierarchy::where('hierarchy_type','asset')->orderBy('name_de')->first() auf.
+        // Existiert bereits eine (z.B. aus manuellen Tests), muss diese wiederverwendet
+        // werden — sonst landen unsere Demo-Ordner in einer zweiten, nie angezeigten
+        // Asset-Hierarchie und der Ordnerbaum in der Story bleibt leer.
+        $asset = Hierarchy::where('hierarchy_type', 'asset')->orderBy('name_de')->first();
+        if (! $asset) {
+            $asset = Hierarchy::create([
+                'technical_name' => 'asset_medienstruktur',
                 'name_de' => 'Medien-Struktur',
                 'name_en' => 'Media Structure',
                 'hierarchy_type' => 'asset',
                 'description' => 'Ordnerstruktur der internen Mediendatenbank',
-            ]
-        );
+            ]);
+        }
 
         $assetRoot = HierarchyNode::firstOrCreate(
             ['hierarchy_id' => $asset->id, 'parent_node_id' => null],
