@@ -27,4 +27,22 @@ final class MediaFileTypes
         ...self::AUDIO_EXTENSIONS,
         ...self::VIDEO_EXTENSIONS,
     ];
+
+    /**
+     * Ordnet einen MIME-Type dem passenden media_type zu (image/document/video/audio/other).
+     * Zentrale Klassifizierungslogik, genutzt von Import-Pfaden (BmecatFormatImporter,
+     * ImportExecutor), die media_type nicht direkt vom Nutzer übernehmen.
+     */
+    public static function classifyMimeType(string $mimeType): string
+    {
+        $mimeType = strtolower($mimeType);
+
+        return match (true) {
+            str_starts_with($mimeType, 'image/') => 'image',
+            str_starts_with($mimeType, 'video/') => 'video',
+            str_starts_with($mimeType, 'audio/') => 'audio',
+            str_contains($mimeType, 'pdf') || str_starts_with($mimeType, 'application/') => 'document',
+            default => 'other',
+        };
+    }
 }

@@ -32,11 +32,12 @@ class MediaObserver
     {
         $this->handlePdfProcessing($media);
 
-        // Nur bei tatsächlicher Datei-Änderung neu verarbeiten — nicht bei jedem
-        // Metadaten-Edit (Titel, Beschreibung, ...) und nicht bei den
+        // Bei Datei-Änderung ODER manueller Umklassifizierung (z.B. media_type per UI von
+        // 'other' auf 'audio'/'video' korrigiert) neu verarbeiten — nicht bei sonstigen
+        // Metadaten-Edits (Titel, Beschreibung, ...) und nicht bei den
         // updateQuietly()-Statusschreibvorgängen aus ProcessAudioVideoMedia selbst
         // (sonst würde jeder Statuswechsel den Job erneut dispatchen).
-        if ($media->wasChanged(['file_path', 'file_size', 'mime_type'])) {
+        if ($media->wasChanged(['file_path', 'file_size', 'mime_type', 'media_type'])) {
             $this->handleAvProcessing($media);
         }
     }

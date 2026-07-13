@@ -22,8 +22,29 @@ class ThumbnailService
         }
 
         $disk = Storage::disk('public');
+        $isVideo = $media->media_type === 'video';
 
-        if ($media->media_type === 'video') {
+        // Extension für den Cache-Pfad ist ohne I/O bestimmbar (unabhängig von
+        // Mime-Selbstheilung/Existenzprüfungen unten) — daher zuerst ermitteln, damit der
+        // billige Cache-Hit-Check vor den teureren/fehleranfälligen Schritten laufen kann.
+        // Ein Medium mit gültigem Cache-Eintrag muss auch dann noch ein Thumbnail liefern,
+        // wenn seine Quelldatei zwischenzeitlich gelöscht wurde.
+        $extension = $isVideo ? 'jpg' : (pathinfo($media->file_name, PATHINFO_EXTENSION) ?: 'jpg');
+
+        $cacheDir = "thumbs/{$width}x{$height}";
+        $cachePath = "{$cacheDir}/{$media->id}.{$extension}";
+
+        // Cache hit — nur vertrauen, wenn die Datei auch Inhalt hat. Ein 0-Byte-File
+        // deutet auf einen abgebrochenen oder parallel überschriebenen Schreibvorgang
+        // hin (siehe saveImage()) und würde sonst dauerhaft als "broken image" ausgeliefert.
+        if ($disk->exists($cachePath)) {
+            if ($disk->size($cachePath) > 0) {
+                return $disk->path($cachePath);
+            }
+            $disk->delete($cachePath);
+        }
+
+        if ($isVideo) {
             // Vorschaubild kommt aus dem per ffmpeg extrahierten ersten Frame
             // (ProcessAudioVideoMedia). Solange der Job noch nicht gelaufen ist oder die
             // Extraktion fehlgeschlagen ist, gibt es kein Thumbnail — Frontend zeigt dann
@@ -34,7 +55,6 @@ class ThumbnailService
 
             $mimeType = 'image/jpeg';
             $sourcePath = $disk->path($media->video_thumbnail_path);
-            $extension = 'jpg';
         } else {
             $mimeType = (string) $media->mime_type;
 
@@ -62,21 +82,6 @@ class ThumbnailService
                 ]);
                 return null;
             }
-
-            $extension = pathinfo($media->file_name, PATHINFO_EXTENSION) ?: 'jpg';
-        }
-
-        $cacheDir = "thumbs/{$width}x{$height}";
-        $cachePath = "{$cacheDir}/{$media->id}.{$extension}";
-
-        // Cache hit — nur vertrauen, wenn die Datei auch Inhalt hat. Ein 0-Byte-File
-        // deutet auf einen abgebrochenen oder parallel überschriebenen Schreibvorgang
-        // hin (siehe saveImage()) und würde sonst dauerhaft als "broken image" ausgeliefert.
-        if ($disk->exists($cachePath)) {
-            if ($disk->size($cachePath) > 0) {
-                return $disk->path($cachePath);
-            }
-            $disk->delete($cachePath);
         }
 
         // Ensure cache directory exists
@@ -95,14 +100,16 @@ class ThumbnailService
     public function clearCache(Media $media): void
     {
         $disk = Storage::disk('public');
-        $extension = pathinfo($media->file_name, PATHINFO_EXTENSION) ?: 'jpg';
 
-        // Find and delete all size variants
-        $thumbDirs = $disk->directories('thumbs');
-        foreach ($thumbDirs as $dir) {
-            $file = "{$dir}/{$media->id}.{$extension}";
-            if ($disk->exists($file)) {
-                $disk->delete($file);
+        // Nicht auf die Quelldatei-Extension verlassen (glob-basiert löschen): bei Video-
+        // Medien cacht generate() das Thumbnail immer als .jpg, unabhängig vom tatsächlichen
+        // Container (z.B. .mp4) — ein extension-basierter Lookup würde den Cache-Eintrag nie
+        // finden.
+        foreach ($disk->directories('thumbs') as $dir) {
+            foreach ($disk->files($dir) as $file) {
+                if (pathinfo($file, PATHINFO_FILENAME) === $media->id) {
+                    $disk->delete($file);
+                }
             }
         }
     }

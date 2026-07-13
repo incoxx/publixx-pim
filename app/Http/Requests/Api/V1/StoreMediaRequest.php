@@ -23,7 +23,13 @@ class StoreMediaRequest extends FormRequest
                 'file',
                 'max:204800', // 200 MB
                 function (string $attribute, $value, Closure $fail) {
-                    $extension = strtolower((string) $value->getClientOriginalExtension());
+                    // Kein Upload (z.B. fehlerhafter Client, der "file" als normalen String
+                    // sendet) — die 'file'-Regel liefert dafür bereits einen eigenen,
+                    // sauberen Validierungsfehler; hier nichts tun statt abzustürzen.
+                    if (! $value instanceof \Illuminate\Http\UploadedFile) {
+                        return;
+                    }
+                    $extension = strtolower($value->getClientOriginalExtension());
                     if (! in_array($extension, MediaFileTypes::ALLOWED_EXTENSIONS, true)) {
                         $fail("Dateityp \".{$extension}\" ist nicht erlaubt.");
                     }

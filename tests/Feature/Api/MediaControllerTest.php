@@ -90,6 +90,29 @@ class MediaControllerTest extends TestCase
             ->assertJsonPath('data.title_de', 'Neu');
     }
 
+    public function test_update_media_type_auf_audio_dispatcht_av_verarbeitung(): void
+    {
+        // Regression: reine media_type-Umklassifizierung (z.B. manuell über das UI-Dropdown
+        // von 'other' auf 'audio' korrigiert) muss ProcessAudioVideoMedia auslösen, auch ohne
+        // dass sich file_path/file_size/mime_type ändern.
+        Queue::fake();
+
+        $media = Media::factory()->create([
+            'mime_type' => 'audio/mpeg',
+            'media_type' => 'other',
+            'file_path' => 'media/song.mp3',
+        ]);
+
+        $response = $this->putJson("/api/v1/media/{$media->id}", [
+            'media_type' => 'audio',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.media_type', 'audio');
+
+        Queue::assertPushed(ProcessAudioVideoMedia::class);
+    }
+
     public function test_destroy_deletes_media(): void
     {
         $media = Media::factory()->create();
@@ -140,6 +163,18 @@ class MediaControllerTest extends TestCase
 
         $response = $this->postJson('/api/v1/media', [
             'file' => UploadedFile::fake()->create('script.exe', 10),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['file']);
+    }
+
+    public function test_store_liefert_422_statt_500_bei_nicht_datei_wert(): void
+    {
+        // Regression: die Extension-Validierungs-Closure rief zuvor unconditional
+        // getClientOriginalExtension() auf und crashte mit 500, wenn 'file' kein Upload war.
+        $response = $this->postJson('/api/v1/media', [
+            'file' => 'kein-upload-sondern-ein-string',
         ]);
 
         $response->assertUnprocessable()
