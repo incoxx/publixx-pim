@@ -755,6 +755,16 @@ if [ -n "$PHP_VERSION_DETECTED" ]; then
             fi
             info "PCRE-JIT in ${PHP_INI} deaktiviert."
         fi
+
+        # max_input_time anheben (falls noch nicht geschehen): Distributions-Default liegt bei
+        # 60s und begrenzt separat von max_execution_time die Zeit zum Empfangen der
+        # Request-Daten. Auf Installationen von vor dem Video-Upload-Feature bricht PHP grosse
+        # Datei-Uploads auf langsamen Verbindungen serverseitig ab ("Network Error" im Client).
+        # Idempotent — betrifft nur Installationen, bei denen setup.sh dies noch nicht gesetzt hat.
+        if [ -f "$PHP_INI" ] && ! grep -q '^max_input_time = 300' "$PHP_INI"; then
+            sed -i 's/^max_input_time = .*/max_input_time = 300/' "$PHP_INI"
+            info "max_input_time in ${PHP_INI} auf 300s angehoben."
+        fi
     done
 fi
 

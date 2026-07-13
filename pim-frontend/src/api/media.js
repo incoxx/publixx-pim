@@ -26,6 +26,10 @@ export default {
     }
     return client.post('/media', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      // Kein Timeout: der globale 30s-Default (client.js) reicht für große Video-Dateien auf
+      // langsamen/mobilen Verbindungen nicht aus. Fortschrittsbalken + Retry (MediaUploadQueue.vue)
+      // geben dem Nutzer weiterhin Kontrolle/Feedback.
+      timeout: 0,
       onUploadProgress: onProgress
         ? (e) => onProgress({ loaded: e.loaded, total: e.total, percent: Math.round((e.loaded / (e.total || 1)) * 100) })
         : undefined,
