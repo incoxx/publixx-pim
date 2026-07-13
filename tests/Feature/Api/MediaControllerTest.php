@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api;
 
+use App\Jobs\ProcessAudioVideoMedia;
 use App\Models\Media;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -88,6 +90,29 @@ class MediaControllerTest extends TestCase
             ->assertJsonPath('data.title_de', 'Neu');
     }
 
+    public function test_update_media_type_auf_audio_dispatcht_av_verarbeitung(): void
+    {
+        // Regression: reine media_type-Umklassifizierung (z.B. manuell über das UI-Dropdown
+        // von 'other' auf 'audio' korrigiert) muss ProcessAudioVideoMedia auslösen, auch ohne
+        // dass sich file_path/file_size/mime_type ändern.
+        Queue::fake();
+
+        $media = Media::factory()->create([
+            'mime_type' => 'audio/mpeg',
+            'media_type' => 'other',
+            'file_path' => 'media/song.mp3',
+        ]);
+
+        $response = $this->putJson("/api/v1/media/{$media->id}", [
+            'media_type' => 'audio',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.media_type', 'audio');
+
+        Queue::assertPushed(ProcessAudioVideoMedia::class);
+    }
+
     public function test_destroy_deletes_media(): void
     {
         $media = Media::factory()->create();
@@ -123,13 +148,67 @@ class MediaControllerTest extends TestCase
     {
         Storage::fake('media');
 
-        // Limit liegt bei 50 MB (max:51200 KB)
+        // Limit liegt bei 200 MB (max:204800 KB)
         $response = $this->postJson('/api/v1/media', [
-            'file' => UploadedFile::fake()->create('riesig.jpg', 51201),
+            'file' => UploadedFile::fake()->create('riesig.jpg', 204801),
         ]);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['file']);
+    }
+
+    public function test_store_lehnt_unerlaubten_dateityp_ab(): void
+    {
+        Storage::fake('public');
+
+        $response = $this->postJson('/api/v1/media', [
+            'file' => UploadedFile::fake()->create('script.exe', 10),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['file']);
+    }
+
+    public function test_store_liefert_422_statt_500_bei_nicht_datei_wert(): void
+    {
+        // Regression: die Extension-Validierungs-Closure rief zuvor unconditional
+        // getClientOriginalExtension() auf und crashte mit 500, wenn 'file' kein Upload war.
+        $response = $this->postJson('/api/v1/media', [
+            'file' => 'kein-upload-sondern-ein-string',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['file']);
+    }
+
+    public function test_store_uploads_mp3_audio(): void
+    {
+        Queue::fake();
+        Storage::fake('public');
+
+        $response = $this->postJson('/api/v1/media', [
+            'file' => UploadedFile::fake()->create('song.mp3', 500, 'audio/mpeg'),
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.media_type', 'audio');
+
+        Queue::assertPushed(ProcessAudioVideoMedia::class);
+    }
+
+    public function test_store_uploads_mp4_video(): void
+    {
+        Queue::fake();
+        Storage::fake('public');
+
+        $response = $this->postJson('/api/v1/media', [
+            'file' => UploadedFile::fake()->create('clip.mp4', 2000, 'video/mp4'),
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.media_type', 'video');
+
+        Queue::assertPushed(ProcessAudioVideoMedia::class);
     }
 
     // ── Lösch-Constraints ─────────────────────────────────────────────

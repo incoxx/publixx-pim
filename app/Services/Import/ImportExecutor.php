@@ -29,6 +29,7 @@ use App\Models\UnitGroup;
 use App\Models\ValueList;
 use App\Models\ValueListEntry;
 use App\Exceptions\ImportCancelledException;
+use App\Support\Media\MediaFileTypes;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -2551,14 +2552,16 @@ class ImportExecutor
                     $fileSize = $disk->size($filePath);
                 }
 
+                $mimeType = $this->guessMimeType($fileName);
+
                 $media = Media::create([
                     'id'                 => Str::uuid()->toString(),
                     'file_name'          => $fileName,
                     'original_file_name' => $fileName,
                     'file_path'          => $filePath,
-                    'mime_type'          => $this->guessMimeType($fileName),
+                    'mime_type'          => $mimeType,
                     'file_size'          => $fileSize,
-                    'media_type'         => $row['media_type'] ?? 'image',
+                    'media_type'         => $row['media_type'] ?? MediaFileTypes::classifyMimeType($mimeType),
                     'title_de'           => $row['title_de'] ?? null,
                     'title_en'           => $row['title_en'] ?? null,
                     'alt_text_de'        => $row['alt_text_de'] ?? null,

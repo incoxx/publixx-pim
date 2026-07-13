@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Observers;
 
+use App\Jobs\ProcessAudioVideoMedia;
 use App\Jobs\ProcessPdfDocument;
 use App\Models\Media;
 use App\Models\PdfDocument;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Storage;
  *
  * Verantwortlich für:
  * - PDF-Verarbeitung auslösen wenn ein PDF-Asset angelegt/aktualisiert wird
+ * - ffmpeg/ffprobe-Verarbeitung auslösen für Audio/Video-Assets
  * - Typesense-Index und Storage bereinigen bei Löschung
  */
 class MediaObserver
@@ -23,11 +25,21 @@ class MediaObserver
     public function created(Media $media): void
     {
         $this->handlePdfProcessing($media);
+        $this->handleAvProcessing($media);
     }
 
     public function updated(Media $media): void
     {
         $this->handlePdfProcessing($media);
+
+        // Bei Datei-Änderung ODER manueller Umklassifizierung (z.B. media_type per UI von
+        // 'other' auf 'audio'/'video' korrigiert) neu verarbeiten — nicht bei sonstigen
+        // Metadaten-Edits (Titel, Beschreibung, ...) und nicht bei den
+        // updateQuietly()-Statusschreibvorgängen aus ProcessAudioVideoMedia selbst
+        // (sonst würde jeder Statuswechsel den Job erneut dispatchen).
+        if ($media->wasChanged(['file_path', 'file_size', 'mime_type', 'media_type'])) {
+            $this->handleAvProcessing($media);
+        }
     }
 
     /**
@@ -35,6 +47,17 @@ class MediaObserver
      */
     public function deleted(Media $media): void
     {
+        if ($media->video_thumbnail_path) {
+            try {
+                Storage::disk('public')->delete($media->video_thumbnail_path);
+            } catch (\Throwable $e) {
+                Log::warning('MediaObserver: Failed to delete video thumbnail', [
+                    'media_id' => $media->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         $pdfDocument = PdfDocument::where('media_id', $media->id)->first();
 
         if (!$pdfDocument) {
@@ -113,6 +136,35 @@ class MediaObserver
             ]);
         } catch (\Throwable $e) {
             Log::warning('MediaObserver: Failed to dispatch PDF processing', [
+                'media_id' => $media->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Prüft ob das Media-Asset Audio/Video ist und startet die ffmpeg-Verarbeitung.
+     */
+    private function handleAvProcessing(Media $media): void
+    {
+        if (!in_array($media->media_type, ['audio', 'video'], true) || empty($media->file_path)) {
+            return;
+        }
+
+        try {
+            $media->forceFill([
+                'av_processing_status' => 'pending',
+                'av_error_message' => null,
+            ])->saveQuietly();
+
+            dispatch(new ProcessAudioVideoMedia($media->id))->afterCommit();
+
+            Log::debug('MediaObserver: AV processing dispatched', [
+                'media_id' => $media->id,
+                'media_type' => $media->media_type,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('MediaObserver: Failed to dispatch AV processing', [
                 'media_id' => $media->id,
                 'error' => $e->getMessage(),
             ]);

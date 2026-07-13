@@ -24,7 +24,7 @@
 | file_path | VARCHAR(500) | No | Storage path |
 | mime_type | VARCHAR(100) | No | e.g. `image/jpeg` |
 | file_size | BIGINT | No | Size in bytes |
-| media_type | ENUM('image','document','video','other') | No | |
+| media_type | ENUM('image','document','video','audio','other') | No | |
 | title_de | VARCHAR(255) | Yes | German title |
 | title_en | VARCHAR(255) | Yes | English title |
 | description_de | TEXT | Yes | |
@@ -33,6 +33,10 @@
 | alt_text_en | VARCHAR(255) | Yes | |
 | width | INT | Yes | Image width in px |
 | height | INT | Yes | Image height in px |
+| duration_seconds | INT UNSIGNED | Yes | Audio/video duration, via ffprobe |
+| av_processing_status | ENUM('pending','processing','ready','error') | Yes | ffmpeg/ffprobe job status |
+| av_error_message | TEXT | Yes | |
+| video_thumbnail_path | VARCHAR(500) | Yes | Extracted first frame (video only) |
 | created_at | TIMESTAMP | No | |
 | updated_at | TIMESTAMP | No | |
 
@@ -101,6 +105,24 @@ PUT    /media/{id}/attribute-values        Save attribute values
 4. Thumbnail generated for images (server-side)
 5. Media record created with metadata extracted from file
 6. Response returns media object with URLs
+
+---
+
+## Audio/Video Processing Pipeline
+
+Uploaded audio (`mp3`) and video (`mp4`, `mpeg`) assets are classified as `media_type`
+`audio`/`video` (mp3's mime type is `audio/mpeg`, detected via the `audio/` prefix).
+`MediaObserver` dispatches `App\Jobs\ProcessAudioVideoMedia` (queue `av`, see
+`config/horizon.php` → `supervisor-av`) after each create/file-replace, which:
+
+1. Runs `ffprobe` to determine `duration_seconds`.
+2. For video, extracts the first frame via `ffmpeg` into `video_thumbnail_path`
+   (served through the normal `GET /media/thumb/{id}` endpoint via `ThumbnailService`).
+
+Both `ffmpeg` and `ffprobe` are required system binaries (installed via `setup.sh`, the
+`ffmpeg` package provides both). `av_processing_status` tracks
+`pending → processing → ready|error`; the frontend polls `GET /media/{id}` until done
+(see `useMediaProcessingPoll` composable, `VideoPreview.vue`/`AudioPlayer.vue`).
 
 ---
 

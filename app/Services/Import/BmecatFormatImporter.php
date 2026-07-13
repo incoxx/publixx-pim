@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Import;
 
 use App\Exceptions\ImportCancelledException;
+use App\Support\Media\MediaFileTypes;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -2535,19 +2536,7 @@ class BmecatFormatImporter
             return 'image';
         }
 
-        $mimeType = strtolower($mimeType);
-
-        if (str_starts_with($mimeType, 'image/')) {
-            return 'image';
-        }
-        if (str_starts_with($mimeType, 'video/')) {
-            return 'video';
-        }
-        if (str_contains($mimeType, 'pdf') || str_starts_with($mimeType, 'application/')) {
-            return 'document';
-        }
-
-        return 'other';
+        return MediaFileTypes::classifyMimeType($mimeType);
     }
 
     /**

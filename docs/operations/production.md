@@ -190,6 +190,8 @@ Step 10/10  Deactivate maintenance mode + healthcheck
 | `cache` | Cache invalidation after changes | Medium | 2 |
 | `default` | Import, export, general jobs | Normal | 4 |
 | `warmup` | Cache warmup after imports | Low | 2 |
+| `pdf` | PDF page rendering + text extraction (`pdfinfo`/`pdftoppm`/`pdftotext`) | Normal | 2 |
+| `av` | Audio/video duration + video thumbnail extraction (`ffmpeg`/`ffprobe`) | Normal | 2 |
 
 ### Supervisor Configuration
 
@@ -222,6 +224,12 @@ Queue worker settings for production are in `config/horizon.php`:
             'maxProcesses' => 2,
         ],
         'supervisor-warmup' => [
+            'maxProcesses' => 2,
+        ],
+        'supervisor-pdf' => [
+            'maxProcesses' => 2,
+        ],
+        'supervisor-av' => [
             'maxProcesses' => 2,
         ],
         'supervisor-default' => [

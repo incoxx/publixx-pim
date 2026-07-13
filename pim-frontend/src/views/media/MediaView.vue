@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Upload, Image, ImageOff, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw, ExternalLink, Package, FolderTree, Eye, Filter, Archive, ToggleLeft, ToggleRight, Table, Layers, Images, ArrowUp, ArrowDown } from 'lucide-vue-next'
+import { Upload, Image, ImageOff, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw, ExternalLink, Package, FolderTree, Eye, Filter, Archive, ToggleLeft, ToggleRight, Table, Layers, Images, ArrowUp, ArrowDown, Video, Music } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
 import { mediaLanguages as mediaLanguagesApi } from '@/api/mediaLanguages'
@@ -13,6 +13,8 @@ import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.v
 import PimTree from '@/components/shared/PimTree.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import PdfPreview from '@/components/shared/PdfPreview.vue'
+import VideoPreview from '@/components/media/VideoPreview.vue'
+import AudioPlayer from '@/components/media/AudioPlayer.vue'
 import MediaUploadQueue from '@/components/media/MediaUploadQueue.vue'
 import MediaProcessingStatus from '@/components/media/MediaProcessingStatus.vue'
 
@@ -380,6 +382,14 @@ function isItemPdf(item) {
   const mime = item.mime_type || ''
   if (mime.includes('pdf')) return true
   return (item.file_name || '').toLowerCase().endsWith('.pdf')
+}
+
+function isItemVideo(item) {
+  return item.media_type === 'video'
+}
+
+function isItemAudio(item) {
+  return item.media_type === 'audio'
 }
 
 function getFileUrl(item) {
@@ -1158,7 +1168,7 @@ onMounted(() => {
             <button class="pim-btn pim-btn-ghost text-xs max-sm:hidden" @click="showUrlImport = true" title="Import über URL">
               <Link class="w-4 h-4" :stroke-width="2" /> <span class="max-md:hidden">URL-Import</span>
             </button>
-            <input type="file" accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv" multiple class="hidden" id="media-upload" @change="handleUpload" />
+            <input type="file" accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,audio/mpeg,.mp3,video/mp4,.mp4,video/mpeg,.mpeg,.mpg" multiple class="hidden" id="media-upload" @change="handleUpload" />
             <label for="media-upload" class="pim-btn pim-btn-primary text-sm cursor-pointer" :class="{ 'opacity-50 pointer-events-none': uploading }">
               <Loader2 v-if="uploading" class="w-4 h-4 animate-spin" :stroke-width="2" />
               <Upload v-else class="w-4 h-4" :stroke-width="2" />
@@ -1353,6 +1363,25 @@ onMounted(() => {
               </div>
             </template>
 
+            <!-- Video -->
+            <template v-else-if="isItemVideo(item)">
+              <img v-if="item.av_processing_status === 'ready'" :src="mediaApi.thumbUrl(item.id)"
+                   class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                   loading="lazy" alt="Video" @error="(e) => { e.target.style.display = 'none'; e.target.nextElementSibling.style.display = 'flex' }" />
+              <div :class="['flex-col items-center gap-1 text-[var(--color-text-tertiary)]/60', item.av_processing_status === 'ready' ? 'absolute inset-0 bg-[var(--color-bg)] justify-center' : 'flex']" :style="item.av_processing_status === 'ready' ? 'display: none' : ''">
+                <Video class="w-10 h-10" :stroke-width="1.25" />
+                <span class="text-[9px] text-[var(--color-text-tertiary)]">Video</span>
+              </div>
+            </template>
+
+            <!-- Audio -->
+            <template v-else-if="isItemAudio(item)">
+              <div class="flex flex-col items-center gap-1 text-[var(--color-text-tertiary)]/60">
+                <Music class="w-10 h-10" :stroke-width="1.25" />
+                <span class="text-[9px] text-[var(--color-text-tertiary)]">Audio</span>
+              </div>
+            </template>
+
             <!-- Other -->
             <Image v-else class="w-8 h-8 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
 
@@ -1428,6 +1457,7 @@ onMounted(() => {
             <option value="image">image</option>
             <option value="document">document</option>
             <option value="video">video</option>
+            <option value="audio">audio</option>
             <option value="PDF">PDF</option>
             <option value="other">other</option>
           </select>
@@ -1464,6 +1494,8 @@ onMounted(() => {
             <img v-if="item.media_type === 'image'" :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)"
                  class="w-full h-full object-cover" loading="lazy" alt="" @error="handleImgError" />
             <FileText v-else-if="isItemPdf(item)" class="w-5 h-5 text-[var(--color-error)]/60" :stroke-width="1.5" />
+            <Video v-else-if="isItemVideo(item)" class="w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
+            <Music v-else-if="isItemAudio(item)" class="w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
             <Image v-else class="w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           </div>
           <p class="text-xs text-[var(--color-text-primary)] truncate">{{ item.title_de || '—' }}</p>
@@ -1537,6 +1569,8 @@ onMounted(() => {
         <div class="aspect-square rounded-lg bg-[var(--color-bg)] overflow-hidden flex items-center justify-center">
           <img v-if="detailItem.media_type === 'image'" :src="getImageUrl(detailItem)" class="w-full h-full object-contain" />
           <PdfPreview v-else-if="isItemPdf(detailItem)" :url="getFileUrl(detailItem)" :media-id="detailItem.id" :title="detailItem.file_name || 'PDF'" max-height="100%" />
+          <VideoPreview v-else-if="isItemVideo(detailItem)" :url="getFileUrl(detailItem)" :media-id="detailItem.id" :title="detailItem.file_name || 'Video'" max-height="100%" />
+          <AudioPlayer v-else-if="isItemAudio(detailItem)" :url="getFileUrl(detailItem)" :media-id="detailItem.id" :title="detailItem.file_name || 'Audio'" />
           <Image v-else class="w-12 h-12 text-[var(--color-text-tertiary)]" />
         </div>
 
@@ -1573,6 +1607,7 @@ onMounted(() => {
               <option value="image">image</option>
               <option value="document">document</option>
               <option value="video">video</option>
+              <option value="audio">audio</option>
               <option value="PDF">PDF</option>
               <option value="other">other</option>
             </select>
