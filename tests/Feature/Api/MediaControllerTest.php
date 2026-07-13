@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api;
 
+use App\Jobs\ProcessAudioVideoMedia;
 use App\Models\Media;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -123,13 +125,55 @@ class MediaControllerTest extends TestCase
     {
         Storage::fake('media');
 
-        // Limit liegt bei 50 MB (max:51200 KB)
+        // Limit liegt bei 200 MB (max:204800 KB)
         $response = $this->postJson('/api/v1/media', [
-            'file' => UploadedFile::fake()->create('riesig.jpg', 51201),
+            'file' => UploadedFile::fake()->create('riesig.jpg', 204801),
         ]);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['file']);
+    }
+
+    public function test_store_lehnt_unerlaubten_dateityp_ab(): void
+    {
+        Storage::fake('public');
+
+        $response = $this->postJson('/api/v1/media', [
+            'file' => UploadedFile::fake()->create('script.exe', 10),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['file']);
+    }
+
+    public function test_store_uploads_mp3_audio(): void
+    {
+        Queue::fake();
+        Storage::fake('public');
+
+        $response = $this->postJson('/api/v1/media', [
+            'file' => UploadedFile::fake()->create('song.mp3', 500, 'audio/mpeg'),
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.media_type', 'audio');
+
+        Queue::assertPushed(ProcessAudioVideoMedia::class);
+    }
+
+    public function test_store_uploads_mp4_video(): void
+    {
+        Queue::fake();
+        Storage::fake('public');
+
+        $response = $this->postJson('/api/v1/media', [
+            'file' => UploadedFile::fake()->create('clip.mp4', 2000, 'video/mp4'),
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.media_type', 'video');
+
+        Queue::assertPushed(ProcessAudioVideoMedia::class);
     }
 
     // ── Lösch-Constraints ─────────────────────────────────────────────

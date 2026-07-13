@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Support\Media\MediaFileTypes;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreMediaRequest extends FormRequest
@@ -16,7 +18,17 @@ class StoreMediaRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'file' => 'required|file|max:51200', // 50 MB
+            'file' => [
+                'required',
+                'file',
+                'max:204800', // 200 MB
+                function (string $attribute, $value, Closure $fail) {
+                    $extension = strtolower((string) $value->getClientOriginalExtension());
+                    if (! in_array($extension, MediaFileTypes::ALLOWED_EXTENSIONS, true)) {
+                        $fail("Dateityp \".{$extension}\" ist nicht erlaubt.");
+                    }
+                },
+            ],
             'title_de' => 'nullable|string|max:255',
             'title_en' => 'nullable|string|max:255',
             'description_de' => 'nullable|string',

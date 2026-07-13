@@ -20,6 +20,7 @@ use App\Models\ProductMediaAssignment;
 use App\Models\RoleEntityRestriction;
 use App\Models\User;
 use App\Services\ThumbnailService;
+use App\Support\Media\MediaFileTypes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -42,7 +43,7 @@ class MediaController extends Controller
     // für das Quick-Lookup im Medien-Menü bzw. im Medien-Picker-Dialog.
     private const ALLOWED_PREFIX_FILTERS = ['file_name', 'title_de', 'alt_text_de', 'mime_type'];
 
-    private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff', 'tif', 'pdf', 'eps', 'ai', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'];
+    private const ALLOWED_EXTENSIONS = MediaFileTypes::ALLOWED_EXTENSIONS;
 
     private const MAX_BULK_IMPORT_ROWS = 500;
 
@@ -941,10 +942,14 @@ class MediaController extends Controller
             \Log::warning('GD extension not loaded — thumbnails disabled.');
         }
 
-        // Serve thumbnail if generated
+        // Serve thumbnail if generated. Bei Video ist das generierte Thumbnail immer ein
+        // JPEG-Frame (siehe ThumbnailService) — nicht den mime_type des Videos selbst
+        // (z.B. "video/mp4") als Content-Type verwenden, sonst zeigen <img>-Tags nichts an.
         if ($thumbPath && file_exists($thumbPath)) {
+            $thumbContentType = $medium->media_type === 'video' ? 'image/jpeg' : $medium->mime_type;
+
             return response()->file($thumbPath, [
-                'Content-Type' => $medium->mime_type,
+                'Content-Type' => $thumbContentType,
                 'Cache-Control' => 'public, max-age=86400',
             ]);
         }
@@ -1395,6 +1400,44 @@ class MediaController extends Controller
                 'updated_at' => $doc->updated_at,
             ]);
 
+        // Audio/Video-Status (ffmpeg/ffprobe-Verarbeitung), analog zum PDF-Block
+        $avStatusCounts = Media::query()
+            ->whereIn('media_type', ['audio', 'video'])
+            ->whereNotNull('av_processing_status')
+            ->where(function ($q) {
+                $q->whereIn('av_processing_status', ['pending', 'processing'])
+                    ->orWhere(function ($q2) {
+                        $q2->where('av_processing_status', 'ready')->where('updated_at', '>=', now()->subMinutes(5));
+                    })
+                    ->orWhere(function ($q2) {
+                        $q2->where('av_processing_status', 'error')->where('updated_at', '>=', now()->subHour());
+                    });
+            })
+            ->selectRaw('av_processing_status, COUNT(*) as cnt')
+            ->groupBy('av_processing_status')
+            ->pluck('cnt', 'av_processing_status');
+
+        $avPending = $avStatusCounts->get('pending', 0);
+        $avProcessing = $avStatusCounts->get('processing', 0);
+        $avReady = $avStatusCounts->get('ready', 0);
+        $avError = $avStatusCounts->get('error', 0);
+
+        $recentAv = Media::whereIn('media_type', ['audio', 'video'])
+            ->whereNotNull('av_processing_status')
+            ->where('updated_at', '>=', now()->subMinutes(10))
+            ->orderByDesc('updated_at')
+            ->limit(20)
+            ->get(['id', 'file_name', 'original_file_name', 'av_processing_status', 'duration_seconds', 'av_error_message', 'updated_at'])
+            ->map(fn ($media) => [
+                'id' => $media->id,
+                'media_id' => $media->id,
+                'file_name' => $media->original_file_name ?? $media->file_name ?? '—',
+                'status' => $media->av_processing_status,
+                'duration_seconds' => $media->duration_seconds,
+                'error_message' => $media->av_error_message,
+                'updated_at' => $media->updated_at,
+            ]);
+
         // Kürzlich hochgeladene Medien (letzte 5 Minuten)
         $recentUploads = Media::where('last_uploaded_at', '>=', now()->subMinutes(5))
             ->orderByDesc('last_uploaded_at')
@@ -1411,8 +1454,18 @@ class MediaController extends Controller
                     'active' => $pdfPending + $pdfProcessing > 0,
                     'items' => $recentPdfs,
                 ],
+                'av' => [
+                    'pending' => $avPending,
+                    'processing' => $avProcessing,
+                    'recently_ready' => $avReady,
+                    'recent_errors' => $avError,
+                    'active' => $avPending + $avProcessing > 0,
+                    'items' => $recentAv,
+                ],
                 'recent_uploads' => $recentUploads,
-                'has_activity' => ($pdfPending + $pdfProcessing) > 0 || $recentUploads->isNotEmpty(),
+                'has_activity' => ($pdfPending + $pdfProcessing) > 0
+                    || ($avPending + $avProcessing) > 0
+                    || $recentUploads->isNotEmpty(),
             ],
         ]);
     }
@@ -1519,6 +1572,10 @@ class MediaController extends Controller
                     str_contains($contentType, 'webp') => 'webp',
                     str_contains($contentType, 'svg') => 'svg',
                     str_contains($contentType, 'pdf') => 'pdf',
+                    // audio/mpeg (mp3) VOR video/mpeg prüfen, sonst würde mp3 als "mpeg" (Video) erkannt
+                    str_contains($contentType, 'audio/mpeg'), str_contains($contentType, 'audio/mp3') => 'mp3',
+                    str_contains($contentType, 'video/mp4') => 'mp4',
+                    str_contains($contentType, 'video/mpeg') => 'mpeg',
                     default => 'bin',
                 };
                 $originalName .= '.'.$ext;
@@ -1668,6 +1725,10 @@ class MediaController extends Controller
                         str_contains($contentType, 'png') => 'png',
                         str_contains($contentType, 'gif') => 'gif',
                         str_contains($contentType, 'webp') => 'webp',
+                        // audio/mpeg (mp3) VOR video/mpeg prüfen, sonst würde mp3 als "mpeg" (Video) erkannt
+                        str_contains($contentType, 'audio/mpeg'), str_contains($contentType, 'audio/mp3') => 'mp3',
+                        str_contains($contentType, 'video/mp4') => 'mp4',
+                        str_contains($contentType, 'video/mpeg') => 'mpeg',
                         default => 'bin',
                     };
                     $originalName .= '.'.$ext;
@@ -1945,6 +2006,7 @@ class MediaController extends Controller
         return match (true) {
             str_starts_with($mimeType, 'image/') => 'image',
             str_starts_with($mimeType, 'video/') => 'video',
+            str_starts_with($mimeType, 'audio/') => 'audio',
             in_array($mimeType, [
                 'application/pdf',
                 'application/msword',

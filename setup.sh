@@ -760,7 +760,9 @@ step "8/10 — anyPIM einrichten"
 apt-get install -y -qq supervisor
 
 # Weitere Pakete
-apt-get install -y -qq git unzip curl poppler-utils
+# poppler-utils: PDF-Verarbeitung (pdfinfo, pdftoppm, pdftotext)
+# ffmpeg: liefert zusaetzlich ffprobe, fuer Audio-/Video-Verarbeitung (Dauer, Video-Thumbnail)
+apt-get install -y -qq git unzip curl poppler-utils ffmpeg
 
 # Typesense installieren (Volltextsuche fuer PDF-Seiten)
 if ! command -v typesense-server &> /dev/null; then

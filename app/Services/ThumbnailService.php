@@ -22,24 +22,50 @@ class ThumbnailService
         }
 
         $disk = Storage::disk('public');
-        $mimeType = (string) $media->mime_type;
 
-        if (!str_starts_with($mimeType, 'image/')) {
-            // Gespeicherter mime_type ist keiner (z.B. durch fehlerhaften Bulk-/BMEcat-Import,
-            // der die Endung geraten oder einen Feed-Wert ungeprüft übernommen hat) — bevor wir
-            // ein tatsächliches Bild fälschlich als "kein Bild" ablehnen, echten Dateiinhalt prüfen.
-            $detected = MimeTypeDetector::detectFromFile($disk->path($media->file_path));
-            if ($detected && str_starts_with($detected, 'image/')) {
-                $mimeType = $detected;
-                // Datensatz selbstheilend korrigieren, damit auch Medienübersicht/Produkteditor
-                // das Bild künftig korrekt erkennen (nicht nur dieser Thumbnail-Aufruf).
-                $media->forceFill(['mime_type' => $detected, 'media_type' => 'image'])->save();
-            } else {
+        if ($media->media_type === 'video') {
+            // Vorschaubild kommt aus dem per ffmpeg extrahierten ersten Frame
+            // (ProcessAudioVideoMedia). Solange der Job noch nicht gelaufen ist oder die
+            // Extraktion fehlgeschlagen ist, gibt es kein Thumbnail — Frontend zeigt dann
+            // ein generisches Icon.
+            if (empty($media->video_thumbnail_path) || !$disk->exists($media->video_thumbnail_path)) {
                 return null;
             }
+
+            $mimeType = 'image/jpeg';
+            $sourcePath = $disk->path($media->video_thumbnail_path);
+            $extension = 'jpg';
+        } else {
+            $mimeType = (string) $media->mime_type;
+
+            if (!str_starts_with($mimeType, 'image/')) {
+                // Gespeicherter mime_type ist keiner (z.B. durch fehlerhaften Bulk-/BMEcat-Import,
+                // der die Endung geraten oder einen Feed-Wert ungeprüft übernommen hat) — bevor wir
+                // ein tatsächliches Bild fälschlich als "kein Bild" ablehnen, echten Dateiinhalt prüfen.
+                $detected = MimeTypeDetector::detectFromFile($disk->path($media->file_path));
+                if ($detected && str_starts_with($detected, 'image/')) {
+                    $mimeType = $detected;
+                    // Datensatz selbstheilend korrigieren, damit auch Medienübersicht/Produkteditor
+                    // das Bild künftig korrekt erkennen (nicht nur dieser Thumbnail-Aufruf).
+                    $media->forceFill(['mime_type' => $detected, 'media_type' => 'image'])->save();
+                } else {
+                    return null;
+                }
+            }
+
+            $sourcePath = $disk->path($media->file_path);
+            if (!file_exists($sourcePath)) {
+                \Log::warning('ThumbnailService: Source file missing', [
+                    'media_id' => $media->id,
+                    'file_path' => $media->file_path,
+                    'expected_path' => $sourcePath,
+                ]);
+                return null;
+            }
+
+            $extension = pathinfo($media->file_name, PATHINFO_EXTENSION) ?: 'jpg';
         }
 
-        $extension = pathinfo($media->file_name, PATHINFO_EXTENSION) ?: 'jpg';
         $cacheDir = "thumbs/{$width}x{$height}";
         $cachePath = "{$cacheDir}/{$media->id}.{$extension}";
 
@@ -51,17 +77,6 @@ class ThumbnailService
                 return $disk->path($cachePath);
             }
             $disk->delete($cachePath);
-        }
-
-        // Source file
-        $sourcePath = $disk->path($media->file_path);
-        if (!file_exists($sourcePath)) {
-            \Log::warning('ThumbnailService: Source file missing', [
-                'media_id' => $media->id,
-                'file_path' => $media->file_path,
-                'expected_path' => $sourcePath,
-            ]);
-            return null;
         }
 
         // Ensure cache directory exists

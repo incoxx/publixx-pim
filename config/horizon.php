@@ -138,6 +138,19 @@ return [
             'timeout' => 300,
             'nice' => 0,
         ],
+        'supervisor-av' => [
+            'connection' => 'redis',
+            'queue' => ['av'],
+            'balance' => 'simple',
+            'maxProcesses' => 2,
+            'minProcesses' => 1,
+            'maxTime' => 3600,
+            'maxJobs' => 100,
+            'memory' => 512,
+            'tries' => 3,
+            'timeout' => 300,
+            'nice' => 5,
+        ],
     ],
 
     /*
@@ -172,6 +185,10 @@ return [
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
+            'supervisor-av' => [
+                'maxProcesses' => 2,
+                'minProcesses' => 1,
+            ],
         ],
 
         'staging' => [
@@ -191,6 +208,9 @@ return [
             'supervisor-default' => [
                 'maxProcesses' => 2,
                 'minProcesses' => 1,
+            ],
+            'supervisor-av' => [
+                'maxProcesses' => 1,
             ],
         ],
 
@@ -212,6 +232,9 @@ return [
                 'maxProcesses' => 2,
                 'minProcesses' => 1,
             ],
+            'supervisor-av' => [
+                'maxProcesses' => 1,
+            ],
         ],
     ],
 
@@ -230,6 +253,7 @@ return [
         'redis:cache' => 60,
         'redis:warmup' => 300,
         'redis:pdf' => 120,
+        'redis:av' => 120,
         'redis:default' => 120,
     ],
 

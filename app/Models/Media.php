@@ -51,6 +51,10 @@ class Media extends Model
         'dpi',
         'crop_data',
         'generated_at',
+        'duration_seconds',
+        'av_processing_status',
+        'av_error_message',
+        'video_thumbnail_path',
     ];
 
     protected function casts(): array
@@ -65,6 +69,7 @@ class Media extends Model
             'dpi' => 'integer',
             'crop_data' => 'array',
             'generated_at' => 'datetime',
+            'duration_seconds' => 'integer',
         ];
     }
 
