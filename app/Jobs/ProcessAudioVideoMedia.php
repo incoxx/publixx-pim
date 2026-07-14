@@ -113,11 +113,14 @@ class ProcessAudioVideoMedia implements ShouldQueue
 
     private function probeDuration(string $path): int
     {
+        // Bewusst ohne "-of default=noprint_wrapper=1:nokey=1": diese Writer-Option wird nicht
+        // von jedem ffprobe-Build akzeptiert ("Failed to set option 'noprint_wrapper' ...").
+        // Stattdessen die Standardausgabe (immer verfügbar, unabhängig von Writer-Optionen)
+        // per Regex auswerten — robust gegenüber unterschiedlichen ffprobe-Versionen/-Builds.
         $result = Process::timeout(60)->run([
             'ffprobe',
             '-v', 'error',
             '-show_entries', 'format=duration',
-            '-of', 'default=noprint_wrapper=1:nokey=1',
             $path,
         ]);
 
@@ -125,7 +128,17 @@ class ProcessAudioVideoMedia implements ShouldQueue
             throw new \RuntimeException('ffprobe fehlgeschlagen: ' . $result->errorOutput());
         }
 
-        return (int) round((float) trim($result->output()));
+        $output = trim($result->output());
+
+        if (preg_match('/duration\s*=\s*([\d.]+)/', $output, $matches)) {
+            return (int) round((float) $matches[1]);
+        }
+
+        if (is_numeric($output)) {
+            return (int) round((float) $output);
+        }
+
+        throw new \RuntimeException('ffprobe: Konnte Dauer nicht aus Ausgabe ermitteln: ' . $output);
     }
 
     private function extractThumbnail(string $mediaId, string $sourcePath, int $duration): ?string

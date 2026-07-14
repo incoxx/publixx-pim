@@ -78,6 +78,35 @@ class ProcessAudioVideoMediaTest extends TestCase
         $this->assertNull($media->video_thumbnail_path);
     }
 
+    public function test_erfolgreiche_verarbeitung_mit_verbose_ffprobe_ausgabe(): void
+    {
+        // Regression: manche ffprobe-Builds lehnen "-of default=noprint_wrapper=1:nokey=1" ab
+        // ("Failed to set option 'noprint_wrapper' ..."). probeDuration() ruft ffprobe daher
+        // ohne diese Writer-Option auf und muss die Standard-Ausgabe (mit "[FORMAT]"-Block)
+        // per Regex parsen können, nicht nur einen nackten Zahlenwert.
+        Storage::fake('public');
+        Storage::disk('public')->put('media/song.mp3', 'fake-audio-content');
+
+        $media = Media::factory()->create([
+            'file_name' => 'song.mp3',
+            'file_path' => 'media/song.mp3',
+            'mime_type' => 'audio/mpeg',
+            'media_type' => 'audio',
+            'av_processing_status' => 'pending',
+        ]);
+
+        Process::fake([
+            '*ffprobe*' => Process::result(output: "[FORMAT]\nduration=42.750000\n[/FORMAT]\n"),
+        ]);
+
+        (new ProcessAudioVideoMedia($media->id))->handle();
+
+        $media->refresh();
+
+        $this->assertSame('ready', $media->av_processing_status);
+        $this->assertSame(43, $media->duration_seconds); // round(42.75) => 43
+    }
+
     public function test_ffprobe_fehler_setzt_error_status(): void
     {
         Storage::fake('public');
