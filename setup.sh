@@ -528,6 +528,11 @@ for PHP_INI in "/etc/php/${PHP_VERSION}/apache2/php.ini" "/etc/php/${PHP_VERSION
         sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 256M/' "$PHP_INI"
         sed -i 's/^post_max_size = .*/post_max_size = 260M/' "$PHP_INI"
         sed -i 's/^max_execution_time = .*/max_execution_time = 300/' "$PHP_INI"
+        # max_input_time begrenzt separat von max_execution_time die Zeit zum Empfangen der
+        # Request-Daten (inkl. Datei-Uploads) — Distributions-Default liegt bei 60s. Ohne diese
+        # Anpassung bricht PHP große Video-Uploads auf langsamen Verbindungen serverseitig ab,
+        # bevor eine HTTP-Antwort gesendet wird (Client sieht nur "Network Error").
+        sed -i 's/^max_input_time = .*/max_input_time = 300/' "$PHP_INI"
         sed -i 's/^;date.timezone =.*/date.timezone = Europe\/Berlin/' "$PHP_INI"
         # PCRE-JIT deaktivieren: auf gehaerteten Servern (SELinux/seccomp/grsecurity) kann PHP
         # keinen ausfuehrbaren Speicher fuer den JIT allozieren ("Allocation of JIT memory
@@ -1463,7 +1468,7 @@ else
     ErrorLog \${APACHE_LOG_DIR}/publixx-pim-error.log
     CustomLog \${APACHE_LOG_DIR}/publixx-pim-access.log combined
 
-    # Upload-Limit (64 MB)
+    # Upload-Limit (256 MB, passend zu upload_max_filesize/post_max_size oben)
     LimitRequestBody 268435456
 </VirtualHost>
 VHOST

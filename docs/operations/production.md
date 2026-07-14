@@ -157,6 +157,16 @@ sudo bash update.sh --force
 sudo bash update.sh --seed
 ```
 
+### PHP-Konfiguration auf bestehenden Installationen
+
+`update.sh` gleicht bei jedem Lauf einzelne `php.ini`-Werte idempotent ab, die `setup.sh`
+inzwischen anders setzt als zum Zeitpunkt der ursprünglichen Installation (z.B. `pcre.jit=0`,
+`max_input_time = 300` für große Video-Uploads — Distributions-Default 60s führt sonst bei
+Uploads über langsame Verbindungen zu „Network Error" im Client, da PHP die Verbindung
+serverseitig abbricht, bevor eine HTTP-Antwort gesendet wird). Ein normaler
+`sudo bash update.sh`-Lauf reicht aus, um solche Konfigurationsfixes auf eine bereits laufende
+Installation nachzuziehen — Apache wird danach automatisch neu gestartet.
+
 ### Process (10 Steps)
 
 ```
