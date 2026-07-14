@@ -3,7 +3,7 @@ import { watch, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
 import { useCatalogStore } from '@/stores/catalog'
-import { X, Download, Heart, Image, FileText, Info, Package, ChevronLeft, ChevronRight, FolderTree } from 'lucide-vue-next'
+import { X, Download, Heart, Image, FileText, Info, Package, ChevronLeft, ChevronRight, FolderTree, Music } from 'lucide-vue-next'
 import { formatFileSize } from '@/utils/formatting'
 import CatalogProductModal from '@/components/catalog/CatalogProductModal.vue'
 import PdfStatusBadge from '@/components/assetCatalog/PdfStatusBadge.vue'
@@ -30,6 +30,16 @@ const isPdf = computed(() => {
   if (!asset) return false
   return asset.mime_type === 'application/pdf'
     || asset.file_name?.toLowerCase().endsWith('.pdf')
+})
+const isVideo = computed(() => store.currentAsset?.media_type === 'video')
+const isAudio = computed(() => store.currentAsset?.media_type === 'audio')
+
+const formattedDuration = computed(() => {
+  const seconds = store.currentAsset?.duration_seconds
+  if (seconds == null) return null
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${String(s).padStart(2, '0')}`
 })
 
 watch(() => props.assetId, (id) => {
@@ -237,6 +247,18 @@ const productPages = computed(() => {
                   :alt="store.currentAsset.title"
                   class="max-w-full max-h-[500px] object-contain rounded-lg shadow-lg"
                 />
+                <video
+                  v-else-if="isVideo"
+                  controls
+                  :poster="store.currentAsset.thumb_url"
+                  class="max-w-full max-h-[500px] rounded-lg shadow-lg"
+                >
+                  <source :src="store.currentAsset.original_url" />
+                </video>
+                <div v-else-if="isAudio" class="w-full flex flex-col items-center gap-4 text-base-content/20 px-6">
+                  <Music class="w-24 h-24" />
+                  <audio controls class="w-full" :src="store.currentAsset.original_url" />
+                </div>
                 <div v-else class="flex flex-col items-center gap-3 text-base-content/20">
                   <FileText v-if="store.currentAsset.media_type === 'document'" class="w-24 h-24" />
                   <Image v-else class="w-24 h-24" />
@@ -292,6 +314,10 @@ const productPages = computed(() => {
                     <div v-if="store.currentAsset.width && store.currentAsset.height">
                       <span class="text-xs font-medium text-base-content/50">{{ t('assetCatalog.dimensions') }}</span>
                       <p class="text-sm">{{ store.currentAsset.width }} × {{ store.currentAsset.height }} px</p>
+                    </div>
+                    <div v-if="formattedDuration">
+                      <span class="text-xs font-medium text-base-content/50">{{ t('assetCatalog.duration', 'Dauer') }}</span>
+                      <p class="text-sm">{{ formattedDuration }}</p>
                     </div>
                   </div>
                   <div>
