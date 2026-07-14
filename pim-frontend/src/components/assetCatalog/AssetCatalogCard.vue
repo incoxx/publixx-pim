@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
-import { Heart, Eye, Image, FileText, CheckCircle2 } from 'lucide-vue-next'
+import { Heart, Eye, Image, FileText, CheckCircle2, Video, Music, PlayCircle } from 'lucide-vue-next'
 import { formatFileSize } from '@/utils/formatting'
 
 const props = defineProps({
@@ -17,6 +17,8 @@ const store = useAssetCatalogStore()
 
 const inWishlist = computed(() => store.isInWishlist(props.asset.id))
 const isImage = computed(() => props.asset.media_type === 'image')
+const isVideo = computed(() => props.asset.media_type === 'video')
+const isAudio = computed(() => props.asset.media_type === 'audio')
 
 function toggleWishlist(e) {
   e.stopPropagation()
@@ -48,8 +50,23 @@ const firstSnippet = computed(() => {
         class="object-contain w-full h-full p-2 group-hover:scale-105 transition-transform duration-500"
         loading="lazy"
       />
+      <template v-else-if="isVideo && asset.thumb_url">
+        <img
+          :src="asset.thumb_url"
+          :alt="asset.title || asset.file_name"
+          class="object-contain w-full h-full p-2 group-hover:scale-105 transition-transform duration-500"
+          loading="lazy"
+        />
+        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div class="w-12 h-12 rounded-full bg-black/40 flex items-center justify-center">
+            <PlayCircle class="w-7 h-7 text-white" :stroke-width="1.5" />
+          </div>
+        </div>
+      </template>
       <div v-else class="flex flex-col items-center justify-center w-full h-full gap-2">
         <FileText v-if="asset.media_type === 'document'" class="w-12 h-12 text-base-content/15" />
+        <Video v-else-if="isVideo" class="w-12 h-12 text-base-content/15" />
+        <Music v-else-if="isAudio" class="w-12 h-12 text-base-content/15" />
         <Image v-else class="w-12 h-12 text-base-content/15" />
         <span class="text-[10px] text-base-content/30 uppercase">{{ asset.mime_type?.split('/')[1] }}</span>
       </div>

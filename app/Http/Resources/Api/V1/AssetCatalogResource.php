@@ -141,6 +141,7 @@ class AssetCatalogResource extends JsonResource
             'media_country' => $mediaCountry,
             'width' => $this->width,
             'height' => $this->height,
+            'duration_seconds' => $this->duration_seconds,
             'asset_folder_id' => $this->asset_folder_id,
             'folder_name' => $folderPath,
             'hierarchy_nodes' => $hierarchyNodes,
