@@ -349,6 +349,44 @@ class MediaControllerTest extends TestCase
         $this->assertDatabaseHas('media', ['original_file_name' => 'test.png']);
     }
 
+    // ── Video-URL-Import (yt-dlp) ──────────────────────────────────────
+
+    public function test_import_video_from_url_lehnt_interne_url_ab(): void
+    {
+        $response = $this->postJson('/api/v1/media/import-video-url', [
+            'url' => 'http://127.0.0.1/video',
+        ]);
+
+        $response->assertUnprocessable();
+        $this->assertDatabaseCount('media', 0);
+    }
+
+    public function test_import_video_from_url_lehnt_nicht_erlaubten_host_ab(): void
+    {
+        $response = $this->postJson('/api/v1/media/import-video-url', [
+            'url' => 'https://example.com/beliebiges-video.mp4',
+        ]);
+
+        $response->assertUnprocessable();
+        $this->assertDatabaseCount('media', 0);
+    }
+
+    public function test_import_video_from_url_legt_platzhalter_an_und_dispatcht_job(): void
+    {
+        Queue::fake();
+
+        $response = $this->postJson('/api/v1/media/import-video-url', [
+            'url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.media_type', 'video')
+            ->assertJsonPath('data.av_processing_status', 'pending')
+            ->assertJsonPath('data.source_url', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+
+        Queue::assertPushed(\App\Jobs\ImportVideoFromUrl::class);
+    }
+
     public function test_auto_match_ignoriert_generierte_renditions(): void
     {
         $product = \App\Models\Product::factory()->create(['sku' => 'ABC-123']);

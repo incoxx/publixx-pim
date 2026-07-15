@@ -847,16 +847,36 @@ const urlImportForm = ref({ url: '', usage_type_id: null, usage_purpose: 'both' 
 const urlImporting = ref(false)
 const urlImportError = ref(null)
 
+// Video-Plattformen, die per yt-dlp importiert werden (maßgeblich ist die serverseitige
+// Allowlist in App\Support\Media\VideoImportHosts — das hier ist nur die UI-Weiche, welcher
+// Endpunkt aufgerufen wird).
+const VIDEO_IMPORT_HOSTS = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be']
+
+function isVideoImportUrl(url) {
+  try {
+    return VIDEO_IMPORT_HOSTS.includes(new URL(url).hostname.toLowerCase())
+  } catch {
+    return false
+  }
+}
+
 async function importFromUrl() {
   if (!urlImportForm.value.url) return
   urlImporting.value = true
   urlImportError.value = null
   try {
-    await mediaApi.importFromUrl(urlImportForm.value.url, {
-      usage_type_id: urlImportForm.value.usage_type_id || undefined,
+    const options = {
       usage_purpose: urlImportForm.value.usage_purpose,
       asset_folder_id: selectedFolderId.value || undefined,
-    })
+    }
+    if (isVideoImportUrl(urlImportForm.value.url)) {
+      await mediaApi.importVideoFromUrl(urlImportForm.value.url, options)
+    } else {
+      await mediaApi.importFromUrl(urlImportForm.value.url, {
+        ...options,
+        usage_type_id: urlImportForm.value.usage_type_id || undefined,
+      })
+    }
     showUrlImport.value = false
     urlImportForm.value = { url: '', usage_type_id: null, usage_purpose: 'both' }
     await fetchMedia()
@@ -1601,6 +1621,11 @@ onMounted(() => {
             <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Dateiname</label>
             <p class="text-xs font-mono text-[var(--color-text-primary)]">{{ detailItem.file_name }}</p>
           </div>
+          <div v-if="detailItem.source_url">
+            <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Importiert von</label>
+            <a :href="detailItem.source_url" target="_blank" rel="noopener noreferrer"
+               class="text-xs text-[var(--color-accent)] hover:underline truncate block">{{ detailItem.source_url }}</a>
+          </div>
           <div>
             <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Medientyp</label>
             <select v-model="detailItem.media_type" class="pim-select text-xs w-full">
@@ -1918,12 +1943,15 @@ onMounted(() => {
           <div class="bg-[var(--color-surface)] rounded-xl shadow-xl w-full max-w-md p-5 space-y-4">
             <h3 class="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
               <Link class="w-4 h-4 text-[var(--color-accent)]" :stroke-width="2" />
-              Bild über URL importieren
+              Über URL importieren
             </h3>
             <div class="space-y-3">
               <div>
-                <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Bild-URL</label>
-                <input v-model="urlImportForm.url" class="pim-input text-xs w-full" placeholder="https://example.com/bild.jpg" @keyup.enter="importFromUrl" />
+                <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Bild- oder YouTube-URL</label>
+                <input v-model="urlImportForm.url" class="pim-input text-xs w-full" placeholder="https://example.com/bild.jpg oder https://youtube.com/watch?v=..." @keyup.enter="importFromUrl" />
+                <p v-if="isVideoImportUrl(urlImportForm.url)" class="text-[10px] text-[var(--color-text-tertiary)] mt-1">
+                  YouTube-Video erkannt — wird per Video-Import heruntergeladen (kann einige Minuten dauern).
+                </p>
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div>

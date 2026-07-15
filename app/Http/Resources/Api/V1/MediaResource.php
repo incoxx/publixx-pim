@@ -43,6 +43,7 @@ class MediaResource extends JsonResource
             'duration_seconds' => $this->duration_seconds,
             'av_processing_status' => $this->av_processing_status,
             'av_error_message' => $this->av_error_message,
+            'source_url' => $this->source_url,
             'revision_count' => $this->revisions_count ?? 0,
             'url' => url('api/v1/media/file/' . rawurlencode($this->file_name)),
             'file_url' => url('api/v1/media/file/' . rawurlencode($this->file_name)),

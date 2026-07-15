@@ -55,6 +55,7 @@ class Media extends Model
         'av_processing_status',
         'av_error_message',
         'video_thumbnail_path',
+        'source_url',
     ];
 
     protected function casts(): array
