@@ -56,6 +56,14 @@ class ThumbnailService
             $mimeType = 'image/jpeg';
             $sourcePath = $disk->path($media->video_thumbnail_path);
         } else {
+            // Präventiv, gleiches Muster wie beim Video-Zweig oben: ohne file_path (z.B.
+            // laufender Video-Import per URL) zeigt $disk->path('') auf das Disk-
+            // Wurzelverzeichnis, was detectFromFile()/file_exists() unten fälschlich als
+            // "Datei existiert" behandeln würde.
+            if (empty($media->file_path)) {
+                return null;
+            }
+
             $mimeType = (string) $media->mime_type;
 
             if (!str_starts_with($mimeType, 'image/')) {
