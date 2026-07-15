@@ -767,7 +767,10 @@ apt-get install -y -qq supervisor
 # Weitere Pakete
 # poppler-utils: PDF-Verarbeitung (pdfinfo, pdftoppm, pdftotext)
 # ffmpeg: liefert zusaetzlich ffprobe, fuer Audio-/Video-Verarbeitung (Dauer, Video-Thumbnail)
-apt-get install -y -qq git unzip curl poppler-utils ffmpeg
+# yt-dlp: Video-Import von YouTube etc. (ImportVideoFromUrl-Job). Das Ubuntu-Paket veraltet
+# schnell (YouTube aendert die Extraktion oft) -- bei Fehlern hilft "yt-dlp -U" (Selbst-Update)
+# oder "pip install -U yt-dlp" auf dem Server.
+apt-get install -y -qq git unzip curl poppler-utils ffmpeg yt-dlp
 
 # Typesense installieren (Volltextsuche fuer PDF-Seiten)
 if ! command -v typesense-server &> /dev/null; then

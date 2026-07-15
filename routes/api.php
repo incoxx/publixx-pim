@@ -656,6 +656,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('media/bulk-recover-url', [MediaController::class, 'bulkRecoverUrl']);
     Route::get('media/revision/{revision}/download', [MediaController::class, 'downloadRevision']);
     Route::post('media/import-url', [MediaController::class, 'importFromUrl']);
+    Route::post('media/import-video-url', [MediaController::class, 'importVideoFromUrl']);
     Route::post('media/bulk-import-urls', [MediaController::class, 'bulkImportFromUrls']);
     Route::post('media/auto-match', [MediaController::class, 'autoMatch']);
     Route::get('media/keywords/suggest', [MediaController::class, 'suggestKeywords']);

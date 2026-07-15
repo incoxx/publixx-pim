@@ -9,6 +9,7 @@ use App\Http\Requests\Api\V1\UpdateMediaRequest;
 use App\Http\Resources\Api\V1\MediaResource;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Http\Traits\ChecksInstanceRestrictions;
+use App\Jobs\ImportVideoFromUrl;
 use App\Models\HierarchyNodeMediaAssignment;
 use App\Models\Media;
 use App\Models\MediaAssignmentHistory;
@@ -21,6 +22,7 @@ use App\Models\RoleEntityRestriction;
 use App\Models\User;
 use App\Services\ThumbnailService;
 use App\Support\Media\MediaFileTypes;
+use App\Support\Media\VideoImportHosts;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -1633,6 +1635,57 @@ class MediaController extends Controller
 
             return response()->json(['message' => 'Verbindung zur URL fehlgeschlagen.'], 422);
         }
+    }
+
+    /**
+     * POST /media/import-video-url — Video von einer erlaubten Plattform (aktuell nur
+     * YouTube, siehe VideoImportHosts) per yt-dlp importieren. Läuft asynchron: legt sofort
+     * einen Platzhalter-Media-Eintrag an (Status "pending") und dispatcht
+     * ImportVideoFromUrl; das Frontend pollt den Verarbeitungsstatus wie beim normalen
+     * Video-Upload (av_processing_status/duration_seconds).
+     */
+    public function importVideoFromUrl(Request $request): JsonResponse
+    {
+        $this->authorize('create', Media::class);
+
+        $validated = $request->validate([
+            'url' => 'required|url|max:2000',
+            'asset_folder_id' => 'nullable|uuid|exists:hierarchy_nodes,id',
+            'usage_purpose' => 'nullable|in:print,web,both',
+        ]);
+
+        // SSRF-Schutz (gleicher Guard wie beim Bild-URL-Import)
+        if ($this->isInternalUrl($validated['url'])) {
+            return response()->json(['message' => 'Interne oder private URLs sind nicht erlaubt.'], 422);
+        }
+
+        if (! VideoImportHosts::isAllowed($validated['url'])) {
+            return response()->json([
+                'message' => 'Diese Video-Plattform wird nicht unterstützt. Erlaubt: '
+                    . implode(', ', VideoImportHosts::ALLOWED_HOSTS),
+            ], 422);
+        }
+
+        // Platzhalter: file_path bleibt leer, bis ImportVideoFromUrl die echte Datei liefert.
+        // handleAvProcessing() im MediaObserver überspringt leere file_path-Werte, dispatcht
+        // ProcessAudioVideoMedia also erst nach dem tatsächlichen Download.
+        $media = Media::create([
+            'file_name' => Str::uuid()->toString() . '.mp4',
+            'file_path' => '',
+            'mime_type' => 'video/mp4',
+            'file_size' => 0,
+            'media_type' => 'video',
+            'source_url' => $validated['url'],
+            'asset_folder_id' => $validated['asset_folder_id'] ?? null,
+            'usage_purpose' => $validated['usage_purpose'] ?? 'both',
+            'av_processing_status' => 'pending',
+        ]);
+
+        ImportVideoFromUrl::dispatch($media->id, $validated['url'])->afterCommit();
+
+        return (new MediaResource($media))
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**

@@ -64,6 +64,13 @@ export default {
     return client.post('/media/import-url', { url, ...options })
   },
 
+  // Video-Download per yt-dlp (aktuell nur YouTube, siehe VideoImportHosts auf dem Backend)
+  // — läuft asynchron, Antwort enthält einen Platzhalter-Media-Eintrag (av_processing_status
+  // "pending"), der wie ein normaler Video-Upload weiterverfolgt werden kann.
+  importVideoFromUrl(url, options = {}) {
+    return client.post('/media/import-video-url', { url, ...options })
+  },
+
   bulkImportFromUrls(file, options = {}) {
     const formData = new FormData()
     formData.append('file', file)
