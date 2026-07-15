@@ -78,6 +78,35 @@ class MediaControllerTest extends TestCase
             ->assertJsonPath('data.id', $media->id);
     }
 
+    public function test_thumb_liefert_404_statt_crash_bei_leerem_file_path(): void
+    {
+        // Regression: Video-Import-Platzhalter (ImportVideoFromUrl) hat vorübergehend einen
+        // leeren file_path — thumb() darf dabei nicht mit einer FileNotFoundException crashen
+        // (file_exists() liefert für das Disk-Wurzelverzeichnis fälschlich true).
+        $media = Media::factory()->create([
+            'file_path' => '',
+            'media_type' => 'video',
+            'av_processing_status' => 'pending',
+        ]);
+
+        $response = $this->getJson("/api/v1/media/thumb/{$media->id}");
+
+        $response->assertNotFound();
+    }
+
+    public function test_serve_liefert_404_statt_crash_bei_leerem_file_path(): void
+    {
+        $media = Media::factory()->create([
+            'file_name' => 'placeholder.mp4',
+            'file_path' => '',
+            'media_type' => 'video',
+        ]);
+
+        $response = $this->get('/api/v1/media/file/placeholder.mp4');
+
+        $response->assertNotFound();
+    }
+
     public function test_update_modifies_media(): void
     {
         $media = Media::factory()->create(['title_de' => 'Alt']);

@@ -869,6 +869,14 @@ class MediaController extends Controller
         $media = Media::where('file_name', $filename)->latest()->firstOrFail();
         $this->assertSignedIfRestrictionSensitive($request, $media);
 
+        // Noch kein file_path (z.B. Video-Import per URL, das noch läuft) — $disk->path('')
+        // zeigt sonst auf das Disk-Wurzelverzeichnis, und file_exists() liefert dafür
+        // faelschlich true (anders als is_file()/$disk->exists()), was response()->file()
+        // mit einer FileNotFoundException crashen laesst.
+        if (empty($media->file_path)) {
+            abort(404, 'Datei wird noch verarbeitet.');
+        }
+
         $disk = Storage::disk('public');
         $path = $disk->path($media->file_path);
 
@@ -898,6 +906,18 @@ class MediaController extends Controller
         $width = min(max(1, (int) $request->query('w', '300')), 1200);
         $height = min(max(1, (int) $request->query('h', '300')), 1200);
         $fit = in_array($request->query('fit'), ['contain', 'cover']) ? $request->query('fit') : 'contain';
+
+        // Noch kein file_path (z.B. Video-Import per URL, das noch läuft) — $disk->path('')
+        // zeigt sonst auf das Disk-Wurzelverzeichnis, und file_exists() liefert dafür
+        // faelschlich true (anders als is_file()/$disk->exists()), was die Thumbnail-Erzeugung
+        // weiter unten mit einer FileNotFoundException crashen laesst.
+        if (empty($medium->file_path)) {
+            return response()->json([
+                'message' => 'Datei wird noch verarbeitet.',
+                'media_id' => $medium->id,
+                'av_processing_status' => $medium->av_processing_status,
+            ], 404);
+        }
 
         // Check if source file exists first
         $disk = Storage::disk('public');
