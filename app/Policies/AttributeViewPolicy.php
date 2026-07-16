@@ -21,9 +21,18 @@ class AttributeViewPolicy
         return null;
     }
 
+    /**
+     * Auflisten ist zusätzlich zur Admin-Berechtigung 'attribute-views.view' auch mit
+     * 'products.view' erlaubt: jede produktbearbeitende Rolle muss die Liste lesen können,
+     * um zu erkennen, welche Attribut-Sichten als eigener Produkteditor-Tab konfiguriert
+     * sind (siehe RoleTabPermission-Tab-Key 'attribute-view:{uuid}') — unabhängig davon,
+     * ob sie auch die Sichten selbst verwalten darf. Einzelzugriff/Erstellen/Bearbeiten/
+     * Löschen bleiben exklusiv an die Admin-Berechtigungen gebunden.
+     */
     public function viewAny(User $user): bool
     {
-        return $user->hasPermissionTo('attribute-views.view');
+        return $user->hasPermissionTo('attribute-views.view')
+            || $user->hasPermissionTo('products.view');
     }
 
     public function view(User $user, AttributeView $attributeView): bool
