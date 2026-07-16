@@ -406,7 +406,7 @@ class ProductAttributeValueController extends Controller
         $values = $request->validated('values');
         $changedAttributeIds = [];
 
-        DB::transaction(function () use ($product, $values, &$changedAttributeIds) {
+        DB::transaction(function () use ($request, $product, $values, &$changedAttributeIds) {
             foreach ($values as $entry) {
                 $attribute = Attribute::findOrFail($entry['attribute_id']);
 
