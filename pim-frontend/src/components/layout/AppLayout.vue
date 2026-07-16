@@ -69,8 +69,9 @@ const mainStyle = computed(() => ({
     <transition name="slide-right">
       <div
         v-if="authStore.panelOpen"
-        class="fixed top-0 right-0 max-w-[100vw] h-screen bg-[var(--color-surface)] border-l border-[var(--color-border)] shadow-lg z-30 flex flex-col"
-        :style="{ width: authStore.panelWidth }"
+        class="fixed top-0 right-0 max-w-[100vw] h-screen bg-[var(--color-surface)] border-l border-[var(--color-border)] shadow-lg flex flex-col"
+        :class="authStore.panelFullscreen ? 'inset-0 z-[60] w-screen' : 'z-30'"
+        :style="authStore.panelFullscreen ? {} : { width: authStore.panelWidth }"
       >
         <div class="shrink-0 flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
           <span class="text-sm font-medium text-[var(--color-text-primary)]">Detail</span>

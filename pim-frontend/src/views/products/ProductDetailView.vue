@@ -166,11 +166,30 @@ async function loadProductTypes() {
 // Flache Liste aller verfügbaren Content-Tabs (Quelle für Sichtbarkeit,
 // Reset-Logik und Lazy-Loading). Die GUI rendert daraus gruppierte Reiter
 // (siehe navGroups), die Content-Blöcke schalten weiterhin über activeTab.
+// Attribut-Sichten, die als eigener Tab im Produkteditor aktiviert wurden
+// (per "Eigener Tab im Produkteditor"-Option in der Attribut-Sicht-Verwaltung),
+// sortiert nach der Sicht-eigenen Sortierung (dieselbe, die auch die Sichten-Liste ordnet).
+const attributeViewTabs = computed(() =>
+  availableAttrViews.value
+    .filter(v => v.show_as_tab)
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map(v => ({ key: v.tab_key, label: v.name_de || v.technical_name }))
+)
+
+// Ist der aktive Tab einer der dynamischen Attribut-Sicht-Tabs? Über die tab_key-Liste aus der
+// API geprüft, statt das "attribute-view:"-Präfix im Frontend erneut zu bilden.
+const activeAttributeView = computed(() =>
+  availableAttrViews.value.find(v => v.show_as_tab && v.tab_key === activeTab.value) || null
+)
+const activeAttributeViewId = computed(() => activeAttributeView.value?.id || null)
+
 const tabs = computed(() => {
   const pt = product.value?.product_type
   const base = [
     { key: 'base-data', label: 'Grunddaten' },
     { key: 'attributes', label: t('product.attributes') },
+    ...attributeViewTabs.value,
   ]
   if (!pt || pt.has_variants) {
     base.push({ key: 'variant-attributes', label: 'Varianten-Attribute' })
@@ -232,6 +251,9 @@ const navGroups = computed(() => {
 
   if (has('base-data')) groups.push(leaf('base-data'))
   if (has('attributes')) groups.push(leaf('attributes'))
+  for (const viewTab of attributeViewTabs.value) {
+    if (has(viewTab.key)) groups.push(leaf(viewTab.key))
+  }
 
   // Varianten-Attribute + Varianten zu einer Gruppe mit Sub-Tabs zusammenfassen
   const variantChildren = []
@@ -324,7 +346,7 @@ async function loadFilterOptions() {
   }
   try {
     const [viewsRes, typesRes] = await Promise.all([
-      attributeViews.list({ include: 'attributes' }),
+      attributeViews.list({ include: 'attributes', perPage: 500 }),
       attributeTypes.list(),
     ])
     availableAttrViews.value = viewsRes.data.data || viewsRes.data || []
@@ -976,13 +998,15 @@ const filteredAttributes = computed(() => {
     attrs = attrs.filter(a => !a.is_internal)
   }
 
-  // Filter: Attribut-Sicht
-  if (attrFilterView.value) {
-    const view = availableAttrViews.value.find(v => v.id === attrFilterView.value)
-    if (view) {
-      const viewAttrIds = new Set((view.attributes || []).map(a => a.id))
-      attrs = attrs.filter(a => viewAttrIds.has(a.id))
-    }
+  // Filter: Attribut-Sicht — im dynamischen Sicht-Tab ist die Sicht durch den Tab
+  // selbst vorgegeben (Filter-Dropdown ausgeblendet); sonst zählt die manuelle Auswahl.
+  const forcedView = activeAttributeView.value
+  const effectiveView = forcedView || (attrFilterView.value
+    ? availableAttrViews.value.find(v => v.id === attrFilterView.value)
+    : null)
+  if (effectiveView) {
+    const viewAttrIds = new Set((effectiveView.attributes || []).map(a => a.id))
+    attrs = attrs.filter(a => viewAttrIds.has(a.id))
   }
 
   // Filter: Attributgruppe (AttributeType)
@@ -1013,8 +1037,26 @@ const filteredAttributes = computed(() => {
     attrs = attrs.filter(a => isAttributeFilled(a))
   }
 
+  // Im dynamischen Sicht-Tab: Reihenfolge der Sicht übernehmen (per Drag&Drop
+  // in der Attribut-Sicht-Verwaltung festgelegt), statt der Schema-Reihenfolge.
+  if (forcedView) {
+    const position = new Map((forcedView.attributes || []).map((a, i) => [a.id, i]))
+    attrs = attrs.slice().sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0))
+  }
+
   return attrs
 })
+
+/**
+ * Read-only-Override für ein Attribut, das speziell für die aktuell aktive
+ * Attribut-Sicht (Produkteditor-Tab) gilt — unabhängig vom globalen
+ * Attribute::is_readonly-Flag.
+ */
+function isAttrReadOnlyInActiveView(attributeId) {
+  if (!activeAttributeView.value) return false
+  const entry = (activeAttributeView.value.attributes || []).find(a => a.id === attributeId)
+  return !!entry?.is_readonly_in_view
+}
 
 // ─── Variants ─────────────────────────────────────────
 const variants = ref([])
@@ -2996,12 +3038,19 @@ watch(() => product.value?.master_hierarchy_node_id, async (newNodeId, oldNodeId
 })
 
 // ─── Tab lazy loading ─────────────────────────────────
+function isAttributeViewTabKey(tab) {
+  return attributeViewTabs.value.some(t => t.key === tab)
+}
+
 watch(activeTab, (tab) => {
   if (tab === 'base-data') loadAttributeData()
-  if (tab === 'attributes') {
+  if (tab === 'attributes' || isAttributeViewTabKey(tab)) {
     loadAttributeData(); loadFilterOptions(); loadOutputHierarchyAttributes()
     if (product.value?.product_type_ref === 'virtual') loadVirtualAttributeCatalog()
   }
+  // Attribut-Sicht-Tabs zeigen immer die Master-Attribute (Sicht ist klassifikationsübergreifend) —
+  // eine zuvor gewählte ETIM/ONYX-Klassifikations-Sub-Tab-Auswahl würde sonst zu einer falschen/leeren Liste führen.
+  if (isAttributeViewTabKey(tab)) activeAttrSubTab.value = 'master'
   if (tab === 'variant-attributes') loadAttributeData()
   if (tab === 'variants') { loadVariants(); loadAttributeData() }
   if (tab === 'media') loadMedia()
@@ -3032,6 +3081,9 @@ onMounted(async () => {
   loadProjects()
   loadMedia()         // Für Hauptbild-Vorschau im Header
   loadWatchlistIds()  // Merkliste-Status
+  // Früh laden (nicht erst beim Öffnen des "Attribute"-Tabs), damit als
+  // Sicht-Tab aktivierte Attribut-Sichten sofort in der Tab-Leiste erscheinen.
+  loadFilterOptions()
   if (workflowEnabled.value) {
     loadWorkflowUsers()
     loadWorkflowTeams()
@@ -3647,9 +3699,12 @@ onUnmounted(() => {
     </div>
 
     <!-- ═══ Attributes Tab ═══ -->
-    <div v-else-if="activeTab === 'attributes' && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
-      <!-- Sub-Tabs: Master Node Name | ETIM | ONYX | ... -->
-      <div class="flex gap-0 border border-[var(--color-border)] rounded-lg overflow-hidden">
+    <div v-else-if="(activeTab === 'attributes' || activeAttributeViewId) && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
+      <!-- Sub-Tabs: Master Node Name | ETIM | ONYX | ... — im dynamischen Sicht-Tab
+           ausgeblendet, da eine Attribut-Sicht klassifikationsübergreifend (nur Master-
+           Attribute) ist; ein Wechsel würde die Sicht-Beschränkung und deren Nur-Lesen-
+           Overrides sonst umgehen. -->
+      <div v-if="!activeAttributeViewId" class="flex gap-0 border border-[var(--color-border)] rounded-lg overflow-hidden">
         <button
           :class="[
             'px-4 py-1.5 text-xs font-medium transition-colors',
@@ -3686,7 +3741,7 @@ onUnmounted(() => {
             <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)] z-10 pointer-events-none" :stroke-width="1.75" />
             <input v-model="attrFilterSearch" class="pim-input text-xs pim-input-icon w-full" placeholder="Attribut suchen (Name, ID oder Wert)…" />
           </div>
-          <select v-model="attrFilterView" class="pim-select text-xs">
+          <select v-if="!activeAttributeViewId" v-model="attrFilterView" class="pim-select text-xs">
             <option :value="null">Alle Sichten</option>
             <option v-for="view in availableAttrViews" :key="view.id" :value="view.id">
               {{ view.name_de || view.technical_name }}
@@ -3707,7 +3762,7 @@ onUnmounted(() => {
             <span class="text-xs text-[var(--color-text-secondary)]">Nur gefüllte Attribute</span>
           </label>
         </div>
-        <div v-if="attrFilterSearch || attrFilterView || attrFilterGroup || attrFilterMandatory || attrFilterFilledOnly" class="flex items-center gap-2 mt-2">
+        <div v-if="attrFilterSearch || (!activeAttributeViewId && attrFilterView) || attrFilterGroup || attrFilterMandatory || attrFilterFilledOnly" class="flex items-center gap-2 mt-2">
           <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ filteredAttributes.length }} Attribute</span>
           <button class="text-[11px] text-[var(--color-accent)] hover:underline" @click="attrFilterSearch = ''; attrFilterView = null; attrFilterGroup = null; attrFilterMandatory = false; attrFilterFilledOnly = false">
             Filter zurücksetzen
@@ -3791,7 +3846,7 @@ onUnmounted(() => {
             :compositeAttribute="attr"
             :modelValue="multipliableCompositeValues[attr.id] || [{ multiplied_index: 0, children: {} }]"
             :maxMultiplied="attr.max_multiplied"
-            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly || isAttrReadOnlyInActiveView(attr.id)"
             :mapType="mapDataTypeToInput"
             @update:modelValue="multipliableCompositeValues[attr.id] = $event"
           />
@@ -3799,7 +3854,7 @@ onUnmounted(() => {
           <button
             v-else-if="attr.data_type === 'Composite'"
             class="w-full flex items-center justify-between pim-input text-left cursor-pointer hover:border-[var(--color-accent)] transition-colors"
-            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly || isAttrReadOnlyInActiveView(attr.id)"
             @click="openCompositeModal(attr)"
           >
             <span class="text-[13px]" :class="getCompositeSummary(attr) ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'">
@@ -3813,7 +3868,7 @@ onUnmounted(() => {
             :type="mapDataTypeToInput(attr.data_type)"
             :modelValue="multipliableValues[attr.id] || [{ value: null, multiplied_index: 0 }]"
             :options="['Selection', 'MultiSelection', 'SimpleSelect', 'SimpleMultiSelect'].includes(attr.data_type) ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
-            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly || isAttrReadOnlyInActiveView(attr.id)"
             :maxMultiplied="attr.max_multiplied"
             :unitGroup="attr.unit_group"
             :delimiter="attr.delimiter || '|'"
@@ -3830,7 +3885,7 @@ onUnmounted(() => {
               v-if="['Number', 'Float'].includes(attr.data_type) && attr.comparison_operators?.length"
               class="pim-input text-[12px] !w-12 !min-w-0 shrink-0 text-center !px-1"
               :value="comparisonOperatorValues[attr.id] || ''"
-              :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+              :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly || isAttrReadOnlyInActiveView(attr.id)"
               @change="comparisonOperatorValues[attr.id] = $event.target.value || null"
             >
               <option value="">=</option>
@@ -3841,7 +3896,7 @@ onUnmounted(() => {
               :type="mapDataTypeToInput(attr.data_type)"
               :modelValue="translatedValues[`${attr.id}_${activeDataLang}`]"
               :options="['Selection', 'MultiSelection', 'SimpleSelect', 'SimpleMultiSelect'].includes(attr.data_type) ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
-              :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+              :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly || isAttrReadOnlyInActiveView(attr.id)"
               :delimiter="attr.delimiter || '|'"
               :min="attr.min_value != null ? Number(attr.min_value) : undefined"
               :max="attr.max_value != null ? Number(attr.max_value) : undefined"
@@ -3853,7 +3908,7 @@ onUnmounted(() => {
               v-if="['Number', 'Float'].includes(attr.data_type) && attr.unit_group?.units?.length"
               class="pim-input text-[12px] !w-16 !min-w-0 shrink-0 !px-1"
               :value="unitValues[attr.id] || ''"
-              :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+              :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly || isAttrReadOnlyInActiveView(attr.id)"
               @change="unitValues[attr.id] = $event.target.value || null"
             >
               <option value="">—</option>
@@ -3872,7 +3927,7 @@ onUnmounted(() => {
               v-if="['Number', 'Float'].includes(attr.data_type) && attr.comparison_operators?.length"
               class="pim-input text-[12px] !w-12 !min-w-0 shrink-0 text-center !px-1"
               :value="comparisonOperatorValues[attr.id] || ''"
-              :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+              :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly || isAttrReadOnlyInActiveView(attr.id)"
               @change="comparisonOperatorValues[attr.id] = $event.target.value || null"
             >
               <option value="">=</option>
@@ -3883,7 +3938,7 @@ onUnmounted(() => {
               :type="mapDataTypeToInput(attr.data_type)"
               :modelValue="attributeValues[attr.id]"
               :options="['Selection', 'MultiSelection', 'SimpleSelect', 'SimpleMultiSelect'].includes(attr.data_type) ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
-              :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+              :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly || isAttrReadOnlyInActiveView(attr.id)"
               :delimiter="attr.delimiter || '|'"
               :min="attr.min_value != null ? Number(attr.min_value) : undefined"
               :max="attr.max_value != null ? Number(attr.max_value) : undefined"
@@ -3895,7 +3950,7 @@ onUnmounted(() => {
               v-if="['Number', 'Float'].includes(attr.data_type) && attr.unit_group?.units?.length"
               class="pim-input text-[12px] !w-16 !min-w-0 shrink-0 !px-1"
               :value="unitValues[attr.id] || ''"
-              :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+              :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly || isAttrReadOnlyInActiveView(attr.id)"
               @change="unitValues[attr.id] = $event.target.value || null"
             >
               <option value="">—</option>
@@ -4055,7 +4110,7 @@ onUnmounted(() => {
                 :type="mapDataTypeToInput(attr.data_type)"
                 :modelValue="attributeValues[attr.id]"
                 :options="attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
-                :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+                :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly || isAttrReadOnlyInActiveView(attr.id)"
                 @update:modelValue="attributeValues[attr.id] = $event"
               />
             </div>

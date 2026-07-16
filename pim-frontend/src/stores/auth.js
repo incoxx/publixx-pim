@@ -19,6 +19,9 @@ export const useAuthStore = defineStore('auth', () => {
   const panelComponent = ref(null)
   const panelProps = ref({})
   const panelWidth = ref('360px')
+  // Generisches Fullscreen-Flag für das Slide-Over-Panel — von einzelnen Panel-
+  // Komponenten nutzbar (z.B. für Drag&Drop-Reihenfolgen, die im schmalen Panel unhandlich sind).
+  const panelFullscreen = ref(false)
 
   const isAuthenticated = computed(() => !!token.value)
   const userName = computed(() => user.value?.name || '')
@@ -184,6 +187,7 @@ export const useAuthStore = defineStore('auth', () => {
     panelProps.value = props
     panelWidth.value = width || '360px'
     panelOpen.value = true
+    panelFullscreen.value = false
   }
 
   function closePanel() {
@@ -191,17 +195,22 @@ export const useAuthStore = defineStore('auth', () => {
     panelComponent.value = null
     panelProps.value = {}
     panelWidth.value = '360px'
+    panelFullscreen.value = false
+  }
+
+  function setPanelFullscreen(value) {
+    panelFullscreen.value = value
   }
 
   return {
     user, token, locale,
     commandPaletteOpen, sidebarCollapsed, sidebarMobileOpen, sidebarWidth, sidebarCollapsedSections,
-    panelOpen, panelComponent, panelProps, panelWidth,
+    panelOpen, panelComponent, panelProps, panelWidth, panelFullscreen,
     isAuthenticated, userName, userRole, isAdmin, permissions, entityRestrictions, tabPermissions,
     viewModePref, roleDefaultViewMode, effectiveViewMode, isCockpitMode,
     hasPermission, hasInstanceAccess, getTabAccess, login, logout, checkAuth, setLocale,
     setViewMode, toggleViewMode, loadViewMode,
     toggleCommandPalette, toggleSidebar, toggleMobileSidebar, closeMobileSidebar, setSidebarWidth, toggleSidebarSection, collapseAllSections,
-    openPanel, closePanel,
+    openPanel, closePanel, setPanelFullscreen,
   }
 })

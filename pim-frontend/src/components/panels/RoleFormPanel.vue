@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { roles } from '@/api/users'
+import { attributeViews } from '@/api/attributes'
 import roleRestrictionsApi from '@/api/roleRestrictions'
 import { Check, Minus } from 'lucide-vue-next'
 import RoleRestrictionSection from '@/components/roles/RoleRestrictionSection.vue'
@@ -51,6 +52,13 @@ const tabAccessLevels = [
   { value: 'read', label: 'Lesen' },
   { value: 'hidden', label: 'Versteckt' },
 ]
+
+// Attribut-Sichten, die als eigener Tab im Produkteditor aktiviert wurden, werden als
+// zusätzliche, dynamische Zeilen in dieselbe Matrix aufgenommen (gleicher tab_key-Mechanismus
+// wie die festen Tabs), damit eine Rolle zentral auch deren Sichtbarkeit/Zugriff steuern kann.
+const attributeViewTabRows = ref([])
+
+const allTabRows = computed(() => [...productEditorTabs, ...attributeViewTabRows.value])
 
 function getTabAccess(tabKey) {
   return tabPermissions.value[tabKey] || 'write'
@@ -291,11 +299,17 @@ async function syncTabPerms(roleId) {
 onMounted(async () => {
   loading.value = true
   try {
-    const [permResponse, atResponse, mutResponse] = await Promise.all([
+    const [permResponse, atResponse, mutResponse, viewsResponse] = await Promise.all([
       roles.listPermissions(),
       import('@/api/attributes').then(m => m.attributeTypes.list({ perPage: 100 })),
       import('@/api/mediaUsageTypes').then(m => m.default.list()),
+      attributeViews.list({ perPage: 200 }),
     ])
+
+    const viewsData = viewsResponse.data.data || viewsResponse.data || []
+    attributeViewTabRows.value = viewsData
+      .filter(v => v.show_as_tab)
+      .map(v => ({ key: v.tab_key, label: v.name_de || v.technical_name }))
 
     availablePermissions.value = permResponse.data.data || permResponse.data
 
@@ -494,7 +508,7 @@ onMounted(async () => {
 
         <div class="border border-[var(--color-border)] rounded-lg overflow-hidden">
           <div
-            v-for="tab in productEditorTabs"
+            v-for="tab in allTabRows"
             :key="tab.key"
             class="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--color-border)] last:border-b-0"
           >

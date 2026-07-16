@@ -22,7 +22,17 @@ class AttributeViewAssignment extends Pivot
     protected $fillable = [
         'attribute_id',
         'attribute_view_id',
+        'sort_order',
+        'is_readonly',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'sort_order' => 'integer',
+            'is_readonly' => 'boolean',
+        ];
+    }
 
     public function attribute(): BelongsTo
     {

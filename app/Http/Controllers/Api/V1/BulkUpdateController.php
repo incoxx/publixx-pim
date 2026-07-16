@@ -478,6 +478,13 @@ class BulkUpdateController extends Controller
                 continue;
             }
 
+            // Nur-Lesen-Override je Attribut-Sicht (Produkteditor-Tab) — konservativ die
+            // restriktivste Sicht gewinnen lassen, analog zu ProductAttributeValueController.
+            if (!auth()->user()?->hasRole('Admin')
+                && $attribute->viewAssignments()->where('is_readonly', true)->exists()) {
+                continue;
+            }
+
             $mode = $op['mode'];
             $language = $op['language'] ?? null;
 

@@ -15,6 +15,9 @@ class AttributeView extends Model
 {
     use HasDeletionConstraints, HasFactory, HasUuids;
 
+    /** Präfix für den synthetischen RoleTabPermission-Tab-Key dynamischer Sicht-Tabs. */
+    public const TAB_KEY_PREFIX = 'attribute-view:';
+
     protected $fillable = [
         'technical_name',
         'name_de',
@@ -23,6 +26,7 @@ class AttributeView extends Model
         'description',
         'sort_order',
         'is_write_protected',
+        'show_as_tab',
     ];
 
     protected function casts(): array
@@ -31,13 +35,22 @@ class AttributeView extends Model
             'name_json' => 'array',
             'sort_order' => 'integer',
             'is_write_protected' => 'boolean',
+            'show_as_tab' => 'boolean',
         ];
     }
 
+    /**
+     * Bewusst OHNE eigene orderBy()-Vorgabe: andere Konsumenten (z.B. CollectionRenderService)
+     * legen für diese Relation eigene Eager-Load-Sortierungen fest (z.B. nach Attribute.position),
+     * die sich sonst mit einer hier fest verdrahteten Sortierung nach Pivot-sort_order summieren
+     * würden. Die Drag&Drop-Reihenfolge für Produkteditor-Tabs wird stattdessen explizit in
+     * AttributeViewResource sortiert.
+     */
     public function attributes(): BelongsToMany
     {
         return $this->belongsToMany(Attribute::class, 'attribute_view_assignments')
-            ->using(AttributeViewAssignment::class);
+            ->using(AttributeViewAssignment::class)
+            ->withPivot('sort_order', 'is_readonly');
     }
 
     public function assignments(): HasMany
@@ -50,5 +63,21 @@ class AttributeView extends Model
         return [
             'assignments' => 'Attribut-Zuordnungen',
         ];
+    }
+
+    /**
+     * Synthetischer Tab-Key für die Produkteditor-Rollensteuerung (RoleTabPermission),
+     * damit Attribut-Sicht-Tabs dieselbe hidden/read/write-Logik wie feste Tabs nutzen.
+     */
+    public function tabKey(): string
+    {
+        return self::TAB_KEY_PREFIX . $this->id;
+    }
+
+    protected static function booted(): void
+    {
+        static::deleted(function (self $view) {
+            RoleTabPermission::where('tab_key', $view->tabKey())->delete();
+        });
     }
 }
