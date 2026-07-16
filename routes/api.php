@@ -475,6 +475,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('attribute-views/{attribute_view}/dependencies', [AttributeViewController::class, 'dependencies']);
     Route::post('attribute-views/{attribute_view}/attributes', [AttributeViewController::class, 'assignAttribute']);
     Route::delete('attribute-views/{attribute_view}/attributes/{attribute}', [AttributeViewController::class, 'removeAttribute']);
+    Route::patch('attribute-views/{attribute_view}/attributes/{attribute}', [AttributeViewController::class, 'updateAssignment']);
+    Route::put('attribute-views/{attribute_view}/attributes/reorder', [AttributeViewController::class, 'reorderAttributes']);
 
     // =====================================================================
     // Agent 3: Product Types

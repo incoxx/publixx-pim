@@ -420,6 +420,15 @@ class ProductAttributeValueController extends Controller
                     continue;
                 }
 
+                // Nur-Lesen-Override je Attribut-Sicht (Produkteditor-Tab): serverseitig
+                // konservativ die restriktivste Sicht gewinnen lassen, da der Request keinen
+                // View-Kontext mitliefert — sonst wäre die UI-Sperre in AttributeViewFormPanel/
+                // ProductDetailView per direktem API-Aufruf umgehbar.
+                if (!$request->user()?->hasRole('Admin')
+                    && $attribute->viewAssignments()->where('is_readonly', true)->exists()) {
+                    continue;
+                }
+
                 $language = $entry['language'] ?? null;
                 $multipliedIndex = $entry['multiplied_index'] ?? 0;
 

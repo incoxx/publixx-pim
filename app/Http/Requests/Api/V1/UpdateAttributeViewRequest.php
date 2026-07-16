@@ -27,6 +27,7 @@ class UpdateAttributeViewRequest extends FormRequest
             'description' => 'nullable|string',
             'sort_order' => 'integer',
             'is_write_protected' => 'boolean',
+            'show_as_tab' => 'boolean',
         ];
     }
 }

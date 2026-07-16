@@ -1,10 +1,15 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { attributeViews } from '@/api/attributes'
 import attributesApi from '@/api/attributes'
-import { Plus, X } from 'lucide-vue-next'
+import { Plus, X, GripVertical, ChevronUp, ChevronDown, Maximize2, Minimize2 } from 'lucide-vue-next'
 import PimForm from '@/components/shared/PimForm.vue'
+
+// vue-draggable-plus lazy laden um zirkuläre Initialisierung zu vermeiden
+const VueDraggable = defineAsyncComponent(() =>
+  import('vue-draggable-plus').then(m => m.VueDraggable)
+)
 
 const props = defineProps({
   attributeView: { type: Object, default: null },
@@ -34,6 +39,7 @@ const formData = ref(
         name_en: props.attributeView.name_en || '',
         description: props.attributeView.description || '',
         sort_order: props.attributeView.sort_order ?? 0,
+        show_as_tab: props.attributeView.show_as_tab ?? false,
       }
     : {
         technical_name: '',
@@ -41,6 +47,7 @@ const formData = ref(
         name_en: '',
         description: '',
         sort_order: 0,
+        show_as_tab: false,
       }
 )
 
@@ -50,6 +57,7 @@ const fields = computed(() => [
   { key: 'name_en', label: 'Name (EN)', type: 'text' },
   { key: 'description', label: 'Beschreibung', type: 'textarea' },
   { key: 'sort_order', label: 'Sortierung', type: 'number' },
+  { key: 'show_as_tab', label: 'Eigener Tab im Produkteditor', type: 'boolean' },
 ])
 
 const assignedIds = computed(() => new Set(assignedAttributes.value.map(a => a.id)))
@@ -63,7 +71,7 @@ onMounted(async () => {
     loadingAttributes.value = true
     try {
       // Load view with its attributes
-      const { data } = await attributeViews.list({ include: 'attributes' })
+      const { data } = await attributeViews.list({ include: 'attributes', perPage: 500 })
       const views = data.data || data
       const thisView = views.find(v => v.id === props.attributeView.id)
       assignedAttributes.value = thisView?.attributes || []
@@ -91,7 +99,7 @@ async function addAttribute() {
     })
     // Add to local list
     const attr = allAttributes.value.find(a => a.id === selectedAttributeId.value)
-    if (attr) assignedAttributes.value.push(attr)
+    if (attr) assignedAttributes.value.push({ ...attr, is_readonly_in_view: false })
     selectedAttributeId.value = ''
   } catch (e) { /* ignore */ }
   finally { addingAttribute.value = false }
@@ -102,6 +110,49 @@ async function removeAttribute(attrId) {
     await attributeViews.removeAttribute(props.attributeView.id, attrId)
     assignedAttributes.value = assignedAttributes.value.filter(a => a.id !== attrId)
   } catch (e) { /* ignore */ }
+}
+
+async function persistAttributeOrder() {
+  try {
+    await attributeViews.reorderAttributes(
+      props.attributeView.id,
+      assignedAttributes.value.map(a => a.id)
+    )
+  } catch (e) {
+    // Rollback: Reihenfolge neu laden
+    try {
+      const { data } = await attributeViews.list({ include: 'attributes', perPage: 500 })
+      const views = data.data || data
+      const thisView = views.find(v => v.id === props.attributeView.id)
+      assignedAttributes.value = thisView?.attributes || []
+    } catch { /* ignore */ }
+  }
+}
+
+async function moveAttributeUp(index) {
+  if (index <= 0) return
+  const list = [...assignedAttributes.value]
+  ;[list[index - 1], list[index]] = [list[index], list[index - 1]]
+  assignedAttributes.value = list
+  await persistAttributeOrder()
+}
+
+async function moveAttributeDown(index) {
+  if (index >= assignedAttributes.value.length - 1) return
+  const list = [...assignedAttributes.value]
+  ;[list[index], list[index + 1]] = [list[index + 1], list[index]]
+  assignedAttributes.value = list
+  await persistAttributeOrder()
+}
+
+async function toggleAttributeReadOnly(attr) {
+  const nextValue = !attr.is_readonly_in_view
+  attr.is_readonly_in_view = nextValue
+  try {
+    await attributeViews.updateAssignment(props.attributeView.id, attr.id, { is_readonly: nextValue })
+  } catch (e) {
+    attr.is_readonly_in_view = !nextValue
+  }
 }
 
 async function handleSubmit(data) {
@@ -130,9 +181,20 @@ async function handleSubmit(data) {
 
 <template>
   <div class="p-4 space-y-6">
-    <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
-      {{ isEdit ? 'Attribut-Sicht bearbeiten' : 'Neue Attribut-Sicht' }}
-    </h3>
+    <div class="flex items-center justify-between">
+      <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
+        {{ isEdit ? 'Attribut-Sicht bearbeiten' : 'Neue Attribut-Sicht' }}
+      </h3>
+      <button
+        v-if="isEdit"
+        class="pim-btn pim-btn-ghost pim-btn-xs"
+        :title="authStore.panelFullscreen ? 'Vollbild beenden' : 'Vollbild (für Drag&Drop-Reihenfolge)'"
+        @click="authStore.setPanelFullscreen(!authStore.panelFullscreen)"
+      >
+        <Minimize2 v-if="authStore.panelFullscreen" class="w-3.5 h-3.5" :stroke-width="2" />
+        <Maximize2 v-else class="w-3.5 h-3.5" :stroke-width="2" />
+      </button>
+    </div>
     <PimForm
       :fields="fields"
       :modelValue="formData"
@@ -186,28 +248,74 @@ async function handleSubmit(data) {
       <div v-else-if="assignedAttributes.length === 0" class="text-xs text-[var(--color-text-tertiary)] italic">
         Keine Attribute zugeordnet.
       </div>
-      <div v-else class="space-y-1 max-h-[300px] overflow-y-auto">
-        <div
-          v-for="attr in assignedAttributes"
-          :key="attr.id"
-          class="flex items-center justify-between p-2 rounded-lg bg-[var(--color-bg)] text-xs"
+      <template v-else>
+        <VueDraggable
+          v-model="assignedAttributes"
+          handle=".drag-handle"
+          ghost-class="opacity-30"
+          class="space-y-1 max-h-[400px] overflow-y-auto"
+          @end="persistAttributeOrder"
         >
-          <div class="flex items-center gap-2 min-w-0">
-            <span class="font-mono text-[var(--color-accent)] truncate">{{ attr.technical_name }}</span>
-            <span class="text-[var(--color-text-secondary)] truncate">{{ attr.name_de }}</span>
+          <div
+            v-for="(attr, idx) in assignedAttributes"
+            :key="attr.id"
+            class="flex items-center justify-between p-2 rounded-lg bg-[var(--color-bg)] text-xs"
+          >
+            <div class="flex items-center gap-2 min-w-0">
+              <GripVertical class="drag-handle w-3 h-3 text-[var(--color-text-tertiary)] opacity-40 cursor-grab active:cursor-grabbing shrink-0" />
+              <span class="font-mono text-[var(--color-accent)] truncate">{{ attr.technical_name }}</span>
+              <span class="text-[var(--color-text-secondary)] truncate">{{ attr.name_de }}</span>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-tertiary)]">{{ attr.data_type }}</span>
+              <button
+                class="p-0.5 rounded transition-colors"
+                :class="attr.is_readonly_in_view
+                  ? 'text-[var(--color-warning)]'
+                  : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'"
+                :title="attr.is_readonly_in_view ? 'Nur-Lesen in diesem Tab (klicken zum Ändern)' : 'Editierbar in diesem Tab (klicken für Nur-Lesen)'"
+                @click.stop="toggleAttributeReadOnly(attr)"
+              >
+                {{ attr.is_readonly_in_view ? 'Nur Lesen' : 'Editierbar' }}
+              </button>
+              <button
+                class="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] transition-all disabled:opacity-20"
+                :disabled="idx === 0"
+                title="Nach oben"
+                @click="moveAttributeUp(idx)"
+              >
+                <ChevronUp class="w-3.5 h-3.5" :stroke-width="2" />
+              </button>
+              <button
+                class="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] transition-all disabled:opacity-20"
+                :disabled="idx === assignedAttributes.length - 1"
+                title="Nach unten"
+                @click="moveAttributeDown(idx)"
+              >
+                <ChevronDown class="w-3.5 h-3.5" :stroke-width="2" />
+              </button>
+              <button
+                class="p-0.5 rounded hover:bg-[var(--color-danger-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] transition-colors"
+                title="Zuordnung entfernen"
+                @click.stop="removeAttribute(attr.id)"
+              >
+                <X class="w-3 h-3" :stroke-width="2" />
+              </button>
+            </div>
           </div>
-          <div class="flex items-center gap-1.5 shrink-0">
-            <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-tertiary)]">{{ attr.data_type }}</span>
-            <button
-              class="p-0.5 rounded hover:bg-[var(--color-danger-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] transition-colors"
-              title="Zuordnung entfernen"
-              @click.stop="removeAttribute(attr.id)"
-            >
-              <X class="w-3 h-3" :stroke-width="2" />
-            </button>
-          </div>
-        </div>
-      </div>
+        </VueDraggable>
+      </template>
+    </div>
+
+    <!-- Hinweis: Rollen-Sichtbarkeit für den Tab wird zentral in der Rollenverwaltung
+         gepflegt (Produkt-Editor-Tabs-Matrix), nicht hier — damit es nur eine Quelle
+         der Wahrheit für die zugrundeliegenden Berechtigungen gibt. -->
+    <div v-if="isEdit && formData.show_as_tab" class="border-t border-[var(--color-border)] pt-4">
+      <p class="text-[11px] text-[var(--color-text-tertiary)]">
+        Sichtbarkeit und Zugriff (schreiben/lesen/versteckt) je Benutzerrolle für diesen Tab
+        werden in der <strong>Rollenverwaltung</strong> unter „Produkt-Editor Tabs“ festgelegt —
+        die Sicht erscheint dort automatisch als eigene Zeile, sobald „Eigener Tab“ aktiv ist.
+      </p>
     </div>
   </div>
 </template>

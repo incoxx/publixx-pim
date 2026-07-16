@@ -240,6 +240,14 @@ export const attributeViews = {
   removeAttribute(viewId, attributeId) {
     return client.delete(`/attribute-views/${viewId}/attributes/${attributeId}`)
   },
+
+  updateAssignment(viewId, attributeId, data) {
+    return client.patch(`/attribute-views/${viewId}/attributes/${attributeId}`, data)
+  },
+
+  reorderAttributes(viewId, attributeIds) {
+    return client.put(`/attribute-views/${viewId}/attributes/reorder`, { attribute_ids: attributeIds })
+  },
 }
 
 export const productTypes = {
