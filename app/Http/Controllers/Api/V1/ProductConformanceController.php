@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Traits\ChecksTabPermissions;
 use App\Models\Product;
 use App\Models\ProductConformanceResult;
 use App\Models\ProductReferenceProfile;
@@ -23,6 +24,8 @@ use Illuminate\Support\Facades\Schema;
  */
 class ProductConformanceController extends Controller
 {
+    use ChecksTabPermissions;
+
     public function __construct(private ProfileConformanceChecker $checker)
     {
     }
@@ -67,6 +70,7 @@ class ProductConformanceController extends Controller
     public function check(Product $product): JsonResponse
     {
         $this->authorize('conformance.run');
+        $this->assertTabWriteAccess('conformance');
 
         if ($product->reference_profile_id === null) {
             return response()->json([
@@ -86,6 +90,7 @@ class ProductConformanceController extends Controller
     {
         // Eigene Berechtigung wegen API-Kosten
         $this->authorize('conformance.ai-explain');
+        $this->assertTabWriteAccess('conformance');
 
         $result = ProductConformanceResult::where('product_id', $product->id)->first();
 
@@ -115,6 +120,7 @@ class ProductConformanceController extends Controller
     public function assign(Request $request, Product $product): JsonResponse
     {
         $this->authorize('conformance.run');
+        $this->assertTabWriteAccess('conformance');
         $this->ensureSchema();
 
         $validated = $request->validate([
