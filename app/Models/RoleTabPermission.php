@@ -30,6 +30,7 @@ class RoleTabPermission extends Model
         'prices',
         'relations',
         'output-hierarchies',
+        'conformance',
         'preview',
         'versions',
         'scheduled-actions',

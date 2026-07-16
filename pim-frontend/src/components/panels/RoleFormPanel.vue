@@ -42,6 +42,7 @@ const productEditorTabs = [
   { key: 'prices', label: 'Preise' },
   { key: 'relations', label: 'Beziehungen' },
   { key: 'output-hierarchies', label: 'Ausgabehierarchien' },
+  { key: 'conformance', label: 'Konformität' },
   { key: 'preview', label: 'Vorschau' },
   { key: 'versions', label: 'Versionen' },
   { key: 'scheduled-actions', label: 'Planung' },
