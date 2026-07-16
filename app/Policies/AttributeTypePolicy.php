@@ -22,9 +22,14 @@ class AttributeTypePolicy
         return null;
     }
 
+    /**
+     * Analog zu AttributeViewPolicy::viewAny() — 'products.view' reicht ebenfalls zum
+     * Auflisten, da Attributgruppen auch als Filteroption im Produkteditor geladen werden.
+     */
     public function viewAny(User $user): bool
     {
-        return $user->hasPermissionTo('attribute-types.view');
+        return $user->hasPermissionTo('attribute-types.view')
+            || $user->hasPermissionTo('products.view');
     }
 
     public function view(User $user, AttributeType $attributeType): bool
