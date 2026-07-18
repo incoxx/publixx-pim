@@ -14,6 +14,7 @@ use App\Http\Traits\ChecksTabPermissions;
 use App\Models\Attribute;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Models\ValueListEntry;
 use App\Models\VariantInheritanceRule;
 use App\Services\Inheritance\VariantAxisService;
 use Illuminate\Support\Str;
@@ -388,12 +389,44 @@ class ProductVariantController extends Controller
             'Number', 'Float' => array_merge($columns, ['value_number' => (float) $value]),
             'Date' => array_merge($columns, ['value_date' => $value]),
             'Flag' => array_merge($columns, ['value_flag' => in_array(strtolower($value), ['true', '1', 'ja', 'yes'])]),
-            'Selection', 'Dictionary' => array_merge($columns, [
-                'value_string' => $value,
-                'value_selection_id' => $value,
-            ]),
+            'Selection', 'Dictionary' => $this->resolveSelectionValueColumns($attribute, $value, $columns),
             'RichText', 'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink' => array_merge($columns, ['value_string' => $value]),
             default => array_merge($columns, ['value_string' => $value]),
         };
+    }
+
+    /**
+     * Löst einen Selection/Dictionary-Wert (ID oder Anzeigetext, z.B. aus dem
+     * Variantengenerator) auf den passenden Werteliste-Eintrag auf. Ein
+     * ungeprüfter String in value_selection_id würde die FK-Constraint gegen
+     * value_list_entries verletzen.
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    private function resolveSelectionValueColumns(Attribute $attribute, string $value, array $columns): array
+    {
+        if (!$attribute->value_list_id) {
+            return array_merge($columns, ['value_string' => $value]);
+        }
+
+        $entry = ValueListEntry::where('value_list_id', $attribute->value_list_id)
+            ->where(function ($q) use ($value) {
+                $q->where('id', $value)
+                    ->orWhere('technical_name', $value)
+                    ->orWhere('display_value_de', $value)
+                    ->orWhere('display_value_en', $value);
+            })
+            ->first();
+
+        if (!$entry) {
+            throw ValidationException::withMessages([
+                'value' => "Wert \"{$value}\" ist kein gültiger Eintrag der Werteliste von Attribut \"{$attribute->technical_name}\".",
+            ]);
+        }
+
+        return array_merge($columns, [
+            'value_string' => $entry->display_value_de ?? $entry->technical_name,
+            'value_selection_id' => $entry->id,
+        ]);
     }
 }
