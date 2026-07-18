@@ -21,6 +21,8 @@ class ProductRelationType extends Model
         'name_en',
         'name_json',
         'is_bidirectional',
+        'allowed_source_product_type_ids',
+        'allowed_target_product_type_ids',
     ];
 
     protected function casts(): array
@@ -28,7 +30,29 @@ class ProductRelationType extends Model
         return [
             'name_json' => 'array',
             'is_bidirectional' => 'boolean',
+            'allowed_source_product_type_ids' => 'array',
+            'allowed_target_product_type_ids' => 'array',
         ];
+    }
+
+    /**
+     * Ob dieser Beziehungstyp für den gegebenen Produkttyp als Quelle
+     * zulässig ist. Leere/keine Einschränkung = alle Produkttypen erlaubt.
+     */
+    public function allowsSourceProductType(?string $productTypeId): bool
+    {
+        return empty($this->allowed_source_product_type_ids)
+            || in_array($productTypeId, $this->allowed_source_product_type_ids, true);
+    }
+
+    /**
+     * Ob dieser Beziehungstyp für den gegebenen Produkttyp als Ziel
+     * zulässig ist. Leere/keine Einschränkung = alle Produkttypen erlaubt.
+     */
+    public function allowsTargetProductType(?string $productTypeId): bool
+    {
+        return empty($this->allowed_target_product_type_ids)
+            || in_array($productTypeId, $this->allowed_target_product_type_ids, true);
     }
 
     public function relations(): HasMany

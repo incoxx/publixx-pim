@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { relationTypes } from '@/api/prices'
-import attributesApi from '@/api/attributes'
+import attributesApi, { productTypes } from '@/api/attributes'
 import PimForm from '@/components/shared/PimForm.vue'
 import { X, Plus } from 'lucide-vue-next'
 
@@ -42,6 +42,19 @@ const formData = ref(
       }
 )
 
+// Erlaubte Produkttypen — bewusst getrennt von formData/PimForm gehalten:
+// PimForm klont modelValue einmalig beim Mount, externe Mutationen an
+// formData nach dem Mount würden beim Submit sonst nicht mitgeschickt.
+const allProductTypes = ref([])
+const allowedSourceProductTypeIds = ref([...(props.relationType?.allowed_source_product_type_ids || [])])
+const allowedTargetProductTypeIds = ref([...(props.relationType?.allowed_target_product_type_ids || [])])
+
+function toggleProductTypeId(list, id) {
+  const idx = list.value.indexOf(id)
+  if (idx === -1) list.value = [...list.value, id]
+  else list.value = list.value.filter(v => v !== id)
+}
+
 const fields = computed(() => [
   { key: 'technical_name', label: 'Technischer Name', type: 'text', required: true, disabled: isEdit.value },
   { key: 'name_de', label: 'Name (DE)', type: 'text', required: true },
@@ -54,6 +67,11 @@ const availableAttributes = computed(() =>
 )
 
 onMounted(async () => {
+  try {
+    const { data } = await productTypes.list({ per_page: 9999 })
+    allProductTypes.value = data.data || data
+  } catch (e) { /* ignore */ }
+
   if (isEdit.value && props.relationType?.id) {
     loadingAttributes.value = true
     try {
@@ -106,11 +124,16 @@ async function saveDefaultAttributes() {
 async function handleSubmit(data) {
   loading.value = true
   errors.value = {}
+  const payload = {
+    ...data,
+    allowed_source_product_type_ids: allowedSourceProductTypeIds.value,
+    allowed_target_product_type_ids: allowedTargetProductTypeIds.value,
+  }
   try {
     if (isEdit.value) {
-      await relationTypes.update(props.relationType.id, data)
+      await relationTypes.update(props.relationType.id, payload)
     } else {
-      await relationTypes.create(data)
+      await relationTypes.create(payload)
     }
     authStore.closePanel()
     if (props.onSaved) props.onSaved()
@@ -132,6 +155,48 @@ async function handleSubmit(data) {
     <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
       {{ isEdit ? 'Beziehungstyp bearbeiten' : 'Neuer Beziehungstyp' }}
     </h3>
+    <!-- Erlaubte Produkttypen: leer = für alle Produkttypen zulässig (Default) -->
+    <div class="space-y-3">
+      <div>
+        <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] mb-1">Erlaubte Quell-Produkttypen</h4>
+        <p class="text-[11px] text-[var(--color-text-tertiary)] mb-2">
+          Nur Produkte dieser Typen können diesen Beziehungstyp anlegen. Keine Auswahl = alle Produkttypen erlaubt.
+        </p>
+        <div class="flex flex-wrap gap-1.5">
+          <label
+            v-for="pt in allProductTypes"
+            :key="pt.id"
+            class="flex items-center gap-1 text-xs px-2 py-1 rounded border cursor-pointer transition-colors"
+            :class="allowedSourceProductTypeIds.includes(pt.id)
+              ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+              : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]'"
+          >
+            <input type="checkbox" class="pim-checkbox w-3 h-3" :checked="allowedSourceProductTypeIds.includes(pt.id)" @change="toggleProductTypeId(allowedSourceProductTypeIds, pt.id)" />
+            {{ pt.name_de || pt.technical_name }}
+          </label>
+        </div>
+      </div>
+      <div>
+        <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] mb-1">Erlaubte Ziel-Produkttypen</h4>
+        <p class="text-[11px] text-[var(--color-text-tertiary)] mb-2">
+          Nur Produkte dieser Typen können als Zielprodukt gewählt werden. Keine Auswahl = alle Produkttypen erlaubt.
+        </p>
+        <div class="flex flex-wrap gap-1.5">
+          <label
+            v-for="pt in allProductTypes"
+            :key="pt.id"
+            class="flex items-center gap-1 text-xs px-2 py-1 rounded border cursor-pointer transition-colors"
+            :class="allowedTargetProductTypeIds.includes(pt.id)
+              ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+              : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]'"
+          >
+            <input type="checkbox" class="pim-checkbox w-3 h-3" :checked="allowedTargetProductTypeIds.includes(pt.id)" @change="toggleProductTypeId(allowedTargetProductTypeIds, pt.id)" />
+            {{ pt.name_de || pt.technical_name }}
+          </label>
+        </div>
+      </div>
+    </div>
+
     <PimForm
       :fields="fields"
       :modelValue="formData"

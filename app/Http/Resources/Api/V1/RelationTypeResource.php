@@ -18,6 +18,8 @@ class RelationTypeResource extends JsonResource
             'name_en' => $this->name_en,
             'name_json' => $this->name_json,
             'is_bidirectional' => $this->is_bidirectional,
+            'allowed_source_product_type_ids' => $this->allowed_source_product_type_ids,
+            'allowed_target_product_type_ids' => $this->allowed_target_product_type_ids,
             'default_attributes' => AttributeResource::collection($this->whenLoaded('defaultAttributes')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

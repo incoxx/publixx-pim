@@ -10,9 +10,11 @@ use App\Http\Traits\AuditsChanges;
 use App\Http\Traits\ChecksTabPermissions;
 use App\Models\Product;
 use App\Models\ProductRelation;
+use App\Models\ProductRelationType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Validation\ValidationException;
 
 class ProductRelationController extends Controller
 {
@@ -44,6 +46,20 @@ class ProductRelationController extends Controller
 
         $data = $request->validated();
         $data['source_product_id'] = $product->id;
+
+        $relationType = ProductRelationType::findOrFail($data['relation_type_id']);
+        $targetProduct = Product::findOrFail($data['target_product_id']);
+
+        if (!$relationType->allowsSourceProductType($product->product_type_id)) {
+            throw ValidationException::withMessages([
+                'relation_type_id' => "Beziehungstyp \"{$relationType->name_de}\" ist für den Produkttyp des Quellprodukts nicht zulässig.",
+            ]);
+        }
+        if (!$relationType->allowsTargetProductType($targetProduct->product_type_id)) {
+            throw ValidationException::withMessages([
+                'target_product_id' => "Beziehungstyp \"{$relationType->name_de}\" ist für den Produkttyp des Zielprodukts nicht zulässig.",
+            ]);
+        }
 
         $relation = ProductRelation::create($data);
 
