@@ -21,7 +21,14 @@ class StoreProductVariantRequest extends FormRequest
             'name' => 'required|string|max:500',
             'status' => 'in:draft,active,inactive,discontinued',
             'axis_values' => 'nullable|array',
-            'axis_values.*' => 'nullable|string|max:500',
+            // Achsenwerte kommen je nach Attribut-Datentyp als String, Zahl oder
+            // Boolean (z.B. bei Number/Float/Flag-Achsen) — nur Skalare zulassen,
+            // die eigentliche Typumwandlung übernimmt resolveValueColumns().
+            'axis_values.*' => ['nullable', function ($attribute, $value, $fail) {
+                if ($value !== null && !is_scalar($value)) {
+                    $fail('Der Achsenwert muss ein einfacher Wert (Text, Zahl oder Boolean) sein.');
+                }
+            }],
         ];
     }
 }

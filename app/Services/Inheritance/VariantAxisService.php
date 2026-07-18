@@ -171,6 +171,13 @@ class VariantAxisService
             return;
         }
 
+        // Serialisiert konkurrierende Anfragen für dasselbe Elternprodukt: ohne
+        // diese Sperre könnten zwei gleichzeitige Requests einander unsichtbar
+        // bleiben und beide dieselbe Kombination erfolgreich anlegen. Wirkt nur
+        // innerhalb einer offenen Transaktion (immer der Fall an allen
+        // Aufrufstellen: store()/generate()/bulkUpdate()).
+        Product::where('id', $variant->parent_product_id)->lockForUpdate()->first();
+
         $combination = $this->combinationFor($variant);
         $duplicate = $this->findDuplicateSibling($variant->parentProduct, $combination, $variant->id);
 
@@ -189,6 +196,10 @@ class VariantAxisService
      */
     public function ensureOverrideRules(Product $variant, ?array $axisAttributeIds = null): void
     {
+        if (!$variant->parent_product_id) {
+            return;
+        }
+
         $axisAttributeIds ??= $this->getAxisAttributeIds($variant->parentProduct);
 
         if (empty($axisAttributeIds)) {

@@ -162,6 +162,80 @@ class BulkUpdateControllerTest extends TestCase
         ]);
     }
 
+    public function test_execute_overwrite_loest_selection_wert_gegen_werteliste_auf(): void
+    {
+        $valueList = \App\Models\ValueList::factory()->create();
+        $entry = \App\Models\ValueListEntry::factory()->create([
+            'value_list_id' => $valueList->id,
+            'technical_name' => 'rot',
+            'display_value_de' => 'Rot',
+        ]);
+        $attribute = Attribute::factory()->create(['data_type' => 'Selection', 'value_list_id' => $valueList->id]);
+        $product = Product::factory()->create();
+
+        // Anzeigetext statt Entry-ID — muss aufgelöst werden statt in
+        // value_selection_id zu landen (FK gegen value_list_entries).
+        $response = $this->putJson('/api/v1/products/bulk-update', [
+            'product_ids' => [$product->id],
+            'operations' => [
+                'attributes' => [
+                    ['attribute_id' => $attribute->id, 'value' => 'Rot', 'mode' => 'overwrite'],
+                ],
+            ],
+        ]);
+
+        $response->assertOk()->assertJsonPath('results.attributes.updated', 1);
+
+        $this->assertDatabaseHas('product_attribute_values', [
+            'product_id' => $product->id,
+            'attribute_id' => $attribute->id,
+            'value_selection_id' => $entry->id,
+        ]);
+    }
+
+    public function test_execute_overwrite_lehnt_ungueltigen_selection_wert_ab(): void
+    {
+        $valueList = \App\Models\ValueList::factory()->create();
+        $attribute = Attribute::factory()->create(['data_type' => 'Selection', 'value_list_id' => $valueList->id]);
+        $product = Product::factory()->create();
+
+        $this->putJson('/api/v1/products/bulk-update', [
+            'product_ids' => [$product->id],
+            'operations' => [
+                'attributes' => [
+                    ['attribute_id' => $attribute->id, 'value' => 'Nicht-Existent', 'mode' => 'overwrite'],
+                ],
+            ],
+        ])->assertStatus(422);
+
+        $this->assertDatabaseMissing('product_attribute_values', [
+            'product_id' => $product->id,
+            'attribute_id' => $attribute->id,
+        ]);
+    }
+
+    public function test_execute_overwrite_ignoriert_inaktiven_werteliste_eintrag(): void
+    {
+        $valueList = \App\Models\ValueList::factory()->create();
+        \App\Models\ValueListEntry::factory()->create([
+            'value_list_id' => $valueList->id,
+            'technical_name' => 'veraltet',
+            'display_value_de' => 'Veraltet',
+            'is_active' => false,
+        ]);
+        $attribute = Attribute::factory()->create(['data_type' => 'Selection', 'value_list_id' => $valueList->id]);
+        $product = Product::factory()->create();
+
+        $this->putJson('/api/v1/products/bulk-update', [
+            'product_ids' => [$product->id],
+            'operations' => [
+                'attributes' => [
+                    ['attribute_id' => $attribute->id, 'value' => 'Veraltet', 'mode' => 'overwrite'],
+                ],
+            ],
+        ])->assertStatus(422);
+    }
+
     public function test_execute_fill_empty_fuellt_nur_leere_werte(): void
     {
         $attribute = Attribute::factory()->create(['data_type' => 'String']);

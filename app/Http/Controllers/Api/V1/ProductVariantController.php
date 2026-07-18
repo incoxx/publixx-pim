@@ -14,9 +14,8 @@ use App\Http\Traits\ChecksTabPermissions;
 use App\Models\Attribute;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
-use App\Models\ValueListEntry;
-use App\Models\VariantInheritanceRule;
 use App\Services\Inheritance\VariantAxisService;
+use App\Services\Inheritance\VariantInheritanceService;
 use Illuminate\Support\Str;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -125,24 +124,23 @@ class ProductVariantController extends Controller
      *
      * Body: { "rules": [ { "attribute_id": "...", "inheritance_mode": "inherit|override" } ] }
      */
-    public function updateRules(UpdateVariantRulesRequest $request, Product $product): JsonResponse
+    public function updateRules(UpdateVariantRulesRequest $request, Product $product, VariantInheritanceService $variantInheritanceService): JsonResponse
     {
         $this->authorize('update', $product);
         $this->assertTabWriteAccess('variants');
 
         $rules = $request->validated('rules');
+        $rulesMap = [];
+        foreach ($rules as $rule) {
+            $rulesMap[$rule['attribute_id']] = $rule['inheritance_mode'];
+        }
 
-        DB::transaction(function () use ($product, $rules) {
-            // Remove existing rules
-            $product->variantInheritanceRules()->delete();
-
-            // Insert new rules
-            foreach ($rules as $rule) {
-                VariantInheritanceRule::create([
-                    'product_id' => $product->id,
-                    'attribute_id' => $rule['attribute_id'],
-                    'inheritance_mode' => $rule['inheritance_mode'],
-                ]);
+        // Über den Service statt direktem Model-Zugriff: erzwingt u.a., dass eine
+        // konfigurierte Varianten-Achse nicht auf "inherit" gesetzt werden kann.
+        DB::transaction(function () use ($product, $rulesMap, $variantInheritanceService) {
+            $variantInheritanceService->resetAllRules($product);
+            if (!empty($rulesMap)) {
+                $variantInheritanceService->setRules($product, $rulesMap);
             }
         });
 
@@ -284,84 +282,95 @@ class ProductVariantController extends Controller
         $skipped = 0;
         $createdVariants = [];
 
-        foreach ($combinations as $combo) {
-            try {
-                $variant = DB::transaction(function () use (
-                    $product, $combo, $skuPrefix, $status, $userId, $attributeMap, $variantAxisService
-                ) {
-                    // Generate SKU from combination values
-                    $skuParts = array_map(function ($item) {
-                        return Str::slug(Str::limit($item['value'], 20, ''), '-');
-                    }, $combo);
-                    $sku = $skuPrefix . '-' . implode('-', $skuParts);
+        // Eine äußere Transaktion um den gesamten Batch: die innere
+        // DB::transaction() je Kombination wird dadurch automatisch zu einem
+        // Savepoint (nur dieser wird bei einer erwarteten ValidationException
+        // zurückgerollt). Ein unerwarteter Fehler (z.B. echter DB-Fehler) rollt
+        // dagegen den ganzen Batch zurück, statt bereits erstellte Varianten
+        // committed stehenzulassen und die Response zu verlieren.
+        DB::transaction(function () use (
+            $combinations, $product, $skuPrefix, $status, $userId, $attributeMap, $variantAxisService,
+            &$created, &$skipped, &$createdVariants
+        ) {
+            foreach ($combinations as $combo) {
+                try {
+                    $variant = DB::transaction(function () use (
+                        $product, $combo, $skuPrefix, $status, $userId, $attributeMap, $variantAxisService
+                    ) {
+                        // Generate SKU from combination values
+                        $skuParts = array_map(function ($item) {
+                            return Str::slug(Str::limit($item['value'], 20, ''), '-');
+                        }, $combo);
+                        $sku = $skuPrefix . '-' . implode('-', $skuParts);
 
-                    // Check for SKU collision — nothing created yet, safe to skip without rollback
-                    if (Product::where('sku', $sku)->exists()) {
-                        return null;
-                    }
+                        // Check for SKU collision — nothing created yet, safe to skip without rollback
+                        if (Product::where('sku', $sku)->exists()) {
+                            return null;
+                        }
 
-                    // Generate name
-                    $valueParts = array_map(fn($item) => $item['value'], $combo);
-                    $name = $product->name . ' — ' . implode(' / ', $valueParts);
+                        // Generate name
+                        $valueParts = array_map(fn($item) => $item['value'], $combo);
+                        $name = $product->name . ' — ' . implode(' / ', $valueParts);
 
-                    // Create variant
-                    $variant = Product::create([
-                        'sku' => $sku,
-                        'name' => $name,
-                        'status' => $status,
-                        'product_type_id' => $product->product_type_id,
-                        'product_type_ref' => 'variant',
-                        'parent_product_id' => $product->id,
-                        'master_hierarchy_node_id' => $product->master_hierarchy_node_id,
-                        'created_by' => $userId,
+                        // Create variant
+                        $variant = Product::create([
+                            'sku' => $sku,
+                            'name' => $name,
+                            'status' => $status,
+                            'product_type_id' => $product->product_type_id,
+                            'product_type_ref' => 'variant',
+                            'parent_product_id' => $product->id,
+                            'master_hierarchy_node_id' => $product->master_hierarchy_node_id,
+                            'created_by' => $userId,
+                        ]);
+
+                        // Set attribute values for each dimension
+                        foreach ($combo as $item) {
+                            $attribute = $attributeMap->get($item['attribute_id']);
+                            if (!$attribute) continue;
+
+                            $valueData = $this->resolveValueColumns($attribute, $item['value']);
+
+                            ProductAttributeValue::create(array_merge($valueData, [
+                                'product_id' => $variant->id,
+                                'attribute_id' => $attribute->id,
+                                'language' => $attribute->is_translatable ? 'de' : null,
+                                'multiplied_index' => 0,
+                                'is_inherited' => false,
+                            ]));
+                        }
+
+                        // Achsen-Attribute des Elternprodukts dürfen bei Varianten nie
+                        // geerbt werden, und Geschwister-Kombinationen müssen eindeutig
+                        // bleiben — wirft ValidationException und rollt diese Variante
+                        // zurück, falls eine identische Kombination bereits existiert.
+                        $variantAxisService->ensureOverrideRules($variant);
+                        $variantAxisService->assertUniqueCombination($variant);
+
+                        return $variant;
+                    });
+                } catch (ValidationException $e) {
+                    $skipped++;
+                    continue;
+                }
+
+                if ($variant === null) {
+                    $skipped++;
+                    continue;
+                }
+
+                try {
+                    event(new \App\Events\ProductCreated($variant));
+                } catch (\Throwable $e) {
+                    Log::warning('ProductCreated event failed for generated variant', [
+                        'variant_id' => $variant->id, 'error' => $e->getMessage(),
                     ]);
+                }
 
-                    // Set attribute values for each dimension
-                    foreach ($combo as $item) {
-                        $attribute = $attributeMap->get($item['attribute_id']);
-                        if (!$attribute) continue;
-
-                        $valueData = $this->resolveValueColumns($attribute, $item['value']);
-
-                        ProductAttributeValue::create(array_merge($valueData, [
-                            'product_id' => $variant->id,
-                            'attribute_id' => $attribute->id,
-                            'language' => $attribute->is_translatable ? 'de' : null,
-                            'multiplied_index' => 0,
-                            'is_inherited' => false,
-                        ]));
-                    }
-
-                    // Achsen-Attribute des Elternprodukts dürfen bei Varianten nie
-                    // geerbt werden, und Geschwister-Kombinationen müssen eindeutig
-                    // bleiben — wirft ValidationException und rollt diese Variante
-                    // zurück, falls eine identische Kombination bereits existiert.
-                    $variantAxisService->ensureOverrideRules($variant);
-                    $variantAxisService->assertUniqueCombination($variant);
-
-                    return $variant;
-                });
-            } catch (ValidationException $e) {
-                $skipped++;
-                continue;
+                $createdVariants[] = ['id' => $variant->id, 'sku' => $variant->sku, 'name' => $variant->name];
+                $created++;
             }
-
-            if ($variant === null) {
-                $skipped++;
-                continue;
-            }
-
-            try {
-                event(new \App\Events\ProductCreated($variant));
-            } catch (\Throwable $e) {
-                Log::warning('ProductCreated event failed for generated variant', [
-                    'variant_id' => $variant->id, 'error' => $e->getMessage(),
-                ]);
-            }
-
-            $createdVariants[] = ['id' => $variant->id, 'sku' => $variant->sku, 'name' => $variant->name];
-            $created++;
-        }
+        });
 
         return response()->json([
             'message' => "Variant generation completed.",
@@ -396,37 +405,10 @@ class ProductVariantController extends Controller
     }
 
     /**
-     * Löst einen Selection/Dictionary-Wert (ID oder Anzeigetext, z.B. aus dem
-     * Variantengenerator) auf den passenden Werteliste-Eintrag auf. Ein
-     * ungeprüfter String in value_selection_id würde die FK-Constraint gegen
-     * value_list_entries verletzen.
-     *
-     * @throws \Illuminate\Validation\ValidationException
+     * @throws ValidationException
      */
     private function resolveSelectionValueColumns(Attribute $attribute, string $value, array $columns): array
     {
-        if (!$attribute->value_list_id) {
-            return array_merge($columns, ['value_string' => $value]);
-        }
-
-        $entry = ValueListEntry::where('value_list_id', $attribute->value_list_id)
-            ->where(function ($q) use ($value) {
-                $q->where('id', $value)
-                    ->orWhere('technical_name', $value)
-                    ->orWhere('display_value_de', $value)
-                    ->orWhere('display_value_en', $value);
-            })
-            ->first();
-
-        if (!$entry) {
-            throw ValidationException::withMessages([
-                'value' => "Wert \"{$value}\" ist kein gültiger Eintrag der Werteliste von Attribut \"{$attribute->technical_name}\".",
-            ]);
-        }
-
-        return array_merge($columns, [
-            'value_string' => $entry->display_value_de ?? $entry->technical_name,
-            'value_selection_id' => $entry->id,
-        ]);
+        return array_merge($columns, $attribute->resolveSelectionEntry($value));
     }
 }

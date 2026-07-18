@@ -944,10 +944,9 @@ class BulkUpdateController extends Controller
             'Number', 'Float' => array_merge($columns, ['value_number' => $value !== null ? (float) $value : null]),
             'Date' => array_merge($columns, ['value_date' => $value]),
             'Flag' => array_merge($columns, ['value_flag' => $value !== null ? (bool) $value : null]),
-            'Selection', 'Dictionary' => array_merge($columns, [
-                'value_string' => $value !== null ? (string) $value : null,
-                'value_selection_id' => $value,
-            ]),
+            'Selection', 'Dictionary' => $value !== null
+                ? array_merge($columns, $attribute->resolveSelectionEntry((string) $value))
+                : $columns,
             default => array_merge($columns, ['value_string' => $value !== null ? (string) $value : null]),
         };
     }
