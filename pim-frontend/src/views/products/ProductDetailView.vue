@@ -2019,6 +2019,15 @@ const relationQuickLookup = ref({})
 const relationSortField = ref('')
 const relationSortOrder = ref('asc') // 'asc' | 'desc'
 
+// Beziehungstypen, die für den Produkttyp dieses Produkts als Quelle
+// zulässig sind. Leere allowed_source_product_type_ids = für alle Typen erlaubt.
+const availableRelationTypesForProduct = computed(() => {
+  const typeId = product.value?.product_type_id
+  return relationTypesList.value.filter(t =>
+    !t.allowed_source_product_type_ids?.length || t.allowed_source_product_type_ids.includes(typeId)
+  )
+})
+
 const filteredRelations = computed(() => {
   let result = relations.value
 
@@ -5022,7 +5031,7 @@ onUnmounted(() => {
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Beziehungstyp <span class="text-[var(--color-error)]">*</span></label>
-            <PimAttributeInput type="select" v-model="relationForm.relation_type_id" :options="relationTypesList.map(t => ({ value: t.id, label: t.name_de || t.technical_name }))" />
+            <PimAttributeInput type="select" v-model="relationForm.relation_type_id" :options="availableRelationTypesForProduct.map(t => ({ value: t.id, label: t.name_de || t.technical_name }))" />
             <p v-if="relationErrors.relation_type_id" class="text-[11px] text-[var(--color-error)] mt-0.5">{{ relationErrors.relation_type_id }}</p>
           </div>
           <div>

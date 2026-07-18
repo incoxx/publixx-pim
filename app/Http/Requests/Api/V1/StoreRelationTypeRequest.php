@@ -21,6 +21,10 @@ class StoreRelationTypeRequest extends FormRequest
             'name_en' => 'nullable|string|max:255',
             'name_json' => 'nullable|array',
             'is_bidirectional' => 'required|boolean',
+            'allowed_source_product_type_ids' => 'nullable|array',
+            'allowed_source_product_type_ids.*' => 'uuid|exists:product_types,id',
+            'allowed_target_product_type_ids' => 'nullable|array',
+            'allowed_target_product_type_ids.*' => 'uuid|exists:product_types,id',
         ];
     }
 }
