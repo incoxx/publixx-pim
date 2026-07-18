@@ -152,6 +152,14 @@ class Product extends Model
         return $this->hasMany(VariantInheritanceRule::class);
     }
 
+    /**
+     * Merkmalsachsen dieses Produkts, wenn es ein Elternprodukt mit Varianten ist.
+     */
+    public function variantAxes(): HasMany
+    {
+        return $this->hasMany(ProductVariantAxis::class, 'product_id')->orderBy('position');
+    }
+
     public function media(): BelongsToMany
     {
         return $this->belongsToMany(Media::class, 'product_media_assignments')

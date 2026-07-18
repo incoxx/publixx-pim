@@ -18,6 +18,7 @@ use App\Services\Export\AttributeMappingSyncService;
 use App\Services\Formatting\AttributeFormattingService;
 use App\Services\Inheritance\AttributeValueResolver;
 use App\Services\Inheritance\HierarchyInheritanceService;
+use App\Services\Inheritance\VariantAxisService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -399,14 +400,14 @@ class ProductAttributeValueController extends Controller
      *
      * Body: { "values": [ { "attribute_id": "...", "value": ..., "language": "de" }, ... ] }
      */
-    public function bulkUpdate(BulkUpdateAttributeValuesRequest $request, Product $product): JsonResponse
+    public function bulkUpdate(BulkUpdateAttributeValuesRequest $request, Product $product, VariantAxisService $variantAxisService): JsonResponse
     {
         $this->authorize('update', $product);
 
         $values = $request->validated('values');
         $changedAttributeIds = [];
 
-        DB::transaction(function () use ($request, $product, $values, &$changedAttributeIds) {
+        DB::transaction(function () use ($request, $product, $values, $variantAxisService, &$changedAttributeIds) {
             foreach ($values as $entry) {
                 $attribute = Attribute::findOrFail($entry['attribute_id']);
 
@@ -525,6 +526,11 @@ class ProductAttributeValueController extends Controller
                     }
                 }
             }
+
+            // Wenn dieses Produkt eine Variante ist, dürfen zwei Geschwister nie
+            // dieselbe Achsen-Kombination tragen (no-op, falls keine Achsen
+            // konfiguriert sind oder die Kombination noch unvollständig ist).
+            $variantAxisService->assertUniqueCombination($product);
         });
 
         // Dispatch event for Performance / Inheritance agents

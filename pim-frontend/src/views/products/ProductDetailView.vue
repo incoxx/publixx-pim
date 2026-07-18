@@ -1063,12 +1063,69 @@ const variants = ref([])
 const variantsLoaded = ref(false)
 const variantsLoading = ref(false)
 const showVariantForm = ref(false)
-const variantForm = ref({ sku: '', name: '', ean: '', status: 'draft' })
+const variantForm = ref({ sku: '', name: '', ean: '', status: 'draft', axis_values: {} })
 const variantErrors = ref({})
 const variantSaving = ref(false)
 
 const variantAttributeDefs = ref([])
 const variantAttrValuesMap = ref({})
+
+// ─── Variant Axes (Merkmalsachsen) ───────────────────
+// Welche Attribute die Varianten DIESES Produkts unterscheiden — frei
+// konfigurierbar, keine feste Achsenliste. variantAttributeDefs wird aus
+// dieser pro-Produkt-Konfiguration befüllt (nicht mehr aus der globalen
+// is_variant_attribute-Liste).
+const variantAxisAttributeIds = ref([])
+const variantAxisSaving = ref(false)
+const variantAxisError = ref('')
+const showVariantAxisConfig = ref(false)
+
+const variantAxisEligibleAttributes = computed(() => {
+  let attrs = schemaAttributes.value.filter(a => a.is_variant_attribute)
+  if (authStore.userRole !== 'Admin') {
+    attrs = attrs.filter(a => !a.is_internal)
+  }
+  return attrs
+})
+
+async function loadVariantAxes() {
+  if (!product.value) return
+  try {
+    const { data } = await productsApi.getVariantAxes(product.value.id)
+    const axes = data.data || data
+    variantAxisAttributeIds.value = axes.map(ax => ax.attribute_id)
+    variantAttributeDefs.value = axes.map(ax => ({ id: ax.attribute_id, ...ax.attribute }))
+  } catch (e) { console.warn('Failed to load variant axes:', e.message) }
+}
+
+function toggleVariantAxis(attributeId) {
+  const idx = variantAxisAttributeIds.value.indexOf(attributeId)
+  if (idx === -1) variantAxisAttributeIds.value = [...variantAxisAttributeIds.value, attributeId]
+  else variantAxisAttributeIds.value = variantAxisAttributeIds.value.filter(id => id !== attributeId)
+}
+
+function moveVariantAxis(index, direction) {
+  const target = index + direction
+  if (target < 0 || target >= variantAxisAttributeIds.value.length) return
+  const ids = [...variantAxisAttributeIds.value]
+  ;[ids[index], ids[target]] = [ids[target], ids[index]]
+  variantAxisAttributeIds.value = ids
+}
+
+async function saveVariantAxes() {
+  variantAxisSaving.value = true
+  variantAxisError.value = ''
+  try {
+    await productsApi.setVariantAxes(product.value.id, variantAxisAttributeIds.value)
+    variantsLoaded.value = false
+    await loadVariants()
+    showVariantAxisConfig.value = false
+  } catch (e) {
+    variantAxisError.value = e.response?.data?.errors
+      ? Object.values(e.response.data.errors).flat().join(' ')
+      : (e.response?.data?.message || e.message)
+  } finally { variantAxisSaving.value = false }
+}
 
 const variantColumns = computed(() => {
   const base = [
@@ -1104,11 +1161,8 @@ async function loadVariants() {
     variants.value = data.data || data
     variantsLoaded.value = true
 
-    // Load variant attribute definitions
-    try {
-      const { data: attrData } = await attributesApiDefault.listVariantAttributes()
-      variantAttributeDefs.value = attrData.data || attrData
-    } catch (e) { console.warn('Failed to load variant attribute definitions:', e.message) }
+    // Merkmalsachsen dieses Produkts laden (befüllt variantAttributeDefs)
+    await loadVariantAxes()
 
     // Load attribute values for each variant
     if (variantAttributeDefs.value.length > 0 && variants.value.length > 0) {
@@ -1135,7 +1189,7 @@ async function createVariant() {
   try {
     await productsApi.createVariant(product.value.id, variantForm.value)
     showVariantForm.value = false
-    variantForm.value = { sku: '', name: '', ean: '', status: 'draft' }
+    variantForm.value = { sku: '', name: '', ean: '', status: 'draft', axis_values: {} }
     variantsLoaded.value = false
     await loadVariants()
   } catch (e) {
@@ -1146,6 +1200,10 @@ async function createVariant() {
       }
     }
   } finally { variantSaving.value = false }
+}
+
+function variantAxisInputOptions(attr) {
+  return attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []
 }
 
 // ─── Variant Delete ──────────────────────────────────
@@ -4127,12 +4185,56 @@ onUnmounted(() => {
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Varianten</h3>
         <div class="flex gap-2">
+          <button class="pim-btn pim-btn-secondary text-xs" @click="showVariantAxisConfig = !showVariantAxisConfig">
+            Merkmalsachsen
+          </button>
           <button class="pim-btn pim-btn-secondary text-xs" @click="initGenerator">
             <Sparkles class="w-3.5 h-3.5" :stroke-width="2" /> Varianten generieren
           </button>
           <button class="pim-btn pim-btn-primary text-xs" @click="showVariantForm = !showVariantForm">
             <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Neue Variante
           </button>
+        </div>
+      </div>
+
+      <!-- Variant Axis Configuration: welche Attribute unterscheiden die Varianten dieses Produkts -->
+      <div v-if="showVariantAxisConfig" class="pim-card p-4 space-y-3">
+        <h4 class="text-sm font-semibold text-[var(--color-text-primary)]">Merkmalsachsen dieses Produkts</h4>
+        <p class="text-xs text-[var(--color-text-secondary)]">
+          Legen Sie fest, welche Attribute die Varianten unterscheiden. Jede Variante muss in diesen Achsen
+          eine eigene, eindeutige Wertekombination haben.
+        </p>
+        <div v-if="variantAxisEligibleAttributes.length === 0" class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800">
+          Keine Attribute mit <em>is_variant_attribute</em> vorhanden. Markieren Sie zuerst Attribute dafür
+          (unter <strong>Attribute</strong> → Attribut bearbeiten → <em>Varianten-Attribut</em>).
+        </div>
+        <div v-else class="flex flex-wrap gap-1.5">
+          <label
+            v-for="attr in variantAxisEligibleAttributes"
+            :key="attr.id"
+            class="flex items-center gap-1 text-xs px-2 py-1 rounded border cursor-pointer transition-colors"
+            :class="variantAxisAttributeIds.includes(attr.id)
+              ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+              : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]'"
+          >
+            <input type="checkbox" class="pim-checkbox w-3 h-3" :checked="variantAxisAttributeIds.includes(attr.id)" @change="toggleVariantAxis(attr.id)" />
+            {{ attr.name_de || attr.technical_name }}
+          </label>
+        </div>
+        <div v-if="variantAxisAttributeIds.length > 0" class="space-y-1">
+          <p class="text-[11px] font-medium text-[var(--color-text-secondary)]">Reihenfolge (= Spaltenreihenfolge in der Matrix):</p>
+          <div v-for="(attrId, idx) in variantAxisAttributeIds" :key="attrId" class="flex items-center gap-2 text-xs">
+            <span class="flex-1">{{ variantAxisEligibleAttributes.find(a => a.id === attrId)?.name_de || attrId }}</span>
+            <button class="pim-btn pim-btn-ghost p-1" :disabled="idx === 0" @click="moveVariantAxis(idx, -1)">↑</button>
+            <button class="pim-btn pim-btn-ghost p-1" :disabled="idx === variantAxisAttributeIds.length - 1" @click="moveVariantAxis(idx, 1)">↓</button>
+          </div>
+        </div>
+        <p v-if="variantAxisError" class="text-[11px] text-[var(--color-error)]">{{ variantAxisError }}</p>
+        <div class="flex gap-2">
+          <button class="pim-btn pim-btn-primary text-xs" :disabled="variantAxisSaving" @click="saveVariantAxes">
+            {{ variantAxisSaving ? 'Speichern…' : 'Achsen speichern' }}
+          </button>
+          <button class="pim-btn pim-btn-secondary text-xs" @click="showVariantAxisConfig = false">Abbrechen</button>
         </div>
       </div>
 
@@ -4157,7 +4259,17 @@ onUnmounted(() => {
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Status</label>
             <PimAttributeInput type="select" v-model="variantForm.status" :options="[{ value: 'draft', label: 'Entwurf' }, { value: 'active', label: 'Aktiv' }]" />
           </div>
+          <div v-for="attr in variantAttributeDefs" :key="attr.id">
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">{{ attr.name_de || attr.technical_name }}</label>
+            <PimAttributeInput
+              :type="mapDataTypeToInput(attr.data_type)"
+              :modelValue="variantForm.axis_values[attr.id]"
+              :options="variantAxisInputOptions(attr)"
+              @update:modelValue="variantForm.axis_values[attr.id] = $event"
+            />
+          </div>
         </div>
+        <p v-if="variantErrors.variant" class="text-[11px] text-[var(--color-error)]">{{ variantErrors.variant }}</p>
         <div class="flex gap-2">
           <button class="pim-btn pim-btn-primary text-xs" :disabled="variantSaving" @click="createVariant">
             {{ variantSaving ? 'Speichern…' : 'Erstellen' }}
