@@ -255,4 +255,105 @@ class ProductVariantAxisControllerTest extends TestCase
             ->assertJsonPath('columns.0.attribute_id', $attr->id)
             ->assertJsonPath('rows.0.axis_values.' . $attr->id, 'Rot');
     }
+
+    // -----------------------------------------------------------------------
+    // Number/Flag-Achsen: axis_values darf nicht auf "string" beschränkt sein
+    // -----------------------------------------------------------------------
+
+    public function test_variante_mit_number_achse_akzeptiert_numerischen_wert(): void
+    {
+        $parent = Product::factory()->create();
+        $attr = Attribute::factory()->create(['is_variant_attribute' => true, 'data_type' => 'Number']);
+
+        $this->putJson("/api/v1/products/{$parent->id}/variant-axes", [
+            'attribute_ids' => [$attr->id],
+        ])->assertOk();
+
+        // Das Frontend sendet für Number-Achsen einen JSON-Zahlenwert, keinen String.
+        $this->postJson("/api/v1/products/{$parent->id}/variants", [
+            'sku' => 'VAR-5MM',
+            'name' => 'Variante 5mm',
+            'axis_values' => [$attr->id => 5],
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('product_attribute_values', [
+            'attribute_id' => $attr->id,
+            'value_number' => 5,
+        ]);
+    }
+
+    public function test_variante_mit_flag_achse_akzeptiert_boolean_wert(): void
+    {
+        $parent = Product::factory()->create();
+        $attr = Attribute::factory()->create(['is_variant_attribute' => true, 'data_type' => 'Flag']);
+
+        $this->putJson("/api/v1/products/{$parent->id}/variant-axes", [
+            'attribute_ids' => [$attr->id],
+        ])->assertOk();
+
+        $this->postJson("/api/v1/products/{$parent->id}/variants", [
+            'sku' => 'VAR-FLAG',
+            'name' => 'Variante Flag',
+            'axis_values' => [$attr->id => true],
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('product_attribute_values', [
+            'attribute_id' => $attr->id,
+            'value_flag' => true,
+        ]);
+    }
+
+    // -----------------------------------------------------------------------
+    // updateRules() darf den Achsen-Guard nicht umgehen
+    // -----------------------------------------------------------------------
+
+    public function test_variant_rules_endpoint_lehnt_inherit_fuer_achsen_attribut_ab(): void
+    {
+        $parent = Product::factory()->create();
+        $variant = Product::factory()->variant()->create(['parent_product_id' => $parent->id]);
+        $attr = Attribute::factory()->create(['is_variant_attribute' => true, 'data_type' => 'String']);
+
+        $this->putJson("/api/v1/products/{$parent->id}/variant-axes", [
+            'attribute_ids' => [$attr->id],
+        ])->assertOk();
+
+        $this->putJson("/api/v1/products/{$variant->id}/variant-rules", [
+            'rules' => [
+                ['attribute_id' => $attr->id, 'inheritance_mode' => 'inherit'],
+            ],
+        ])->assertStatus(422);
+
+        $this->assertDatabaseHas('variant_inheritance_rules', [
+            'product_id' => $variant->id,
+            'attribute_id' => $attr->id,
+            'inheritance_mode' => 'override',
+        ]);
+    }
+
+    // -----------------------------------------------------------------------
+    // bulkUpdate (allgemeiner Attribut-Editor) muss override-Regel nachziehen
+    // -----------------------------------------------------------------------
+
+    public function test_bulk_update_setzt_override_regel_fuer_geaenderten_achsen_wert(): void
+    {
+        $parent = Product::factory()->create();
+        $variant = Product::factory()->variant()->create(['parent_product_id' => $parent->id]);
+        $attr = Attribute::factory()->create(['is_variant_attribute' => true, 'data_type' => 'String']);
+
+        $this->putJson("/api/v1/products/{$parent->id}/variant-axes", [
+            'attribute_ids' => [$attr->id],
+        ])->assertOk();
+
+        $this->putJson("/api/v1/products/{$variant->id}/attribute-values", [
+            'values' => [
+                ['attribute_id' => $attr->id, 'value' => 'Rot'],
+            ],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('variant_inheritance_rules', [
+            'product_id' => $variant->id,
+            'attribute_id' => $attr->id,
+            'inheritance_mode' => 'override',
+        ]);
+    }
 }

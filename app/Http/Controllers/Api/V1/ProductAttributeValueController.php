@@ -527,9 +527,13 @@ class ProductAttributeValueController extends Controller
                 }
             }
 
-            // Wenn dieses Produkt eine Variante ist, dürfen zwei Geschwister nie
-            // dieselbe Achsen-Kombination tragen (no-op, falls keine Achsen
-            // konfiguriert sind oder die Kombination noch unvollständig ist).
+            // Achsen-Attribute dürfen bei Varianten nie geerbt werden (sonst
+            // hätten Geschwister denselben Wert) — hier nachziehen, falls der
+            // Wert über den normalen Attribut-Editor statt die Varianten-Anlage
+            // geändert wurde. Danach: zwei Geschwister dürfen nie dieselbe
+            // Achsen-Kombination tragen (no-op, falls keine Achsen konfiguriert
+            // sind oder die Kombination noch unvollständig ist).
+            $variantAxisService->ensureOverrideRules($product);
             $variantAxisService->assertUniqueCombination($product);
         });
 

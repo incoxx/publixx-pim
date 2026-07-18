@@ -1093,8 +1093,28 @@ async function loadVariantAxes() {
   try {
     const { data } = await productsApi.getVariantAxes(product.value.id)
     const axes = data.data || data
-    variantAxisAttributeIds.value = axes.map(ax => ax.attribute_id)
-    variantAttributeDefs.value = axes.map(ax => ({ id: ax.attribute_id, ...ax.attribute }))
+
+    if (axes.length > 0) {
+      variantAxisAttributeIds.value = axes.map(ax => ax.attribute_id)
+      variantAttributeDefs.value = axes.map(ax => ({ id: ax.attribute_id, ...ax.attribute }))
+      return
+    }
+
+    // Für dieses Produkt sind noch keine Achsen konfiguriert. Anzeige-Fallback
+    // auf die globale is_variant_attribute-Liste, damit bereits gepflegte
+    // Varianten-Attribute (Matrix, Generator) weiterhin sichtbar bleiben.
+    variantAxisAttributeIds.value = []
+    try {
+      const { data: attrData } = await attributesApiDefault.listVariantAttributes()
+      variantAttributeDefs.value = attrData.data || attrData
+    } catch (e) { console.warn('Failed to load global variant attributes:', e.message) }
+
+    // Vorschlag aus der Produkttyp-Vorlage vorbelegen (nur Vorauswahl in der
+    // Achsen-Konfiguration, nicht automatisch gespeichert).
+    const defaults = product.value.product_type?.default_variant_axes
+    if (Array.isArray(defaults) && defaults.length > 0) {
+      variantAxisAttributeIds.value = [...defaults]
+    }
   } catch (e) { console.warn('Failed to load variant axes:', e.message) }
 }
 
@@ -1200,10 +1220,6 @@ async function createVariant() {
       }
     }
   } finally { variantSaving.value = false }
-}
-
-function variantAxisInputOptions(attr) {
-  return attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []
 }
 
 // ─── Variant Delete ──────────────────────────────────
@@ -4273,7 +4289,7 @@ onUnmounted(() => {
             <PimAttributeInput
               :type="mapDataTypeToInput(attr.data_type)"
               :modelValue="variantForm.axis_values[attr.id]"
-              :options="variantAxisInputOptions(attr)"
+              :options="getSelectionOptions(attr)"
               @update:modelValue="variantForm.axis_values[attr.id] = $event"
             />
           </div>

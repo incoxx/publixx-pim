@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Validation\ValidationException;
 
 class Attribute extends Model
 {
@@ -51,6 +52,46 @@ class Attribute extends Model
             'Flag'            => 'value_flag',
             default           => 'value_string',
         };
+    }
+
+    /**
+     * Löst einen Selection/Dictionary-Rohwert (ID, technical_name oder
+     * Anzeigetext) auf den passenden, aktiven Werteliste-Eintrag auf.
+     *
+     * Zentrale Stelle für alle Schreibpfade (Varianten, Bulk-Bearbeitung,
+     * Bulk-Update): ein ungeprüfter String in value_selection_id verletzt die
+     * FK-Constraint gegen value_list_entries.
+     *
+     * @return array{value_string: ?string, value_selection_id: ?string}
+     *
+     * @throws ValidationException wenn kein aktiver Eintrag passt
+     */
+    public function resolveSelectionEntry(string $value): array
+    {
+        if (!$this->value_list_id) {
+            return ['value_string' => $value, 'value_selection_id' => null];
+        }
+
+        $entry = ValueListEntry::where('value_list_id', $this->value_list_id)
+            ->where('is_active', true)
+            ->where(function ($q) use ($value) {
+                $q->where('id', $value)
+                    ->orWhere('technical_name', $value)
+                    ->orWhere('display_value_de', $value)
+                    ->orWhere('display_value_en', $value);
+            })
+            ->first();
+
+        if (!$entry) {
+            throw ValidationException::withMessages([
+                'value' => "Wert \"{$value}\" ist kein gültiger Eintrag der Werteliste von Attribut \"{$this->technical_name}\".",
+            ]);
+        }
+
+        return [
+            'value_string' => $entry->display_value_de ?? $entry->technical_name,
+            'value_selection_id' => $entry->id,
+        ];
     }
 
     protected $fillable = [

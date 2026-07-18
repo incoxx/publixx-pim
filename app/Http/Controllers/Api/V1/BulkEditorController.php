@@ -166,7 +166,12 @@ class BulkEditorController extends Controller
                 $language = $change['language'] ?? null;
 
                 // Determine value columns
-                $valueData = $this->resolveValueColumns($attribute, $change['value']);
+                try {
+                    $valueData = $this->resolveValueColumns($attribute, $change['value']);
+                } catch (\Illuminate\Validation\ValidationException $e) {
+                    $errors[] = "{$attribute->technical_name} ({$product->sku}): " . $e->getMessage();
+                    continue;
+                }
 
                 ProductAttributeValue::updateOrCreate(
                     [
@@ -230,10 +235,9 @@ class BulkEditorController extends Controller
             'Number', 'Float' => array_merge($columns, ['value_number' => $value !== null ? (float) $value : null]),
             'Date' => array_merge($columns, ['value_date' => $value]),
             'Flag' => array_merge($columns, ['value_flag' => $value !== null ? (bool) $value : null]),
-            'Selection', 'Dictionary' => array_merge($columns, [
-                'value_string' => $value !== null ? (string) $value : null,
-                'value_selection_id' => $value,
-            ]),
+            'Selection', 'Dictionary' => $value !== null
+                ? array_merge($columns, $attribute->resolveSelectionEntry((string) $value))
+                : $columns,
             'RichText', 'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink' => array_merge($columns, ['value_string' => $value !== null ? (string) $value : null]),
             default => array_merge($columns, ['value_string' => $value !== null ? (string) $value : null]),
         };
