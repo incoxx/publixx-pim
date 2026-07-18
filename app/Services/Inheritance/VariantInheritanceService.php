@@ -6,10 +6,12 @@ namespace App\Services\Inheritance;
 
 use App\Events\AttributeValuesChanged;
 use App\Models\Product;
+use App\Models\ProductVariantAxis;
 use App\Models\VariantInheritanceRule;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class VariantInheritanceService
 {
@@ -71,6 +73,12 @@ class VariantInheritanceService
         DB::transaction(function () use ($variant, $rules, &$changedAttributeIds) {
             foreach ($rules as $attributeId => $mode) {
                 $this->validateMode($mode);
+
+                if ($mode === 'inherit' && $this->isVariantAxisAttribute($variant, $attributeId)) {
+                    throw ValidationException::withMessages([
+                        'inheritance_mode' => "Attribut {$attributeId} ist eine Varianten-Achse des Elternprodukts und kann nicht vererbt werden.",
+                    ]);
+                }
 
                 $existingRule = VariantInheritanceRule::where('product_id', $variant->id)
                     ->where('attribute_id', $attributeId)
@@ -172,6 +180,22 @@ class VariantInheritanceService
         foreach ($variantIds as $variantId) {
             Cache::tags(["product:{$variantId}"])->flush();
         }
+    }
+
+    /**
+     * Ob das Attribut eine konfigurierte Varianten-Achse des Elternprodukts ist.
+     * Direkte Query statt VariantAxisService-Injektion, um keine zirkuläre
+     * Abhängigkeit zwischen den beiden Services zu erzeugen.
+     */
+    private function isVariantAxisAttribute(Product $variant, string $attributeId): bool
+    {
+        if (!$variant->parent_product_id) {
+            return false;
+        }
+
+        return ProductVariantAxis::where('product_id', $variant->parent_product_id)
+            ->where('attribute_id', $attributeId)
+            ->exists();
     }
 
     /**

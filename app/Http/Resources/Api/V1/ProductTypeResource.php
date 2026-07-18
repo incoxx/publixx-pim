@@ -28,6 +28,7 @@ class ProductTypeResource extends JsonResource
             'has_physical_dimensions' => $this->has_physical_dimensions,
             'default_attribute_groups' => $this->default_attribute_groups,
             'allowed_relation_types' => $this->allowed_relation_types,
+            'default_variant_axes' => $this->default_variant_axes,
             'validation_rules' => $this->validation_rules,
             'sort_order' => $this->sort_order,
             'is_active' => $this->is_active,

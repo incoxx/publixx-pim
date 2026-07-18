@@ -74,6 +74,18 @@ export default {
     return client.post(`/products/${id}/variants/generate`, data)
   },
 
+  getVariantAxes(id) {
+    return client.get(`/products/${id}/variant-axes`)
+  },
+
+  setVariantAxes(id, attributeIds) {
+    return client.put(`/products/${id}/variant-axes`, { attribute_ids: attributeIds })
+  },
+
+  getVariantMatrix(id) {
+    return client.get(`/products/${id}/variant-matrix`)
+  },
+
   // Media
   getMedia(id, { page = 1, perPage = 100 } = {}) {
     return client.get(`/products/${id}/media`, { params: { page, per_page: perPage } })

@@ -630,6 +630,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('products/{product}/variants/generate', [ProductVariantController::class, 'generate']);
     Route::get('products/{product}/variant-rules', [ProductVariantController::class, 'rules']);
     Route::put('products/{product}/variant-rules', [ProductVariantController::class, 'updateRules']);
+    Route::get('products/{product}/variant-axes', [ProductVariantController::class, 'axes']);
+    Route::put('products/{product}/variant-axes', [ProductVariantController::class, 'updateAxes']);
+    Route::get('products/{product}/variant-matrix', [ProductVariantController::class, 'matrix']);
 
     // Product Versions
     Route::get('products/{product}/versions/compare', [ProductVersionController::class, 'compare']);

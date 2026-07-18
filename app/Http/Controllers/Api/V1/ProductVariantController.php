@@ -5,20 +5,24 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Requests\Api\V1\StoreProductVariantRequest;
+use App\Http\Requests\Api\V1\UpdateVariantAxesRequest;
 use App\Http\Requests\Api\V1\UpdateVariantRulesRequest;
 use App\Http\Resources\Api\V1\ProductResource;
+use App\Http\Resources\Api\V1\ProductVariantAxisResource;
 use App\Http\Resources\Api\V1\VariantInheritanceRuleResource;
 use App\Http\Traits\ChecksTabPermissions;
 use App\Models\Attribute;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\VariantInheritanceRule;
+use App\Services\Inheritance\VariantAxisService;
 use Illuminate\Support\Str;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class ProductVariantController extends Controller
 {
@@ -42,19 +46,53 @@ class ProductVariantController extends Controller
 
     /**
      * POST /products/{product}/variants — create a variant for this parent.
+     *
+     * Optionaler Body-Block "axis_values": { attribute_id => wert } für die
+     * konfigurierten Varianten-Achsen des Elternprodukts.
      */
-    public function store(StoreProductVariantRequest $request, Product $product): JsonResponse
+    public function store(StoreProductVariantRequest $request, Product $product, VariantAxisService $variantAxisService): JsonResponse
     {
         $this->authorize('create', Product::class);
         $this->assertTabWriteAccess('variants');
 
         $data = $request->validated();
+        $axisValues = $data['axis_values'] ?? [];
+        unset($data['axis_values']);
+
         $data['parent_product_id'] = $product->id;
         $data['product_type_id'] = $product->product_type_id;
         $data['product_type_ref'] = 'variant';
         $data['created_by'] = $request->user()?->id;
 
-        $variant = Product::create($data);
+        $variant = DB::transaction(function () use ($data, $axisValues, $variantAxisService) {
+            $variant = Product::create($data);
+
+            foreach ($axisValues as $attributeId => $value) {
+                if ($value === null || $value === '') {
+                    continue;
+                }
+
+                $attribute = Attribute::find($attributeId);
+                if (!$attribute) {
+                    continue;
+                }
+
+                $valueData = $this->resolveValueColumns($attribute, (string) $value);
+
+                ProductAttributeValue::create(array_merge($valueData, [
+                    'product_id' => $variant->id,
+                    'attribute_id' => $attribute->id,
+                    'language' => $attribute->is_translatable ? 'de' : null,
+                    'multiplied_index' => 0,
+                    'is_inherited' => false,
+                ]));
+            }
+
+            $variantAxisService->ensureOverrideRules($variant);
+            $variantAxisService->assertUniqueCombination($variant);
+
+            return $variant;
+        });
 
         try {
             event(new \App\Events\ProductCreated($variant));
@@ -114,6 +152,82 @@ class ProductVariantController extends Controller
     }
 
     /**
+     * GET /products/{product}/variant-axes — konfigurierte Merkmalsachsen dieses
+     * Elternprodukts (welche Attribute unterscheiden seine Varianten).
+     */
+    public function axes(Request $request, Product $product, VariantAxisService $variantAxisService): AnonymousResourceCollection
+    {
+        $this->authorize('view', $product);
+
+        return ProductVariantAxisResource::collection($variantAxisService->getAxes($product));
+    }
+
+    /**
+     * PUT /products/{product}/variant-axes — Merkmalsachsen ersetzen.
+     *
+     * Body: { "attribute_ids": ["uuid", ...] } — Reihenfolge = Spaltenreihenfolge.
+     */
+    public function updateAxes(UpdateVariantAxesRequest $request, Product $product, VariantAxisService $variantAxisService): AnonymousResourceCollection
+    {
+        $this->authorize('update', $product);
+        $this->assertTabWriteAccess('variants');
+
+        $variantAxisService->setAxes($product, $request->validated('attribute_ids'));
+
+        return ProductVariantAxisResource::collection($variantAxisService->getAxes($product));
+    }
+
+    /**
+     * GET /products/{product}/variant-matrix — Varianten als Matrix: Spalten
+     * sind die konfigurierten Achsen, Zeilen die Varianten mit ihren Achsen-Werten.
+     */
+    public function matrix(Request $request, Product $product, VariantAxisService $variantAxisService): JsonResponse
+    {
+        $this->authorize('view', $product);
+
+        $axes = $variantAxisService->getAxes($product);
+        $variants = $product->variants()->orderBy('sku')->get();
+        $axisAttributeIds = $axes->pluck('attribute_id')->all();
+
+        $valuesByProduct = empty($axisAttributeIds) || $variants->isEmpty()
+            ? collect()
+            : ProductAttributeValue::whereIn('product_id', $variants->pluck('id'))
+                ->whereIn('attribute_id', $axisAttributeIds)
+                ->whereNull('output_hierarchy_id')
+                ->where(function ($q) {
+                    $q->whereNull('language')->orWhere('language', 'de');
+                })
+                ->get()
+                ->groupBy('product_id');
+
+        $rows = $variants->map(function (Product $variant) use ($valuesByProduct, $axisAttributeIds) {
+            $variantValues = $valuesByProduct->get($variant->id, collect())->groupBy('attribute_id');
+
+            $axisValues = [];
+            foreach ($axisAttributeIds as $attributeId) {
+                $rowsForAttribute = $variantValues->get($attributeId, collect());
+                $pav = $rowsForAttribute->firstWhere('language', 'de') ?? $rowsForAttribute->firstWhere('language', null);
+                $axisValues[$attributeId] = $pav
+                    ? ($pav->value_string ?? $pav->value_number ?? $pav->value_date ?? $pav->value_flag ?? $pav->value_selection_id)
+                    : null;
+            }
+
+            return [
+                'id' => $variant->id,
+                'sku' => $variant->sku,
+                'name' => $variant->name,
+                'status' => $variant->status,
+                'axis_values' => $axisValues,
+            ];
+        });
+
+        return response()->json([
+            'columns' => ProductVariantAxisResource::collection($axes)->resolve($request),
+            'rows' => $rows->values(),
+        ]);
+    }
+
+    /**
      * POST /products/{product}/variants/generate
      *
      * Generate variants from cross-product of dimension values.
@@ -127,7 +241,7 @@ class ProductVariantController extends Controller
      *   "status": "draft"             // optional, default: draft
      * }
      */
-    public function generate(Request $request, Product $product): JsonResponse
+    public function generate(Request $request, Product $product, VariantAxisService $variantAxisService): JsonResponse
     {
         $this->authorize('create', Product::class);
         $this->assertTabWriteAccess('variants');
@@ -169,67 +283,84 @@ class ProductVariantController extends Controller
         $skipped = 0;
         $createdVariants = [];
 
-        DB::transaction(function () use (
-            $product, $combinations, $skuPrefix, $status, $userId,
-            $attributeMap, &$created, &$skipped, &$createdVariants
-        ) {
-            foreach ($combinations as $combo) {
-                // Generate SKU from combination values
-                $skuParts = array_map(function ($item) {
-                    return Str::slug(Str::limit($item['value'], 20, ''), '-');
-                }, $combo);
-                $sku = $skuPrefix . '-' . implode('-', $skuParts);
+        foreach ($combinations as $combo) {
+            try {
+                $variant = DB::transaction(function () use (
+                    $product, $combo, $skuPrefix, $status, $userId, $attributeMap, $variantAxisService
+                ) {
+                    // Generate SKU from combination values
+                    $skuParts = array_map(function ($item) {
+                        return Str::slug(Str::limit($item['value'], 20, ''), '-');
+                    }, $combo);
+                    $sku = $skuPrefix . '-' . implode('-', $skuParts);
 
-                // Check for SKU collision
-                if (Product::where('sku', $sku)->exists()) {
-                    $skipped++;
-                    continue;
-                }
+                    // Check for SKU collision — nothing created yet, safe to skip without rollback
+                    if (Product::where('sku', $sku)->exists()) {
+                        return null;
+                    }
 
-                // Generate name
-                $valueParts = array_map(fn($item) => $item['value'], $combo);
-                $name = $product->name . ' — ' . implode(' / ', $valueParts);
+                    // Generate name
+                    $valueParts = array_map(fn($item) => $item['value'], $combo);
+                    $name = $product->name . ' — ' . implode(' / ', $valueParts);
 
-                // Create variant
-                $variant = Product::create([
-                    'sku' => $sku,
-                    'name' => $name,
-                    'status' => $status,
-                    'product_type_id' => $product->product_type_id,
-                    'product_type_ref' => 'variant',
-                    'parent_product_id' => $product->id,
-                    'master_hierarchy_node_id' => $product->master_hierarchy_node_id,
-                    'created_by' => $userId,
-                ]);
-
-                // Set attribute values for each dimension
-                foreach ($combo as $item) {
-                    $attribute = $attributeMap->get($item['attribute_id']);
-                    if (!$attribute) continue;
-
-                    $valueData = $this->resolveValueColumns($attribute, $item['value']);
-
-                    ProductAttributeValue::create(array_merge($valueData, [
-                        'product_id' => $variant->id,
-                        'attribute_id' => $attribute->id,
-                        'language' => $attribute->is_translatable ? 'de' : null,
-                        'multiplied_index' => 0,
-                        'is_inherited' => false,
-                    ]));
-                }
-
-                try {
-                    event(new \App\Events\ProductCreated($variant));
-                } catch (\Throwable $e) {
-                    Log::warning('ProductCreated event failed for generated variant', [
-                        'variant_id' => $variant->id, 'error' => $e->getMessage(),
+                    // Create variant
+                    $variant = Product::create([
+                        'sku' => $sku,
+                        'name' => $name,
+                        'status' => $status,
+                        'product_type_id' => $product->product_type_id,
+                        'product_type_ref' => 'variant',
+                        'parent_product_id' => $product->id,
+                        'master_hierarchy_node_id' => $product->master_hierarchy_node_id,
+                        'created_by' => $userId,
                     ]);
-                }
 
-                $createdVariants[] = ['id' => $variant->id, 'sku' => $variant->sku, 'name' => $variant->name];
-                $created++;
+                    // Set attribute values for each dimension
+                    foreach ($combo as $item) {
+                        $attribute = $attributeMap->get($item['attribute_id']);
+                        if (!$attribute) continue;
+
+                        $valueData = $this->resolveValueColumns($attribute, $item['value']);
+
+                        ProductAttributeValue::create(array_merge($valueData, [
+                            'product_id' => $variant->id,
+                            'attribute_id' => $attribute->id,
+                            'language' => $attribute->is_translatable ? 'de' : null,
+                            'multiplied_index' => 0,
+                            'is_inherited' => false,
+                        ]));
+                    }
+
+                    // Achsen-Attribute des Elternprodukts dürfen bei Varianten nie
+                    // geerbt werden, und Geschwister-Kombinationen müssen eindeutig
+                    // bleiben — wirft ValidationException und rollt diese Variante
+                    // zurück, falls eine identische Kombination bereits existiert.
+                    $variantAxisService->ensureOverrideRules($variant);
+                    $variantAxisService->assertUniqueCombination($variant);
+
+                    return $variant;
+                });
+            } catch (ValidationException $e) {
+                $skipped++;
+                continue;
             }
-        });
+
+            if ($variant === null) {
+                $skipped++;
+                continue;
+            }
+
+            try {
+                event(new \App\Events\ProductCreated($variant));
+            } catch (\Throwable $e) {
+                Log::warning('ProductCreated event failed for generated variant', [
+                    'variant_id' => $variant->id, 'error' => $e->getMessage(),
+                ]);
+            }
+
+            $createdVariants[] = ['id' => $variant->id, 'sku' => $variant->sku, 'name' => $variant->name];
+            $created++;
+        }
 
         return response()->json([
             'message' => "Variant generation completed.",

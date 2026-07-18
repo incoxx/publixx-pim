@@ -222,6 +222,11 @@ class Attribute extends Model
         return $this->hasMany(VariantInheritanceRule::class);
     }
 
+    public function variantAxes(): HasMany
+    {
+        return $this->hasMany(ProductVariantAxis::class);
+    }
+
     public function dictionaryEntries(): BelongsToMany
     {
         return $this->belongsToMany(DictionaryEntry::class, 'attribute_dictionary_entry')
@@ -239,6 +244,7 @@ class Attribute extends Model
             'hierarchyNodeAssignments' => 'Hierarchie-Zuordnungen',
             'mediaAttributeValues'    => 'Medien-Attributwerte',
             'variantInheritanceRules' => 'Vererbungsregeln',
+            'variantAxes'             => 'Varianten-Achsen',
         ];
     }
 }

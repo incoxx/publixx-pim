@@ -20,6 +20,8 @@ class StoreProductVariantRequest extends FormRequest
             'ean' => 'nullable|string|max:20',
             'name' => 'required|string|max:500',
             'status' => 'in:draft,active,inactive,discontinued',
+            'axis_values' => 'nullable|array',
+            'axis_values.*' => 'nullable|string|max:500',
         ];
     }
 }
