@@ -9,6 +9,8 @@ use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\ValueList;
+use App\Models\ValueListEntry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -144,6 +146,90 @@ class ProductVariantAxisControllerTest extends TestCase
                 ['attribute_id' => $attr->id, 'value' => 'Rot'],
             ],
         ])->assertStatus(422);
+    }
+
+    // -----------------------------------------------------------------------
+    // Selection-Achsen (Werteliste): Entry-ID vs. Anzeigetext, ungültiger Wert
+    // -----------------------------------------------------------------------
+
+    private function colorAttribute(): array
+    {
+        $valueList = ValueList::factory()->create();
+        $black = ValueListEntry::factory()->create([
+            'value_list_id' => $valueList->id,
+            'technical_name' => 'schwarz',
+            'display_value_de' => 'Schwarz',
+        ]);
+        $attr = Attribute::factory()->create([
+            'is_variant_attribute' => true,
+            'data_type' => 'Selection',
+            'value_list_id' => $valueList->id,
+        ]);
+
+        return [$attr, $black];
+    }
+
+    public function test_variante_mit_selection_achse_per_entry_id(): void
+    {
+        $parent = Product::factory()->create();
+        [$attr, $black] = $this->colorAttribute();
+
+        $this->putJson("/api/v1/products/{$parent->id}/variant-axes", [
+            'attribute_ids' => [$attr->id],
+        ])->assertOk();
+
+        // Manuelles Formular sendet die Entry-ID (so wie die Select-Option es tut).
+        $this->postJson("/api/v1/products/{$parent->id}/variants", [
+            'sku' => 'VAR-SCHWARZ',
+            'name' => 'Variante Schwarz',
+            'axis_values' => [$attr->id => $black->id],
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('product_attribute_values', [
+            'attribute_id' => $attr->id,
+            'value_selection_id' => $black->id,
+        ]);
+    }
+
+    public function test_variante_mit_selection_achse_per_anzeigetext(): void
+    {
+        $parent = Product::factory()->create();
+        [$attr, $black] = $this->colorAttribute();
+
+        $this->putJson("/api/v1/products/{$parent->id}/variant-axes", [
+            'attribute_ids' => [$attr->id],
+        ])->assertOk();
+
+        // Variantengenerator sendet historisch den Anzeigetext statt der ID —
+        // muss trotzdem auf den passenden Werteliste-Eintrag aufgelöst werden.
+        $this->postJson("/api/v1/products/{$parent->id}/variants/generate", [
+            'dimensions' => [
+                ['attribute_id' => $attr->id, 'values' => ['Schwarz']],
+            ],
+        ])->assertOk()->assertJsonPath('created', 1);
+
+        $this->assertDatabaseHas('product_attribute_values', [
+            'attribute_id' => $attr->id,
+            'value_selection_id' => $black->id,
+        ]);
+    }
+
+    public function test_generate_ueberspringt_ungueltigen_selection_wert_statt_abzustuerzen(): void
+    {
+        $parent = Product::factory()->create();
+        [$attr] = $this->colorAttribute();
+
+        $this->putJson("/api/v1/products/{$parent->id}/variant-axes", [
+            'attribute_ids' => [$attr->id],
+        ])->assertOk();
+
+        $this->postJson("/api/v1/products/{$parent->id}/variants/generate", [
+            'dimensions' => [
+                ['attribute_id' => $attr->id, 'values' => ['Nicht-Existent']],
+            ],
+        ])->assertOk()
+            ->assertJsonPath('created', 0)
+            ->assertJsonPath('skipped', 1);
     }
 
     public function test_matrix_liefert_spalten_und_zeilen(): void
