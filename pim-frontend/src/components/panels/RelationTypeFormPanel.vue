@@ -49,10 +49,21 @@ const allProductTypes = ref([])
 const allowedSourceProductTypeIds = ref([...(props.relationType?.allowed_source_product_type_ids || [])])
 const allowedTargetProductTypeIds = ref([...(props.relationType?.allowed_target_product_type_ids || [])])
 
-function toggleProductTypeId(list, id) {
-  const idx = list.value.indexOf(id)
-  if (idx === -1) list.value = [...list.value, id]
-  else list.value = list.value.filter(v => v !== id)
+// Zwei dedizierte Funktionen statt einer generischen mit Ref-Parameter: Vue
+// entpackt Top-Level-Refs, die direkt aus dem Template übergeben werden
+// (z.B. "toggleProductTypeId(allowedSourceProductTypeIds, id)") — die
+// Funktion hätte dann nur den aktuellen Array-Wert erhalten, nicht die Ref,
+// und Mutationen wären ins Leere gelaufen.
+function toggleSourceProductType(id) {
+  const idx = allowedSourceProductTypeIds.value.indexOf(id)
+  if (idx === -1) allowedSourceProductTypeIds.value = [...allowedSourceProductTypeIds.value, id]
+  else allowedSourceProductTypeIds.value = allowedSourceProductTypeIds.value.filter(v => v !== id)
+}
+
+function toggleTargetProductType(id) {
+  const idx = allowedTargetProductTypeIds.value.indexOf(id)
+  if (idx === -1) allowedTargetProductTypeIds.value = [...allowedTargetProductTypeIds.value, id]
+  else allowedTargetProductTypeIds.value = allowedTargetProductTypeIds.value.filter(v => v !== id)
 }
 
 const fields = computed(() => [
@@ -171,7 +182,7 @@ async function handleSubmit(data) {
               ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
               : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]'"
           >
-            <input type="checkbox" class="pim-checkbox w-3 h-3" :checked="allowedSourceProductTypeIds.includes(pt.id)" @change="toggleProductTypeId(allowedSourceProductTypeIds, pt.id)" />
+            <input type="checkbox" class="pim-checkbox w-3 h-3" :checked="allowedSourceProductTypeIds.includes(pt.id)" @change="toggleSourceProductType(pt.id)" />
             {{ pt.name_de || pt.technical_name }}
           </label>
         </div>
@@ -190,7 +201,7 @@ async function handleSubmit(data) {
               ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
               : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]'"
           >
-            <input type="checkbox" class="pim-checkbox w-3 h-3" :checked="allowedTargetProductTypeIds.includes(pt.id)" @change="toggleProductTypeId(allowedTargetProductTypeIds, pt.id)" />
+            <input type="checkbox" class="pim-checkbox w-3 h-3" :checked="allowedTargetProductTypeIds.includes(pt.id)" @change="toggleTargetProductType(pt.id)" />
             {{ pt.name_de || pt.technical_name }}
           </label>
         </div>
