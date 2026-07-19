@@ -149,6 +149,16 @@ Authorization: Bearer <token>
 
 ---
 
+## Quick Search & Semantic Search
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/quick-search` | Google-like search across all entities |
+| POST | `/semantic-search` | Hybrid search (Meilisearch: keyword + vector + hard filters) |
+| GET | `/semantic-search/health` | Semantic search index health |
+
+---
+
 ## Bulk Operations
 
 ### Bulk Editor
@@ -196,9 +206,9 @@ Supported operations: attribute values (replace/append/remove), relations, outpu
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/hierarchies/{id}/attribute-assignments` | Read hierarchy-level attribute assignments |
-| POST | `/hierarchies/{id}/attribute-assignments` | Create assignment |
-| PUT | `/hierarchy-attribute-assignments/{id}` | Update assignment |
+| GET | `/hierarchies/{hierarchy}/attributes` | Read hierarchy-level attribute assignments |
+| POST | `/hierarchies/{hierarchy}/attributes` | Create assignment |
+| PATCH | `/hierarchy-attribute-assignments/{id}` | Update assignment |
 | DELETE | `/hierarchy-attribute-assignments/{id}` | Remove assignment |
 
 ### Node Attribute Assignments
@@ -320,7 +330,9 @@ Supported operations: attribute values (replace/append/remove), relations, outpu
 | GET | `/media/thumb/{id}` | Thumbnail (public) |
 | GET | `/media/diagnostics` | Storage diagnostics |
 | POST | `/media/bulk-move` | Move media in bulk |
-| POST | `/media/import-urls` | Import media from URLs |
+| POST | `/media/import-url` | Import single media file from URL |
+| POST | `/media/import-video-url` | Import single video from URL |
+| POST | `/media/bulk-import-urls` | Import multiple media files from URLs |
 | POST | `/media/auto-match` | Auto-match media to products |
 
 ### Media Attribute Values
@@ -471,9 +483,11 @@ Supported operations: attribute values (replace/append/remove), relations, outpu
 | Method | Path | Description |
 |---|---|---|
 | POST | `/bmecat-import` | Import BMEcat file |
-| GET | `/bmecat-import/{id}` | Import status |
-| POST | `/bmecat-import/{id}/execute` | Execute import |
-| GET | `/bmecat-import/{id}/preview` | Preview |
+| POST | `/bmecat-import/validate` | Validate BMEcat file |
+| POST | `/bmecat-import/cancel` | Cancel running import |
+| POST | `/bmecat-import/upload-init` | Init chunked upload |
+| POST | `/bmecat-import/upload-chunk` | Upload chunk |
+| POST | `/bmecat-import/upload-complete` | Complete chunked upload |
 | POST | `/bmecat-export` | Export as BMEcat |
 
 ---
@@ -640,12 +654,15 @@ Supported operations: attribute values (replace/append/remove), relations, outpu
 | Method | Path | Description |
 |---|---|---|
 | GET | `/tms/units` | Translation units |
-| GET | `/tms/translations` | All translations |
+| GET | `/tms/units/{id}` | Single translation unit |
+| PUT | `/tms/units/{id}/translations/{lang}` | Update a translation |
 | GET | `/tms/stats` | Translation statistics |
 | GET | `/tms/missing` | Missing translations |
 | POST | `/tms/retranslate` | Retranslate entries |
 | POST | `/tms/ingest` | Ingest new terms |
 | POST | `/tms/sync` | Sync with external TMS |
+| DELETE | `/tms/translations` | Delete translations |
+| DELETE | `/tms/units` | Purge units |
 
 ---
 
@@ -698,15 +715,15 @@ Public endpoints — no authentication required (or access link token):
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api-tester/routes` | List all available routes |
+| GET | `/admin/api-routes` | List all available routes |
 
 ### Database Viewer
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/db/tables` | List all tables |
-| GET | `/db/tables/{table}` | Table structure |
-| GET | `/db/tables/{table}/rows` | Browse table rows |
+| GET | `/admin/db/tables` | List all tables |
+| GET | `/admin/db/tables/{table}/columns` | Table structure |
+| GET | `/admin/db/tables/{table}/rows` | Browse table rows |
 
 ---
 

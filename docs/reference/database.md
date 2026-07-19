@@ -1,6 +1,6 @@
 # anyPIM — Database Schema
 
-> 58 tables across 88 migrations, organized by domain.
+> This page lists ~60 core tables across the domains below. The schema has grown since this was written — as of 2026-07-19 the codebase has 214 migration files defining ~134 tables in total (`grep -c "Schema::create(" database/migrations/*.php`), including newer domains not yet covered here (structured content/CMS, collections, semantic search, reference profiles, connectors, portals). Treat the counts below as a partial, curated overview, not an exhaustive list.
 
 All business tables use UUID (CHAR 36) primary keys. The schema follows an EAV (Entity-Attribute-Value) pattern for flexible product attributes and multi-language support via JSON columns.
 

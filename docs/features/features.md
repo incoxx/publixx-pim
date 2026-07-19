@@ -16,7 +16,7 @@
 | **Planning Calendar** | Calendar view for planned product launches, seasonal changes, and milestones. | Editorial planning directly in the PIM — all stakeholders see when products go live. |
 | **Products** | Product list with inline filters, column customization, and bulk selection. Detail view with tabs for attributes, media, prices, relations, and variants. | Central data management with all information on one page. Variants inherit attributes automatically — only deviations need manual maintenance. |
 | **Reports** | Configurable report designer with drag-and-drop fields, filters, and groupings. | Spot data quality and completeness at a glance — without exporting to Excel. |
-| **Search** | Google-like full-text search across product names, SKU, EAN, and attribute values. Supports PQL (Product Query Language) for complex queries. | Any product found in seconds — even with typos, thanks to phonetic search and fuzzy matching. |
+| **Search** | Google-like full-text search across product names, SKU, EAN, and attribute values. Supports PQL (Product Query Language) for complex queries, plus a Meilisearch-based semantic/hybrid search (keyword + vector + hard filters). | Any product found in seconds — even with typos, thanks to phonetic search, fuzzy matching, and semantic similarity. |
 | **Watchlist** | Add products to a personal watchlist for quick access. Compare products side by side. | Frequently needed or in-progress products are one click away — saves search time in daily work. |
 | **Workflow** | Task management with status tracking, user assignment, and history. | Data maintenance becomes manageable: who needs to do what by when? Tasks no longer get lost in emails. |
 
@@ -26,7 +26,7 @@
 
 | Feature | Description | Benefit |
 |---------|------------|---------|
-| **Attributes** | Manage all product attributes with 12 data types: String, Number, Float, Date, Flag, Selection, Dictionary, Composite, RichText, Hyperlink, ImageLink, PdfLink, VideoLink. | Any product property can be modeled without database changes — from simple text to structured links to repeatable data groups (collections). |
+| **Attributes** | Manage all product attributes with 21 data types: String, Number, Float, Date, Flag, Selection, MultiSelection, Dictionary, Composite, RichText, Hyperlink, ImageLink, PdfLink, VideoLink, DelimitedValue, JsonArtefact, Textarea, HierarchyNodeReference, ProductReference, SimpleSelect, SimpleMultiSelect. | Any product property can be modeled without database changes — from simple text to structured links to repeatable data groups (collections). |
 | **Attribute Groups** | Logical grouping of attributes (e.g., "Technical Data", "Marketing", "Logistics"). | Clear structure even with hundreds of attributes — users see only the group relevant to them. |
 | **Attribute Views** | Definable subsets of attributes for different use cases and departments. | Marketing sees marketing attributes, logistics sees logistics attributes — without getting in each other's way. |
 | **Dictionary** | Lookup table for technical terms, abbreviations, and translations. | Consistent terminology across the entire product range — important for SEO and brand consistency. |
@@ -46,7 +46,7 @@
 | Feature | Description | Benefit |
 |---------|------------|---------|
 | **Access Links** | Temporary, token-based links for external catalog access without a user account. | External partners, agencies, or customers can view product data — without user creation and with automatic expiration. |
-| **API Tester** | Built-in API tester for directly calling all ~285 REST endpoints with authentication. | Interfaces can be tested directly in the PIM — without Postman or external tools. |
+| **API Tester** | Built-in API tester for directly calling all REST endpoints with authentication. | Interfaces can be tested directly in the PIM — without Postman or external tools. |
 | **BMEcat Import/Export** | Industry-standard format for B2B product data exchange — bidirectional. | Seamless data exchange with suppliers and customers using BMEcat — without manual conversion. |
 | **Database** | Direct view of the database structure and table contents for administrators. | Quick error analysis and data verification without command-line access to the server. |
 | **Export** | Filtered product exports in configurable formats with mapping templates. | Each channel gets data in the desired format — shop, marketplace, and print from a single source. |
@@ -76,8 +76,10 @@
 |---------|------------|---------|
 | **Bulk Editor** | Spreadsheet-style mass editing of attribute values across multiple products simultaneously. | Update hundreds of products in minutes instead of hours — like Excel, but directly in the PIM. |
 | **Bulk Update** | Apply the same value to a selection of products in a single step. | "Set status to active for all 500 summer products" — one click instead of 500. |
+| **Collections** | Configurable, typed product groupings (e.g. offers/quotes) with item-level attribute values, PDF/XLSX rendering, share links, and import from JSON/CSV/OpenTRANS RFQ with matching. | Offers and quotes are assembled from PIM data and exported or shared directly, and incoming RFQs can be matched against existing products. |
 | **Product Versioning** | Version history with scheduling (publish date) and one-click rollback. | Product changes can be prepared and scheduled — with a safety net through instant rollback. |
 | **Variant Inheritance** | Per-attribute control: inherit or override. Changes to the master product propagate automatically. | Variants practically maintain themselves — only actual deviations (color, size) need to be set manually. |
+| **Cluster Inheritance (dynamic clusters)** | Product types can be flagged to generate virtual products from a cluster definition, with an option to allow free (unmapped) attributes per axis. | Large structured product families are maintained via a single cluster definition instead of one row per combination. |
 
 ---
 
@@ -110,7 +112,7 @@ Custom query language with SQL-like syntax for complex product searches:
 
 **Benefit:** New attributes are created through the UI — without database migrations, deployments, or developers.
 
-### REST API with ~285 Endpoints
+### REST API with ~870 Endpoints
 Full API coverage of all features with Sanctum authentication (Bearer Token + SPA Cookie).
 
 **Benefit:** Any third-party system (shop, ERP, POS, marketplace) can read and write product data — the PIM becomes the central data hub.
@@ -126,11 +128,11 @@ Full API coverage of all features with Sanctum authentication (Bearer Token + SP
 | **Database** | MySQL 8+ |
 | **Cache & Queue** | Redis / Laravel Horizon |
 | **Authentication** | Laravel Sanctum + SSO (Azure AD) |
-| **API Endpoints** | ~285 RESTful |
-| **Data Types** | 12 |
-| **Eloquent Models** | 55 |
-| **Vue Components** | 116+ |
-| **Migrations** | 88 |
+| **API Endpoints** | ~870 RESTful |
+| **Data Types** | 21 |
+| **Eloquent Models** | 122 |
+| **Vue Components** | 315+ (.vue files) |
+| **Migrations** | 214 |
 | **UI Languages** | German, English |
 | **License** | GPL-3.0 (Open Source) |
 | **Installation** | Single command (`setup.sh`) on Ubuntu 24.04 |

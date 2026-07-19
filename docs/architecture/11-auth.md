@@ -26,7 +26,7 @@ GET  /api/v1/auth/me       → User + Roles + Permissions
 ### Token Configuration
 
 - Expiration: 24h (configurable)
-- Rate Limit: 60 req/min (default), 600/min (export)
+- Rate Limit: 240 req/min (default), 600/min (export), 1200/min (media), 10/min (auth)
 - CORS: Configured for frontend domain
 
 ---
