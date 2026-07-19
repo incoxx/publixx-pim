@@ -13,6 +13,7 @@ use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductMediaAssignment;
 use App\Models\ProductRelation;
+use App\Models\ProductRelationType;
 use App\Services\Inheritance\HierarchyInheritanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -614,6 +615,7 @@ class BulkUpdateController extends Controller
         $added = 0;
         $removed = 0;
         $alreadyExists = 0;
+        $restricted = 0;
 
         foreach ($ops as $op) {
             // Bulk-load existing relations (chunked)
@@ -630,8 +632,27 @@ class BulkUpdateController extends Controller
             }
 
             if ($op['action'] === 'add') {
+                // Dieselbe Produkttyp-Einschränkung wie in ProductRelationController::store()
+                // durchsetzen — sonst wäre sie über die Massendatenpflege umgehbar.
+                $relationType = ProductRelationType::find($op['relation_type_id']);
+                $targetProduct = Product::find($op['target_product_id']);
+                $targetAllowed = $relationType && $targetProduct
+                    && $relationType->allowsTargetProductType($targetProduct->product_type_id);
+
+                $sourceProductTypeIds = [];
+                if ($relationType && $targetAllowed) {
+                    $sourceProductTypeIds = Product::whereIn('id', $productIds)
+                        ->pluck('product_type_id', 'id')
+                        ->all();
+                }
+
                 $toAdd = [];
                 foreach ($productIds as $pid) {
+                    if (!$relationType || !$targetAllowed || !$relationType->allowsSourceProductType($sourceProductTypeIds[$pid] ?? null)) {
+                        $restricted++;
+                        continue;
+                    }
+
                     if (isset($existingSet[$pid])) {
                         $alreadyExists++;
                     } else {
@@ -670,7 +691,7 @@ class BulkUpdateController extends Controller
             }
         }
 
-        return compact('added', 'removed', 'alreadyExists');
+        return compact('added', 'removed', 'alreadyExists', 'restricted');
     }
 
     // ── Output Hierarchy ────────────────────────────────

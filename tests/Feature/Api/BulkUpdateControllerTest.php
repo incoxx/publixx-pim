@@ -363,6 +363,44 @@ class BulkUpdateControllerTest extends TestCase
         $this->assertDatabaseCount('product_relations', 2);
     }
 
+    public function test_execute_respektiert_produkttyp_einschraenkung_bei_relationen(): void
+    {
+        $allowedType = \App\Models\ProductType::factory()->create();
+        $disallowedType = \App\Models\ProductType::factory()->create();
+        $target = Product::factory()->create();
+        $relationType = ProductRelationType::factory()->create([
+            'allowed_source_product_type_ids' => [$allowedType->id],
+        ]);
+        $allowedSource = Product::factory()->create(['product_type_id' => $allowedType->id]);
+        $disallowedSource = Product::factory()->create(['product_type_id' => $disallowedType->id]);
+
+        $response = $this->putJson('/api/v1/products/bulk-update', [
+            'product_ids' => [$allowedSource->id, $disallowedSource->id],
+            'operations' => [
+                'relations' => [
+                    [
+                        'relation_type_id' => $relationType->id,
+                        'target_product_id' => $target->id,
+                        'action' => 'add',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('results.relations.added', 1)
+            ->assertJsonPath('results.relations.restricted', 1);
+
+        $this->assertDatabaseHas('product_relations', [
+            'source_product_id' => $allowedSource->id,
+            'target_product_id' => $target->id,
+        ]);
+        $this->assertDatabaseMissing('product_relations', [
+            'source_product_id' => $disallowedSource->id,
+            'target_product_id' => $target->id,
+        ]);
+    }
+
     public function test_execute_entfernt_relationen(): void
     {
         $target = Product::factory()->create();

@@ -124,10 +124,16 @@ class ProductVariantController extends Controller
      *
      * Body: { "rules": [ { "attribute_id": "...", "inheritance_mode": "inherit|override" } ] }
      */
-    public function updateRules(UpdateVariantRulesRequest $request, Product $product, VariantInheritanceService $variantInheritanceService): JsonResponse
+    public function updateRules(UpdateVariantRulesRequest $request, Product $product, VariantInheritanceService $variantInheritanceService, VariantAxisService $variantAxisService): JsonResponse
     {
         $this->authorize('update', $product);
         $this->assertTabWriteAccess('variants');
+
+        if (!$product->parent_product_id) {
+            throw ValidationException::withMessages([
+                'product' => 'Vererbungsregeln können nur für eine Variante gesetzt werden (Produkt hat kein Elternprodukt).',
+            ]);
+        }
 
         $rules = $request->validated('rules');
         $rulesMap = [];
@@ -137,11 +143,17 @@ class ProductVariantController extends Controller
 
         // Über den Service statt direktem Model-Zugriff: erzwingt u.a., dass eine
         // konfigurierte Varianten-Achse nicht auf "inherit" gesetzt werden kann.
-        DB::transaction(function () use ($product, $rulesMap, $variantInheritanceService) {
+        DB::transaction(function () use ($product, $rulesMap, $variantInheritanceService, $variantAxisService) {
             $variantInheritanceService->resetAllRules($product);
             if (!empty($rulesMap)) {
                 $variantInheritanceService->setRules($product, $rulesMap);
             }
+
+            // Achsen-Attribute des Elternprodukts müssen immer override bleiben,
+            // auch wenn der Client sie in der Regel-Liste nicht mitgeschickt hat
+            // (sonst würde reset+set sie stillschweigend auf inherit zurückfallen
+            // lassen und die Eindeutigkeit der Merkmalskombination aushebeln).
+            $variantAxisService->ensureOverrideRules($product);
         });
 
         return response()->json([
