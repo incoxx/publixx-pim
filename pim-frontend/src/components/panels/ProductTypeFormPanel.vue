@@ -37,6 +37,7 @@ const formData = ref(
         has_stock: props.productType.has_stock ?? false,
         has_physical_dimensions: props.productType.has_physical_dimensions ?? false,
         has_dynamic_cluster: props.productType.has_dynamic_cluster ?? false,
+        allows_free_attributes: props.productType.allows_free_attributes ?? false,
         workflow_id: props.productType.workflow_id || '',
       }
     : {
@@ -55,6 +56,7 @@ const formData = ref(
         has_stock: false,
         has_physical_dimensions: false,
         has_dynamic_cluster: false,
+        allows_free_attributes: false,
         workflow_id: '',
       }
 )
@@ -83,6 +85,10 @@ const fields = computed(() => {
     {
       key: 'has_dynamic_cluster', label: 'Cluster-Vererbung', type: 'boolean',
       hint: 'Produkte dieses Typs zeigen den Tab „Cluster-Vererbung“ (Mitglieder aus Suchprofil/PQL/Merkliste, Attribut-/Medien-Vererbung an Mitglieder).',
+    },
+    {
+      key: 'allows_free_attributes', label: 'Freie Attribute zulassen', type: 'boolean',
+      hint: 'Produkte dieses Typs können zusätzlich zu Hierarchie-/Schema-Attributen beliebige weitere Attribute aus dem Katalog frei zugeordnet bekommen.',
     },
   ]
 

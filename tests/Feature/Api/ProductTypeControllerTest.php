@@ -122,6 +122,20 @@ class ProductTypeControllerTest extends TestCase
         $this->assertDatabaseHas('product_types', ['id' => $type->id, 'name_de' => 'Neu']);
     }
 
+    public function test_update_setzt_allows_free_attributes(): void
+    {
+        $type = ProductType::factory()->create(['allows_free_attributes' => false]);
+
+        $response = $this->patchJson("/api/v1/product-types/{$type->id}", [
+            'allows_free_attributes' => true,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.allows_free_attributes', true);
+
+        $this->assertDatabaseHas('product_types', ['id' => $type->id, 'allows_free_attributes' => true]);
+    }
+
     public function test_destroy_loescht_produkttyp_ohne_abhaengigkeiten(): void
     {
         $type = ProductType::factory()->create();

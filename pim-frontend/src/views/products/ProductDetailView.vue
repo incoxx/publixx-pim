@@ -630,15 +630,14 @@ async function loadAttributeData(overrideNodeId = null, generation = null) {
   if (attrLoaded.value || !product.value) return
   const gen = generation ?? _loadGeneration
   try {
-    // Virtuelle Produkte ("Klammer") gehören konzeptionell zu keinem
-    // einzelnen Kategorieknoten — Hierarchie-Attributzuweisung ergibt hier
-    // keinen Sinn. Sie erhalten stattdessen ein freies Attribut-Schema
-    // (siehe Fallback-Zweig unten + Attribut-Picker im Template).
-    const isVirtualProduct = !!product.value.product_type?.has_dynamic_cluster
+    // Ob dieser Produkttyp zusätzlich freie Attribute erlaubt (unabhängig
+    // von einer evtl. Cluster-Vererbung oder Hierarchie-Zuordnung — siehe
+    // Attribut-Picker im Template).
+    const allowsFreeAttributes = !!product.value.product_type?.allows_free_attributes
 
     // Try resolved attributes from hierarchy first (includes inheritance info)
     let resolvedAttrs = null
-    const nodeId = !isVirtualProduct && (overrideNodeId || product.value.master_hierarchy_node_id)
+    const nodeId = overrideNodeId || product.value.master_hierarchy_node_id
     if (nodeId) {
       try {
         const { data: resolvedData } = await productsApi.getResolvedAttributes(product.value.id, nodeId)
@@ -745,16 +744,19 @@ async function loadAttributeData(overrideNodeId = null, generation = null) {
           }
         }
       }
-      if (isVirtualProduct) {
-        // Freies Schema: nur die Attribute, die bereits einen Wert haben
-        // (weitere können über den Attribut-Picker im Template ergänzt werden).
-        schema.value = [...ownAttributesById.values()]
-      } else if (product.value.product_type_id) {
+      if (product.value.product_type_id) {
         try {
           const { data: schemaData } = await productTypes.getSchema(product.value.product_type_id)
           if (gen !== _loadGeneration) return
           schema.value = schemaData.data || schemaData
         } catch (e) { console.warn('Product type schema not found:', e.message) }
+      }
+      // Kein Produkttyp-Schema ermittelbar (z.B. Klammer-Produkt ohne eigenes
+      // Schema) und freie Attribute erlaubt: auf die bereits befüllten
+      // Attribute zurückfallen, damit nichts verloren geht — weitere können
+      // über den Attribut-Picker im Template ergänzt werden.
+      if (allowsFreeAttributes && (!schema.value || schema.value.length === 0)) {
+        schema.value = [...ownAttributesById.values()]
       }
     }
 
@@ -811,10 +813,10 @@ async function loadAttributeData(overrideNodeId = null, generation = null) {
   } catch (e) { console.error('Failed to load attribute data:', e.message) }
 }
 
-// ─── Freier Attribut-Picker für virtuelle Produkte ────
-// Virtuelle Produkte haben keinen Hierarchieknoten-Schema — hier kann
-// jedes beliebige Attribut aus dem Katalog hinzugefügt werden (analog
-// zum Attribut-Picker der Produktbeziehungen, siehe relationAttrList).
+// ─── Freier Attribut-Picker (Produkttyp erlaubt freie Attribute) ────
+// Zusätzlich zu Hierarchie-/Schema-Attributen kann hier jedes beliebige
+// Attribut aus dem Katalog hinzugefügt werden (analog zum Attribut-Picker
+// der Produktbeziehungen, siehe relationAttrList).
 const virtualAttributeCatalog = ref([])
 const virtualAttributeCatalogLoaded = ref(false)
 const virtualAttributePicker = ref({ attribute_id: '' })
@@ -3135,7 +3137,7 @@ watch(activeTab, (tab) => {
   if (tab === 'base-data') loadAttributeData()
   if (tab === 'attributes' || isAttributeViewTabKey(tab)) {
     loadAttributeData(); loadFilterOptions(); loadOutputHierarchyAttributes()
-    if (product.value?.product_type?.has_dynamic_cluster) loadVirtualAttributeCatalog()
+    if (product.value?.product_type?.allows_free_attributes) loadVirtualAttributeCatalog()
   }
   // Attribut-Sicht-Tabs zeigen immer die Master-Attribute (Sicht ist klassifikationsübergreifend) —
   // eine zuvor gewählte ETIM/ONYX-Klassifikations-Sub-Tab-Auswahl würde sonst zu einer falschen/leeren Liste führen.
@@ -3859,8 +3861,8 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Freier Attribut-Picker (nur Cluster-Vererbung: kein Hierarchieknoten-Schema) -->
-      <div v-if="product.product_type?.has_dynamic_cluster" class="pim-card p-3">
+      <!-- Freier Attribut-Picker (Produkttyp erlaubt freie Attribute) -->
+      <div v-if="product.product_type?.allows_free_attributes" class="pim-card p-3">
         <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Attribut hinzufügen</label>
         <div class="flex items-end gap-2">
           <div class="flex-1 max-w-sm">
@@ -3875,7 +3877,7 @@ onUnmounted(() => {
             <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Hinzufügen
           </button>
         </div>
-        <p class="text-[11px] text-[var(--color-text-tertiary)] mt-1">Produkte mit Cluster-Vererbung sind keinem Kategorieknoten zugeordnet — hier kann jedes Attribut aus dem Katalog frei ergänzt werden.</p>
+        <p class="text-[11px] text-[var(--color-text-tertiary)] mt-1">Zusätzlich zu Hierarchie-/Schema-Attributen kann hier jedes Attribut aus dem Katalog frei ergänzt werden.</p>
       </div>
 
       <!-- Language switcher for translatable attributes -->

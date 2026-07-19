@@ -24,6 +24,7 @@ class ProductTypeFactory extends Factory
             'has_stock' => false,
             'has_physical_dimensions' => false,
             'has_dynamic_cluster' => false,
+            'allows_free_attributes' => false,
             'sort_order' => fake()->numberBetween(0, 100),
             'is_active' => true,
         ];
@@ -36,5 +37,14 @@ class ProductTypeFactory extends Factory
     public function dynamicCluster(): static
     {
         return $this->state(fn () => ['has_dynamic_cluster' => true]);
+    }
+
+    /**
+     * Produkttyp, dessen Produkte zusätzlich zu evtl. Hierarchie-Attributen
+     * frei beliebige Attribute aus dem Katalog zugeordnet bekommen können.
+     */
+    public function freeAttributes(): static
+    {
+        return $this->state(fn () => ['allows_free_attributes' => true]);
     }
 }
