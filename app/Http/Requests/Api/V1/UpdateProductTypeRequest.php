@@ -33,6 +33,7 @@ class UpdateProductTypeRequest extends FormRequest
             'has_media' => 'boolean',
             'has_stock' => 'boolean',
             'has_physical_dimensions' => 'boolean',
+            'has_dynamic_cluster' => 'boolean',
             'default_attribute_groups' => 'nullable|array',
             'allowed_relation_types' => 'nullable|array',
             'validation_rules' => 'nullable|array',

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Api;
 
 use App\Models\Product;
+use App\Models\ProductType;
 use App\Models\Role;
 use App\Models\SearchProfile;
 use App\Models\User;
@@ -41,9 +42,16 @@ class VirtualProductControllerTest extends TestCase
         $this->actingAs($this->user);
     }
 
+    /**
+     * Produkt eines Produkttyps mit aktivierter Cluster-Vererbung
+     * (has_dynamic_cluster=true) — die Freischaltung des Features hängt
+     * seit der Umstellung am Produkttyp, nicht mehr an product_type_ref.
+     */
     private function virtualProduct(): Product
     {
-        return Product::factory()->create(['product_type_ref' => 'virtual']);
+        $type = ProductType::factory()->dynamicCluster()->create();
+
+        return Product::factory()->create(['product_type_id' => $type->id]);
     }
 
     public function test_manuelle_auswahl_loest_genau_die_gewaehlten_produkte_auf(): void
@@ -87,15 +95,23 @@ class VirtualProductControllerTest extends TestCase
         $this->assertSame($active->id, $response->json('data.0.id'));
     }
 
-    public function test_klammer_und_virtuelle_produkte_sind_keine_mitglieder(): void
+    public function test_klammer_und_bereits_konfigurierte_cluster_sind_keine_mitglieder(): void
     {
         $virtual = $this->virtualProduct();
         $other = Product::factory()->create();
-        $anotherVirtual = Product::factory()->create(['product_type_ref' => 'virtual']);
+
+        // Bereits als Cluster konfiguriert (hat eine eigene Definition) — maßgeblich
+        // für den Ausschluss ist das, nicht der Produkttyp an sich.
+        $anotherCluster = $this->virtualProduct();
+        VirtualProductDefinition::create([
+            'product_id' => $anotherCluster->id,
+            'source_type' => 'manual',
+            'manual_product_ids' => [],
+        ]);
 
         $this->putJson("/api/v1/products/{$virtual->id}/virtual-definition", [
             'source_type' => 'manual',
-            'manual_product_ids' => [$virtual->id, $anotherVirtual->id, $other->id],
+            'manual_product_ids' => [$virtual->id, $anotherCluster->id, $other->id],
         ])->assertOk();
 
         $response = $this->getJson("/api/v1/products/{$virtual->id}/virtual-members");
@@ -121,15 +137,30 @@ class VirtualProductControllerTest extends TestCase
             ->assertJsonPath('meta.total', 2);
     }
 
-    public function test_definition_nur_fuer_virtuelle_produkte_erlaubt(): void
+    public function test_definition_nur_fuer_produkte_mit_aktivierter_cluster_vererbung_erlaubt(): void
     {
-        $normal = Product::factory()->create(['product_type_ref' => 'product']);
+        // Default-ProductType (ProductTypeFactory) hat has_dynamic_cluster=false.
+        $normal = Product::factory()->create();
         $other = Product::factory()->create();
 
         $this->putJson("/api/v1/products/{$normal->id}/virtual-definition", [
             'source_type' => 'manual',
             'manual_product_ids' => [$other->id],
         ])->assertStatus(422);
+    }
+
+    public function test_definition_erlaubt_bei_aktiviertem_flag_unabhaengig_von_product_type_ref(): void
+    {
+        // Der Kern der Umstellung: product_type_ref bleibt 'product' (Default),
+        // nur das Produkttyp-Flag entscheidet über den Zugriff.
+        $type = ProductType::factory()->dynamicCluster()->create();
+        $product = Product::factory()->create(['product_type_id' => $type->id, 'product_type_ref' => 'product']);
+        $other = Product::factory()->create();
+
+        $this->putJson("/api/v1/products/{$product->id}/virtual-definition", [
+            'source_type' => 'manual',
+            'manual_product_ids' => [$other->id],
+        ])->assertOk();
     }
 
     public function test_from_watchlist_uebernimmt_merkliste_als_manuelle_mitglieder(): void

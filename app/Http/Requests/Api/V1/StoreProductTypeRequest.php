@@ -29,6 +29,7 @@ class StoreProductTypeRequest extends FormRequest
             'has_media' => 'required|boolean',
             'has_stock' => 'required|boolean',
             'has_physical_dimensions' => 'required|boolean',
+            'has_dynamic_cluster' => 'boolean',
             'default_attribute_groups' => 'nullable|array',
             'allowed_relation_types' => 'nullable|array',
             'validation_rules' => 'nullable|array',

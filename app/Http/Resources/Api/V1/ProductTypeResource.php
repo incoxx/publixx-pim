@@ -26,6 +26,7 @@ class ProductTypeResource extends JsonResource
             'has_media' => $this->has_media,
             'has_stock' => $this->has_stock,
             'has_physical_dimensions' => $this->has_physical_dimensions,
+            'has_dynamic_cluster' => $this->has_dynamic_cluster,
             'default_attribute_groups' => $this->default_attribute_groups,
             'allowed_relation_types' => $this->allowed_relation_types,
             'default_variant_axes' => $this->default_variant_axes,
