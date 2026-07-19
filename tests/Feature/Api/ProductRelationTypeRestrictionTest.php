@@ -111,4 +111,63 @@ class ProductRelationTypeRestrictionTest extends TestCase
         ])->assertCreated()
             ->assertJsonPath('data.allowed_source_product_type_ids', [$type->id]);
     }
+
+    // -----------------------------------------------------------------------
+    // Bidirektionale Beziehungstypen: Quell- und Ziel-Produkttypen müssen
+    // synchron bleiben, sonst wäre A→B erlaubt, B→A aber nicht.
+    // -----------------------------------------------------------------------
+
+    public function test_bidirektionaler_typ_synchronisiert_ziel_mit_quell_produkttypen_bei_erstellung(): void
+    {
+        $type = ProductType::factory()->create();
+        $other = ProductType::factory()->create();
+
+        $response = $this->postJson('/api/v1/relation-types', [
+            'technical_name' => 'zubehoer',
+            'name_de' => 'Zubehör',
+            'is_bidirectional' => true,
+            'allowed_source_product_type_ids' => [$type->id],
+            'allowed_target_product_type_ids' => [$other->id],
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.allowed_source_product_type_ids', [$type->id])
+            ->assertJsonPath('data.allowed_target_product_type_ids', [$type->id]);
+    }
+
+    public function test_bidirektionaler_typ_synchronisiert_ziel_mit_quell_produkttypen_bei_aktualisierung(): void
+    {
+        $type = ProductType::factory()->create();
+        $mismatched = ProductType::factory()->create();
+        $relationType = ProductRelationType::factory()->create([
+            'is_bidirectional' => false,
+            'allowed_source_product_type_ids' => [$type->id],
+            'allowed_target_product_type_ids' => [$mismatched->id],
+        ]);
+
+        $response = $this->putJson("/api/v1/relation-types/{$relationType->id}", [
+            'is_bidirectional' => true,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.allowed_target_product_type_ids', [$type->id]);
+    }
+
+    public function test_nicht_bidirektionaler_typ_behaelt_unterschiedliche_produkttypen(): void
+    {
+        $sourceType = ProductType::factory()->create();
+        $targetType = ProductType::factory()->create();
+
+        $response = $this->postJson('/api/v1/relation-types', [
+            'technical_name' => 'zeigt_auf',
+            'name_de' => 'Zeigt auf',
+            'is_bidirectional' => false,
+            'allowed_source_product_type_ids' => [$sourceType->id],
+            'allowed_target_product_type_ids' => [$targetType->id],
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.allowed_source_product_type_ids', [$sourceType->id])
+            ->assertJsonPath('data.allowed_target_product_type_ids', [$targetType->id]);
+    }
 }
