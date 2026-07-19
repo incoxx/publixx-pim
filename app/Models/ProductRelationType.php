@@ -15,6 +15,21 @@ class ProductRelationType extends Model
 {
     use HasDeletionConstraints, HasFactory, HasUuids;
 
+    /**
+     * Bei bidirektionalen Beziehungstypen müssen erlaubte Quell- und
+     * Ziel-Produkttypen deckungsgleich sein — sonst wäre z.B. A→B erlaubt,
+     * aber die durch "bidirektional" implizierte Gegenrichtung B→A nicht.
+     * Zentral hier statt in jedem Schreibpfad einzeln (Controller, Import, ...).
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (ProductRelationType $relationType): void {
+            if ($relationType->is_bidirectional) {
+                $relationType->allowed_target_product_type_ids = $relationType->allowed_source_product_type_ids;
+            }
+        });
+    }
+
     protected $fillable = [
         'technical_name',
         'name_de',

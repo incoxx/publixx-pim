@@ -36,6 +36,7 @@ const formData = ref(
         has_media: props.productType.has_media ?? true,
         has_stock: props.productType.has_stock ?? false,
         has_physical_dimensions: props.productType.has_physical_dimensions ?? false,
+        has_dynamic_cluster: props.productType.has_dynamic_cluster ?? false,
         workflow_id: props.productType.workflow_id || '',
       }
     : {
@@ -53,6 +54,7 @@ const formData = ref(
         has_media: true,
         has_stock: false,
         has_physical_dimensions: false,
+        has_dynamic_cluster: false,
         workflow_id: '',
       }
 )
@@ -78,6 +80,10 @@ const fields = computed(() => {
     { key: 'has_media', label: 'Medien', type: 'boolean' },
     { key: 'has_stock', label: 'Lagerbestand', type: 'boolean' },
     { key: 'has_physical_dimensions', label: 'Physische Maße', type: 'boolean' },
+    {
+      key: 'has_dynamic_cluster', label: 'Cluster-Vererbung', type: 'boolean',
+      hint: 'Produkte dieses Typs zeigen den Tab „Cluster-Vererbung“ (Mitglieder aus Suchprofil/PQL/Merkliste, Attribut-/Medien-Vererbung an Mitglieder).',
+    },
   ]
 
   // Workflow dropdown only visible with Enterprise license

@@ -169,9 +169,16 @@ async function handleSubmit(data) {
     <!-- Erlaubte Produkttypen: leer = für alle Produkttypen zulässig (Default) -->
     <div class="space-y-3">
       <div>
-        <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] mb-1">Erlaubte Quell-Produkttypen</h4>
+        <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] mb-1">
+          {{ formData.is_bidirectional ? 'Erlaubte Produkttypen' : 'Erlaubte Quell-Produkttypen' }}
+        </h4>
         <p class="text-[11px] text-[var(--color-text-tertiary)] mb-2">
-          Nur Produkte dieser Typen können diesen Beziehungstyp anlegen. Keine Auswahl = alle Produkttypen erlaubt.
+          <template v-if="formData.is_bidirectional">
+            Bidirektional: gilt gleichermaßen als Quelle und Ziel. Keine Auswahl = alle Produkttypen erlaubt.
+          </template>
+          <template v-else>
+            Nur Produkte dieser Typen können diesen Beziehungstyp anlegen. Keine Auswahl = alle Produkttypen erlaubt.
+          </template>
         </p>
         <div class="flex flex-wrap gap-1.5">
           <label
@@ -187,7 +194,7 @@ async function handleSubmit(data) {
           </label>
         </div>
       </div>
-      <div>
+      <div v-if="!formData.is_bidirectional">
         <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] mb-1">Erlaubte Ziel-Produkttypen</h4>
         <p class="text-[11px] text-[var(--color-text-tertiary)] mb-2">
           Nur Produkte dieser Typen können als Zielprodukt gewählt werden. Keine Auswahl = alle Produkttypen erlaubt.

@@ -99,7 +99,7 @@ class VirtualProductController extends Controller
 
         if (! $product->isVirtual()) {
             throw ValidationException::withMessages([
-                'product_type_ref' => 'Eine Cluster-Definition kann nur für virtuelle Produkte (product_type_ref=virtual) angelegt werden.',
+                'product_type' => 'Eine Cluster-Definition kann nur für Produkte angelegt werden, deren Produkttyp "Cluster-Vererbung" aktiviert hat.',
             ]);
         }
 
@@ -167,7 +167,7 @@ class VirtualProductController extends Controller
 
         if (! $product->isVirtual()) {
             throw ValidationException::withMessages([
-                'product_type_ref' => 'Eine Cluster-Definition kann nur für virtuelle Produkte (product_type_ref=virtual) angelegt werden.',
+                'product_type' => 'Eine Cluster-Definition kann nur für Produkte angelegt werden, deren Produkttyp "Cluster-Vererbung" aktiviert hat.',
             ]);
         }
 
@@ -226,7 +226,7 @@ class VirtualProductController extends Controller
 
         if (! $product->isVirtual()) {
             throw ValidationException::withMessages([
-                'product_type_ref' => 'Vererbungsregeln können nur für virtuelle Produkte (product_type_ref=virtual) angelegt werden.',
+                'product_type' => 'Vererbungsregeln können nur für Produkte angelegt werden, deren Produkttyp "Cluster-Vererbung" aktiviert hat.',
             ]);
         }
 
@@ -289,7 +289,7 @@ class VirtualProductController extends Controller
 
         if (! $product->isVirtual()) {
             throw ValidationException::withMessages([
-                'product_type_ref' => 'Vererbungsregeln können nur für virtuelle Produkte (product_type_ref=virtual) angelegt werden.',
+                'product_type' => 'Vererbungsregeln können nur für Produkte angelegt werden, deren Produkttyp "Cluster-Vererbung" aktiviert hat.',
             ]);
         }
 
@@ -336,7 +336,7 @@ class VirtualProductController extends Controller
 
         if (! $product->isVirtual()) {
             throw ValidationException::withMessages([
-                'product_type_ref' => 'Nur virtuelle Produkte (product_type_ref=virtual) können synchronisiert werden.',
+                'product_type' => 'Nur Produkte, deren Produkttyp "Cluster-Vererbung" aktiviert hat, können synchronisiert werden.',
             ]);
         }
 

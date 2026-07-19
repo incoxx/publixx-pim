@@ -330,6 +330,49 @@ class ProductVariantAxisControllerTest extends TestCase
         ]);
     }
 
+    public function test_variant_rules_endpoint_lehnt_produkt_ohne_elternprodukt_mit_422_statt_serverfehler_ab(): void
+    {
+        $parent = Product::factory()->create();
+
+        $this->putJson("/api/v1/products/{$parent->id}/variant-rules", [
+            'rules' => [
+                ['attribute_id' => Attribute::factory()->create()->id, 'inheritance_mode' => 'override'],
+            ],
+        ])->assertStatus(422);
+    }
+
+    public function test_variant_rules_endpoint_erzwingt_achsen_override_auch_wenn_nicht_mitgeschickt(): void
+    {
+        $parent = Product::factory()->create();
+        $variant = Product::factory()->variant()->create(['parent_product_id' => $parent->id]);
+        $axisAttr = Attribute::factory()->create(['is_variant_attribute' => true, 'data_type' => 'String']);
+        $otherAttr = Attribute::factory()->create(['data_type' => 'String']);
+
+        $this->putJson("/api/v1/products/{$parent->id}/variant-axes", [
+            'attribute_ids' => [$axisAttr->id],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('variant_inheritance_rules', [
+            'product_id' => $variant->id,
+            'attribute_id' => $axisAttr->id,
+            'inheritance_mode' => 'override',
+        ]);
+
+        // Regel-Liste schickt das Achsen-Attribut absichtlich nicht mit — die
+        // erzwungene override-Regel darf trotzdem nicht verloren gehen.
+        $this->putJson("/api/v1/products/{$variant->id}/variant-rules", [
+            'rules' => [
+                ['attribute_id' => $otherAttr->id, 'inheritance_mode' => 'inherit'],
+            ],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('variant_inheritance_rules', [
+            'product_id' => $variant->id,
+            'attribute_id' => $axisAttr->id,
+            'inheritance_mode' => 'override',
+        ]);
+    }
+
     // -----------------------------------------------------------------------
     // bulkUpdate (allgemeiner Attribut-Editor) muss override-Regel nachziehen
     // -----------------------------------------------------------------------

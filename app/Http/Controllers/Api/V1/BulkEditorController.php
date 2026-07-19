@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Models\Attribute;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Services\Inheritance\VariantAxisService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -131,7 +132,7 @@ class BulkEditorController extends Controller
      *   ]
      * }
      */
-    public function save(Request $request): JsonResponse
+    public function save(Request $request, VariantAxisService $variantAxisService): JsonResponse
     {
         $this->authorize('update', Product::class);
 
@@ -147,58 +148,76 @@ class BulkEditorController extends Controller
         $updated = 0;
         $errors = [];
 
-        DB::transaction(function () use ($changes, &$updated, &$errors) {
+        DB::transaction(function () use ($changes, $variantAxisService, &$updated, &$errors) {
             // Pre-load all referenced products and attributes
             $productIds = collect($changes)->pluck('product_id')->unique();
             $attributeIds = collect($changes)->pluck('attribute_id')->unique();
             $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
             $attributes = Attribute::whereIn('id', $attributeIds)->get()->keyBy('id');
+            $changesByProduct = collect($changes)->groupBy('product_id');
 
-            foreach ($changes as $change) {
-                $product = $products->get($change['product_id']);
-                $attribute = $attributes->get($change['attribute_id']);
-
-                if (!$product || !$attribute) {
-                    $errors[] = "Product or attribute not found: {$change['product_id']}|{$change['attribute_id']}";
+            foreach ($changesByProduct as $pid => $productChanges) {
+                $product = $products->get($pid);
+                if (!$product) {
+                    $errors[] = "Product not found: {$pid}";
                     continue;
                 }
 
-                $language = $change['language'] ?? null;
+                $localUpdated = 0;
+                $changedAttrIds = [];
 
-                // Determine value columns
+                // Eigene Savepoint-Transaktion pro Produkt: verletzt dieses Produkt
+                // die Achsen-Eindeutigkeit (siehe unten), werden nur seine eigenen
+                // Schreibvorgänge zurückgerollt, nicht der gesamte Bulk-Edit.
                 try {
-                    $valueData = $this->resolveValueColumns($attribute, $change['value']);
+                    DB::transaction(function () use ($product, $productChanges, $attributes, $variantAxisService, &$localUpdated, &$changedAttrIds, &$errors) {
+                        foreach ($productChanges as $change) {
+                            $attribute = $attributes->get($change['attribute_id']);
+
+                            if (!$attribute) {
+                                $errors[] = "Attribute not found: {$change['attribute_id']}";
+                                continue;
+                            }
+
+                            try {
+                                $valueData = $this->resolveValueColumns($attribute, $change['value']);
+                            } catch (\Illuminate\Validation\ValidationException $e) {
+                                $errors[] = "{$attribute->technical_name} ({$product->sku}): " . $e->getMessage();
+                                continue;
+                            }
+
+                            ProductAttributeValue::updateOrCreate(
+                                [
+                                    'product_id' => $product->id,
+                                    'attribute_id' => $attribute->id,
+                                    'language' => $change['language'] ?? null,
+                                    'multiplied_index' => 0,
+                                ],
+                                array_merge($valueData, [
+                                    'is_inherited' => false,
+                                    'inherited_from_node_id' => null,
+                                    'inherited_from_product_id' => null,
+                                ])
+                            );
+
+                            $localUpdated++;
+                            $changedAttrIds[] = $attribute->id;
+                        }
+
+                        // Achsen-Attribute dürfen bei Varianten nie geerbt werden und
+                        // keine zwei Geschwister-Varianten dieselbe Merkmalskombination
+                        // tragen — dieselbe Prüfung wie im normalen Attribut-Editor.
+                        $variantAxisService->ensureOverrideRules($product);
+                        $variantAxisService->assertUniqueCombination($product);
+                    });
                 } catch (\Illuminate\Validation\ValidationException $e) {
-                    $errors[] = "{$attribute->technical_name} ({$product->sku}): " . $e->getMessage();
+                    $errors[] = "{$product->sku}: " . collect($e->errors())->flatten()->implode(' ');
                     continue;
                 }
 
-                ProductAttributeValue::updateOrCreate(
-                    [
-                        'product_id' => $product->id,
-                        'attribute_id' => $attribute->id,
-                        'language' => $language,
-                        'multiplied_index' => 0,
-                    ],
-                    array_merge($valueData, [
-                        'is_inherited' => false,
-                        'inherited_from_node_id' => null,
-                        'inherited_from_product_id' => null,
-                    ])
-                );
-
-                $updated++;
-            }
-
-            // Fire events for changed products
-            foreach ($productIds as $pid) {
-                $changedAttrs = collect($changes)
-                    ->where('product_id', $pid)
-                    ->pluck('attribute_id')
-                    ->unique()
-                    ->toArray();
-                if (!empty($changedAttrs)) {
-                    event(new \App\Events\AttributeValuesChanged($pid, $changedAttrs));
+                $updated += $localUpdated;
+                if (!empty($changedAttrIds)) {
+                    event(new \App\Events\AttributeValuesChanged($product->id, array_unique($changedAttrIds)));
                 }
             }
         });

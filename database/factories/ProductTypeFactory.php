@@ -23,8 +23,18 @@ class ProductTypeFactory extends Factory
             'has_media' => true,
             'has_stock' => false,
             'has_physical_dimensions' => false,
+            'has_dynamic_cluster' => false,
             'sort_order' => fake()->numberBetween(0, 100),
             'is_active' => true,
         ];
+    }
+
+    /**
+     * Produkttyp mit aktivierter Cluster-Vererbung (Klammer-Produkt mit
+     * dynamisch aufgelösten Mitgliedern + Attribut-/Medien-Vererbung).
+     */
+    public function dynamicCluster(): static
+    {
+        return $this->state(fn () => ['has_dynamic_cluster' => true]);
     }
 }

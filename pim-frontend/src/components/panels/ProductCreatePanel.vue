@@ -25,7 +25,6 @@ const formData = ref({
   sku: '',
   name: '',
   product_type_id: '',
-  is_virtual: false,
   ean: '',
   status: 'draft',
   master_hierarchy_node_id: '',
@@ -71,10 +70,6 @@ const fields = computed(() => [
     key: 'product_type_id', label: 'Produkttyp', type: 'select', required: true,
     options: props.productTypes.map(t => ({ value: t.id, label: t.name_de || t.technical_name })),
   },
-  {
-    key: 'is_virtual', label: 'Virtuelles Produkt (dynamischer Cluster)', type: 'boolean',
-    hint: 'Mitglieder werden später live aus Suchprofil, PQL oder Merkliste aufgelöst (Reiter „Dynamischer Cluster“).',
-  },
   { key: 'ean', label: 'EAN', type: 'text' },
   {
     key: 'status', label: 'Status', type: 'select',
@@ -99,9 +94,6 @@ async function handleSubmit(data) {
   loading.value = true
   errors.value = {}
   const payload = { ...data }
-  // Checkbox → product_type_ref übersetzen
-  payload.product_type_ref = payload.is_virtual ? 'virtual' : 'product'
-  delete payload.is_virtual
   if (!payload.master_hierarchy_node_id) delete payload.master_hierarchy_node_id
   if (!payload.manufacturer_id) delete payload.manufacturer_id
   try {

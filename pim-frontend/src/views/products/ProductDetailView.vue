@@ -204,9 +204,11 @@ const tabs = computed(() => {
   base.push(
     { key: 'relations', label: t('product.relations') },
   )
-  // Virtuelle Produkte ("Klammer"): dynamischer Cluster statt statischer Beziehungen
-  if (product.value?.product_type_ref === 'virtual') {
-    base.push({ key: 'virtual-cluster', label: 'Dynamischer Cluster' })
+  // Produkttypen mit aktivierter Cluster-Vererbung: Klammer-Produkt mit
+  // dynamisch aufgelösten Mitgliedern (Suchprofil/PQL/Merkliste) plus
+  // Attribut-/Medien-Vererbung an diese Mitglieder.
+  if (pt?.has_dynamic_cluster) {
+    base.push({ key: 'virtual-cluster', label: 'Cluster-Vererbung' })
   }
   base.push(
     { key: 'output-hierarchies', label: 'Ausgabehierarchien' },
@@ -632,7 +634,7 @@ async function loadAttributeData(overrideNodeId = null, generation = null) {
     // einzelnen Kategorieknoten — Hierarchie-Attributzuweisung ergibt hier
     // keinen Sinn. Sie erhalten stattdessen ein freies Attribut-Schema
     // (siehe Fallback-Zweig unten + Attribut-Picker im Template).
-    const isVirtualProduct = product.value.product_type_ref === 'virtual'
+    const isVirtualProduct = !!product.value.product_type?.has_dynamic_cluster
 
     // Try resolved attributes from hierarchy first (includes inheritance info)
     let resolvedAttrs = null
@@ -2287,9 +2289,13 @@ function searchVirtualProducts() {
     if (!virtualProductSearch.value.trim()) { virtualProductSearchResults.value = []; return }
     try {
       const { data } = await productsApi.list({ search: virtualProductSearch.value, perPage: 10 })
+      // Ein Produkt, das selbst schon als Cluster konfiguriert ist, wird vom
+      // Resolver ohnehin nie als Mitglied aufgelöst (kein Cluster-im-Cluster) —
+      // die Suche hier filtert daher nur das Produkt selbst und bereits
+      // ausgewählte Mitglieder heraus.
       const selected = new Set(virtualForm.value.manual_product_ids)
       virtualProductSearchResults.value = (data.data || data)
-        .filter(p => p.id !== product.value.id && p.product_type_ref !== 'virtual' && !selected.has(p.id))
+        .filter(p => p.id !== product.value.id && !selected.has(p.id))
     } catch (e) { console.warn('Product search failed:', e.message); virtualProductSearchResults.value = [] }
   }, 300)
 }
@@ -3129,7 +3135,7 @@ watch(activeTab, (tab) => {
   if (tab === 'base-data') loadAttributeData()
   if (tab === 'attributes' || isAttributeViewTabKey(tab)) {
     loadAttributeData(); loadFilterOptions(); loadOutputHierarchyAttributes()
-    if (product.value?.product_type_ref === 'virtual') loadVirtualAttributeCatalog()
+    if (product.value?.product_type?.has_dynamic_cluster) loadVirtualAttributeCatalog()
   }
   // Attribut-Sicht-Tabs zeigen immer die Master-Attribute (Sicht ist klassifikationsübergreifend) —
   // eine zuvor gewählte ETIM/ONYX-Klassifikations-Sub-Tab-Auswahl würde sonst zu einer falschen/leeren Liste führen.
@@ -3853,8 +3859,8 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Freier Attribut-Picker (nur virtuelle Produkte: kein Hierarchieknoten-Schema) -->
-      <div v-if="product.product_type_ref === 'virtual'" class="pim-card p-3">
+      <!-- Freier Attribut-Picker (nur Cluster-Vererbung: kein Hierarchieknoten-Schema) -->
+      <div v-if="product.product_type?.has_dynamic_cluster" class="pim-card p-3">
         <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Attribut hinzufügen</label>
         <div class="flex items-end gap-2">
           <div class="flex-1 max-w-sm">
@@ -3869,7 +3875,7 @@ onUnmounted(() => {
             <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Hinzufügen
           </button>
         </div>
-        <p class="text-[11px] text-[var(--color-text-tertiary)] mt-1">Virtuelle Produkte sind keinem Kategorieknoten zugeordnet — hier kann jedes Attribut aus dem Katalog frei ergänzt werden.</p>
+        <p class="text-[11px] text-[var(--color-text-tertiary)] mt-1">Produkte mit Cluster-Vererbung sind keinem Kategorieknoten zugeordnet — hier kann jedes Attribut aus dem Katalog frei ergänzt werden.</p>
       </div>
 
       <!-- Language switcher for translatable attributes -->
@@ -5327,8 +5333,8 @@ onUnmounted(() => {
       <div class="flex items-start gap-2">
         <Sparkles class="w-4 h-4 text-[var(--color-accent)] mt-0.5 shrink-0" :stroke-width="2" />
         <div>
-          <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Dynamischer Cluster</h3>
-          <p class="text-[11px] text-[var(--color-text-tertiary)]">Die Mitglieder dieses virtuellen Produkts werden live aus der gewählten Quelle aufgelöst.</p>
+          <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Cluster-Vererbung</h3>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">Die Mitglieder dieses Klammer-Produkts werden live aus der gewählten Quelle aufgelöst.</p>
         </div>
       </div>
 

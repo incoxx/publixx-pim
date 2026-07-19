@@ -93,10 +93,13 @@ class VirtualProductResolver
             static fn (string $id): bool => $id !== $definition->product_id,
         ));
 
-        // Nur existierende, nicht-virtuelle Produkte zulassen (kein Cluster-im-Cluster)
+        // Nur existierende Produkte ohne eigene Cluster-Definition zulassen
+        // (kein Cluster-im-Cluster) — maßgeblich ist, ob ein Produkt bereits
+        // tatsächlich als Cluster konfiguriert ist, nicht ob sein Produkttyp
+        // das grundsätzlich erlauben würde.
         $valid = Product::query()
             ->whereIn('id', $rawIds)
-            ->where('product_type_ref', '!=', 'virtual')
+            ->whereDoesntHave('virtualDefinition')
             ->pluck('id')
             ->all();
         $validSet = array_flip($valid);

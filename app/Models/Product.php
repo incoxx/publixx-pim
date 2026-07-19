@@ -219,12 +219,16 @@ class Product extends Model
     }
 
     /**
-     * Virtuelles Produkt ("Klammer"): Mitglieder werden dynamisch aus
-     * einem Suchprofil, einer PQL-Abfrage oder einer Merkliste aufgelöst.
+     * Ob der Produkttyp dieses Produkts den "Cluster-Vererbung"-Tab erlaubt
+     * (Klammer-Produkt: Mitglieder werden dynamisch aus einem Suchprofil,
+     * einer PQL-Abfrage oder einer Merkliste aufgelöst). Eigenschaft des
+     * Produkttyps, nicht des einzelnen Produkts — ob ein Produkt tatsächlich
+     * als Cluster konfiguriert ist, entscheidet die (optionale) 1:1-Relation
+     * virtualDefinition().
      */
     public function isVirtual(): bool
     {
-        return $this->product_type_ref === 'virtual';
+        return $this->productType?->has_dynamic_cluster === true;
     }
 
     public function searchIndex(): HasOne

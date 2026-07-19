@@ -92,4 +92,38 @@ class BulkEditorControllerTest extends TestCase
             'value_string' => 'Text',
         ]);
     }
+
+    public function test_save_lehnt_doppelte_achsen_kombination_zwischen_geschwistern_ab(): void
+    {
+        $parent = Product::factory()->create();
+        $axisAttr = Attribute::factory()->create(['is_variant_attribute' => true, 'data_type' => 'String']);
+        $variantA = Product::factory()->variant()->create(['parent_product_id' => $parent->id]);
+        $variantB = Product::factory()->variant()->create(['parent_product_id' => $parent->id]);
+
+        $this->putJson("/api/v1/products/{$parent->id}/variant-axes", [
+            'attribute_ids' => [$axisAttr->id],
+        ])->assertOk();
+
+        $this->putJson("/api/v1/products/{$variantA->id}/attribute-values", [
+            'values' => [['attribute_id' => $axisAttr->id, 'value' => 'Rot']],
+        ])->assertOk();
+
+        // Der Bulk-Grid-Editor darf hier keine identische Achsen-Kombination
+        // wie bei $variantA erzeugen können — genau das soll die Prüfung
+        // verhindern, die dieser Test gegen den Bulk-Editor-Pfad absichert.
+        $response = $this->putJson('/api/v1/products/bulk-edit', [
+            'changes' => [
+                ['product_id' => $variantB->id, 'attribute_id' => $axisAttr->id, 'value' => 'Rot'],
+            ],
+        ]);
+
+        $response->assertOk();
+        $this->assertNotEmpty($response->json('errors'));
+
+        $this->assertDatabaseMissing('product_attribute_values', [
+            'product_id' => $variantB->id,
+            'attribute_id' => $axisAttr->id,
+            'value_string' => 'Rot',
+        ]);
+    }
 }

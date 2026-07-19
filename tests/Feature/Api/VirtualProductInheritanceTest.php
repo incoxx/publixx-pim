@@ -7,6 +7,7 @@ namespace Tests\Feature\Api;
 use App\Models\Attribute;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Models\ProductType;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\VirtualProductInheritanceRule;
@@ -39,9 +40,16 @@ class VirtualProductInheritanceTest extends TestCase
         $this->actingAs($this->user);
     }
 
+    /**
+     * Produkt eines Produkttyps mit aktivierter Cluster-Vererbung
+     * (has_dynamic_cluster=true) — die Freischaltung des Features hängt
+     * seit der Umstellung am Produkttyp, nicht mehr an product_type_ref.
+     */
     private function virtualProduct(): Product
     {
-        return Product::factory()->create(['product_type_ref' => 'virtual']);
+        $type = ProductType::factory()->dynamicCluster()->create();
+
+        return Product::factory()->create(['product_type_id' => $type->id]);
     }
 
     private function defineManualCluster(Product $virtual, array $memberIds): void
