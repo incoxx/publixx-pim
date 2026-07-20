@@ -8,14 +8,14 @@ globs:
 
 # Klassifikationen als PIM-Bordmittel
 
-Externe Klassifikationen (ETIM, ONYX, GAEB, FABDIS) werden **nicht als separate Systeme**
+Externe Klassifikationen (ETIM, ONYX, FABDIS) werden **nicht als separate Systeme**
 behandelt, sondern als native PIM-Objekte:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  1. Schema-Import (einmalig pro Standard)                   │
 │                                                             │
-│  ETIM XML / ONYX / GAEB / FABDIS Spezifikation              │
+│  ETIM XML / ONYX / FABDIS Spezifikation                     │
 │     → Output-Hierarchie  (Klassen/Kategorien als Knoten)    │
 │     → Attribute           (Features mit source_system)       │
 │     → Wertlisten          (Standard-Values als SelectionList)│
@@ -46,7 +46,6 @@ behandelt, sondern als native PIM-Objekte:
 │                                                             │
 │  BMEcat mit hierarchy_id = ETIM → ETIM BMEcat               │
 │  BMEcat mit hierarchy_id = Master → normaler BMEcat          │
-│  GAEB mit hierarchy_id = GAEB → GAEB DA XML                 │
 │                                                             │
 │  Formate sind Ausprägungen, keine separaten Systeme         │
 └─────────────────────────────────────────────────────────────┘
