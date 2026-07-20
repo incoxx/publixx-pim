@@ -80,7 +80,7 @@ Jede `{Format}ElementMap` definiert das **Zielschema** des Formats. Die `TARGET_
 listet alle gültigen Zielfelder, die in Mapping-Regeln als `target` verwendet werden können.
 
 ```php
-// Beispiel: OnyxElementMap
+// Beispiel: {Format}ElementMap
 public const TARGET_FIELDS = [
     'outline_text',   // Kurztext (Angebotsposition)
     'detail_text',    // Langtext (Leistungsbeschreibung)

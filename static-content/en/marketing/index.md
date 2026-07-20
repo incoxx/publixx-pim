@@ -132,7 +132,7 @@ hero:
 <div class="marketing-card">
 <div class="marketing-card-icon">🗂️</div>
 <h3>Attribute Mapping</h3>
-<p>Map source attributes to target classifications (e.g., ETIM, eCl@ss). Excel import/export for mapping rules included.</p>
+<p>Map source attributes to target classifications. Excel import/export for mapping rules included.</p>
 </div>
 
 </div>

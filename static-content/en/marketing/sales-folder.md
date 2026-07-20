@@ -164,7 +164,7 @@ More details: [AI, Translation & API Designer](/en/marketing/ai-translation)
 | **Dictionary** | Central terminology database for consistent naming |
 | **SSO** | Single Sign-On via Azure AD / Entra ID |
 | **Excel Template Designer** | Visually configure custom Excel export templates |
-| **Attribute Mapping** | Cross-classification mapping (e.g., PIM → ETIM) with Excel import/export |
+| **Attribute Mapping** | Cross-classification mapping with Excel import/export |
 | **Projects** | Organize product groups in projects with bulk assignment |
 | **PimSync API** | Dedicated API for PIM-to-PIM synchronization |
 | **User API Keys** | Self-service: users manage their own API keys |

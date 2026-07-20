@@ -4,7 +4,7 @@ title: Attribut-Mapping
 
 # Attribut-Mapping
 
-Das **Attribut-Mapping** ordnet Quell-Attribute auf Ziel-Attribute einer anderen Klassifikation/Hierarchie zu — etwa von den eigenen Stammdaten auf ETIM- oder ONYX-Merkmale. Es ist die Grundlage dafür, dasselbe Produkt in mehreren Klassifikationen korrekt auszugeben, ohne Werte mehrfach zu pflegen.
+Das **Attribut-Mapping** ordnet Quell-Attribute auf Ziel-Attribute einer anderen Klassifikation/Hierarchie zu — etwa von den eigenen Stammdaten auf die Merkmale einer extern importierten Klassifikationshierarchie. Es ist die Grundlage dafür, dasselbe Produkt in mehreren Klassifikationen korrekt auszugeben, ohne Werte mehrfach zu pflegen.
 
 ## Funktionsweise
 

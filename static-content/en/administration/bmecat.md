@@ -70,18 +70,6 @@ anyPIM maps the BMEcat catalog structure to its internal hierarchy. In the mappi
 When importing a full catalog (`T_NEW_CATALOG`), existing assignments may be overwritten. Create a backup through the regular export function before importing.
 :::
 
-### Classification Mapping
-
-BMEcat files frequently contain classification information based on eCl@ss or ETIM. anyPIM provides mapping of these classifications to internal attributes:
-
-| Classification | Supported Versions |
-|---|---|
-| **eCl@ss** | 5.1, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0 |
-| **ETIM** | 6.0, 7.0, 8.0, 9.0 |
-| **UNSPSC** | All versions |
-
-For each classification feature, you can specify which anyPIM attribute it maps to. Unmapped features can be automatically created as new attributes.
-
 ### Media References
 
 BMEcat files reference media (images, data sheets, safety data sheets) through the `MIME` element. anyPIM processes media references as follows:
@@ -137,7 +125,6 @@ For large files (more than 10,000 articles), run the import outside of peak hour
 | **Hierarchy** | Hierarchy to use as catalog structure |
 | **Language** | Export language |
 | **Price Types** | Price types to export with BMEcat price type mapping |
-| **Classification** | Optional classification (eCl@ss, ETIM) |
 | **Include Media** | Include media references in the export |
 
 3. Click **Start Export**.

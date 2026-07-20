@@ -10,7 +10,7 @@ globs:
 
 ## Pflicht-Pattern: 5 Dateien pro Export-Format
 
-Jeder Agent erstellt genau diese 5 Dateien (Beispiel mit `{Format}` = `Onyx`, `Etim`, `Fabdis`):
+Jeder Agent erstellt genau diese 5 Dateien (`{Format}` = PascalCase-Name des neuen Formats, z.B. `Csv2000`):
 
 ### 1. FormatExporter — `app/Services/Export/{Format}FormatExporter.php`
 

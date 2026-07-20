@@ -108,7 +108,7 @@ Visually configure custom Excel export templates:
 
 Cross-classification mapping for industry standards:
 
-- **Source to Target** — Map PIM attributes to classification fields (e.g., ETIM, eCl@ss)
+- **Source to Target** — Map PIM attributes to classification fields
 - **Mapping Rules** — Define transformation rules per assignment
 - **Bulk Operations** — Create mappings for many attributes at once
 - **Sync** — Synchronize mapped values per product or in batch
