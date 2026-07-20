@@ -17,7 +17,7 @@ ersten als klickbare Chips hinterlegt):
 | „Zeige mir das Produkt mit der SKU 10001" | `search_products` |
 | „Welche Klassifikationen (Hierarchien) gibt es im PIM?" | `list_hierarchies` |
 | „Liste Attribute, die ‚gewicht' enthalten, mit ihren IDs" | `list_attributes` |
-| „Welche Kategorien hat die ETIM-Hierarchie?" | `list_hierarchies` → `list_hierarchy_nodes` |
+| „Welche Kategorien hat die Hierarchie X?" | `list_hierarchies` → `list_hierarchy_nodes` |
 | „Welche Attribute sind der Kategorie X zugeordnet?" | `list_hierarchies` → `list_hierarchy_nodes` → `list_node_attributes` |
 | „Welche Produkte hängen an Knoten X?" | `list_hierarchy_nodes` → `list_node_products` |
 | „Setze beim Produkt SKU 10001 das Gewicht auf 500 g" | `list_attributes` → **(Bestätigung)** → `update_product_attribute` |

@@ -164,7 +164,7 @@ Mehr Details: [KI, Uebersetzung & API Designer](/de/marketing/ki-uebersetzung)
 | **Woerterbuch** | Zentrale Begriffsdatenbank fuer konsistente Terminologie |
 | **SSO** | Single Sign-On ueber Azure AD / Entra ID |
 | **Excel Template Designer** | Individuelle Excel-Exportvorlagen visuell konfigurieren |
-| **Attribut-Mapping** | Cross-Klassifikations-Mapping (z.B. PIM → ETIM) mit Excel Im-/Export |
+| **Attribut-Mapping** | Cross-Klassifikations-Mapping mit Excel Im-/Export |
 | **Projekte** | Produktgruppen in Projekten organisieren mit Bulk-Zuordnung |
 | **PimSync API** | Dedizierte API fuer PIM-zu-PIM-Synchronisation |
 | **User API Keys** | Self-Service: Benutzer verwalten eigene API-Schluessel |

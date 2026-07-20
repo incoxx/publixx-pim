@@ -70,18 +70,6 @@ Das anyPIM bildet die BMEcat-Katalogstruktur auf die interne Hierarchie ab. Im M
 Beim Import eines vollständigen Katalogs (`T_NEW_CATALOG`) können bestehende Zuordnungen überschrieben werden. Erstellen Sie vor dem Import eine Sicherung über die reguläre Exportfunktion.
 :::
 
-### Klassifikations-Mapping
-
-BMEcat-Dateien enthalten häufig Klassifikationsinformationen nach eCl@ss oder ETIM. Das anyPIM bietet ein Mapping dieser Klassifikationen auf interne Attribute:
-
-| Klassifikation | Unterstützte Versionen |
-|---|---|
-| **eCl@ss** | 5.1, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0 |
-| **ETIM** | 6.0, 7.0, 8.0, 9.0 |
-| **UNSPSC** | Alle Versionen |
-
-Für jedes Klassifikationsmerkmal können Sie festlegen, welchem anyPIM-Attribut es zugeordnet wird. Nicht zugeordnete Merkmale können automatisch als neue Attribute angelegt werden.
-
 ### Medienreferenzen
 
 BMEcat-Dateien referenzieren Medien (Bilder, Datenblätter, Sicherheitsdatenblätter) über das Element `MIME`. Das anyPIM verarbeitet Medienreferenzen wie folgt:
@@ -137,7 +125,6 @@ Führen Sie den Import bei großen Dateien (mehr als 10.000 Artikel) außerhalb 
 | **Hierarchie** | Auszugebende Hierarchie als Katalogstruktur |
 | **Sprache** | Exportsprache |
 | **Preisarten** | Zu exportierende Preisarten mit BMEcat-Preistyp-Zuordnung |
-| **Klassifikation** | Optionale Klassifikation (eCl@ss, ETIM) |
 | **Medien einschließen** | Medienreferenzen im Export einschließen |
 
 3. Klicken Sie auf **Export starten**.

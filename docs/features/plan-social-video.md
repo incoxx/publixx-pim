@@ -216,8 +216,8 @@ Geändert: `routes/api.php` (Route-Block), `pim-frontend/src/router/index.js` (`
   nicht – kann später ergänzt werden, ohne die Logik zu ändern).
 - **Status ohne DB-Migration:** Job-Status liegt als `storage/app/social-video/{job}/status.json`,
   Output unter `public/videos/social/{job}.mp4`.
-- Die in der `CLAUDE.md` skizzierten `ExportProductHelpers`/GAEB-Referenzen existieren in diesem
-  Branch nicht; der Builder nutzt direkt `MappingResolver` (wie `JsonFormatExporter`).
+- Der Builder nutzt direkt `MappingResolver` (wie `JsonFormatExporter`), nicht das
+  `ExportProductHelpers`-Pattern der Export-Format-Konventionen.
 
 ### Nutzung
 

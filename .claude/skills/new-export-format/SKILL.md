@@ -11,7 +11,7 @@ Erstelle ein neues Export-Format für anyPIM. Ersetze `{Format}` (PascalCase) un
 ## Schritt 1: Anforderungen klären
 
 Frage den Nutzer:
-1. **Format-Name** (z.B. "Gaeb", "Onyx", "Etim", "Fabdis")
+1. **Format-Name** (PascalCase, z.B. "Csv2000")
 2. **Ausgabeformat** (XML → XMLWriter, JSON → json_encode, CSV → CsvWriter)
 3. **Zielfelder** (TARGET_FIELDS) — welche Felder soll das Format unterstützen?
 4. **Gibt es eine Spezifikation?** (URL oder Datei zum Format-Standard)
@@ -74,4 +74,3 @@ Prüfe jede Datei gegen diese Regeln:
 ## Referenz
 
 Lies `.claude/rules/export-format-conventions.md` für die vollständigen Code-Templates.
-GAEB-Export dient als Vorlage (Branch `claude/gaeb-xml-export-XSnPV`).

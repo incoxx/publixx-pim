@@ -1,6 +1,6 @@
 # 22 — Strukturierter Content (CMS-Modul)
 
-> **Status:** Konzept / Spezifikation
+> **Status:** Implementiert (Phase 1–5, siehe Abschnitt 9)
 > **Modul:** `content` (Enterprise, lizenzpflichtig)
 > **Ziel:** anyPIM wird vom reinen Produktdaten-System zum vollständigen
 > **Web- & Print-Publishing-System**. Neben Produkten verwaltet anyPIM

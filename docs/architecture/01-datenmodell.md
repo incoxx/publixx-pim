@@ -13,7 +13,7 @@
 
 ---
 
-## Entity Overview (35 Tables)
+## Entity Overview (35 core entities — 134 tables total in the schema, incl. pivot/junction and newer feature tables not listed below)
 
 | Area | Entities |
 |------|----------|

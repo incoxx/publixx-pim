@@ -40,7 +40,8 @@ Innerhalb der Schnellsuche (`/quick-search`):
 |----------|--------|
 | `↑` / `↓` | Durch Ergebnisse navigieren |
 | `Enter` | Ausgewähltes Ergebnis öffnen |
-| `Esc` | Suche leeren |
+
+> **Hinweis:** `Esc` leert die Suche nur im semantischen Such-Widget im Header (`SemanticSearchBox`), nicht auf der `/quick-search`-Seite selbst — dort erfolgt das Leeren über den Button "Verlauf löschen".
 
 ## Eselsbrücken
 

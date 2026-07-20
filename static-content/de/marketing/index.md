@@ -132,7 +132,7 @@ hero:
 <div class="marketing-card">
 <div class="marketing-card-icon">🗂️</div>
 <h3>Attribut-Mapping</h3>
-<p>Quell-Attribute auf Zielklassifikationen mappen (z.B. ETIM, eCl@ss). Excel-Import/-Export fuer Mapping-Regeln inklusive.</p>
+<p>Quell-Attribute auf Zielklassifikationen mappen. Excel-Import/-Export fuer Mapping-Regeln inklusive.</p>
 </div>
 
 </div>

@@ -154,4 +154,4 @@ Collected packages:
 | Frontend files | 74 |
 | **Total** | **~305 backend + 74 frontend** |
 
-> **Note:** These are the initial integration numbers. The codebase has since grown significantly through iterative development to 55 models, 88 migrations, 75 controllers, 70 services, and 116+ Vue components.
+> **Note:** These are the initial integration numbers. The codebase has since grown significantly through iterative development. As of 2026-07-19: 122 Eloquent models, 214 migration files (~134 tables), ~870 API endpoints, and 315+ Vue files.

@@ -108,7 +108,7 @@ Individuelle Excel-Exportvorlagen visuell konfigurieren:
 
 Cross-Klassifikations-Mapping fuer Industriestandards:
 
-- **Quell → Ziel** — PIM-Attribute auf Klassifikationsfelder mappen (z.B. ETIM, eCl@ss)
+- **Quell → Ziel** — PIM-Attribute auf Klassifikationsfelder mappen
 - **Mapping-Regeln** — Transformationsregeln pro Zuordnung definieren
 - **Bulk-Operationen** — Mappings fuer viele Attribute auf einmal anlegen
 - **Sync** — Gemappte Werte pro Produkt oder im Batch synchronisieren

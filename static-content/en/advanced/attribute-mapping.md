@@ -4,7 +4,7 @@ title: Attribute Mapping
 
 # Attribute Mapping
 
-**Attribute mapping** maps source attributes onto target attributes of another classification/hierarchy — for example from your own master data onto ETIM or ONYX features. It is the basis for outputting the same product correctly in multiple classifications without maintaining values more than once.
+**Attribute mapping** maps source attributes onto target attributes of another classification/hierarchy — for example from your own master data onto the features of an externally imported classification hierarchy. It is the basis for outputting the same product correctly in multiple classifications without maintaining values more than once.
 
 ## How it works
 

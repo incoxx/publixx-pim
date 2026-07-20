@@ -19,7 +19,7 @@
 | Search | `?search=term` | `?search=Bohrmaschine` |
 | Language | `Accept-Language` header or `?lang=de` | Multi: `?lang=de,en` |
 | Errors | RFC 7807 Problem Details | `{ "type": "...", "title": "...", "status": 422 }` |
-| Rate Limit | 60 req/min (default), 600/min (export) | |
+| Rate Limit | 240 req/min (default), 600/min (export), 1200/min (media), 10/min (auth) | |
 
 ---
 
@@ -240,6 +240,14 @@ POST   /imports/{id}/execute                Execute import
 GET    /imports/{id}/result                 Result report
 GET    /imports/templates/{type}            Download empty Excel template
 DELETE /imports/{id}                        Cancel / Delete
+```
+
+### Search
+
+```
+GET    /quick-search                       Google-like search across all entities
+POST   /semantic-search                    Hybrid search (Meilisearch: keyword + vector + hard filters) — see 21-semantic-search.md
+GET    /semantic-search/health             Semantic search index health
 ```
 
 ---

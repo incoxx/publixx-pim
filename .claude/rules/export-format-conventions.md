@@ -10,7 +10,7 @@ globs:
 
 ## Pflicht-Pattern: 5 Dateien pro Export-Format
 
-Jeder Agent erstellt genau diese 5 Dateien (Beispiel mit `{Format}` = `Gaeb`, `Onyx`, `Etim`, `Fabdis`):
+Jeder Agent erstellt genau diese 5 Dateien (`{Format}` = PascalCase-Name des neuen Formats, z.B. `Csv2000`):
 
 ### 1. FormatExporter — `app/Services/Export/{Format}FormatExporter.php`
 
@@ -277,12 +277,3 @@ Route::middleware('module:{format}')->group(function () {
 | `app/Services/Export/DatasetBuilder.php` | Erstellt JSON-Datasets (flat/nested/publixx) |
 | `app/Services/Export/Writers/*` | Output-Writer: XmlWriter, CsvWriter, JsonWriter, ExcelWriter |
 | `app/Models/PublixxExportMapping.php` | Model: name, mapping_rules (JSON), languages, flatten_mode |
-
-## Referenz-Implementierung
-
-**GAEB-Export** (`claude/gaeb-xml-export-XSnPV`) dient als Vorlage:
-- `app/Services/Export/GaebFormatExporter.php` — 496 Zeilen, XMLWriter, Hierarchie→BoQ-Mapping
-- `app/Services/Export/GaebElementMap.php` — 7 Zielfelder, Default-Regeln
-- `app/Http/Controllers/Api/V1/GaebExportController.php` — 54 Zeilen
-- `app/Console/Commands/GaebExport.php` — 80 Zeilen
-- Route: `POST /api/v1/gaeb-export` mit `module:gaeb` Middleware

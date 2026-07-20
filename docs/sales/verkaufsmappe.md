@@ -45,12 +45,12 @@ anyPIM ist ein Open-Source Product Information Management System (PIM). Es zentr
 
 | Kennzahl | Wert |
 |---|---|
-| Datenbank-Tabellen | 85 |
-| Eloquent Models | 70 |
-| REST-API-Endpoints | ~377 |
-| Attribut-Datentypen | 13 |
-| Migrationen | 104 |
-| Vue-Komponenten | 195+ |
+| Datenbank-Tabellen | ~134 |
+| Eloquent Models | 122 |
+| REST-API-Endpoints | ~870 |
+| Attribut-Datentypen | 21 |
+| Migrationen | 214 |
+| Vue-Komponenten | 315+ |
 | Unterstützte Sprachen (UI) | Deutsch, Englisch |
 | Produktsprachen (Inhalte) | Unbegrenzt |
 
@@ -89,10 +89,10 @@ anyPIM ist ein Open-Source Product Information Management System (PIM). Es zentr
     |          |           |
  Controllers  Services   Jobs
     |          |           |
-    +----Models (55)-------+
+    +----Models (122)------+
          |           |
       MySQL 8      Redis
-    (58 Tabellen)  (Cache, Queue, Session)
+    (~134 Tabellen)  (Cache, Queue, Session)
 ```
 
 ### Datenmodell

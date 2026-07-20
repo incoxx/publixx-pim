@@ -8,14 +8,14 @@ globs:
 
 # Klassifikationen als PIM-Bordmittel
 
-Externe Klassifikationen (ETIM, ONYX, GAEB, FABDIS) werden **nicht als separate Systeme**
+Externe Klassifikationen werden **nicht als separate Systeme**
 behandelt, sondern als native PIM-Objekte:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  1. Schema-Import (einmalig pro Standard)                   │
 │                                                             │
-│  ETIM XML / ONYX / GAEB / FABDIS Spezifikation              │
+│  Externe Klassifikations-Spezifikation                      │
 │     → Output-Hierarchie  (Klassen/Kategorien als Knoten)    │
 │     → Attribute           (Features mit source_system)       │
 │     → Wertlisten          (Standard-Values als SelectionList)│
@@ -27,26 +27,26 @@ behandelt, sondern als native PIM-Objekte:
 │                                                             │
 │  Tabelle: attribute_mappings                                │
 │  ┌──────────────────┬──────────────────┬──────────────────┐ │
-│  │ source_attribute  │ target_attribute  │ output_hierarchy │ │
+│  │ source_attribute  │ target_attribute  │ target_hierarchy │ │
 │  ├──────────────────┼──────────────────┼──────────────────┤ │
-│  │ breite-mm        │ EF000007         │ etim             │ │
-│  │ gewicht-kg       │ EF000008         │ etim             │ │
-│  │ schutzart        │ EF000042         │ etim             │ │
+│  │ breite-mm        │ EF000007         │ <ziel>           │ │
+│  │ gewicht-kg       │ EF000008         │ <ziel>           │ │
+│  │ schutzart        │ EF000042         │ <ziel>           │ │
 │  └──────────────────┴──────────────────┴──────────────────┘ │
 │                                                             │
-│  Wert-Sync:                                                 │
+│  Wert-Sync (app/Services/Export/AttributeMappingService.php):│
 │  1. Direkter Wert (output_hierarchy_id) → Override gewinnt  │
 │  2. Mapping-Regel → Wert vom Quell-Attribut holen           │
-│  3. Transform anwenden (direct, unit_convert, value_map)    │
+│  3. Bedingte Regel → WENN Bedingung erfüllt DANN Zielwert   │
+│     (überschreibt keinen direkten Override)                 │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  3. Export = Bestehender BMEcat-Writer + Hierarchie-Auswahl │
 │                                                             │
-│  BMEcat mit hierarchy_id = ETIM → ETIM BMEcat               │
+│  BMEcat mit hierarchy_id = <Zielklassifikation> → deren XML │
 │  BMEcat mit hierarchy_id = Master → normaler BMEcat          │
-│  GAEB mit hierarchy_id = GAEB → GAEB DA XML                 │
 │                                                             │
 │  Formate sind Ausprägungen, keine separaten Systeme         │
 └─────────────────────────────────────────────────────────────┘
@@ -57,12 +57,15 @@ behandelt, sondern als native PIM-Objekte:
 | Feature | Mechanismus | Status |
 |---------|------------|--------|
 | Produkt in mehreren Klassifikationen | `master_hierarchy_node_id` + `OutputHierarchyProductAssignment` | **Existiert** |
-| Format-spezifische Attribute | `Attribute.source_system` = 'ETIM', 'ONYX', etc. | **Existiert** |
+| Format-spezifische Attribute | `Attribute.source_system` | **Existiert** |
 | Attribut-Werte pro Klassifikation | `ProductAttributeValue.output_hierarchy_id` | **Existiert** |
 | Attribut-Zuordnung pro Knoten | `HierarchyNodeAttributeAssignment` | **Existiert** |
 | Attribut-Herkunft tracken | `source_system`, `source_attribute_name`, `source_attribute_key` | **Existiert** |
+| Attribut-Mapping (Quelle → Ziel, mit Transform) | `attribute_mappings` Tabelle + `AttributeMappingService` | **Existiert** |
+| Bedingte Mapping-Regeln | `AttributeMappingRule` | **Existiert** |
+| Bulk-Mapping, Sync (Produkt/Batch/Bulk), Excel-Im-/Export | `AttributeMappingController` (`routes/api.php:932-942`) | **Existiert** |
 
-## Missing Piece: `attribute_mappings` Tabelle
+## `attribute_mappings` Tabelle
 
 ```sql
 CREATE TABLE attribute_mappings (
@@ -76,7 +79,7 @@ CREATE TABLE attribute_mappings (
     transform_type       VARCHAR(50) DEFAULT 'direct',  -- direct, unit_convert, value_map
     transform_config     JSON NULL,                     -- {"factor": 0.1, "from_unit": "mm", "to_unit": "cm"}
 
-    -- KI-Metadaten (optional)
+    -- KI-Metadaten (optional, aktuell nur als Datenfelder — kein KI-Vorschlags-Endpoint)
     ai_suggested         BOOLEAN DEFAULT FALSE,
     ai_confidence        DECIMAL(3,2) NULL,
     ai_confirmed_by      UUID NULL REFERENCES users(id),
@@ -86,6 +89,8 @@ CREATE TABLE attribute_mappings (
     updated_at TIMESTAMP
 );
 ```
+
+(siehe `database/migrations/2026_03_23_000001_create_attribute_mappings_table.php`)
 
 ## Wert-Sync Logik
 
@@ -108,7 +113,7 @@ public function resolveAttributeForExport(
 
     // 2. Mapping-Regel vorhanden?
     $mapping = AttributeMapping::where('target_attribute_id', $targetAttr->id)
-        ->where('output_hierarchy_id', $hierarchyId)
+        ->where('target_hierarchy_id', $hierarchyId)
         ->first();
 
     if ($mapping) {
@@ -124,35 +129,12 @@ public function resolveAttributeForExport(
 }
 ```
 
-## KI-gestütztes Attribut-Mapping (optional, Claude API)
+Reale Implementierung: `App\Services\Export\AttributeMappingService::resolveForProduct()`.
 
-```php
-// POST /api/v1/attribute-mappings/ai-suggest
-// Request:
-{
-    "source_attributes": ["breite-mm", "gewicht-kg", "schutzart"],
-    "output_hierarchy_id": "uuid-etim-hierarchy",
-    "target_node_id": "uuid-etim-EC001234"
-}
+## Nicht implementiert
 
-// Response:
-{
-    "suggestions": [
-        {
-            "source": "breite-mm",
-            "target": "EF000007",
-            "confidence": 0.95,
-            "reason": "Gleicher Datentyp (Number), gleiche Einheit (mm), semantisch: Breite"
-        },
-        {
-            "source": "schutzart",
-            "target": "EF000042",
-            "confidence": 0.88,
-            "reason": "Selection-Typ, Werte IP55/IP44 matchen ETIM-Werteliste"
-        }
-    ]
-}
-```
-
-Die KI erhält Quell-Attribute (Name, Datentyp, Einheit, Beispielwerte) + Ziel-Attribute
-aus der Klassifikation und schlägt Zuordnungen vor. Der Nutzer bestätigt in der Tabellen-GUI.
+Es gibt **keinen** KI-Vorschlags-Endpoint für Attribut-Mappings (kein `ai-suggest`-Route,
+keine entsprechende Controller-Methode, keine KI-Anbindung). Die Felder `ai_suggested`/
+`ai_confidence`/`ai_confirmed_by`/`ai_confirmed_at` existieren in der Tabelle und sind über
+die normale CRUD-API (`AttributeMappingResource`, Store/Update-Requests) les- und schreibbar,
+werden aber von keiner KI-Logik automatisch befüllt oder in der Wert-Sync-Auflösung ausgewertet.
