@@ -83,6 +83,10 @@ use App\Http\Controllers\Api\V1\ProductMediaController;
 use App\Http\Controllers\Api\V1\ProductExportController;
 use App\Http\Controllers\Api\V1\ProductSearchController;
 use App\Http\Controllers\Api\V1\WatchlistController;
+use App\Http\Controllers\Api\V1\MessengerController;
+use App\Http\Controllers\Api\V1\MessengerConversationController;
+use App\Http\Controllers\Api\V1\MessengerMessageController;
+use App\Http\Controllers\Api\V1\MessengerTaskController;
 use App\Http\Controllers\Api\V1\ProductPriceController;
 use App\Http\Controllers\Api\V1\ProductRelationAttributeValueController;
 use App\Http\Controllers\Api\V1\ProductRelationController;
@@ -812,6 +816,21 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::get('export/pdf-zip', [WatchlistController::class, 'exportPdfZip']);
         Route::get('export/xliff', [WatchlistController::class, 'exportXliff']);
         Route::post('export/pdf-template', [WatchlistController::class, 'exportPdfTemplate']);
+    });
+
+    // =====================================================================
+    // Messenger
+    // =====================================================================
+    Route::prefix('messenger')->group(function () {
+        Route::get('conversations', [MessengerConversationController::class, 'index']);
+        Route::post('conversations', [MessengerConversationController::class, 'store']);
+        Route::get('conversations/{conversation}', [MessengerConversationController::class, 'show']);
+        Route::post('conversations/{conversation}/read', [MessengerConversationController::class, 'markRead']);
+        Route::post('conversations/{conversation}/messages', [MessengerMessageController::class, 'store']);
+        Route::get('unread-count', [MessengerMessageController::class, 'unreadCount']);
+        Route::get('colleagues', [MessengerController::class, 'colleagues']);
+        Route::get('teams', [MessengerController::class, 'teams']);
+        Route::apiResource('tasks', MessengerTaskController::class);
     });
 
     // =====================================================================

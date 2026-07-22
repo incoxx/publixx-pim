@@ -5,12 +5,14 @@ import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { computed, ref, onMounted, onUnmounted } from 'vue'
-import { Compass, Eye, Globe, LogOut, Menu, PanelsTopLeft, Pin, PinOff, Sparkles, User } from 'lucide-vue-next'
+import { Compass, Eye, Globe, LogOut, Menu, MessageCircle, PanelsTopLeft, Pin, PinOff, Sparkles, User } from 'lucide-vue-next'
 import { useCopilotStore } from '@/stores/copilot'
+import { useMessengerStore } from '@/stores/messenger'
 import SemanticSearchBox from '@/components/layout/SemanticSearchBox.vue'
 
 const authStore = useAuthStore()
 const copilotStore = useCopilotStore()
+const messengerStore = useMessengerStore()
 const tabStore = useTabStore()
 const localeStore = useLocaleStore()
 const { t, locale: i18nLocale } = useI18n()
@@ -154,6 +156,22 @@ function openCatalogPreview() {
         @click="authStore.toggleCommandPalette()"
       >
         <Compass class="w-3.5 h-3.5" :stroke-width="1.75" />
+      </button>
+
+      <!-- Messenger: Nachrichten-Icon mit Unread-Badge -->
+      <button
+        class="btn btn-ghost btn-sm btn-circle indicator touch-manipulation"
+        :style="{ color: 'inherit' }"
+        title="Nachrichten"
+        @click="router.push({ name: 'messenger' })"
+      >
+        <MessageCircle class="w-4 h-4" :stroke-width="1.75" />
+        <span
+          v-if="messengerStore.unreadCount > 0"
+          class="badge badge-sm badge-secondary indicator-item font-mono text-[10px] px-1"
+        >
+          {{ messengerStore.unreadCount }}
+        </span>
       </button>
 
       <!-- Locale switcher -->

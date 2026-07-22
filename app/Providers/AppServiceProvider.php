@@ -112,9 +112,11 @@ class AppServiceProvider extends ServiceProvider
         Media::observe(MediaObserver::class);
 
         // ─── Collections: Morph-Map fuer polymorphe collection_attribute_values ──
+        // ─── Messenger: Morph-Map fuer polymorphe messenger_message_attachments ──
         \Illuminate\Database\Eloquent\Relations\Relation::morphMap([
             'collection' => \App\Models\Collection::class,
             'collection_item' => \App\Models\CollectionItem::class,
+            'product' => \App\Models\Product::class,
         ]);
 
         // ─── SSO: Register Azure AD Socialite Driver ─────────────────

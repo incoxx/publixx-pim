@@ -3,6 +3,7 @@ import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAppearanceStore } from '@/stores/appearance'
+import { useMessengerStore } from '@/stores/messenger'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
 import AppTabBar from './AppTabBar.vue'
@@ -11,6 +12,7 @@ import CopilotPanel from '@/views/copilot/CopilotPanel.vue'
 
 const authStore = useAuthStore()
 const appearanceStore = useAppearanceStore()
+const messengerStore = useMessengerStore()
 const route = useRoute()
 
 // Close panel when navigating to a different route (but not when switching between open tabs)
@@ -33,10 +35,13 @@ onMounted(() => {
   // Darstellungs-Einstellungen laden
   appearanceStore.loadFromLocalStorage()
   appearanceStore.loadFromApi()
+  // Messenger: Unread-Badge per Polling aktuell halten (kein Websocket im Backend)
+  messengerStore.startPolling()
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkMobile)
+  messengerStore.stopPolling()
 })
 
 // Im Cockpit-Modus ("Fokus") wird die Sidebar ausgeblendet — kein linker Rand.

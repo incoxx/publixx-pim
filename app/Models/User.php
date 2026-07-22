@@ -71,6 +71,11 @@ class User extends Authenticatable
         return $this->hasMany(WatchlistItem::class);
     }
 
+    public function messengerTasks(): HasMany
+    {
+        return $this->hasMany(MessengerTask::class, 'assigned_to');
+    }
+
     public function teams(): BelongsToMany
     {
         return $this->belongsToMany(Team::class, 'team_user')
@@ -88,6 +93,7 @@ class User extends Authenticatable
             'createdProducts' => 'Erstellte Produkte',
             'importJobs'      => 'Import-Jobs',
             'watchlistItems'  => 'Merklisten-Einträge',
+            'messengerTasks'  => 'Messenger-Aufgaben',
         ];
     }
 }
