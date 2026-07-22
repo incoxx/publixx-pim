@@ -1,8 +1,8 @@
 import client from './client'
 
 export default {
-  listConversations() {
-    return client.get('/messenger/conversations')
+  listConversations(params = {}) {
+    return client.get('/messenger/conversations', { params })
   },
 
   startConversation(payload) {

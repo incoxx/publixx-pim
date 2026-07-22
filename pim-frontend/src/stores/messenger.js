@@ -13,6 +13,9 @@ export const useMessengerStore = defineStore('messenger', () => {
   const messages = ref([])
   const loading = ref(false)
   const error = ref(null)
+  // Serverseitige Suche (Empfängername + Nachrichteninhalt). Im Store gehalten, damit
+  // auch das Polling denselben Filter anwendet und die Liste nicht "aufblitzt".
+  const search = ref('')
 
   let unreadTimer = null
   let activeTimer = null
@@ -30,13 +33,19 @@ export const useMessengerStore = defineStore('messenger', () => {
     loading.value = true
     error.value = null
     try {
-      const { data } = await messengerApi.listConversations()
+      const params = search.value ? { search: search.value } : {}
+      const { data } = await messengerApi.listConversations(params)
       conversations.value = data.data || []
     } catch (e) {
       error.value = e.response?.data?.message || e.response?.data?.detail || 'Konversationen konnten nicht geladen werden'
     } finally {
       loading.value = false
     }
+  }
+
+  function setSearch(term) {
+    search.value = term || ''
+    return fetchConversations()
   }
 
   async function openConversation(id) {
@@ -152,8 +161,10 @@ export const useMessengerStore = defineStore('messenger', () => {
     messages,
     loading,
     error,
+    search,
     fetchUnreadCount,
     fetchConversations,
+    setSearch,
     openConversation,
     refreshActiveConversation,
     sendMessage,
