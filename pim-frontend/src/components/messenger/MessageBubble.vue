@@ -27,7 +27,9 @@ function openProduct(productId) {
       {{ message.sender?.name }}
     </div>
 
-    <div class="chat-bubble" :class="isMine ? 'chat-bubble-primary' : ''">
+    <!-- text-white explizit setzen: DaisyUIs automatische Content-Farbe (primary-content)
+         greift mit dem projekteigenen CSS-Var-Theme nicht zuverlässig, siehe .pim-btn-primary -->
+    <div class="chat-bubble" :class="isMine ? 'chat-bubble-primary text-white' : ''">
       <!-- Zitat der Ursprungsnachricht bei "Antworten" -->
       <div
         v-if="message.reply_to"
