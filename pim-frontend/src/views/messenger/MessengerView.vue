@@ -156,7 +156,7 @@ const activeOtherUserName = computed(() => messengerStore.activeConversation?.ot
             <input
               v-model="searchTerm"
               type="text"
-              class="pim-input text-xs w-full pl-8 pr-2"
+              class="pim-input pim-input-icon text-xs w-full"
               placeholder="Name oder Inhalt suchen…"
             />
           </div>
@@ -282,7 +282,7 @@ const activeOtherUserName = computed(() => messengerStore.activeConversation?.ot
             <input
               v-model="messageSearch"
               type="text"
-              class="pim-input text-xs w-full pl-8 pr-2"
+              class="pim-input pim-input-icon text-xs w-full"
               placeholder="In diesem Chat suchen…"
             />
           </div>
