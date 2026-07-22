@@ -126,6 +126,40 @@ class MessengerConversationControllerTest extends TestCase
             ->assertJsonPath('data.0.other_user.id', $this->sender->id);
     }
 
+    public function test_index_search_matches_recipient_name(): void
+    {
+        $alice = User::factory()->create(['name' => 'Alice Aachen']);
+        $bob = User::factory()->create(['name' => 'Bob Bochum']);
+
+        $this->postJson('/api/v1/messenger/conversations', [
+            'recipients' => ['mode' => 'users', 'user_ids' => [$alice->id, $bob->id]],
+            'body' => 'Hallo zusammen',
+        ])->assertCreated();
+
+        $response = $this->getJson('/api/v1/messenger/conversations?search=Alice');
+
+        $response->assertOk()->assertJsonCount(1, 'data');
+        $this->assertSame('Alice Aachen', $response->json('data.0.other_user.name'));
+    }
+
+    public function test_index_search_matches_message_content(): void
+    {
+        $this->postJson('/api/v1/messenger/conversations', [
+            'recipients' => ['mode' => 'users', 'user_ids' => [$this->colleague->id]],
+            'body' => 'Bitte den Preis für den Akkuschrauber prüfen',
+        ])->assertCreated();
+
+        $other = User::factory()->create();
+        $this->postJson('/api/v1/messenger/conversations', [
+            'recipients' => ['mode' => 'users', 'user_ids' => [$other->id]],
+            'body' => 'Ganz was anderes',
+        ])->assertCreated();
+
+        $response = $this->getJson('/api/v1/messenger/conversations?search=Akkuschrauber');
+
+        $response->assertOk()->assertJsonCount(1, 'data');
+    }
+
     public function test_show_is_forbidden_for_non_participant(): void
     {
         $conversation = MessengerConversation::betweenUsers($this->sender->id, $this->colleague->id);

@@ -19,14 +19,27 @@ class MessengerConversationController extends Controller
     public function index(Request $request): JsonResponse
     {
         $userId = $request->user()->id;
+        $search = trim((string) $request->query('search', ''));
 
-        $conversations = MessengerConversation::forUser($userId)
+        $query = MessengerConversation::forUser($userId)
             ->with(['userOne:id,name', 'userTwo:id,name', 'latestMessage'])
-            ->withCount(['messages as unread_count' => function ($query) use ($userId) {
-                $query->where('sender_id', '!=', $userId)->whereNull('read_at');
+            ->withCount(['messages as unread_count' => function ($q) use ($userId) {
+                $q->where('sender_id', '!=', $userId)->whereNull('read_at');
             }])
-            ->orderByDesc('last_message_at')
-            ->get()
+            ->orderByDesc('last_message_at');
+
+        // Ein Suchfeld deckt sowohl "nach Empfänger filtern" (Name des jeweils anderen
+        // Teilnehmers) als auch "alle Chats durchsuchen" (Nachrichteninhalt) ab.
+        if ($search !== '') {
+            $like = '%'.addcslashes($search, '%_').'%';
+            $query->where(function ($outer) use ($like, $userId) {
+                $outer->whereHas('userOne', fn ($q) => $q->where('users.id', '!=', $userId)->where('name', 'LIKE', $like))
+                    ->orWhereHas('userTwo', fn ($q) => $q->where('users.id', '!=', $userId)->where('name', 'LIKE', $like))
+                    ->orWhereHas('messages', fn ($q) => $q->where('body', 'LIKE', $like));
+            });
+        }
+
+        $conversations = $query->get()
             ->map(fn (MessengerConversation $conversation) => $this->formatConversation($conversation, $userId));
 
         return response()->json(['data' => $conversations]);
