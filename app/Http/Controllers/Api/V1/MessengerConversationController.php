@@ -101,6 +101,8 @@ class MessengerConversationController extends Controller
             'data' => [
                 'id' => $conversation->id,
                 'other_user' => $this->otherUser($conversation, $userId),
+                'status' => $conversation->status,
+                'is_own' => $conversation->created_by === $userId,
             ],
             'messages' => $messages->through(fn ($message) => $service->format($message)),
         ]);
@@ -121,6 +123,58 @@ class MessengerConversationController extends Controller
             ->update(['read_at' => now()]);
 
         return response()->json(['status' => 'ok']);
+    }
+
+    /**
+     * DELETE /api/v1/messenger/conversations/{conversation} -- löscht den gesamten Chat
+     * (Nachrichten/Anhänge cascaden). Nur der Verfasser (created_by) darf das.
+     */
+    public function destroy(Request $request, MessengerConversation $conversation): JsonResponse
+    {
+        if ($conversation->created_by !== $request->user()->id) {
+            abort(403, 'Nur der Verfasser darf diesen Chat löschen.');
+        }
+
+        $conversation->delete();
+
+        return response()->json(null, 204);
+    }
+
+    /**
+     * POST /api/v1/messenger/conversations/{conversation}/resolve -- Chat als erledigt
+     * quittieren. Jeder Teilnehmer darf das (nicht nur der Verfasser).
+     */
+    public function resolve(Request $request, MessengerConversation $conversation): JsonResponse
+    {
+        $userId = $request->user()->id;
+        $this->authorizeParticipant($conversation, $userId);
+
+        if ($conversation->status !== 'done') {
+            $conversation->update([
+                'status' => 'done',
+                'resolved_at' => now(),
+                'resolved_by' => $userId,
+            ]);
+        }
+
+        return response()->json(['data' => ['status' => $conversation->status]]);
+    }
+
+    /**
+     * POST /api/v1/messenger/conversations/{conversation}/reopen
+     */
+    public function reopen(Request $request, MessengerConversation $conversation): JsonResponse
+    {
+        $userId = $request->user()->id;
+        $this->authorizeParticipant($conversation, $userId);
+
+        $conversation->update([
+            'status' => 'open',
+            'resolved_at' => null,
+            'resolved_by' => null,
+        ]);
+
+        return response()->json(['data' => ['status' => $conversation->status]]);
     }
 
     private function resolveRecipientIds(array $recipients, string $senderId): array
@@ -150,6 +204,8 @@ class MessengerConversationController extends Controller
             ] : null,
             'unread_count' => $conversation->unread_count,
             'last_message_at' => $conversation->last_message_at?->toIso8601String(),
+            'status' => $conversation->status,
+            'is_own' => $conversation->created_by === $userId,
         ];
     }
 

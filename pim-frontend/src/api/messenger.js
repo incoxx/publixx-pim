@@ -17,6 +17,18 @@ export default {
     return client.post(`/messenger/conversations/${id}/read`)
   },
 
+  deleteConversation(id) {
+    return client.delete(`/messenger/conversations/${id}`)
+  },
+
+  resolveConversation(id) {
+    return client.post(`/messenger/conversations/${id}/resolve`)
+  },
+
+  reopenConversation(id) {
+    return client.post(`/messenger/conversations/${id}/reopen`)
+  },
+
   sendMessage(conversationId, payload) {
     return client.post(`/messenger/conversations/${conversationId}/messages`, payload)
   },

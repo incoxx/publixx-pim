@@ -158,17 +158,20 @@ function openCatalogPreview() {
         <Compass class="w-3.5 h-3.5" :stroke-width="1.75" />
       </button>
 
-      <!-- Messenger: Nachrichten-Icon mit Unread-Badge -->
+      <!-- Messenger: Nachrichten-Icon -- bei ungelesenen Nachrichten auffällig eingefärbt
+           und pulsierend, damit es nicht übersehen wird -->
       <button
         class="btn btn-ghost btn-sm btn-circle indicator touch-manipulation"
-        :style="{ color: 'inherit' }"
+        :class="{ 'animate-pulse': messengerStore.unreadCount > 0 }"
+        :style="{ color: messengerStore.unreadCount > 0 ? 'var(--color-warning)' : 'inherit' }"
         title="Nachrichten"
         @click="router.push({ name: 'messenger' })"
       >
         <MessageCircle class="w-4 h-4" :stroke-width="1.75" />
         <span
           v-if="messengerStore.unreadCount > 0"
-          class="badge badge-sm badge-secondary indicator-item font-mono text-[10px] px-1"
+          class="badge badge-sm indicator-item font-mono text-[10px] px-1 border-none"
+          :style="{ background: 'var(--color-warning)', color: '#fff' }"
         >
           {{ messengerStore.unreadCount }}
         </span>

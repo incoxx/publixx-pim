@@ -35,14 +35,26 @@ onMounted(() => {
   // Darstellungs-Einstellungen laden
   appearanceStore.loadFromLocalStorage()
   appearanceStore.loadFromApi()
-  // Messenger: Unread-Badge per Polling aktuell halten (kein Websocket im Backend)
-  messengerStore.startPolling()
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkMobile)
   messengerStore.stopPolling()
 })
+
+// Messenger: Unread-Badge per Polling aktuell halten (kein Websocket im Backend).
+// AppLayout ist die Root-Komponente und ist bereits VOR dem Login gemountet (Login-
+// Seite) -- ein Start in onMounted würde ohne Token laufen und erst mit dem nächsten
+// Intervall-Tick (bis zu 20s später) etwas anzeigen. Stattdessen direkt an den
+// Auth-Status koppeln: `immediate: true` deckt sowohl den Reload-Fall (bereits
+// eingeloggt) als auch den Login-Übergang innerhalb derselben Session ab.
+watch(() => authStore.isAuthenticated, (isAuthenticated) => {
+  if (isAuthenticated) {
+    messengerStore.startPolling()
+  } else {
+    messengerStore.stopPolling()
+  }
+}, { immediate: true })
 
 // Im Cockpit-Modus ("Fokus") wird die Sidebar ausgeblendet — kein linker Rand.
 const mainStyle = computed(() => ({

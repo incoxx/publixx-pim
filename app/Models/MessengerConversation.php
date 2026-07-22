@@ -14,16 +14,23 @@ class MessengerConversation extends Model
 {
     use HasUuids;
 
+    public const STATUSES = ['open', 'done'];
+
     protected $fillable = [
         'user_one_id',
         'user_two_id',
+        'created_by',
         'last_message_at',
+        'status',
+        'resolved_at',
+        'resolved_by',
     ];
 
     protected function casts(): array
     {
         return [
             'last_message_at' => 'datetime',
+            'resolved_at' => 'datetime',
         ];
     }
 
@@ -35,6 +42,16 @@ class MessengerConversation extends Model
     public function userTwo(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_two_id');
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function resolver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'resolved_by');
     }
 
     public function messages(): HasMany
@@ -70,15 +87,17 @@ class MessengerConversation extends Model
     /**
      * Findet oder erstellt die 1:1-Konversation zwischen zwei Nutzern. Die IDs werden
      * kanonisch sortiert (kleinere UUID immer in user_one_id), damit der Unique-Index
-     * unabhaengig von der Gespraechsrichtung Duplikate verhindert.
+     * unabhaengig von der Gespraechsrichtung Duplikate verhindert. $initiatorId wird nur
+     * beim tatsächlichen Anlegen als created_by ("Verfasser") übernommen, nicht bei
+     * Wiederverwendung einer bestehenden Konversation.
      */
-    public static function betweenUsers(string $userIdA, string $userIdB): self
+    public static function betweenUsers(string $initiatorId, string $otherUserId): self
     {
-        [$userOneId, $userTwoId] = $userIdA <= $userIdB ? [$userIdA, $userIdB] : [$userIdB, $userIdA];
+        [$userOneId, $userTwoId] = $initiatorId <= $otherUserId ? [$initiatorId, $otherUserId] : [$otherUserId, $initiatorId];
 
-        return static::firstOrCreate([
-            'user_one_id' => $userOneId,
-            'user_two_id' => $userTwoId,
-        ]);
+        return static::firstOrCreate(
+            ['user_one_id' => $userOneId, 'user_two_id' => $userTwoId],
+            ['created_by' => $initiatorId]
+        );
     }
 }

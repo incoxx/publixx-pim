@@ -52,7 +52,17 @@ class MessengerMessageService
             ]);
         }
 
-        $conversation->update(['last_message_at' => $message->created_at]);
+        $conversationUpdates = ['last_message_at' => $message->created_at];
+
+        // Ein als erledigt quittierter Chat gilt bei neuer Aktivität wieder als offen --
+        // sonst blieben neue Nachrichten in einem "erledigten" Chat unbemerkt liegen.
+        if ($conversation->status === 'done') {
+            $conversationUpdates['status'] = 'open';
+            $conversationUpdates['resolved_at'] = null;
+            $conversationUpdates['resolved_by'] = null;
+        }
+
+        $conversation->update($conversationUpdates);
 
         return $message->load(['sender:id,name', 'attachments.attachable', 'replyTo:id,body,sender_id']);
     }

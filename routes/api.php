@@ -825,7 +825,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::get('conversations', [MessengerConversationController::class, 'index']);
         Route::post('conversations', [MessengerConversationController::class, 'store']);
         Route::get('conversations/{conversation}', [MessengerConversationController::class, 'show']);
+        Route::delete('conversations/{conversation}', [MessengerConversationController::class, 'destroy']);
         Route::post('conversations/{conversation}/read', [MessengerConversationController::class, 'markRead']);
+        Route::post('conversations/{conversation}/resolve', [MessengerConversationController::class, 'resolve']);
+        Route::post('conversations/{conversation}/reopen', [MessengerConversationController::class, 'reopen']);
         Route::post('conversations/{conversation}/messages', [MessengerMessageController::class, 'store']);
         Route::get('unread-count', [MessengerMessageController::class, 'unreadCount']);
         Route::get('colleagues', [MessengerController::class, 'colleagues']);

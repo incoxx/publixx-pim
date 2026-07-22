@@ -152,4 +152,76 @@ class MessengerConversationControllerTest extends TestCase
             'read_at' => null,
         ]);
     }
+
+    public function test_creator_can_delete_conversation(): void
+    {
+        $this->postJson('/api/v1/messenger/conversations', [
+            'recipients' => ['mode' => 'users', 'user_ids' => [$this->colleague->id]],
+            'body' => 'Hallo',
+        ])->assertCreated();
+
+        $conversation = MessengerConversation::first();
+
+        $this->deleteJson("/api/v1/messenger/conversations/{$conversation->id}")->assertNoContent();
+
+        $this->assertDatabaseMissing('messenger_conversations', ['id' => $conversation->id]);
+        $this->assertDatabaseMissing('messenger_messages', ['conversation_id' => $conversation->id]);
+    }
+
+    public function test_non_creator_cannot_delete_conversation(): void
+    {
+        $this->postJson('/api/v1/messenger/conversations', [
+            'recipients' => ['mode' => 'users', 'user_ids' => [$this->colleague->id]],
+            'body' => 'Hallo',
+        ])->assertCreated();
+
+        $conversation = MessengerConversation::first();
+        $this->actingAs($this->colleague);
+
+        $this->deleteJson("/api/v1/messenger/conversations/{$conversation->id}")->assertForbidden();
+        $this->assertDatabaseHas('messenger_conversations', ['id' => $conversation->id]);
+    }
+
+    public function test_either_participant_can_resolve_and_reopen_conversation(): void
+    {
+        $this->postJson('/api/v1/messenger/conversations', [
+            'recipients' => ['mode' => 'users', 'user_ids' => [$this->colleague->id]],
+            'body' => 'Hallo',
+        ])->assertCreated();
+
+        $conversation = MessengerConversation::first();
+        $this->actingAs($this->colleague);
+
+        $this->postJson("/api/v1/messenger/conversations/{$conversation->id}/resolve")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'done');
+
+        $this->assertSame('done', $conversation->fresh()->status);
+        $this->assertNotNull($conversation->fresh()->resolved_at);
+
+        $this->postJson("/api/v1/messenger/conversations/{$conversation->id}/reopen")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'open');
+
+        $this->assertSame('open', $conversation->fresh()->status);
+        $this->assertNull($conversation->fresh()->resolved_at);
+    }
+
+    public function test_new_message_reopens_a_resolved_conversation(): void
+    {
+        $this->postJson('/api/v1/messenger/conversations', [
+            'recipients' => ['mode' => 'users', 'user_ids' => [$this->colleague->id]],
+            'body' => 'Hallo',
+        ])->assertCreated();
+
+        $conversation = MessengerConversation::first();
+        $this->postJson("/api/v1/messenger/conversations/{$conversation->id}/resolve")->assertOk();
+
+        $this->postJson("/api/v1/messenger/conversations/{$conversation->id}/messages", [
+            'body' => 'Doch noch offen',
+        ])->assertCreated();
+
+        $this->assertSame('open', $conversation->fresh()->status);
+        $this->assertNull($conversation->fresh()->resolved_at);
+    }
 }
