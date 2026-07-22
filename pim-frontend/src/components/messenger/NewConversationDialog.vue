@@ -61,7 +61,7 @@ async function send() {
     emit('started', conversations)
     close()
   } catch (e) {
-    error.value = e.response?.data?.detail || 'Nachricht konnte nicht gesendet werden'
+    error.value = e.response?.data?.message || e.response?.data?.detail || 'Nachricht konnte nicht gesendet werden'
   } finally {
     sending.value = false
   }

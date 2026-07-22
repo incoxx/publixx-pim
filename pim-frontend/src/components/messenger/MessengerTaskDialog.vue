@@ -42,7 +42,7 @@ async function save() {
     emit('created', data.data)
     close()
   } catch (e) {
-    error.value = e.response?.data?.detail || 'Aufgabe konnte nicht angelegt werden'
+    error.value = e.response?.data?.message || e.response?.data?.detail || 'Aufgabe konnte nicht angelegt werden'
   } finally {
     saving.value = false
   }
