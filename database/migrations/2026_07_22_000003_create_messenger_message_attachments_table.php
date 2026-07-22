@@ -24,7 +24,10 @@ return new class extends Migration
             $table->foreign('message_id')->references('id')->on('messenger_messages')->cascadeOnDelete();
 
             $table->index(['message_id']);
-            $table->index(['attachable_type', 'attachable_id']);
+            // Expliziter, kurzer Index-Name -- der automatisch generierte Name
+            // (messenger_message_attachments_attachable_type_attachable_id_index)
+            // überschreitet MySQLs 64-Zeichen-Identifier-Limit (Fehler 1059).
+            $table->index(['attachable_type', 'attachable_id'], 'msgr_msg_attachments_attachable_index');
         });
     }
 
