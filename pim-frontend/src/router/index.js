@@ -563,6 +563,12 @@ const routes = [
     meta: { title: 'Merkliste' },
   },
   {
+    path: '/nachrichten',
+    name: 'messenger',
+    component: () => import('@/views/messenger/MessengerView.vue'),
+    meta: { title: 'Nachrichten' },
+  },
+  {
     path: '/test-runner',
     name: 'test-runner',
     component: () => import('@/views/admin/TestRunnerView.vue'),
