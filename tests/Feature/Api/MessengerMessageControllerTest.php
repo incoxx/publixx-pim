@@ -88,6 +88,18 @@ class MessengerMessageControllerTest extends TestCase
         $this->assertSame('merkliste', $response->json('data.attachments.0.attached_via'));
     }
 
+    public function test_store_rejects_merkliste_attachment_when_watchlist_is_empty(): void
+    {
+        $response = $this->postJson("/api/v1/messenger/conversations/{$this->conversation->id}/messages", [
+            'attachments' => [
+                ['type' => 'merkliste'],
+            ],
+        ]);
+
+        $response->assertUnprocessable();
+        $this->assertSame(0, \App\Models\MessengerMessage::count());
+    }
+
     public function test_store_is_forbidden_for_non_participant(): void
     {
         $stranger = User::factory()->create();

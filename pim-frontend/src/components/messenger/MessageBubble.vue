@@ -49,12 +49,14 @@ function openProduct(productId) {
         <button
           v-for="attachment in message.attachments"
           :key="attachment.id"
-          class="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 text-left transition-colors"
-          @click="openProduct(attachment.product.id)"
+          class="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-left transition-colors"
+          :class="attachment.product ? 'bg-black/5 hover:bg-black/10' : 'bg-black/5 opacity-60 cursor-not-allowed'"
+          :disabled="!attachment.product"
+          @click="attachment.product && openProduct(attachment.product.id)"
         >
           <span class="min-w-0">
-            <span class="block text-xs font-medium truncate">{{ attachment.product?.name }}</span>
-            <span class="block text-[10px] font-mono opacity-70 truncate">{{ attachment.product?.sku }}</span>
+            <span class="block text-xs font-medium truncate">{{ attachment.product?.name || 'Produkt nicht mehr verfügbar' }}</span>
+            <span v-if="attachment.product" class="block text-[10px] font-mono opacity-70 truncate">{{ attachment.product.sku }}</span>
           </span>
         </button>
       </div>

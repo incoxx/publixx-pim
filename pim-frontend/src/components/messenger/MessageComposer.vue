@@ -7,14 +7,21 @@ import watchlistApi from '@/api/watchlist'
 
 const props = defineProps({
   replyTo: { type: Object, default: null },
+  // Direkter Funktions-Prop statt emit('send', …): emit() ist laut Vue-Typisierung
+  // `void` und wartet NICHT auf async Parent-Handler -- ein `await emit(...)` würde
+  // sofort weiterlaufen, bevor die Nachricht tatsächlich gesendet wurde, und Body/
+  // Anhänge auch bei einem fehlgeschlagenen Versand löschen. Ein direkt aufgerufener
+  // Funktions-Prop ist ein normaler awaitbarer Funktionsaufruf.
+  onSend: { type: Function, required: true },
 })
 
-const emit = defineEmits(['send', 'cancel-reply', 'task'])
+const emit = defineEmits(['cancel-reply', 'task'])
 
 const body = ref('')
 const pendingAttachments = ref([]) // [{type:'product', product_id, label, sublabel} | {type:'merkliste', count}]
 const productPickerOpen = ref(false)
 const sending = ref(false)
+const error = ref('')
 
 function productFetcher(query, page) {
   return productsApi.list({ search: query || undefined, page, perPage: 20 }).then(({ data }) => ({
@@ -50,18 +57,23 @@ function removeAttachment(index) {
 async function send() {
   if (!body.value.trim() && !pendingAttachments.value.length) return
   sending.value = true
+  error.value = ''
   try {
     const attachments = pendingAttachments.value.map(a =>
       a.type === 'product' ? { type: 'product', product_id: a.product_id } : { type: 'merkliste' }
     )
-    await emit('send', {
+    await props.onSend({
       body: body.value.trim() || null,
       replyToMessageId: props.replyTo?.id || null,
       attachments,
     })
+    // Nur bei tatsächlich erfolgreichem Versand zurücksetzen -- bei einem Fehler
+    // bleiben Text und Anhänge erhalten, damit nichts verloren geht.
     body.value = ''
     pendingAttachments.value = []
     emit('cancel-reply')
+  } catch (e) {
+    error.value = e.response?.data?.detail || 'Nachricht konnte nicht gesendet werden'
   } finally {
     sending.value = false
   }
@@ -92,6 +104,8 @@ async function send() {
         </button>
       </span>
     </div>
+
+    <p v-if="error" class="text-xs text-[var(--color-error)] mb-2">{{ error }}</p>
 
     <div class="flex items-end gap-2">
       <textarea

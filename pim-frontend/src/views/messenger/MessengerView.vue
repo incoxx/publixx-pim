@@ -104,6 +104,10 @@ const activeOtherUserName = computed(() => messengerStore.activeConversation?.ot
         <p v-if="!messengerStore.conversations.length" class="px-3 py-6 text-center text-xs text-[var(--color-text-tertiary)]">
           Noch keine Nachrichten. Starte eine neue Konversation.
         </p>
+
+        <p v-if="messengerStore.error" class="px-3 py-2 text-xs text-[var(--color-error)]">
+          {{ messengerStore.error }}
+        </p>
       </div>
     </div>
 
@@ -128,7 +132,7 @@ const activeOtherUserName = computed(() => messengerStore.activeConversation?.ot
           <div ref="messagesEnd" />
         </div>
 
-        <MessageComposer :reply-to="replyTo" @send="handleSend" @cancel-reply="replyTo = null" @task="taskDialogOpen = true" />
+        <MessageComposer :reply-to="replyTo" :on-send="handleSend" @cancel-reply="replyTo = null" @task="taskDialogOpen = true" />
 
         <MessengerTaskDialog
           v-model="taskDialogOpen"

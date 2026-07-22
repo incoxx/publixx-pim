@@ -25,6 +25,17 @@ class MessengerMessageService
         ?string $replyToMessageId,
         array $attachments
     ): MessengerMessage {
+        // Anhänge VOR dem Anlegen der Nachricht auflösen: eine 'merkliste'-Anhang-Anfrage
+        // kann bei leerer Watchlist des Senders zu null tatsächlichen Anhang-Zeilen
+        // expandieren -- die "Text oder Anhang"-Pflicht der Controller prüft nur die
+        // rohe Anfrage, nicht das Expansionsergebnis, daher hier nochmal nach der
+        // Auflösung geprüft, damit keine wortlos leere Nachricht entstehen kann.
+        $resolvedAttachments = $this->resolveAttachments($attachments, $senderId);
+
+        if (($body === null || $body === '') && empty($resolvedAttachments)) {
+            abort(422, 'Nachricht benötigt Text oder Anhang.');
+        }
+
         $message = MessengerMessage::create([
             'conversation_id' => $conversation->id,
             'sender_id' => $senderId,
@@ -32,14 +43,30 @@ class MessengerMessageService
             'reply_to_message_id' => $replyToMessageId,
         ]);
 
+        foreach ($resolvedAttachments as $resolved) {
+            MessengerMessageAttachment::create([
+                'message_id' => $message->id,
+                'attachable_type' => 'product',
+                'attachable_id' => $resolved['product_id'],
+                'attached_via' => $resolved['attached_via'],
+            ]);
+        }
+
+        $conversation->update(['last_message_at' => $message->created_at]);
+
+        return $message->load(['sender:id,name', 'attachments.attachable', 'replyTo:id,body,sender_id']);
+    }
+
+    /**
+     * @return array<int, array{product_id: string, attached_via: string}>
+     */
+    private function resolveAttachments(array $attachments, string $senderId): array
+    {
+        $resolved = [];
+
         foreach ($attachments as $attachment) {
             if ($attachment['type'] === 'product') {
-                MessengerMessageAttachment::create([
-                    'message_id' => $message->id,
-                    'attachable_type' => 'product',
-                    'attachable_id' => $attachment['product_id'],
-                    'attached_via' => 'product',
-                ]);
+                $resolved[] = ['product_id' => $attachment['product_id'], 'attached_via' => 'product'];
                 continue;
             }
 
@@ -48,18 +75,11 @@ class MessengerMessageService
             // Zeilen, sondern je eine eigene Anhang-Zeile pro Produkt der Merkliste.
             $productIds = WatchlistItem::where('user_id', $senderId)->pluck('product_id');
             foreach ($productIds as $productId) {
-                MessengerMessageAttachment::create([
-                    'message_id' => $message->id,
-                    'attachable_type' => 'product',
-                    'attachable_id' => $productId,
-                    'attached_via' => 'merkliste',
-                ]);
+                $resolved[] = ['product_id' => $productId, 'attached_via' => 'merkliste'];
             }
         }
 
-        $conversation->update(['last_message_at' => $message->created_at]);
-
-        return $message->load(['sender:id,name', 'attachments.attachable', 'replyTo:id,body,sender_id']);
+        return $resolved;
     }
 
     public function format(MessengerMessage $message): array
