@@ -27,9 +27,15 @@ function openProduct(productId) {
       {{ message.sender?.name }}
     </div>
 
-    <!-- text-white explizit setzen: DaisyUIs automatische Content-Farbe (primary-content)
-         greift mit dem projekteigenen CSS-Var-Theme nicht zuverlässig, siehe .pim-btn-primary -->
-    <div class="chat-bubble" :class="isMine ? 'chat-bubble-primary text-white' : ''">
+    <!-- Farbe per Inline-Style statt chat-bubble-primary/text-white-Klassen: DaisyUIs
+         automatische Content-Farbe (primary-content) und auch eine reine text-white-Klasse
+         greifen mit dem projekteigenen CSS-Layer-Setup nicht zuverlässig (Cascade-Layer-
+         Reihenfolge), siehe .pim-btn-primary, das aus demselben Grund hart color:white setzt.
+         Inline-Style hat garantiert Vorrang vor jeder Klassen-basierten Farbe. -->
+    <div
+      class="chat-bubble"
+      :style="isMine ? { backgroundColor: 'var(--color-primary)', color: '#ffffff' } : {}"
+    >
       <!-- Zitat der Ursprungsnachricht bei "Antworten" -->
       <div
         v-if="message.reply_to"
