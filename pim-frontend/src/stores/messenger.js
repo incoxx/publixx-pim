@@ -99,6 +99,26 @@ export const useMessengerStore = defineStore('messenger', () => {
     messages.value = []
   }
 
+  async function deleteConversation(id) {
+    await messengerApi.deleteConversation(id)
+    conversations.value = conversations.value.filter(c => c.id !== id)
+    if (activeConversation.value?.id === id) closeConversation()
+  }
+
+  async function resolveConversation(id) {
+    await messengerApi.resolveConversation(id)
+    if (activeConversation.value?.id === id) activeConversation.value.status = 'done'
+    const conversation = conversations.value.find(c => c.id === id)
+    if (conversation) conversation.status = 'done'
+  }
+
+  async function reopenConversation(id) {
+    await messengerApi.reopenConversation(id)
+    if (activeConversation.value?.id === id) activeConversation.value.status = 'open'
+    const conversation = conversations.value.find(c => c.id === id)
+    if (conversation) conversation.status = 'open'
+  }
+
   function startPolling() {
     if (unreadTimer) return
     fetchUnreadCount()
@@ -139,6 +159,9 @@ export const useMessengerStore = defineStore('messenger', () => {
     sendMessage,
     startConversation,
     closeConversation,
+    deleteConversation,
+    resolveConversation,
+    reopenConversation,
     startPolling,
     stopPolling,
   }
