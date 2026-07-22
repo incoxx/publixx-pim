@@ -33,7 +33,7 @@ export const useMessengerStore = defineStore('messenger', () => {
       const { data } = await messengerApi.listConversations()
       conversations.value = data.data || []
     } catch (e) {
-      error.value = e.response?.data?.detail || 'Konversationen konnten nicht geladen werden'
+      error.value = e.response?.data?.message || e.response?.data?.detail || 'Konversationen konnten nicht geladen werden'
     } finally {
       loading.value = false
     }
@@ -51,7 +51,7 @@ export const useMessengerStore = defineStore('messenger', () => {
       await fetchUnreadCount()
       await fetchConversations()
     } catch (e) {
-      error.value = e.response?.data?.detail || 'Konversation konnte nicht geladen werden'
+      error.value = e.response?.data?.message || e.response?.data?.detail || 'Konversation konnte nicht geladen werden'
     } finally {
       loading.value = false
     }

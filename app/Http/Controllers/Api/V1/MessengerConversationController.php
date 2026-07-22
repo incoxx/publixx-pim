@@ -181,7 +181,7 @@ class MessengerConversationController extends Controller
     {
         $ids = match ($recipients['mode']) {
             'users' => $recipients['user_ids'] ?? [],
-            'team' => Team::findOrFail($recipients['team_id'])->users()->pluck('users.id')->all(),
+            'team' => Team::findOrFail($recipients['team_id'])->users()->where('is_active', true)->pluck('users.id')->all(),
             'all' => User::where('is_active', true)->pluck('id')->all(),
         };
 
