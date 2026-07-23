@@ -22,7 +22,13 @@ async function copyCode(key, code) {
 }
 
 // Basis-URL dieser anyPIM-Instanz — als Kopiervorlage für die Agentur
-const apiBase = `${window.location.origin}/api/v1`
+const origin = window.location.origin
+const apiBase = `${origin}/api/v1`
+
+// Bereits live ausgeliefert von CatalogEmbedController::asset() — kein Anfordern nötig,
+// direkt einbindbar oder für lokales Hosting herunterladbar.
+const assetJsUrl = `${origin}/catalog-embed-assets/catalog-embed.umd.js`
+const assetCssUrl = `${origin}/catalog-embed-assets/catalog-embed.css`
 
 const MODES = [
   { key: 'cors', icon: Globe, label: 'Getrennte Domains (CORS)' },
@@ -138,8 +144,13 @@ const widgetCodeExamples = computed(() => {
     {
       key: 'assets',
       title: '1. Bundle & Styles einbinden',
-      code: `<link rel="stylesheet" href="/fileadmin/catalog-embed/catalog-embed.css">
-<script src="/fileadmin/catalog-embed/catalog-embed.umd.js"><\/script>`,
+      code: `<!-- Direkt von dieser anyPIM-Instanz einbinden (empfohlen, immer aktuell): -->
+<link rel="stylesheet" href="${assetCssUrl}">
+<script src="${assetJsUrl}"><\/script>
+
+<!-- Alternative: herunterladen (Buttons unten) und selbst hosten, z.B.: -->
+<!-- <link rel="stylesheet" href="/fileadmin/catalog-embed/catalog-embed.css"> -->
+<!-- <script src="/fileadmin/catalog-embed/catalog-embed.umd.js"><\/script> -->`,
     },
     {
       key: 'markup',
@@ -374,9 +385,15 @@ $products = json_decode((string) $response->getBody(), true)['data'] ?? [];`)
               API-Basis-URL dieser anyPIM-Instanz:
               <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">{{ apiBase }}</code>
             </li>
-            <li>Aktuelles <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">catalog-embed.umd.js</code> +
-              <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">catalog-embed.css</code> — bitte beim anyPIM-Betrieb anfordern
-              und im TYPO3-Fileadmin bzw. als Extension-Ressource ablegen.</li>
+            <li>
+              <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">catalog-embed.umd.js</code> +
+              <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">catalog-embed.css</code> —
+              kein Anfordern nötig: direkt von dieser Instanz einbinden (Schritt 1) oder für lokales Hosting herunterladen:
+              <span class="inline-flex items-center gap-1.5 ml-1">
+                <a :href="assetJsUrl" download class="pim-btn pim-btn-secondary text-[11px] py-0.5 px-2">.umd.js</a>
+                <a :href="assetCssUrl" download class="pim-btn pim-btn-secondary text-[11px] py-0.5 px-2">.css</a>
+              </span>
+            </li>
             <li v-if="mode === 'cors'">CORS-Freigabe der TYPO3-Domain (oben konfiguriert) — bitte vor dem Go-Live speichern.</li>
             <li v-else>Reverse-Proxy-Regel auf dem TYPO3-Webserver, die den Pfad oben an <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">{{ apiBase }}</code> durchreicht (Beispiel unten).</li>
             <li>Optional: Bearer-Token, falls der Katalog nicht öffentlich zugänglich sein soll
