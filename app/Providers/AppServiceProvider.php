@@ -207,14 +207,16 @@ class AppServiceProvider extends ServiceProvider
      * Boot (auch Artisan-Kommandos) — daher defensiv gegen fehlende Tabelle
      * (z.B. vor der ersten Migration) und mit kurzlebigem Cache statt DB-Query
      * pro Request.
+     *
+     * Reihenfolge bewusst so gewählt, dass die teure Lizenzprüfung (DB-Read +
+     * Ed25519-Signaturverifikation in LicenseService::resolve(), pro Request
+     * unwiederholt gecacht) erst ganz am Schluss läuft — für die große Mehrheit
+     * der Requests (Feature ungenutzt oder anderer Modus) genügt der günstige
+     * Payload-Cache, ohne die Lizenz überhaupt anzufassen.
      */
     private function applyTypo3IntegrationCors(): void
     {
         try {
-            if (!$this->app->make(\App\Services\LicenseService::class)->isModuleActive('typo3')) {
-                return;
-            }
-
             // In ein Array gewrappt cachen, damit ein "noch nicht konfiguriert"-Ergebnis
             // (payload === null) selbst als Treffer erkannt wird — sonst würde
             // Cache::rememberForever() bei null jedes Mal erneut die DB abfragen.
@@ -222,21 +224,27 @@ class AppServiceProvider extends ServiceProvider
                 'typo3_integration_setting',
                 fn () => ['payload' => \App\Models\Setting::getPayload('typo3_integration')],
             );
+
+            $payload = $cached['payload'] ?? null;
+            if (($payload['mode'] ?? null) !== 'cors') {
+                return;
+            }
+
+            $origin = $payload['cors_origin'] ?? null;
+            if (
+                !is_string($origin)
+                || $origin === ''
+                || !preg_match('/^https?:\/\/[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?(:\d{1,5})?$/', $origin)
+            ) {
+                return;
+            }
+
+            // Lizenzprüfung erst hier — nur noch für Instanzen, die den CORS-Modus
+            // tatsächlich konfiguriert haben, nicht mehr für jeden Request app-weit.
+            if (!$this->app->make(\App\Services\LicenseService::class)->isModuleActive('typo3')) {
+                return;
+            }
         } catch (\Throwable) {
-            return;
-        }
-
-        $payload = $cached['payload'] ?? null;
-        if (($payload['mode'] ?? null) !== 'cors') {
-            return;
-        }
-
-        $origin = $payload['cors_origin'] ?? null;
-        if (
-            !is_string($origin)
-            || $origin === ''
-            || !preg_match('/^https?:\/\/[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?(:\d{1,5})?$/', $origin)
-        ) {
             return;
         }
 

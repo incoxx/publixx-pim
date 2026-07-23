@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import {
   ExternalLink, Info, ShieldCheck, Blocks, ListChecks, Copy, Check, Mail,
   Globe, Network, Braces, Lock, AlertTriangle,
@@ -79,6 +79,13 @@ async function loadApiTemplates() {
     apiTemplatesLoaded.value = true
   } catch (e) { /* Manuelle Anleitung bleibt trotzdem nutzbar */ }
 }
+
+// Bei Direktaufruf/Reload kann der Lizenz-Store noch laden, wenn load() bereits
+// versucht hat, die Templates zu holen (dort noch apiDesignerLicensed === false).
+// Sobald die Lizenz nachträglich aktiv wird, hier den Ladeversuch nachholen.
+watch(apiDesignerLicensed, (active) => {
+  if (active && mode.value === 'api_designer') loadApiTemplates()
+})
 
 function selectMode(key) {
   mode.value = key
