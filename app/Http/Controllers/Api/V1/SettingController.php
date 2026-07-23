@@ -8,6 +8,7 @@ use App\Jobs\BulkReindexSearchJob;
 use App\Jobs\UpdateSearchIndex;
 use App\Models\Attribute;
 use App\Models\AttributeView;
+use App\Models\CatalogTemplate;
 use App\Models\Hierarchy;
 use App\Models\Media;
 use App\Models\PdfTemplate;
@@ -624,6 +625,7 @@ class SettingController extends Controller
             ],
             'reverse_proxy_path' => 'nullable|string|max:255',
             'api_template_id' => 'nullable|uuid|exists:api_templates,id',
+            'catalog_template_id' => 'nullable|uuid|exists:catalog_templates,id',
         ]);
 
         // Mergen statt überschreiben — sonst gingen embed_user_id/embed_token
@@ -714,12 +716,30 @@ class SettingController extends Controller
             return response()->json(['message' => 'catalog-embed-Bundle wurde auf dieser Instanz noch nicht deployed.'], 404);
         }
 
-        $samplePath = base_path('catalog-embed/examples/basic.html');
-        $sampleHtml = file_exists($samplePath)
-            ? file_get_contents($samplePath)
-            : '<!DOCTYPE html><html><head><link rel="stylesheet" href="catalog-embed.css"></head>'
-                . '<body><div data-catalog="search"></div><div data-catalog="product-grid"></div>'
-                . '<script src="catalog-embed.umd.js"></script></body></html>';
+        $payload = Setting::getPayload('typo3_integration') ?? [];
+
+        // Falls eine Katalog-Vorlage gewählt ist (Integration > Typo 3): deren
+        // html_template als Basis nehmen, statt der generischen Beispieldatei —
+        // Branding/Layout des Starter-Kits entspricht dann der echten Vorlage.
+        $selectedTemplate = null;
+        if (!empty($payload['catalog_template_id'])) {
+            $selectedTemplate = CatalogTemplate::where('id', $payload['catalog_template_id'])
+                ->where('is_active', true)
+                ->first();
+        }
+
+        if ($selectedTemplate) {
+            $sampleHtml = $selectedTemplate->html_template;
+            $templateLabel = $selectedTemplate->name;
+        } else {
+            $samplePath = base_path('catalog-embed/examples/basic.html');
+            $sampleHtml = file_exists($samplePath)
+                ? file_get_contents($samplePath)
+                : '<!DOCTYPE html><html><head><link rel="stylesheet" href="catalog-embed.css"></head>'
+                    . '<body><div data-catalog="search"></div><div data-catalog="product-grid"></div>'
+                    . '<script src="catalog-embed.umd.js"></script></body></html>';
+            $templateLabel = 'Standard-Beispiel (basic.html)';
+        }
 
         // Für den ZIP-Kontext: Assets liegen relativ neben index.html statt unter
         // der absoluten /catalog-embed-assets/-URL dieser Instanz.
@@ -750,7 +770,7 @@ class SettingController extends Controller
         // direkt in den init()-Aufruf einfügen, damit der Katalog auch bei
         // catalog_access_mode="login" ohne Login-Overlay erscheint. Der Token ist
         // bewusst auf catalog:read beschränkt (RestrictScopedApiToken).
-        $embedToken = Setting::getPayload('typo3_integration')['embed_token'] ?? null;
+        $embedToken = $payload['embed_token'] ?? null;
         $tokenNote = 'Kein Service-Token konfiguriert — falls "Katalog-Zugriff" auf "Login erforderlich"'
             . "\n                                 steht, zeigt die Seite ein Login-Overlay (siehe PIM-Menü Integration > Typo 3).";
         if (is_string($embedToken) && $embedToken !== '') {
@@ -768,7 +788,7 @@ class SettingController extends Controller
         anyPIM Catalog-Embed — Starter-Kit
         ===================================
 
-        index.html            – lauffähige Beispielseite, zeigt live Produkte von:
+        index.html            – lauffähige Beispielseite (Vorlage: {$templateLabel}), zeigt live Produkte von:
                                  {$apiBase}
                                  {$tokenNote}
         catalog-embed.umd.js  – Widget-Bundle (Script-Tag in index.html)

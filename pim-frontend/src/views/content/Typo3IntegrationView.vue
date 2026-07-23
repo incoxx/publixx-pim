@@ -2,10 +2,11 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import {
   ExternalLink, Info, ShieldCheck, Blocks, ListChecks, Copy, Check, Mail,
-  Globe, Network, Braces, Lock, AlertTriangle, Download, Loader2, KeyRound, X,
+  Globe, Network, Braces, Lock, AlertTriangle, Download, Loader2, KeyRound, X, Palette,
 } from 'lucide-vue-next'
 import client from '@/api/client'
 import apiTemplatesApi from '@/api/apiTemplates'
+import catalogTemplatesApi from '@/api/catalogTemplates'
 import usersApi from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
 import { useLicenseStore } from '@/stores/license'
@@ -70,6 +71,26 @@ const apiTemplates = ref([])
 const apiTemplatesLoaded = ref(false)
 const apiDesignerLicensed = computed(() => licenseStore.isModuleActive('api_designer'))
 const selectedTemplate = computed(() => apiTemplates.value.find(t => t.id === apiTemplateId.value) || null)
+
+// ── Katalog-Vorlage (Theming, Basis fürs Starter-Kit) ──
+const catalogTemplateId = ref('')
+const catalogTemplates = ref([])
+const catalogTemplatesLoaded = ref(false)
+const catalogTemplatesLicensed = computed(() => licenseStore.isModuleActive('catalog_templates'))
+const selectedCatalogTemplate = computed(() => catalogTemplates.value.find(t => t.id === catalogTemplateId.value) || null)
+
+async function loadCatalogTemplates() {
+  if (catalogTemplatesLoaded.value || !catalogTemplatesLicensed.value) return
+  try {
+    const { data } = await catalogTemplatesApi.list()
+    catalogTemplates.value = data.data || data
+    catalogTemplatesLoaded.value = true
+  } catch (e) { /* Auswahl bleibt leer, Standard-Theming wird angezeigt */ }
+}
+
+watch(catalogTemplatesLicensed, (active) => {
+  if (active) loadCatalogTemplates()
+})
 
 // ── Embed-Service-Token (auf catalog:read beschränkt, siehe RestrictScopedApiToken) ──
 const embedUserId = ref('')
@@ -136,8 +157,10 @@ async function load() {
     apiTemplateId.value = payload.api_template_id || ''
     embedUserId.value = payload.embed_user_id || ''
     embedToken.value = payload.embed_token || ''
+    catalogTemplateId.value = payload.catalog_template_id || ''
     if (mode.value === 'api_designer') loadApiTemplates()
     if (authStore.isAdmin) loadEmbedUsers()
+    loadCatalogTemplates()
   } catch (e) {
     if (e.response?.status === 403) {
       notLicensed.value = true
@@ -180,6 +203,7 @@ async function save() {
       cors_origin: corsOrigin.value || null,
       reverse_proxy_path: reverseProxyPath.value || null,
       api_template_id: apiTemplateId.value || null,
+      catalog_template_id: catalogTemplateId.value || null,
     })
     saveMessage.value = data.message || 'Gespeichert.'
     setTimeout(() => { saveMessage.value = '' }, 3000)
@@ -271,8 +295,12 @@ const widgetCodeExamples = computed(() => {
     },
     {
       key: 'theme',
-      title: '4. Theming per CSS-Variablen (optional)',
-      code: `:root {
+      title: selectedCatalogTemplate.value
+        ? `4. Theming per CSS-Variablen (aus Vorlage „${selectedCatalogTemplate.value.name}")`
+        : '4. Theming per CSS-Variablen (optional)',
+      code: selectedCatalogTemplate.value && Object.keys(selectedCatalogTemplate.value.css_variables || {}).length
+        ? `:root {\n${Object.entries(selectedCatalogTemplate.value.css_variables).map(([k, v]) => `  ${k}: ${v};`).join('\n')}\n}`
+        : `:root {
   --pxc-primary: #2563eb;
   --pxc-primary-text: #ffffff;
   --pxc-accent: #dc2626;
@@ -456,6 +484,30 @@ $products = json_decode((string) $response->getBody(), true)['data'] ?? [];`)
 
       <!-- Weg 1+2: Widget-Einbindung -->
       <template v-if="mode !== 'api_designer'">
+        <section class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2">
+          <div class="flex items-center gap-2">
+            <Palette class="w-4 h-4 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+            <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Katalog-Vorlage (Theming)</h3>
+          </div>
+          <p class="text-sm text-[var(--color-text-secondary)]">
+            Optional: eine bestehende <router-link to="/catalog-templates" class="text-[var(--color-accent)] hover:underline">Katalog-Vorlage</router-link> wählen —
+            deren CSS-Variablen erscheinen dann in Schritt 4, und das Starter-Kit-ZIP nutzt ihr Layout als Basis statt der Standard-Beispielseite.
+          </p>
+          <div v-if="!catalogTemplatesLicensed" class="flex items-center gap-2 text-xs text-[var(--color-text-tertiary)]">
+            <AlertTriangle class="w-3.5 h-3.5" :stroke-width="1.75" />
+            Zusätzlich benötigt: Enterprise-Modul „Katalog-Vorlagen".
+          </div>
+          <select
+            v-else
+            v-model="catalogTemplateId"
+            :disabled="!authStore.isAdmin"
+            class="w-full max-w-sm rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-1.5 text-sm text-[var(--color-text-primary)] disabled:opacity-60"
+          >
+            <option value="">— Standard-Beispiel verwenden —</option>
+            <option v-for="t in catalogTemplates" :key="t.id" :value="t.id">{{ t.name }}</option>
+          </select>
+        </section>
+
         <section class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2">
           <div class="flex items-center gap-2">
             <Download class="w-4 h-4 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
