@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CacheCatalogResponse;
 use App\Http\Middleware\CatalogAccessControl;
 use App\Http\Middleware\CheckModuleLicense;
 use App\Http\Middleware\RateLimitMiddleware;
@@ -22,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'throttle.pim' => RateLimitMiddleware::class,
             'catalog.access' => CatalogAccessControl::class,
+            'catalog.cache' => CacheCatalogResponse::class,
             'module' => CheckModuleLicense::class,
         ]);
 
