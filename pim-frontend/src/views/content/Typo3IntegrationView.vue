@@ -2,17 +2,33 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import {
   ExternalLink, Info, ShieldCheck, Blocks, ListChecks, Copy, Check, Mail,
-  Globe, Network, Braces, Lock, AlertTriangle,
+  Globe, Network, Braces, Lock, AlertTriangle, Download, Loader2,
 } from 'lucide-vue-next'
 import client from '@/api/client'
 import apiTemplatesApi from '@/api/apiTemplates'
 import { useAuthStore } from '@/stores/auth'
 import { useLicenseStore } from '@/stores/license'
 import { useClipboard } from '@/composables/useClipboard'
+import { triggerDownload, blobErrorMessage } from '@/utils/download'
 
 const authStore = useAuthStore()
 const licenseStore = useLicenseStore()
 const { copy } = useClipboard()
+
+const downloadingKit = ref(false)
+const kitError = ref('')
+async function downloadStarterKit() {
+  downloadingKit.value = true
+  kitError.value = ''
+  try {
+    const { data } = await client.get('/settings/typo3-integration/starter-kit', { responseType: 'blob' })
+    triggerDownload(data, 'catalog-embed-starter-kit.zip')
+  } catch (e) {
+    kitError.value = await blobErrorMessage(e)
+  } finally {
+    downloadingKit.value = false
+  }
+}
 
 const copiedKey = ref(null)
 async function copyCode(key, code) {
@@ -375,6 +391,28 @@ $products = json_decode((string) $response->getBody(), true)['data'] ?? [];`)
 
       <!-- Weg 1+2: Widget-Einbindung -->
       <template v-if="mode !== 'api_designer'">
+        <section class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2">
+          <div class="flex items-center gap-2">
+            <Download class="w-4 h-4 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+            <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Schnellstart: Starter-Kit</h3>
+          </div>
+          <p class="text-sm text-[var(--color-text-secondary)]">
+            ZIP mit <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">catalog-embed.umd.js</code>,
+            <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">catalog-embed.css</code> und einer
+            fertigen <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">index.html</code> — bereits auf die
+            API dieser Instanz konfiguriert. Entpacken, <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">index.html</code> im Browser öffnen,
+            der Katalog läuft sofort live. Das Markup daraus ist die Blaupause fürs eigene CMS-Template.
+          </p>
+          <div class="flex items-center gap-2 pt-1">
+            <button class="pim-btn pim-btn-primary text-xs" :disabled="downloadingKit" @click="downloadStarterKit">
+              <Loader2 v-if="downloadingKit" class="w-3.5 h-3.5 animate-spin" :stroke-width="1.75" />
+              <Download v-else class="w-3.5 h-3.5" :stroke-width="1.75" />
+              {{ downloadingKit ? 'Erstelle ZIP…' : 'Starter-Kit herunterladen (.zip)' }}
+            </button>
+            <span v-if="kitError" class="text-xs text-[var(--color-error)]">{{ kitError }}</span>
+          </div>
+        </section>
+
         <section class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-3">
           <div class="flex items-center gap-2">
             <ShieldCheck class="w-4 h-4 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />

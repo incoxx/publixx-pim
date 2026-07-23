@@ -623,4 +623,89 @@ class SettingController extends Controller
 
         return response()->json(['data' => $validated, 'message' => 'TYPO3-Integration gespeichert.']);
     }
+
+    /**
+     * GET /api/v1/settings/typo3-integration/starter-kit (authenticated)
+     *
+     * ZIP mit catalog-embed-Bundle (JS/CSS) + einer lauffähigen Beispielseite
+     * (index.html), deren API-Basis-URL bereits auf diese anyPIM-Instanz zeigt —
+     * Blaupause für Agenturen, direkt entpackbar und im Browser testbar.
+     */
+    public function typo3IntegrationStarterKit(): \Symfony\Component\HttpFoundation\BinaryFileResponse|JsonResponse
+    {
+        $jsPath = public_path('catalog-embed-assets/catalog-embed.umd.js');
+        $cssPath = public_path('catalog-embed-assets/catalog-embed.css');
+
+        if (!file_exists($jsPath) || !file_exists($cssPath)) {
+            return response()->json(['message' => 'catalog-embed-Bundle wurde auf dieser Instanz noch nicht deployed.'], 404);
+        }
+
+        $samplePath = base_path('catalog-embed/examples/basic.html');
+        $sampleHtml = file_exists($samplePath)
+            ? file_get_contents($samplePath)
+            : '<!DOCTYPE html><html><head><link rel="stylesheet" href="catalog-embed.css"></head>'
+                . '<body><div data-catalog="search"></div><div data-catalog="product-grid"></div>'
+                . '<script src="catalog-embed.umd.js"></script></body></html>';
+
+        // Für den ZIP-Kontext: Assets liegen relativ neben index.html statt unter
+        // der absoluten /catalog-embed-assets/-URL dieser Instanz.
+        $apiBase = rtrim(config('app.url'), '/') . '/api/v1';
+        $sampleHtml = preg_replace('/src=["\'][^"\']*catalog-embed\.umd\.js["\']/', 'src="catalog-embed.umd.js"', $sampleHtml);
+        $sampleHtml = preg_replace('/href=["\'][^"\']*catalog-embed\.css["\']/', 'href="catalog-embed.css"', $sampleHtml);
+
+        // Manche Beispieldateien (z.B. basic.html) verlassen sich auf die Auto-Injektion
+        // von CatalogEmbedController und referenzieren catalog-embed.css/.umd.js gar nicht
+        // explizit — hier nachholen, sonst fehlt im ZIP das Styling bzw. das Widget-Bundle.
+        if (!str_contains($sampleHtml, 'catalog-embed.css') && str_contains($sampleHtml, '</head>')) {
+            $sampleHtml = str_replace(
+                '</head>',
+                '  <link rel="stylesheet" href="catalog-embed.css">' . "\n" . '</head>',
+                $sampleHtml,
+            );
+        }
+        if (!str_contains($sampleHtml, 'catalog-embed.umd.js') && str_contains($sampleHtml, '</body>')) {
+            $sampleHtml = str_replace(
+                '</body>',
+                '  <script src="catalog-embed.umd.js"></script>' . "\n" . '</body>',
+                $sampleHtml,
+            );
+        }
+        $sampleHtml = preg_replace('/api:\s*[\'"]https?:\/\/[^"\']+\/api\/v1[\'"]/', "api: '{$apiBase}'", $sampleHtml);
+
+        $readme = <<<TXT
+        anyPIM Catalog-Embed — Starter-Kit
+        ===================================
+
+        index.html            – lauffähige Beispielseite, zeigt live Produkte von:
+                                 {$apiBase}
+        catalog-embed.umd.js  – Widget-Bundle (Script-Tag in index.html)
+        catalog-embed.css     – Styles (Link-Tag in index.html)
+
+        Nutzung:
+        1. Ordner entpacken, index.html im Browser öffnen — der Katalog läuft sofort live.
+        2. Für die eigene CMS-Seite (TYPO3, WordPress, ...): das <div data-catalog="...">-Markup
+           aus index.html ins eigene Template übernehmen, Script-/Link-Tags mit einbinden.
+        3. Details zu CORS/Reverse-Proxy/API-Designer: PIM-Menü Integration > Typo 3.
+        TXT;
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'catalog_embed_kit_');
+        if ($tempFile === false) {
+            return response()->json(['message' => 'Temp-Datei konnte nicht erstellt werden.'], 500);
+        }
+        $zipPath = $tempFile . '.zip';
+        rename($tempFile, $zipPath);
+
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
+            @unlink($zipPath);
+            return response()->json(['message' => 'ZIP-Erstellung fehlgeschlagen.'], 500);
+        }
+        $zip->addFile($jsPath, 'catalog-embed.umd.js');
+        $zip->addFile($cssPath, 'catalog-embed.css');
+        $zip->addFromString('index.html', $sampleHtml);
+        $zip->addFromString('README.txt', $readme);
+        $zip->close();
+
+        return response()->download($zipPath, 'catalog-embed-starter-kit.zip')->deleteFileAfterSend(true);
+    }
 }
