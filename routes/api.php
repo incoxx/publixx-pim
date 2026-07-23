@@ -985,6 +985,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::get('settings/typo3-integration', [SettingController::class, 'typo3Integration']);
         Route::put('settings/typo3-integration', [SettingController::class, 'updateTypo3Integration']);
         Route::get('settings/typo3-integration/starter-kit', [SettingController::class, 'typo3IntegrationStarterKit']);
+        Route::post('settings/typo3-integration/embed-token', [SettingController::class, 'generateTypo3IntegrationEmbedToken']);
+        Route::delete('settings/typo3-integration/embed-token', [SettingController::class, 'revokeTypo3IntegrationEmbedToken']);
     });
 
     // =====================================================================

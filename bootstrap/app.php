@@ -3,6 +3,7 @@
 use App\Http\Middleware\CatalogAccessControl;
 use App\Http\Middleware\CheckModuleLicense;
 use App\Http\Middleware\RateLimitMiddleware;
+use App\Http\Middleware\RestrictScopedApiToken;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -25,9 +26,16 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         // Agent 2: Sanctum stateful middleware for API
-        $middleware->api(prepend: [
-            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-        ]);
+        $middleware->api(
+            prepend: [
+                \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            ],
+            // Global, damit auch Routen außerhalb der auth:sanctum-Gruppe erfasst
+            // sind (z.B. die öffentliche v1/catalog-Gruppe selbst).
+            append: [
+                RestrictScopedApiToken::class,
+            ],
+        );
 
         // CSRF-Ausnahmen: Die App authentifiziert per Bearer-Token (Sanctum PAT),
         // nicht per Session-Cookie. Auf "stateful" Domains (z. B. der eingebettete

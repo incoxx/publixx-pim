@@ -2,10 +2,11 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import {
   ExternalLink, Info, ShieldCheck, Blocks, ListChecks, Copy, Check, Mail,
-  Globe, Network, Braces, Lock, AlertTriangle, Download, Loader2,
+  Globe, Network, Braces, Lock, AlertTriangle, Download, Loader2, KeyRound, X,
 } from 'lucide-vue-next'
 import client from '@/api/client'
 import apiTemplatesApi from '@/api/apiTemplates'
+import usersApi from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
 import { useLicenseStore } from '@/stores/license'
 import { useClipboard } from '@/composables/useClipboard'
@@ -70,6 +71,58 @@ const apiTemplatesLoaded = ref(false)
 const apiDesignerLicensed = computed(() => licenseStore.isModuleActive('api_designer'))
 const selectedTemplate = computed(() => apiTemplates.value.find(t => t.id === apiTemplateId.value) || null)
 
+// ── Embed-Service-Token (auf catalog:read beschränkt, siehe RestrictScopedApiToken) ──
+const embedUserId = ref('')
+const embedToken = ref('')
+const embedUsers = ref([])
+const embedUsersLoaded = ref(false)
+const loadingEmbedUsers = ref(false)
+const generatingToken = ref(false)
+const revokingToken = ref(false)
+const embedTokenError = ref('')
+
+async function loadEmbedUsers() {
+  if (embedUsersLoaded.value || !authStore.isAdmin) return
+  loadingEmbedUsers.value = true
+  try {
+    const { data } = await usersApi.list({ perPage: 100 })
+    embedUsers.value = data.data || data
+    embedUsersLoaded.value = true
+  } catch (e) { /* Auswahl bleibt leer, Fehler wird beim Erzeugen sichtbar */ }
+  finally {
+    loadingEmbedUsers.value = false
+  }
+}
+
+async function generateEmbedToken() {
+  if (!embedUserId.value) return
+  generatingToken.value = true
+  embedTokenError.value = ''
+  try {
+    const { data } = await client.post('/settings/typo3-integration/embed-token', { user_id: embedUserId.value })
+    embedToken.value = data.data?.embed_token || ''
+  } catch (e) {
+    embedTokenError.value = e.response?.data?.message || 'Token konnte nicht erzeugt werden.'
+  } finally {
+    generatingToken.value = false
+  }
+}
+
+async function revokeEmbedToken() {
+  if (!confirm('Service-Token wirklich widerrufen? Bereits eingebettete Katalog-Widgets (z.B. auf externen Websites) verlieren dann den Zugriff.')) return
+  revokingToken.value = true
+  embedTokenError.value = ''
+  try {
+    await client.delete('/settings/typo3-integration/embed-token')
+    embedToken.value = ''
+    embedUserId.value = ''
+  } catch (e) {
+    embedTokenError.value = e.response?.data?.message || 'Token konnte nicht widerrufen werden.'
+  } finally {
+    revokingToken.value = false
+  }
+}
+
 async function load() {
   loading.value = true
   loadError.value = ''
@@ -81,7 +134,10 @@ async function load() {
     corsOrigin.value = payload.cors_origin || ''
     reverseProxyPath.value = payload.reverse_proxy_path || '/pim-api'
     apiTemplateId.value = payload.api_template_id || ''
+    embedUserId.value = payload.embed_user_id || ''
+    embedToken.value = payload.embed_token || ''
     if (mode.value === 'api_designer') loadApiTemplates()
+    if (authStore.isAdmin) loadEmbedUsers()
   } catch (e) {
     if (e.response?.status === 403) {
       notLicensed.value = true
@@ -196,7 +252,16 @@ const widgetCodeExamples = computed(() => {
     {
       key: 'init',
       title: '3. Initialisierung',
-      code: `<script>
+      code: embedToken.value
+        ? `<script>
+  PublixxCatalog.init({
+    api: '${initApi}',
+    token: '${embedToken.value}', // Service-Token, auf Katalog-Lesezugriff beschränkt
+    locale: 'de',
+    perPage: 24,
+  })
+<\/script>`
+        : `<script>
   PublixxCatalog.init({
     api: '${initApi}',
     locale: 'de',
@@ -413,6 +478,47 @@ $products = json_decode((string) $response->getBody(), true)['data'] ?? [];`)
           </div>
         </section>
 
+        <section v-if="authStore.isAdmin" class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2">
+          <div class="flex items-center gap-2">
+            <KeyRound class="w-4 h-4 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+            <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Automatischer Zugriff (Service-Benutzer)</h3>
+          </div>
+          <p class="text-sm text-[var(--color-text-secondary)]">
+            Nur relevant, wenn <span class="font-mono text-xs">Einstellungen → Preview Katalog → Katalog-Zugriff</span> auf
+            „Login erforderlich" steht: ein bestehender anyPIM-Benutzer erhält einen eigenen Token, der
+            <strong>ausschließlich Katalog-Lesezugriff</strong> erlaubt — unabhängig von der sonstigen Rolle dieses Benutzers.
+            Dieser Token landet in Starter-Kit und Code-Beispielen unten, damit der eingebettete Katalog kein Login-Overlay zeigt.
+          </p>
+
+          <div v-if="!embedToken" class="flex items-center gap-2 pt-1">
+            <select
+              v-model="embedUserId"
+              class="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-1.5 text-sm text-[var(--color-text-primary)]"
+            >
+              <option value="">— Benutzer wählen —</option>
+              <option v-for="u in embedUsers" :key="u.id" :value="u.id">{{ u.name }} ({{ u.email }})</option>
+            </select>
+            <button class="pim-btn pim-btn-primary text-xs" :disabled="!embedUserId || generatingToken" @click="generateEmbedToken">
+              <Loader2 v-if="generatingToken" class="w-3.5 h-3.5 animate-spin" :stroke-width="1.75" />
+              {{ generatingToken ? 'Erzeuge Token…' : 'Service-Token erzeugen' }}
+            </button>
+          </div>
+          <div v-else class="space-y-2 pt-1">
+            <div class="flex items-center gap-2">
+              <code class="text-xs px-1.5 py-1 rounded bg-[var(--color-bg)] border border-[var(--color-border)] break-all flex-1">{{ embedToken }}</code>
+              <button class="pim-btn pim-btn-secondary text-[11px] py-1 px-2 flex-shrink-0" @click="copyCode('embed-token', embedToken)">
+                <component :is="copiedKey === 'embed-token' ? Check : Copy" class="w-3 h-3" :stroke-width="1.75" />
+                {{ copiedKey === 'embed-token' ? 'Kopiert' : 'Kopieren' }}
+              </button>
+            </div>
+            <button class="pim-btn pim-btn-secondary text-xs" :disabled="revokingToken" @click="revokeEmbedToken">
+              <X class="w-3.5 h-3.5" :stroke-width="1.75" />
+              {{ revokingToken ? 'Widerrufe…' : 'Token widerrufen' }}
+            </button>
+          </div>
+          <span v-if="embedTokenError" class="block text-xs text-[var(--color-error)]">{{ embedTokenError }}</span>
+        </section>
+
         <section class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-3">
           <div class="flex items-center gap-2">
             <ShieldCheck class="w-4 h-4 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
@@ -434,8 +540,8 @@ $products = json_decode((string) $response->getBody(), true)['data'] ?? [];`)
             </li>
             <li v-if="mode === 'cors'">CORS-Freigabe der TYPO3-Domain (oben konfiguriert) — bitte vor dem Go-Live speichern.</li>
             <li v-else>Reverse-Proxy-Regel auf dem TYPO3-Webserver, die den Pfad oben an <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">{{ apiBase }}</code> durchreicht (Beispiel unten).</li>
-            <li>Optional: Bearer-Token, falls der Katalog nicht öffentlich zugänglich sein soll
-              (<code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">PublixxCatalog.init({ token: '…' })</code>).</li>
+            <li>Falls „Katalog-Zugriff" auf „Login erforderlich" steht: Service-Token oben erzeugen — wird automatisch
+              in Schritt 3 und das Starter-Kit übernommen.</li>
           </ul>
         </section>
 
