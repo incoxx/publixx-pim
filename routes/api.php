@@ -984,6 +984,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::middleware('module:typo3')->group(function () {
         Route::get('settings/typo3-integration', [SettingController::class, 'typo3Integration']);
         Route::put('settings/typo3-integration', [SettingController::class, 'updateTypo3Integration']);
+        Route::get('settings/typo3-integration/starter-kit', [SettingController::class, 'typo3IntegrationStarterKit']);
     });
 
     // =====================================================================

@@ -2,17 +2,33 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import {
   ExternalLink, Info, ShieldCheck, Blocks, ListChecks, Copy, Check, Mail,
-  Globe, Network, Braces, Lock, AlertTriangle,
+  Globe, Network, Braces, Lock, AlertTriangle, Download, Loader2,
 } from 'lucide-vue-next'
 import client from '@/api/client'
 import apiTemplatesApi from '@/api/apiTemplates'
 import { useAuthStore } from '@/stores/auth'
 import { useLicenseStore } from '@/stores/license'
 import { useClipboard } from '@/composables/useClipboard'
+import { triggerDownload, blobErrorMessage } from '@/utils/download'
 
 const authStore = useAuthStore()
 const licenseStore = useLicenseStore()
 const { copy } = useClipboard()
+
+const downloadingKit = ref(false)
+const kitError = ref('')
+async function downloadStarterKit() {
+  downloadingKit.value = true
+  kitError.value = ''
+  try {
+    const { data } = await client.get('/settings/typo3-integration/starter-kit', { responseType: 'blob' })
+    triggerDownload(data, 'catalog-embed-starter-kit.zip')
+  } catch (e) {
+    kitError.value = await blobErrorMessage(e)
+  } finally {
+    downloadingKit.value = false
+  }
+}
 
 const copiedKey = ref(null)
 async function copyCode(key, code) {
@@ -22,7 +38,13 @@ async function copyCode(key, code) {
 }
 
 // Basis-URL dieser anyPIM-Instanz — als Kopiervorlage für die Agentur
-const apiBase = `${window.location.origin}/api/v1`
+const origin = window.location.origin
+const apiBase = `${origin}/api/v1`
+
+// Bereits live ausgeliefert von CatalogEmbedController::asset() — kein Anfordern nötig,
+// direkt einbindbar oder für lokales Hosting herunterladbar.
+const assetJsUrl = `${origin}/catalog-embed-assets/catalog-embed.umd.js`
+const assetCssUrl = `${origin}/catalog-embed-assets/catalog-embed.css`
 
 const MODES = [
   { key: 'cors', icon: Globe, label: 'Getrennte Domains (CORS)' },
@@ -138,8 +160,13 @@ const widgetCodeExamples = computed(() => {
     {
       key: 'assets',
       title: '1. Bundle & Styles einbinden',
-      code: `<link rel="stylesheet" href="/fileadmin/catalog-embed/catalog-embed.css">
-<script src="/fileadmin/catalog-embed/catalog-embed.umd.js"><\/script>`,
+      code: `<!-- Direkt von dieser anyPIM-Instanz einbinden (empfohlen, immer aktuell): -->
+<link rel="stylesheet" href="${assetCssUrl}">
+<script src="${assetJsUrl}"><\/script>
+
+<!-- Alternative: herunterladen (Buttons unten) und selbst hosten, z.B.: -->
+<!-- <link rel="stylesheet" href="/fileadmin/catalog-embed/catalog-embed.css"> -->
+<!-- <script src="/fileadmin/catalog-embed/catalog-embed.umd.js"><\/script> -->`,
     },
     {
       key: 'markup',
@@ -364,6 +391,28 @@ $products = json_decode((string) $response->getBody(), true)['data'] ?? [];`)
 
       <!-- Weg 1+2: Widget-Einbindung -->
       <template v-if="mode !== 'api_designer'">
+        <section class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2">
+          <div class="flex items-center gap-2">
+            <Download class="w-4 h-4 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+            <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Schnellstart: Starter-Kit</h3>
+          </div>
+          <p class="text-sm text-[var(--color-text-secondary)]">
+            ZIP mit <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">catalog-embed.umd.js</code>,
+            <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">catalog-embed.css</code> und einer
+            fertigen <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">index.html</code> — bereits auf die
+            API dieser Instanz konfiguriert. Entpacken, <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">index.html</code> im Browser öffnen,
+            der Katalog läuft sofort live. Das Markup daraus ist die Blaupause fürs eigene CMS-Template.
+          </p>
+          <div class="flex items-center gap-2 pt-1">
+            <button class="pim-btn pim-btn-primary text-xs" :disabled="downloadingKit" @click="downloadStarterKit">
+              <Loader2 v-if="downloadingKit" class="w-3.5 h-3.5 animate-spin" :stroke-width="1.75" />
+              <Download v-else class="w-3.5 h-3.5" :stroke-width="1.75" />
+              {{ downloadingKit ? 'Erstelle ZIP…' : 'Starter-Kit herunterladen (.zip)' }}
+            </button>
+            <span v-if="kitError" class="text-xs text-[var(--color-error)]">{{ kitError }}</span>
+          </div>
+        </section>
+
         <section class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-3">
           <div class="flex items-center gap-2">
             <ShieldCheck class="w-4 h-4 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
@@ -374,9 +423,15 @@ $products = json_decode((string) $response->getBody(), true)['data'] ?? [];`)
               API-Basis-URL dieser anyPIM-Instanz:
               <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">{{ apiBase }}</code>
             </li>
-            <li>Aktuelles <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">catalog-embed.umd.js</code> +
-              <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">catalog-embed.css</code> — bitte beim anyPIM-Betrieb anfordern
-              und im TYPO3-Fileadmin bzw. als Extension-Ressource ablegen.</li>
+            <li>
+              <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">catalog-embed.umd.js</code> +
+              <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">catalog-embed.css</code> —
+              kein Anfordern nötig: direkt von dieser Instanz einbinden (Schritt 1) oder für lokales Hosting herunterladen:
+              <span class="inline-flex items-center gap-1.5 ml-1">
+                <a :href="assetJsUrl" download class="pim-btn pim-btn-secondary text-[11px] py-0.5 px-2">.umd.js</a>
+                <a :href="assetCssUrl" download class="pim-btn pim-btn-secondary text-[11px] py-0.5 px-2">.css</a>
+              </span>
+            </li>
             <li v-if="mode === 'cors'">CORS-Freigabe der TYPO3-Domain (oben konfiguriert) — bitte vor dem Go-Live speichern.</li>
             <li v-else>Reverse-Proxy-Regel auf dem TYPO3-Webserver, die den Pfad oben an <code class="text-xs px-1 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">{{ apiBase }}</code> durchreicht (Beispiel unten).</li>
             <li>Optional: Bearer-Token, falls der Katalog nicht öffentlich zugänglich sein soll
