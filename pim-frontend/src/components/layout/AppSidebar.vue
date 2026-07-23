@@ -97,6 +97,16 @@ const sections = computed(() => {
             { icon: Gauge, label: () => 'Cache', to: '/content-cache', module: 'content', permission: 'content-types.view', testid: 'nav-content-cache' },
           ],
         },
+        {
+          // Eigene Gruppe je CMS-Integration; Hauptmenüpunkt nur sichtbar, wenn
+          // mindestens ein Modul innerhalb dieser Gruppe lizenziert ist (Cascading-Filter)
+          key: 'grp-content-integration',
+          icon: Plug,
+          label: () => 'Integration',
+          children: [
+            { icon: ExternalLink, label: () => 'Typo 3', to: '/content/integration/typo3', module: 'typo3', permission: 'content.view', testid: 'nav-content-integration-typo3' },
+          ],
+        },
       ],
     },
     {
