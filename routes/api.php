@@ -233,20 +233,28 @@ Route::prefix('v1/pdf')->middleware(['throttle.pim', 'catalog.access'])->group(f
 Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
     // Settings and media always public (frontend needs access_mode before login,
     // media is loaded via <img> tags which cannot send Bearer tokens)
-    Route::get('settings', [SettingController::class, 'catalogTheme']);
-    Route::get('settings/enforced-appearance', [SettingController::class, 'enforcedAppearance']);
+    // TTL-gecached: gleiche Antwort für alle Besucher, kein Auth-Bezug.
+    Route::middleware('catalog.cache')->group(function () {
+        Route::get('settings', [SettingController::class, 'catalogTheme']);
+        Route::get('settings/enforced-appearance', [SettingController::class, 'enforcedAppearance']);
+    });
     Route::get('media/{filename}', [CatalogController::class, 'media'])->name('catalog.media');
 
     // Data routes protected by catalog access control
     Route::middleware('catalog.access')->group(function () {
-        Route::get('products', [CatalogController::class, 'products']);
-        Route::get('products/export.json', [CatalogController::class, 'productsExportJson']);
-        Route::get('products/{product}', [CatalogController::class, 'product']);
-        Route::get('products/{product}/json', [CatalogController::class, 'productJson']);
-        Route::get('categories', [CatalogController::class, 'categories']);
-        Route::get('categories/{nodeId}/assets', [CatalogController::class, 'categoryAssets']);
-        Route::get('facets', [CatalogController::class, 'facets']);
-        Route::get('attribute-groups', [CatalogController::class, 'attributeGroups']);
+        // Rein lesend, nicht personalisiert — TTL-gecached (siehe CacheCatalogResponse).
+        // Warenkorb/PDF/Excel/Vergleich bewusst NICHT in dieser Gruppe (session-/
+        // request-spezifisch, dürften nie über mehrere Besucher hinweg gecacht werden).
+        Route::middleware('catalog.cache')->group(function () {
+            Route::get('products', [CatalogController::class, 'products']);
+            Route::get('products/export.json', [CatalogController::class, 'productsExportJson']);
+            Route::get('products/{product}', [CatalogController::class, 'product']);
+            Route::get('products/{product}/json', [CatalogController::class, 'productJson']);
+            Route::get('categories', [CatalogController::class, 'categories']);
+            Route::get('categories/{nodeId}/assets', [CatalogController::class, 'categoryAssets']);
+            Route::get('facets', [CatalogController::class, 'facets']);
+            Route::get('attribute-groups', [CatalogController::class, 'attributeGroups']);
+        });
 
         // PDF, Excel & Compare
         Route::get('products/{product}/pdf', [CatalogController::class, 'productPdf']);
@@ -985,6 +993,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::get('settings/typo3-integration', [SettingController::class, 'typo3Integration']);
         Route::put('settings/typo3-integration', [SettingController::class, 'updateTypo3Integration']);
         Route::get('settings/typo3-integration/starter-kit', [SettingController::class, 'typo3IntegrationStarterKit']);
+        Route::post('settings/typo3-integration/embed-token', [SettingController::class, 'generateTypo3IntegrationEmbedToken']);
+        Route::delete('settings/typo3-integration/embed-token', [SettingController::class, 'revokeTypo3IntegrationEmbedToken']);
     });
 
     // =====================================================================

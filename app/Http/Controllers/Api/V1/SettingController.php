@@ -15,10 +15,12 @@ use App\Models\PriceType;
 use App\Models\Product;
 use App\Models\ProductRelationType;
 use App\Models\Setting;
+use App\Models\User;
 use App\Models\WebsiteProfile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class SettingController extends Controller
 {
@@ -582,6 +584,12 @@ class SettingController extends Controller
 
     private const TYPO3_INTEGRATION_CACHE_KEY = 'typo3_integration_setting';
 
+    // Sanctum-Ability für Embed-Service-Token — bewusst NICHT '*': ein Token mit
+    // dieser (und nur dieser) Fähigkeit wird von RestrictScopedApiToken auf die
+    // öffentliche Katalog-API beschränkt, unabhängig von der PIM-Rolle des
+    // zugehörigen Benutzers.
+    private const CATALOG_READ_ABILITY = 'catalog:read';
+
     /**
      * GET /api/v1/settings/typo3-integration (authenticated)
      *
@@ -618,10 +626,76 @@ class SettingController extends Controller
             'api_template_id' => 'nullable|uuid|exists:api_templates,id',
         ]);
 
-        Setting::setPayload('typo3_integration', $validated);
+        // Mergen statt überschreiben — sonst gingen embed_user_id/embed_token
+        // (separat über generateTypo3IntegrationEmbedToken() gesetzt) verloren.
+        $existing = Setting::getPayload('typo3_integration') ?? [];
+        $merged = array_merge($existing, $validated);
+        Setting::setPayload('typo3_integration', $merged);
         Cache::forget(self::TYPO3_INTEGRATION_CACHE_KEY);
 
-        return response()->json(['data' => $validated, 'message' => 'TYPO3-Integration gespeichert.']);
+        return response()->json(['data' => $merged, 'message' => 'TYPO3-Integration gespeichert.']);
+    }
+
+    /**
+     * POST /api/v1/settings/typo3-integration/embed-token (admin only)
+     *
+     * Erzeugt (bzw. erneuert) einen auf catalog:read beschränkten Sanctum-Token
+     * für einen frei wählbaren, bereits existierenden anyPIM-Benutzer. Unabhängig
+     * von dessen PIM-Rolle darf dieser Token ausschließlich die öffentliche
+     * Katalog-API lesen (durchgesetzt von RestrictScopedApiToken) — gedacht zum
+     * Einbetten in externe Websites (Starter-Kit, PublixxCatalog.init({ token })),
+     * damit der Katalog dort ohne Login-Overlay erscheint, ohne dass ein
+     * vollwertiger Benutzer-Token öffentlich im Quelltext landet.
+     */
+    public function generateTypo3IntegrationEmbedToken(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $validated = $request->validate([
+            'user_id' => 'required|uuid|exists:users,id',
+        ]);
+
+        $existing = Setting::getPayload('typo3_integration') ?? [];
+        if (!empty($existing['embed_token_id'])) {
+            PersonalAccessToken::find($existing['embed_token_id'])?->delete();
+        }
+
+        $user = User::findOrFail($validated['user_id']);
+        $newToken = $user->createToken('catalog-embed', [self::CATALOG_READ_ABILITY]);
+
+        $merged = array_merge($existing, [
+            'embed_user_id' => $user->id,
+            'embed_token_id' => $newToken->accessToken->id,
+            'embed_token' => $newToken->plainTextToken,
+        ]);
+        Setting::setPayload('typo3_integration', $merged);
+        Cache::forget(self::TYPO3_INTEGRATION_CACHE_KEY);
+
+        return response()->json(['data' => $merged, 'message' => 'Service-Token erzeugt.']);
+    }
+
+    /**
+     * DELETE /api/v1/settings/typo3-integration/embed-token (admin only)
+     *
+     * Widerruft den Embed-Service-Token (falls vorhanden).
+     */
+    public function revokeTypo3IntegrationEmbedToken(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $existing = Setting::getPayload('typo3_integration') ?? [];
+        if (!empty($existing['embed_token_id'])) {
+            PersonalAccessToken::find($existing['embed_token_id'])?->delete();
+        }
+        unset($existing['embed_user_id'], $existing['embed_token_id'], $existing['embed_token']);
+        Setting::setPayload('typo3_integration', $existing);
+        Cache::forget(self::TYPO3_INTEGRATION_CACHE_KEY);
+
+        return response()->json(['data' => $existing, 'message' => 'Service-Token widerrufen.']);
     }
 
     /**
@@ -672,12 +746,31 @@ class SettingController extends Controller
         }
         $sampleHtml = preg_replace('/api:\s*[\'"]https?:\/\/[^"\']+\/api\/v1[\'"]/', "api: '{$apiBase}'", $sampleHtml);
 
+        // Falls ein Embed-Service-Token konfiguriert ist (Betriebsmodus-Seite):
+        // direkt in den init()-Aufruf einfügen, damit der Katalog auch bei
+        // catalog_access_mode="login" ohne Login-Overlay erscheint. Der Token ist
+        // bewusst auf catalog:read beschränkt (RestrictScopedApiToken).
+        $embedToken = Setting::getPayload('typo3_integration')['embed_token'] ?? null;
+        $tokenNote = 'Kein Service-Token konfiguriert — falls "Katalog-Zugriff" auf "Login erforderlich"'
+            . "\n                                 steht, zeigt die Seite ein Login-Overlay (siehe PIM-Menü Integration > Typo 3).";
+        if (is_string($embedToken) && $embedToken !== '') {
+            $sampleHtml = preg_replace(
+                '/PublixxCatalog\.init\(\{/',
+                "PublixxCatalog.init({\n    token: '" . addslashes($embedToken) . "',",
+                $sampleHtml,
+                1,
+            );
+            $tokenNote = 'Enthält einen auf Katalog-Lesezugriff beschränkten Service-Token — funktioniert auch,'
+                . "\n                                 falls \"Katalog-Zugriff\" auf \"Login erforderlich\" steht.";
+        }
+
         $readme = <<<TXT
         anyPIM Catalog-Embed — Starter-Kit
         ===================================
 
         index.html            – lauffähige Beispielseite, zeigt live Produkte von:
                                  {$apiBase}
+                                 {$tokenNote}
         catalog-embed.umd.js  – Widget-Bundle (Script-Tag in index.html)
         catalog-embed.css     – Styles (Link-Tag in index.html)
 
