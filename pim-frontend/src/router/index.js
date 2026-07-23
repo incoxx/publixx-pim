@@ -117,6 +117,12 @@ const routes = [
     component: () => import('@/views/site/WebsitePreviewView.vue'),
     meta: { title: 'Website-Vorschau' },
   },
+  {
+    path: '/content/integration/typo3',
+    name: 'content-integration-typo3',
+    component: () => import('@/views/content/Typo3IntegrationView.vue'),
+    meta: { title: 'TYPO3-Integration' },
+  },
   // ── E-Commerce ─────────────────────────────────────────────────────────
   {
     path: '/ecommerce/cart-types',

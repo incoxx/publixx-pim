@@ -979,6 +979,14 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     });
 
     // =====================================================================
+    // Enterprise: TYPO3-Integration (Readme + Betriebsmodus-Konfiguration)
+    // =====================================================================
+    Route::middleware('module:typo3')->group(function () {
+        Route::get('settings/typo3-integration', [SettingController::class, 'typo3Integration']);
+        Route::put('settings/typo3-integration', [SettingController::class, 'updateTypo3Integration']);
+    });
+
+    // =====================================================================
     // Agent 7: Publixx Live-API (Enterprise: publixx)
     // =====================================================================
     Route::middleware('module:publixx')->group(function () {

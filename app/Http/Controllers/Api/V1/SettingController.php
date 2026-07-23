@@ -577,4 +577,50 @@ class SettingController extends Controller
 
         return response()->json(['data' => $validated, 'message' => 'Firmen-CI gespeichert.']);
     }
+
+    // ── TYPO3-Integration: Betriebsmodus (CORS / Reverse-Proxy / API Designer) ──
+
+    private const TYPO3_INTEGRATION_CACHE_KEY = 'typo3_integration_setting';
+
+    /**
+     * GET /api/v1/settings/typo3-integration (authenticated)
+     *
+     * Liefert den gewählten Betriebsmodus für die TYPO3-Integrations-Readme.
+     */
+    public function typo3Integration(): JsonResponse
+    {
+        $payload = Setting::getPayload('typo3_integration') ?? ['mode' => 'cors'];
+
+        return response()->json(['data' => $payload]);
+    }
+
+    /**
+     * PUT /api/v1/settings/typo3-integration (admin only)
+     *
+     * Speichert den Betriebsmodus. Im Modus "cors" wird die angegebene Origin
+     * zusätzlich dynamisch in die CORS-Freigabe übernommen (siehe AppServiceProvider).
+     */
+    public function updateTypo3Integration(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $validated = $request->validate([
+            'mode' => 'required|string|in:cors,reverse_proxy,api_designer',
+            'cors_origin' => [
+                'nullable', 'string', 'max:255',
+                'required_if:mode,cors',
+                // Nur "schema://host[:port]" — kein Pfad, keine Wildcard (CORS-Origin-Freigabe!)
+                'regex:/^https?:\/\/[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?(:\d{1,5})?$/',
+            ],
+            'reverse_proxy_path' => 'nullable|string|max:255',
+            'api_template_id' => 'nullable|uuid|exists:api_templates,id',
+        ]);
+
+        Setting::setPayload('typo3_integration', $validated);
+        Cache::forget(self::TYPO3_INTEGRATION_CACHE_KEY);
+
+        return response()->json(['data' => $validated, 'message' => 'TYPO3-Integration gespeichert.']);
+    }
 }

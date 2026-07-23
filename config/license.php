@@ -87,6 +87,10 @@ return [
             'name' => 'Katalog-Vorlagen',
             'description' => 'Catalog-Embed-System mit konfigurierbaren HTML-Vorlagen und Widgets',
         ],
+        'typo3' => [
+            'name' => 'TYPO3-Integration',
+            'description' => 'Anleitung zur Einbindung des Catalog-Embed-Widgets in TYPO3-Websites',
+        ],
         'portals' => [
             'name' => 'Portale',
             'description' => 'Konfigurierbare Vorschaltseiten mit Filter-Widgets und Katalogvorlage-Verknüpfung',
