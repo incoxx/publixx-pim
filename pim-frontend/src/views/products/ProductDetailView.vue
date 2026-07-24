@@ -2652,7 +2652,21 @@ const outputHierarchyNodeOptions = ref([])
 const outputHierarchyDeleteTarget = ref(null)
 const outputHierarchyDeleting = ref(false)
 
-const outputHierarchies = computed(() => hierarchies.value.filter(h => h.hierarchy_type === 'output'))
+// Liste der verfügbaren Ausgabehierarchien (für das "Zuordnung hinzufügen"-Formular) —
+// global/statisch, daher einmalig geladen statt pro Produkt.
+const outputHierarchiesList = ref([])
+const outputHierarchiesListLoaded = ref(false)
+
+async function loadOutputHierarchiesList() {
+  if (outputHierarchiesListLoaded.value) return
+  try {
+    const { data } = await hierarchiesApi.list({ filters: { hierarchy_type: 'output' } })
+    outputHierarchiesList.value = data.data || data
+    outputHierarchiesListLoaded.value = true
+  } catch (e) { console.error('Failed to load output hierarchies list:', e.message) }
+}
+
+const outputHierarchies = computed(() => outputHierarchiesList.value)
 
 async function loadOutputHierarchyAssignments() {
   if (outputHierarchyLoaded.value || !product.value) return
@@ -3148,7 +3162,7 @@ watch(activeTab, (tab) => {
   if (tab === 'prices') loadPrices()
   if (tab === 'relations') loadRelations()
   if (tab === 'virtual-cluster') loadVirtualCluster()
-  if (tab === 'output-hierarchies') loadOutputHierarchyAssignments()
+  if (tab === 'output-hierarchies') { loadOutputHierarchyAssignments(); loadOutputHierarchiesList() }
   if (tab === 'preview') loadPreview()
   if (tab === 'workflow-history') loadWorkflowHistory()
 })
