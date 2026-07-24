@@ -60,6 +60,7 @@ import { useColumnConfig } from '@/composables/useColumnConfig'
 import { formatCompositeSummary } from '@/utils/formatting'
 import PdfTemplatePickerModal from '@/components/pdf-templates/PdfTemplatePickerModal.vue'
 import MasterHierarchyNodePickerDialog from '@/components/products/MasterHierarchyNodePickerDialog.vue'
+import OutputHierarchyNodeTree from '@/components/products/OutputHierarchyNodeTree.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -2647,10 +2648,17 @@ const outputHierarchyLoading = ref(false)
 const outputHierarchyLoaded = ref(false)
 const showOutputHierarchyForm = ref(false)
 const selectedOutputHierarchyId = ref(null)
-const selectedOutputNodeId = ref(null)
-const outputHierarchyNodeOptions = ref([])
+const selectedOutputNodeIds = ref([])
+const outputHierarchyTreeNodes = ref([])
+const outputHierarchyTreeLoading = ref(false)
 const outputHierarchyDeleteTarget = ref(null)
 const outputHierarchyDeleting = ref(false)
+const bulkAssigningOutputNodes = ref(false)
+const bulkAssignOutputError = ref('')
+
+// Filter für die Zuordnungs-Tabelle (Tab-Ansicht)
+const outputHierarchyFilterHierarchyId = ref('')
+const outputHierarchyFilterNodeText = ref('')
 
 // Liste der verfügbaren Ausgabehierarchien (für das "Zuordnung hinzufügen"-Formular) —
 // global/statisch, daher einmalig geladen statt pro Produkt.
@@ -2672,39 +2680,78 @@ async function loadOutputHierarchyAssignments() {
   if (outputHierarchyLoaded.value || !product.value) return
   outputHierarchyLoading.value = true
   try {
-    const { data } = await productsApi.getOutputHierarchyAssignments(product.value.id)
-    outputHierarchyAssignments.value = data.data || data
+    // Alle Seiten laden, nicht nur Seite 1 — bei vielen Zuordnungen (z.B. ganze
+    // Länderbäume) reicht eine Serverseite sonst nicht für die filterbare Tabelle.
+    const all = []
+    let page = 1
+    let lastPage = 1
+    do {
+      const { data } = await productsApi.getOutputHierarchyAssignments(product.value.id, { page, perPage: 100 })
+      all.push(...(data.data || data))
+      lastPage = data.meta?.last_page || 1
+      page++
+    } while (page <= lastPage)
+    outputHierarchyAssignments.value = all
     outputHierarchyLoaded.value = true
   } catch (e) { console.error('Failed to load output hierarchy assignments:', e.message) }
   finally { outputHierarchyLoading.value = false }
 }
 
+// Bereits zugeordnete Knoten-IDs der im Formular gewählten Hierarchie — im Baum
+// als "bereits zugeordnet" markiert, damit sie nicht doppelt ausgewählt werden.
+const alreadyAssignedNodeIds = computed(() =>
+  outputHierarchyAssignments.value
+    .filter(a => a.hierarchy_node?.hierarchy_id === selectedOutputHierarchyId.value)
+    .map(a => a.hierarchy_node?.id)
+    .filter(Boolean)
+)
+
 async function onOutputHierarchyChange(hierarchyId) {
   selectedOutputHierarchyId.value = hierarchyId
-  selectedOutputNodeId.value = null
-  if (!hierarchyId) { outputHierarchyNodeOptions.value = []; return }
+  selectedOutputNodeIds.value = []
+  outputHierarchyTreeNodes.value = []
+  if (!hierarchyId) return
+  outputHierarchyTreeLoading.value = true
   try {
     const { data } = await hierarchiesApi.getTree(hierarchyId)
-    const tree = data.data || data
-    outputHierarchyNodeOptions.value = flattenTree(tree, hierarchyId)
-  } catch { outputHierarchyNodeOptions.value = [] }
-}
-
-async function assignOutputHierarchyNode() {
-  if (!selectedOutputNodeId.value || !product.value) return
-  try {
-    await hierarchiesApi.assignOutputProduct(selectedOutputNodeId.value, { product_id: product.value.id })
-    showOutputHierarchyForm.value = false
-    selectedOutputHierarchyId.value = null
-    selectedOutputNodeId.value = null
-    outputHierarchyNodeOptions.value = []
-    outputHierarchyLoaded.value = false
-    await loadOutputHierarchyAssignments()
-    showFeedback?.('Zuordnung erstellt') // showFeedback may not exist in this component
+    outputHierarchyTreeNodes.value = data.data || data
   } catch (e) {
-    console.error('Failed to assign output hierarchy:', e.message)
+    console.error('Failed to load hierarchy tree:', e.message)
+    outputHierarchyTreeNodes.value = []
+  } finally {
+    outputHierarchyTreeLoading.value = false
   }
 }
+
+async function bulkAssignSelectedOutputNodes() {
+  if (!selectedOutputNodeIds.value.length || !product.value) return
+  bulkAssigningOutputNodes.value = true
+  bulkAssignOutputError.value = ''
+  try {
+    await productsApi.bulkAssignOutputHierarchyNodes(product.value.id, selectedOutputNodeIds.value)
+    showOutputHierarchyForm.value = false
+    selectedOutputHierarchyId.value = null
+    selectedOutputNodeIds.value = []
+    outputHierarchyTreeNodes.value = []
+    outputHierarchyLoaded.value = false
+    await loadOutputHierarchyAssignments()
+  } catch (e) {
+    bulkAssignOutputError.value = e.response?.data?.message || 'Zuordnung fehlgeschlagen.'
+    console.error('Failed to bulk-assign output hierarchy nodes:', e.message)
+  } finally {
+    bulkAssigningOutputNodes.value = false
+  }
+}
+
+// Gefilterte Zuordnungsliste für die Tabelle (Hierarchie-Auswahl + Freitext auf Knotenname)
+const filteredOutputHierarchyAssignments = computed(() => {
+  const nodeText = outputHierarchyFilterNodeText.value.trim().toLowerCase()
+  return outputHierarchyAssignments.value.filter(a => {
+    if (outputHierarchyFilterHierarchyId.value && a.hierarchy_node?.hierarchy_id !== outputHierarchyFilterHierarchyId.value) return false
+    if (nodeText && !(a.hierarchy_node?.name_de || a.hierarchy_node?.name_en || '').toLowerCase().includes(nodeText)) return false
+    return true
+  })
+})
 
 async function confirmDeleteOutputHierarchyAssignment() {
   if (!outputHierarchyDeleteTarget.value) return
@@ -5659,25 +5706,35 @@ onUnmounted(() => {
 
       <!-- Add form -->
       <div v-if="showOutputHierarchyForm" class="pim-card p-4 space-y-3">
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Ausgabehierarchie</label>
-            <select class="pim-input text-xs w-full" :value="selectedOutputHierarchyId || ''" @change="onOutputHierarchyChange($event.target.value)">
-              <option value="">— Hierarchie wählen —</option>
-              <option v-for="h in outputHierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Knoten</label>
-            <select class="pim-input text-xs w-full" v-model="selectedOutputNodeId" :disabled="!selectedOutputHierarchyId">
-              <option :value="null">— Knoten wählen —</option>
-              <option v-for="node in outputHierarchyNodeOptions" :key="node.id" :value="node.id">{{ node.label }}</option>
-            </select>
-          </div>
+        <div>
+          <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Ausgabehierarchie</label>
+          <select class="pim-input text-xs w-full max-w-sm" :value="selectedOutputHierarchyId || ''" @change="onOutputHierarchyChange($event.target.value)">
+            <option value="">— Hierarchie wählen —</option>
+            <option v-for="h in outputHierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
+          </select>
         </div>
+
+        <div v-if="selectedOutputHierarchyId">
+          <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
+            Knoten <span class="text-[var(--color-text-tertiary)] font-normal">(Mehrfachauswahl — ein übergeordneter Knoten markiert automatisch alle Kinder mit)</span>
+          </label>
+          <div v-if="outputHierarchyTreeLoading" class="space-y-2">
+            <div v-for="i in 4" :key="i" class="pim-skeleton h-6 rounded" />
+          </div>
+          <OutputHierarchyNodeTree
+            v-else
+            v-model="selectedOutputNodeIds"
+            :nodes="outputHierarchyTreeNodes"
+            :disabled-ids="alreadyAssignedNodeIds"
+          />
+          <p class="text-[11px] text-[var(--color-text-tertiary)] mt-1">{{ selectedOutputNodeIds.length }} Knoten ausgewählt</p>
+        </div>
+
+        <p v-if="bulkAssignOutputError" class="text-xs text-[var(--color-error)]">{{ bulkAssignOutputError }}</p>
+
         <div class="flex items-center gap-2">
-          <button class="pim-btn pim-btn-primary text-xs" :disabled="!selectedOutputNodeId" @click="assignOutputHierarchyNode">
-            Zuordnen
+          <button class="pim-btn pim-btn-primary text-xs" :disabled="!selectedOutputNodeIds.length || bulkAssigningOutputNodes" @click="bulkAssignSelectedOutputNodes">
+            {{ bulkAssigningOutputNodes ? 'Ordne zu…' : `Zuordnen${selectedOutputNodeIds.length ? ` (${selectedOutputNodeIds.length})` : ''}` }}
           </button>
           <button class="pim-btn pim-btn-ghost text-xs" @click="showOutputHierarchyForm = false">Abbrechen</button>
         </div>
@@ -5688,8 +5745,18 @@ onUnmounted(() => {
         <div v-for="i in 3" :key="i" class="pim-skeleton h-10 rounded" />
       </div>
 
+      <!-- Filter -->
+      <div v-else-if="outputHierarchyAssignments.length > 0" class="flex items-center gap-2">
+        <select v-model="outputHierarchyFilterHierarchyId" class="pim-input text-xs max-w-[220px]">
+          <option value="">Alle Hierarchien</option>
+          <option v-for="h in outputHierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
+        </select>
+        <input v-model="outputHierarchyFilterNodeText" type="text" placeholder="Knoten filtern…" class="pim-input text-xs max-w-[220px]">
+        <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ filteredOutputHierarchyAssignments.length }} von {{ outputHierarchyAssignments.length }}</span>
+      </div>
+
       <!-- Assignment list -->
-      <div v-else-if="outputHierarchyAssignments.length > 0" class="pim-card overflow-hidden">
+      <div v-if="!outputHierarchyLoading && filteredOutputHierarchyAssignments.length > 0" class="pim-card overflow-hidden">
         <table class="w-full text-xs">
           <thead>
             <tr class="bg-[var(--color-bg)] text-[var(--color-text-secondary)] text-[10px] uppercase tracking-wider">
@@ -5701,7 +5768,7 @@ onUnmounted(() => {
             </tr>
           </thead>
           <tbody>
-            <template v-for="assignment in outputHierarchyAssignments" :key="assignment.id">
+            <template v-for="assignment in filteredOutputHierarchyAssignments" :key="assignment.id">
               <tr
                 class="border-t border-[var(--color-border)] hover:bg-[var(--color-bg)] transition-colors cursor-pointer"
                 @click="toggleRelationshipAttrs(assignment.id)"
@@ -5785,7 +5852,12 @@ onUnmounted(() => {
         </table>
       </div>
 
-      <p v-else class="text-xs text-[var(--color-text-tertiary)] py-8 text-center">Keine Ausgabehierarchie-Zuordnungen. Klicken Sie auf "Zuordnung hinzufügen" um eine Hierarchie zuzuweisen.</p>
+      <p v-else-if="!outputHierarchyLoading && outputHierarchyAssignments.length > 0" class="text-xs text-[var(--color-text-tertiary)] py-8 text-center">
+        Kein Treffer für die aktuellen Filter.
+      </p>
+      <p v-else-if="!outputHierarchyLoading" class="text-xs text-[var(--color-text-tertiary)] py-8 text-center">
+        Keine Ausgabehierarchie-Zuordnungen. Klicken Sie auf "Zuordnung hinzufügen" um eine Hierarchie zuzuweisen.
+      </p>
 
       <!-- Delete confirm -->
       <PimConfirmDialog

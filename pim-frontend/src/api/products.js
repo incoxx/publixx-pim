@@ -187,8 +187,12 @@ export default {
   },
 
   // Output Hierarchy Assignments
-  getOutputHierarchyAssignments(id) {
-    return client.get(`/products/${id}/output-hierarchy-assignments`)
+  getOutputHierarchyAssignments(id, options = {}) {
+    return client.get(`/products/${id}/output-hierarchy-assignments`, { params: buildParams(options) })
+  },
+
+  bulkAssignOutputHierarchyNodes(id, nodeIds) {
+    return client.post(`/products/${id}/output-hierarchy-assignments/bulk-assign`, { node_ids: nodeIds })
   },
 
   // Output Hierarchy Resolved Attributes

@@ -205,6 +205,66 @@ class OutputHierarchyProductAssignmentController extends Controller
     }
 
     /**
+     * POST /products/{product}/output-hierarchy-assignments/bulk-assign
+     *
+     * Weist ein Produkt mehreren Ausgabehierarchie-Knoten gleichzeitig zu
+     * (Mehrfachauswahl im Knoten-Baum, z.B. "alle Länder Europas außer Island").
+     * Bereits zugeordnete oder nicht-berechtigte Knoten werden übersprungen statt
+     * die gesamte Anfrage abzulehnen — Autorisierung erfolgt wie bei store() pro
+     * Knoten (respektiert Instanz-Restriktionen einzelner Knoten).
+     */
+    public function bulkAssignNodes(Request $request, Product $product): JsonResponse
+    {
+        $this->authorize('view', $product);
+        $this->assertTabWriteAccess('output-hierarchies');
+
+        $request->validate([
+            'node_ids' => 'required|array|min:1|max:1000',
+            'node_ids.*' => 'uuid|exists:hierarchy_nodes,id',
+        ]);
+
+        $nodeIds = array_unique($request->input('node_ids'));
+        $nodes = HierarchyNode::whereIn('id', $nodeIds)->get()->keyBy('id');
+
+        $existingNodeIds = OutputHierarchyProductAssignment::where('product_id', $product->id)
+            ->whereIn('hierarchy_node_id', $nodeIds)
+            ->pluck('hierarchy_node_id')
+            ->toArray();
+
+        $created = 0;
+        $unauthorized = 0;
+
+        DB::transaction(function () use ($nodeIds, $nodes, $existingNodeIds, $product, &$created, &$unauthorized) {
+            foreach ($nodeIds as $nodeId) {
+                if (in_array($nodeId, $existingNodeIds, true)) {
+                    continue;
+                }
+
+                $node = $nodes->get($nodeId);
+                if (!$node || !\Illuminate\Support\Facades\Gate::allows('update', $node)) {
+                    $unauthorized++;
+                    continue;
+                }
+
+                $maxSort = OutputHierarchyProductAssignment::where('hierarchy_node_id', $nodeId)->max('sort_order') ?? -1;
+                OutputHierarchyProductAssignment::create([
+                    'hierarchy_node_id' => $nodeId,
+                    'product_id' => $product->id,
+                    'sort_order' => $maxSort + 1,
+                ]);
+                $created++;
+            }
+        });
+
+        return response()->json([
+            'message' => "{$created} Zuordnung(en) erstellt.",
+            'assigned' => $created,
+            'skipped_existing' => count($existingNodeIds),
+            'skipped_unauthorized' => $unauthorized,
+        ]);
+    }
+
+    /**
      * POST /hierarchy-nodes/{hierarchy_node}/master-products/bulk-assign
      *
      * Bulk-assign multiple products to a master hierarchy node.
