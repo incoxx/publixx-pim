@@ -556,6 +556,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('output-hierarchy-product-assignments/{assignment}/relationship-attributes', [OutputHierarchyProductAssignmentController::class, 'relationshipAttributes']);
     Route::put('output-hierarchy-product-assignments/{assignment}/relationship-attributes', [OutputHierarchyProductAssignmentController::class, 'updateRelationshipAttributes']);
     Route::get('products/{product}/output-hierarchy-assignments', [OutputHierarchyProductAssignmentController::class, 'productAssignments']);
+    Route::post('products/{product}/output-hierarchy-assignments/bulk-assign', [OutputHierarchyProductAssignmentController::class, 'bulkAssignNodes']);
 
     // Master Hierarchy Product Assignments
     Route::post('hierarchy-nodes/{hierarchy_node}/master-products', [OutputHierarchyProductAssignmentController::class, 'assignMasterProduct']);
