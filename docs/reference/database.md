@@ -270,7 +270,18 @@ Tree nodes with materialized path for efficient querying.
 | `is_active` | boolean | default `true` |
 
 ### `hierarchy_attribute_assignments`
-Attributes assigned at hierarchy level. UNIQUE (hierarchy_id, attribute_id).
+Attributes registered at hierarchy level (metadata registry, no inheritance to nodes —
+see `docs/architecture/24-hierarchie-attribut-zuordnung.md` for the distinction from
+`hierarchy_node_attribute_assignments` below). UNIQUE (hierarchy_id, attribute_id).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | char(36) | PK |
+| `hierarchy_id` | char(36) | FK → hierarchies |
+| `attribute_id` | char(36) | FK → attributes |
+| `scope` | varchar(20) | `node` \| `relationship` \| `both`, default `node` |
+| `is_facet` | boolean | default `false` — only consumed by the Asset-Catalog facet search, not the public product catalog |
+| `sort_order` | int | default `0`; also used as facet display order (filtered to `is_facet=true`) |
 
 ### `hierarchy_node_attribute_assignments`
 Attributes assigned at node level with inheritance control.
