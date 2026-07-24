@@ -2,6 +2,11 @@
 
 > **Purpose:** Attribute inheritance across hierarchies and from products to variants. Use this skill when implementing the inheritance engine and data maintenance logic.
 
+> **Not to be confused with:** hierarchy-level attribute assignment (`hierarchy_attribute_assignments`,
+> the "Hierarchie bearbeiten" panel) is a *separate* mechanism that does not cascade to nodes —
+> see `docs/architecture/24-hierarchie-attribut-zuordnung.md` for the distinction. Only the
+> node-level table described below actually inherits.
+
 ---
 
 ## Two Types of Inheritance
