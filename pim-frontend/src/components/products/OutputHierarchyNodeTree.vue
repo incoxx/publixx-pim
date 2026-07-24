@@ -61,7 +61,7 @@ function toggleExpand(nodeId) {
 }
 
 function nodeLabel(node) {
-  return node.name_de || node.name_en || node.technical_name || node.id
+  return node.name_de || node.name_en || node.id
 }
 
 // Bei aktivem Filter: nur Knoten zeigen, deren Name matcht — oder die einen
@@ -76,6 +76,10 @@ function matchesFilter(node) {
 function isForceExpanded(node) {
   return filterText.value.trim() !== '' && (node.children || []).some(matchesFilter)
 }
+
+// Memoized statt im Template neu berechnet — sonst wird bei jedem Re-Render
+// (z.B. jedem Checkbox-Klick) der komplette Baum erneut rekursiv durchlaufen.
+const filteredRootNodes = computed(() => props.nodes.filter(matchesFilter))
 </script>
 
 <template>
@@ -91,7 +95,7 @@ function isForceExpanded(node) {
     </div>
     <div class="max-h-72 overflow-y-auto py-1">
       <OutputHierarchyTreeRow
-        v-for="node in nodes.filter(matchesFilter)"
+        v-for="node in filteredRootNodes"
         :key="node.id"
         :node="node"
         :depth="0"

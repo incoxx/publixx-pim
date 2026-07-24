@@ -231,26 +231,38 @@ class OutputHierarchyProductAssignmentController extends Controller
             ->pluck('hierarchy_node_id')
             ->toArray();
 
-        $created = 0;
+        // Autorisierung vorab prüfen (nicht in der Transaktion) und auf die
+        // tatsächlich neu zuzuordnenden Knoten eingrenzen.
         $unauthorized = 0;
+        $authorizedNodeIds = [];
+        foreach ($nodeIds as $nodeId) {
+            if (in_array($nodeId, $existingNodeIds, true)) {
+                continue;
+            }
+            $node = $nodes->get($nodeId);
+            if ($node && \Illuminate\Support\Facades\Gate::allows('update', $node)) {
+                $authorizedNodeIds[] = $nodeId;
+            } else {
+                $unauthorized++;
+            }
+        }
 
-        DB::transaction(function () use ($nodeIds, $nodes, $existingNodeIds, $product, &$created, &$unauthorized) {
-            foreach ($nodeIds as $nodeId) {
-                if (in_array($nodeId, $existingNodeIds, true)) {
-                    continue;
-                }
+        // Aktuellen max sort_order je betroffenem Knoten in EINER Query ermitteln
+        // statt pro Knoten einzeln (N+1) — sort_order zählt Produkte innerhalb
+        // eines Knotens, daher weiterhin pro Knoten, aber gebündelt geladen.
+        $maxSorts = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $authorizedNodeIds)
+            ->selectRaw('hierarchy_node_id, MAX(sort_order) as max_sort')
+            ->groupBy('hierarchy_node_id')
+            ->pluck('max_sort', 'hierarchy_node_id');
 
-                $node = $nodes->get($nodeId);
-                if (!$node || !\Illuminate\Support\Facades\Gate::allows('update', $node)) {
-                    $unauthorized++;
-                    continue;
-                }
+        $created = 0;
 
-                $maxSort = OutputHierarchyProductAssignment::where('hierarchy_node_id', $nodeId)->max('sort_order') ?? -1;
+        DB::transaction(function () use ($authorizedNodeIds, $maxSorts, $product, &$created) {
+            foreach ($authorizedNodeIds as $nodeId) {
                 OutputHierarchyProductAssignment::create([
                     'hierarchy_node_id' => $nodeId,
                     'product_id' => $product->id,
-                    'sort_order' => $maxSort + 1,
+                    'sort_order' => ($maxSorts[$nodeId] ?? -1) + 1,
                 ]);
                 $created++;
             }

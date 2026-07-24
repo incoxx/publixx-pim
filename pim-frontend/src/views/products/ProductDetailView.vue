@@ -2713,6 +2713,10 @@ async function onOutputHierarchyChange(hierarchyId) {
   if (!hierarchyId) return
   outputHierarchyTreeLoading.value = true
   try {
+    // Sicherstellen, dass die bestehenden Zuordnungen geladen sind, bevor der Baum
+    // interaktiv wird — sonst könnten bereits zugeordnete Knoten kurzzeitig als
+    // auswählbar erscheinen (loadOutputHierarchyAssignments ist idempotent).
+    await loadOutputHierarchyAssignments()
     const { data } = await hierarchiesApi.getTree(hierarchyId)
     outputHierarchyTreeNodes.value = data.data || data
   } catch (e) {
@@ -2723,18 +2727,51 @@ async function onOutputHierarchyChange(hierarchyId) {
   }
 }
 
+function cancelOutputHierarchyForm() {
+  showOutputHierarchyForm.value = false
+  selectedOutputHierarchyId.value = null
+  selectedOutputNodeIds.value = []
+  outputHierarchyTreeNodes.value = []
+  bulkAssignOutputError.value = ''
+}
+
+function toggleOutputHierarchyForm() {
+  if (showOutputHierarchyForm.value) {
+    cancelOutputHierarchyForm()
+  } else {
+    showOutputHierarchyForm.value = true
+  }
+}
+
 async function bulkAssignSelectedOutputNodes() {
   if (!selectedOutputNodeIds.value.length || !product.value) return
   bulkAssigningOutputNodes.value = true
   bulkAssignOutputError.value = ''
   try {
-    await productsApi.bulkAssignOutputHierarchyNodes(product.value.id, selectedOutputNodeIds.value)
-    showOutputHierarchyForm.value = false
-    selectedOutputHierarchyId.value = null
-    selectedOutputNodeIds.value = []
-    outputHierarchyTreeNodes.value = []
+    const { data } = await productsApi.bulkAssignOutputHierarchyNodes(product.value.id, selectedOutputNodeIds.value)
+    const assigned = data.assigned ?? 0
+    const skippedExisting = data.skipped_existing ?? 0
+    const skippedUnauthorized = data.skipped_unauthorized ?? 0
+
+    cancelOutputHierarchyForm()
     outputHierarchyLoaded.value = false
     await loadOutputHierarchyAssignments()
+
+    if (assigned === 0) {
+      toastStore.showToast(
+        skippedUnauthorized > 0
+          ? `Keine Zuordnung erstellt — ${skippedUnauthorized} Knoten ohne Berechtigung übersprungen.`
+          : 'Keine neue Zuordnung erstellt — alle gewählten Knoten waren bereits zugeordnet.',
+        'info',
+      )
+    } else if (skippedExisting > 0 || skippedUnauthorized > 0) {
+      const parts = []
+      if (skippedExisting > 0) parts.push(`${skippedExisting} bereits vorhanden`)
+      if (skippedUnauthorized > 0) parts.push(`${skippedUnauthorized} ohne Berechtigung übersprungen`)
+      toastStore.showToast(`${assigned} Zuordnung(en) erstellt (${parts.join(', ')}).`, 'info')
+    } else {
+      toastStore.showToast(`${assigned} Zuordnung(en) erstellt.`, 'success')
+    }
   } catch (e) {
     bulkAssignOutputError.value = e.response?.data?.message || 'Zuordnung fehlgeschlagen.'
     console.error('Failed to bulk-assign output hierarchy nodes:', e.message)
@@ -5699,8 +5736,8 @@ onUnmounted(() => {
     <div v-else-if="activeTab === 'output-hierarchies' && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
       <div class="flex items-center justify-between">
         <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Ausgabehierarchie-Zuordnungen</h3>
-        <button class="pim-btn pim-btn-primary text-xs" @click="showOutputHierarchyForm = !showOutputHierarchyForm">
-          <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Zuordnung hinzufugen
+        <button class="pim-btn pim-btn-primary text-xs" @click="toggleOutputHierarchyForm">
+          <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Zuordnung hinzufügen
         </button>
       </div>
 
@@ -5736,7 +5773,7 @@ onUnmounted(() => {
           <button class="pim-btn pim-btn-primary text-xs" :disabled="!selectedOutputNodeIds.length || bulkAssigningOutputNodes" @click="bulkAssignSelectedOutputNodes">
             {{ bulkAssigningOutputNodes ? 'Ordne zu…' : `Zuordnen${selectedOutputNodeIds.length ? ` (${selectedOutputNodeIds.length})` : ''}` }}
           </button>
-          <button class="pim-btn pim-btn-ghost text-xs" @click="showOutputHierarchyForm = false">Abbrechen</button>
+          <button class="pim-btn pim-btn-ghost text-xs" @click="cancelOutputHierarchyForm">Abbrechen</button>
         </div>
       </div>
 
