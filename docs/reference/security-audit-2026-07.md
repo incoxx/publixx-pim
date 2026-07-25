@@ -115,6 +115,28 @@ verdächtige Muster erkennt, protokolliert und harte Signale blockiert.
   Ein/Aus, Blockieren, Länder-Listen, Alarm-Schwelle, 4xx-Schwelle. Admin-only.
 - Client-IP wird hinter Proxies aus `CF-Connecting-IP` ermittelt.
 
+### Geo-Erkennung (Länder-Blocking)
+
+Das Herkunftsland wird in dieser Reihenfolge bestimmt:
+1. **CDN-/Proxy-Header** — Cloudflare (`CF-IPCountry`), CloudFront, Vercel, Fastly,
+   Google App Engine u. a. Ohne CDN kommt kein solcher Header an.
+2. **MaxMind GeoLite2** (`App\Services\Security\GeoIpResolver`) — lokale IP→Land-Auflösung
+   ohne CDN. Benötigt die `.mmdb`-Datei:
+   ```
+   MAXMIND_LICENSE_KEY=…   # kostenloser MaxMind-Account
+   php artisan pim:geoip-update
+   ```
+   Datei liegt unter `storage/app/geoip/GeoLite2-Country.mmdb` (gitignored).
+
+Ist keine Quelle verfügbar, bleibt das Land „unbekannt" und die Geo-Regeln greifen
+nicht — die Guard-UI zeigt das aktuell erkannte Land und warnt entsprechend.
+
+**Whitelist vs. Blacklist:** Eine gesetzte **Whitelist ist exklusiv** — alles, was
+nicht darauf steht, gilt als verdächtig (auch nicht explizit geblockte Länder).
+Nur eine **Blacklist** (ohne Whitelist) lässt alle nicht gelisteten Länder durch.
+Hinweis: Ländercodes sind ISO-3166 alpha-2 (z. B. `GB` für Großbritannien — `EN`
+ist die Sprache Englisch und trifft nie zu).
+
 ## Als sicher bestätigt (Auszug)
 
 ArtisanCockpit/Deployment/TestRunner (Whitelist + `escapeshellarg` + Admin),

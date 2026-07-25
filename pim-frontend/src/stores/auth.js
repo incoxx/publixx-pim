@@ -2,10 +2,14 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import authApi from '@/api/auth'
 import userPreferencesApi from '@/api/userPreferences'
+import router from '@/router'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const token = ref(localStorage.getItem('pim_token') || null)
+  // Während des Logouts unterdrücken wir transiente Fehler-Toasts (401 von
+  // Hintergrund-Requests der gerade verlassenen Seite) — siehe toast-Store.
+  const loggingOut = ref(false)
   const locale = ref(localStorage.getItem('pim_locale') || 'de')
   // Ansichtsmodus: 'cockpit' | 'gui' | null (null = der Rollen-Standard entscheidet).
   // Persönliche Wahl wird lokal + serverseitig gespeichert und schlägt die Rolle.
@@ -78,12 +82,32 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout() {
+    // Fehler-Toasts während des gesamten Logout-Übergangs unterdrücken.
+    loggingOut.value = true
     try {
       await authApi.logout()
     } catch { /* ignore */ }
+
+    // Hintergrund-Polling stoppen, bevor das Token entfernt wird, damit keine
+    // nachfeuernde Anfrage ins 401 läuft.
+    try {
+      const { useMessengerStore } = await import('@/stores/messenger')
+      useMessengerStore().stopPolling()
+    } catch { /* ignore */ }
+
     token.value = null
     user.value = null
     localStorage.removeItem('pim_token')
+
+    // Deterministisch zur Login-Seite navigieren (statt auf einen 401-Redirect
+    // eines Hintergrund-Requests zu warten — genau der erzeugte den roten Flash).
+    try {
+      await router.push({ name: 'login' })
+    } catch { /* ignore */ }
+
+    // Kurzes Nachlaufen, damit auch verspätete Fehler-Toasts der verlassenen
+    // Seite noch unterdrückt werden.
+    setTimeout(() => { loggingOut.value = false }, 1200)
   }
 
   async function checkAuth() {
@@ -203,7 +227,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    user, token, locale,
+    user, token, locale, loggingOut,
     commandPaletteOpen, sidebarCollapsed, sidebarMobileOpen, sidebarWidth, sidebarCollapsedSections,
     panelOpen, panelComponent, panelProps, panelWidth, panelFullscreen,
     isAuthenticated, userName, userRole, isAdmin, permissions, entityRestrictions, tabPermissions,

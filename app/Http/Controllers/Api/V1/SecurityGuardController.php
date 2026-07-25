@@ -32,7 +32,7 @@ class SecurityGuardController extends Controller
      * Liefert die aktuell wirksame Konfiguration (env/config-Defaults, ueberlagert
      * von in der GUI gespeicherten Overrides) plus schreibgeschuetzte Referenzdaten.
      */
-    public function show(Request $request): JsonResponse
+    public function show(Request $request, SecurityMonitor $monitor): JsonResponse
     {
         $this->assertAdmin($request);
 
@@ -60,8 +60,19 @@ class SecurityGuardController extends Controller
                     'block_cooldown_seconds' => config('security.thresholds.block_cooldown_seconds'),
                     'bot_user_agent_patterns' => config('security.bots.user_agent_patterns'),
                     'sensitive_path_patterns' => config('security.sensitive_path_patterns'),
+                    'geoip' => [
+                        'enabled' => (bool) config('security.geo.maxmind.enabled'),
+                        'available' => app(\App\Services\Security\GeoIpResolver::class)->available(),
+                        'database' => config('security.geo.maxmind.database'),
+                    ],
                 ],
                 'has_overrides' => $overrides !== [],
+                // Aktuelle Erkennung für DIESEN Request — zeigt sofort, ob Geo verfügbar ist.
+                'detected' => [
+                    'country' => $monitor->country($request),
+                    'ip' => $monitor->clientIp($request),
+                    'geo_available' => $monitor->country($request) !== null,
+                ],
             ],
         ]);
     }
@@ -114,7 +125,7 @@ class SecurityGuardController extends Controller
         Setting::setPayload(self::SETTING_GROUP, $merged);
         Cache::forget('security_guard_settings');
 
-        return $this->show($request);
+        return $this->show($request, app(SecurityMonitor::class));
     }
 
     /**

@@ -7,6 +7,7 @@ namespace App\Services\Security;
 use App\Jobs\RecordSecurityEvent;
 use App\Models\Setting;
 use App\Models\User;
+// GeoIpResolver liegt im selben Namespace (App\Services\Security).
 use App\Notifications\SecurityAlertNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -31,6 +32,18 @@ class SecurityMonitor
     ];
 
     private ?array $overrides = null;
+
+    private ?GeoIpResolver $geoIp = null;
+
+    public function __construct(?GeoIpResolver $geoIp = null)
+    {
+        $this->geoIp = $geoIp;
+    }
+
+    private function geoIp(): GeoIpResolver
+    {
+        return $this->geoIp ??= app(GeoIpResolver::class);
+    }
 
     /**
      * In der GUI gespeicherte Overrides (ueber env/config-Defaults gelegt).
@@ -82,19 +95,45 @@ class SecurityMonitor
     }
 
     /**
-     * Zwei-Buchstaben-Laendercode aus dem Cloudflare-Header (oder null).
+     * Gängige Header, die CDNs/Proxies mit dem Herkunftsland füllen. Ohne einen
+     * solchen Header (kein Cloudflare/Proxy davor) ist keine Geo-Erkennung möglich.
+     */
+    private const COUNTRY_HEADERS = [
+        'CF-IPCountry',              // Cloudflare
+        'CloudFront-Viewer-Country', // AWS CloudFront
+        'X-Vercel-IP-Country',       // Vercel
+        'Fastly-Geo-Country',        // Fastly
+        'X-AppEngine-Country',       // Google App Engine
+        'X-Geo-Country',
+        'X-Country-Code',
+    ];
+
+    /**
+     * Zwei-Buchstaben-Ländercode (ISO alpha-2) aus dem konfigurierten bzw. einem
+     * bekannten CDN-Header. Gibt null zurück, wenn kein Land ermittelbar ist.
      */
     public function country(Request $request): ?string
     {
-        $header = (string) config('security.geo.country_header', '');
-        if ($header === '' || ! $request->headers->has($header)) {
-            return null;
+        $headers = array_values(array_filter(array_unique(array_merge(
+            [(string) config('security.geo.country_header', '')],
+            self::COUNTRY_HEADERS,
+        ))));
+
+        foreach ($headers as $header) {
+            if ($header === '' || ! $request->headers->has($header)) {
+                continue;
+            }
+
+            $code = strtoupper(trim((string) $request->header($header)));
+
+            // ISO alpha-2 (nur Buchstaben). "XX" = unbekannt, "T1"/"T2" = Tor → kein Land.
+            if ($code !== 'XX' && preg_match('/^[A-Z]{2}$/', $code)) {
+                return $code;
+            }
         }
 
-        $code = strtoupper(trim((string) $request->header($header)));
-
-        // Cloudflare liefert "XX" fuer unbekannt / "T1" fuer Tor.
-        return preg_match('/^[A-Z0-9]{2}$/', $code) ? $code : null;
+        // Fallback ohne CDN/Proxy: IP→Land über die lokale MaxMind-GeoLite2-DB.
+        return $this->geoIp()->countryForIp($this->clientIp($request));
     }
 
     public function isBotUserAgent(?string $userAgent): bool
