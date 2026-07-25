@@ -10,10 +10,18 @@ use App\Models\AttributeFormattingRule;
 use App\Models\AttributeMapping;
 use App\Models\AttributeType;
 use App\Models\AttributeView;
+use App\Models\CanvaExportProfile;
+use App\Models\ColumnProfile;
+use App\Models\ComparisonOperator;
+use App\Models\ComparisonOperatorGroup;
+use App\Models\ConnectorConnection;
+use App\Models\DictionaryEntry;
+use App\Models\ExportProfile;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\HierarchyNodeAttributeAssignment;
 use App\Models\ImportJob;
+use App\Models\ImportProfile;
 use App\Models\Media;
 use App\Models\MediaCountry;
 use App\Models\MediaLanguage;
@@ -25,29 +33,31 @@ use App\Models\PriceType;
 use App\Models\Product;
 use App\Models\ProductRelationType;
 use App\Models\ProductType;
+use App\Models\Project;
 use App\Models\Role;
+use App\Models\SearchProfile;
+use App\Models\Team;
 use App\Models\Unit;
 use App\Models\UnitGroup;
-use App\Models\ComparisonOperator;
-use App\Models\ComparisonOperatorGroup;
 use App\Models\User;
-use App\Models\ExportProfile;
-use App\Models\ImportProfile;
-use App\Models\SearchProfile;
-use App\Models\ColumnProfile;
-use App\Models\DictionaryEntry;
 use App\Models\ValueList;
 use App\Models\ValueListEntry;
-use App\Models\Project;
-use App\Models\Team;
+use App\Models\WebsiteProfile;
 use App\Models\Workflow;
 use App\Models\WorkflowStatus;
+use App\Models\WorkflowTask;
+use App\Observers\MediaObserver;
 use App\Policies\AccessLinkPolicy;
 use App\Policies\AttributeFormattingRulePolicy;
 use App\Policies\AttributeMappingPolicy;
 use App\Policies\AttributePolicy;
 use App\Policies\AttributeTypePolicy;
 use App\Policies\AttributeViewPolicy;
+use App\Policies\CanvaExportProfilePolicy;
+use App\Policies\ColumnProfilePolicy;
+use App\Policies\ComparisonOperatorGroupPolicy;
+use App\Policies\ComparisonOperatorPolicy;
+use App\Policies\ConnectorConnectionPolicy;
 use App\Policies\DictionaryEntryPolicy;
 use App\Policies\ExportPolicy;
 use App\Policies\ExportProfilePolicy;
@@ -66,30 +76,20 @@ use App\Policies\PriceRegionPolicy;
 use App\Policies\PriceTypePolicy;
 use App\Policies\ProductPolicy;
 use App\Policies\ProductTypePolicy;
+use App\Policies\ProjectPolicy;
 use App\Policies\RelationTypePolicy;
 use App\Policies\RolePolicy;
 use App\Policies\SearchProfilePolicy;
-use App\Policies\ColumnProfilePolicy;
+use App\Policies\TeamPolicy;
 use App\Policies\UnitGroupPolicy;
 use App\Policies\UnitPolicy;
-use App\Policies\ComparisonOperatorGroupPolicy;
-use App\Policies\ComparisonOperatorPolicy;
 use App\Policies\UserPolicy;
 use App\Policies\ValueListEntryPolicy;
 use App\Policies\ValueListPolicy;
-use App\Policies\ProjectPolicy;
-use App\Policies\TeamPolicy;
-use App\Policies\WorkflowPolicy;
 use App\Policies\WebsiteProfilePolicy;
+use App\Policies\WorkflowPolicy;
 use App\Policies\WorkflowStatusPolicy;
 use App\Policies\WorkflowTaskPolicy;
-use App\Models\WebsiteProfile;
-use App\Models\WorkflowTask;
-use App\Models\ConnectorConnection;
-use App\Policies\ConnectorConnectionPolicy;
-use App\Models\CanvaExportProfile;
-use App\Policies\CanvaExportProfilePolicy;
-use App\Observers\MediaObserver;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -104,6 +104,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(\App\Services\TypesenseService::class);
         // Service + Controller müssen dieselbe Cache-Instanz nutzen (lastHit/X-Cache).
         $this->app->singleton(\App\Services\Content\ContentCache::class);
+        // GeoIP-Reader nur einmal pro Request öffnen (SecurityMonitor-Fallback).
+        $this->app->singleton(\App\Services\Security\GeoIpResolver::class);
     }
 
     public function boot(): void
@@ -189,6 +191,7 @@ class AppServiceProvider extends ServiceProvider
             if ($user->hasRole('Admin') || $user->hasRole('Sysadmin')) {
                 return true;
             }
+
             return $user->hasPermissionTo($permission);
         };
         Gate::define('conformance.view', fn (User $user) => $conformanceAbility($user, 'conformance.view'));
@@ -232,16 +235,16 @@ class AppServiceProvider extends ServiceProvider
 
             $origin = $payload['cors_origin'] ?? null;
             if (
-                !is_string($origin)
+                ! is_string($origin)
                 || $origin === ''
-                || !preg_match('/^https?:\/\/[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?(:\d{1,5})?$/', $origin)
+                || ! preg_match('/^https?:\/\/[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?(:\d{1,5})?$/', $origin)
             ) {
                 return;
             }
 
             // Lizenzprüfung erst hier — nur noch für Instanzen, die den CORS-Modus
             // tatsächlich konfiguriert haben, nicht mehr für jeden Request app-weit.
-            if (!$this->app->make(\App\Services\LicenseService::class)->isModuleActive('typo3')) {
+            if (! $this->app->make(\App\Services\LicenseService::class)->isModuleActive('typo3')) {
                 return;
             }
         } catch (\Throwable) {
@@ -249,7 +252,7 @@ class AppServiceProvider extends ServiceProvider
         }
 
         $origins = config('cors.allowed_origins', []);
-        if (!in_array($origin, $origins, true)) {
+        if (! in_array($origin, $origins, true)) {
             $origins[] = $origin;
             config(['cors.allowed_origins' => $origins]);
         }

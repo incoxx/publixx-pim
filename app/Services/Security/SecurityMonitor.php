@@ -7,6 +7,7 @@ namespace App\Services\Security;
 use App\Jobs\RecordSecurityEvent;
 use App\Models\Setting;
 use App\Models\User;
+// GeoIpResolver liegt im selben Namespace (App\Services\Security).
 use App\Notifications\SecurityAlertNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -31,6 +32,18 @@ class SecurityMonitor
     ];
 
     private ?array $overrides = null;
+
+    private ?GeoIpResolver $geoIp = null;
+
+    public function __construct(?GeoIpResolver $geoIp = null)
+    {
+        $this->geoIp = $geoIp;
+    }
+
+    private function geoIp(): GeoIpResolver
+    {
+        return $this->geoIp ??= app(GeoIpResolver::class);
+    }
 
     /**
      * In der GUI gespeicherte Overrides (ueber env/config-Defaults gelegt).
@@ -119,7 +132,8 @@ class SecurityMonitor
             }
         }
 
-        return null;
+        // Fallback ohne CDN/Proxy: IP→Land über die lokale MaxMind-GeoLite2-DB.
+        return $this->geoIp()->countryForIp($this->clientIp($request));
     }
 
     public function isBotUserAgent(?string $userAgent): bool

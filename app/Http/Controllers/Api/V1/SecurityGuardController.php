@@ -60,6 +60,11 @@ class SecurityGuardController extends Controller
                     'block_cooldown_seconds' => config('security.thresholds.block_cooldown_seconds'),
                     'bot_user_agent_patterns' => config('security.bots.user_agent_patterns'),
                     'sensitive_path_patterns' => config('security.sensitive_path_patterns'),
+                    'geoip' => [
+                        'enabled' => (bool) config('security.geo.maxmind.enabled'),
+                        'available' => app(\App\Services\Security\GeoIpResolver::class)->available(),
+                        'database' => config('security.geo.maxmind.database'),
+                    ],
                 ],
                 'has_overrides' => $overrides !== [],
                 // Aktuelle Erkennung für DIESEN Request — zeigt sofort, ob Geo verfügbar ist.

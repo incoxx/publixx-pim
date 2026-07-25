@@ -82,3 +82,4 @@ yarn-error.log
 
 publixx_pim
 __pycache__/
+/storage/app/geoip

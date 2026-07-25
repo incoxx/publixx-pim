@@ -42,6 +42,19 @@ return [
             'trim',
             explode(',', strtoupper((string) env('SECURITY_BLOCKED_COUNTRIES', ''))),
         ))),
+
+        /*
+        | MaxMind GeoLite2: IP→Land-Auflösung OHNE CDN/Proxy. Greift als Fallback,
+        | wenn kein Länder-Header ankommt. Benötigt die lokale .mmdb-Datei
+        | (kostenlos von MaxMind, siehe `php artisan pim:geoip-update`).
+        */
+        'maxmind' => [
+            'enabled' => (bool) env('SECURITY_GEOIP_ENABLED', true),
+            'database' => env('SECURITY_GEOIP_DB', storage_path('app/geoip/GeoLite2-Country.mmdb')),
+            // Für den Download-Command (kostenloser MaxMind-Account → License Key).
+            'license_key' => env('MAXMIND_LICENSE_KEY'),
+            'edition' => env('MAXMIND_EDITION', 'GeoLite2-Country'),
+        ],
     ],
 
     /*
