@@ -11,12 +11,26 @@ use Illuminate\Support\Str;
 class LicenseGeneratorController extends Controller
 {
     /**
+     * Herstellerinternes Lizenz-Tooling (Keypair-/Signatur-Funktionen). Ohne
+     * Autorisierung erreichte es jeder authentifizierte Nutzer (Audit M-3) —
+     * nur Administratoren duerfen es aufrufen.
+     */
+    private function assertAdmin(Request $request): void
+    {
+        if (! $request->user() || ! $request->user()->hasRole('Admin')) {
+            abort(403, 'Nur Administratoren duerfen das Lizenz-Tooling verwenden.');
+        }
+    }
+
+    /**
      * GET /api/v1/license-generator/modules
      *
      * Liefert alle verfuegbaren Enterprise-Module aus config/license.php.
      */
-    public function modules(): JsonResponse
+    public function modules(Request $request): JsonResponse
     {
+        $this->assertAdmin($request);
+
         $modules = collect(config('license.modules', []))->map(fn ($info, $key) => [
             'key' => $key,
             'name' => $info['name'] ?? $key,
@@ -34,6 +48,8 @@ class LicenseGeneratorController extends Controller
      */
     public function validateKey(Request $request): JsonResponse
     {
+        $this->assertAdmin($request);
+
         $validated = $request->validate([
             'private_key' => ['required', 'string'],
         ]);
@@ -70,6 +86,8 @@ class LicenseGeneratorController extends Controller
      */
     public function generate(Request $request): JsonResponse
     {
+        $this->assertAdmin($request);
+
         $validated = $request->validate([
             'private_key' => ['required', 'string'],
             'customer' => ['required', 'string', 'max:255'],
@@ -134,7 +152,7 @@ class LicenseGeneratorController extends Controller
                 $configuredPubBin = base64_decode($configuredPublicKey, true);
 
                 if ($configuredPubBin === false || $derivedPublicKey !== $configuredPubBin) {
-                    $warning = 'Der konfigurierte ANYPIM_LICENSE_PUBLIC_KEY in .env stimmt nicht mit diesem Private Key überein. Der generierte Schlüssel wird bei der Aktivierung abgelehnt. Bitte den passenden Public Key in der .env hinterlegen: ' . base64_encode($derivedPublicKey);
+                    $warning = 'Der konfigurierte ANYPIM_LICENSE_PUBLIC_KEY in .env stimmt nicht mit diesem Private Key überein. Der generierte Schlüssel wird bei der Aktivierung abgelehnt. Bitte den passenden Public Key in der .env hinterlegen: '.base64_encode($derivedPublicKey);
                 }
             } catch (\SodiumException) {
                 // Ignorieren — Validierung bereits oben erfolgt
@@ -158,8 +176,10 @@ class LicenseGeneratorController extends Controller
      *
      * Generate a new Ed25519 keypair.
      */
-    public function generateKeypair(): JsonResponse
+    public function generateKeypair(Request $request): JsonResponse
     {
+        $this->assertAdmin($request);
+
         $keypair = sodium_crypto_sign_keypair();
         $secretKey = sodium_crypto_sign_secretkey($keypair);
         $publicKey = sodium_crypto_sign_publickey($keypair);

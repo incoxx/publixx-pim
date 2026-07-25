@@ -109,4 +109,51 @@ class UserControllerTest extends TestCase
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['name', 'email', 'password']);
     }
+
+    /**
+     * Regressionstest fuer die Privilege-Escalation (Audit K-1): Die UserPolicy
+     * erlaubt jedem, den EIGENEN Datensatz zu aktualisieren. Ohne den Rollen-Guard
+     * im Controller konnte sich so jeder Nutzer per role_ids die Admin-Rolle geben.
+     */
+    public function test_user_cannot_self_assign_admin_role(): void
+    {
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        $adminRole = Role::findOrCreate('Admin', 'sanctum');
+
+        $victim = User::factory()->create();
+        $this->actingAs($victim);
+
+        $response = $this->putJson("/api/v1/users/{$victim->id}", [
+            'role_ids' => [$adminRole->id],
+        ]);
+
+        $response->assertForbidden();
+        $this->assertFalse($victim->fresh()->hasRole('Admin'));
+    }
+
+    /**
+     * Audit K-1 (Defense-in-Depth): Auch beim Bearbeiten eines ANDEREN Nutzers darf
+     * ein Nicht-Admin die Admin-Rolle nicht vergeben.
+     */
+    public function test_non_admin_cannot_grant_admin_role_to_others(): void
+    {
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        $adminRole = Role::findOrCreate('Admin', 'sanctum');
+
+        // Editor mit users.edit, aber ohne Admin-Rolle.
+        $editorRole = Role::findOrCreate('Editor', 'sanctum');
+        $editorRole->givePermissionTo(\Spatie\Permission\Models\Permission::findOrCreate('users.edit', 'sanctum'));
+        $editor = User::factory()->create();
+        $editor->assignRole($editorRole);
+        $this->actingAs($editor);
+
+        $target = User::factory()->create();
+
+        $response = $this->putJson("/api/v1/users/{$target->id}", [
+            'role_ids' => [$adminRole->id],
+        ]);
+
+        $response->assertForbidden();
+        $this->assertFalse($target->fresh()->hasRole('Admin'));
+    }
 }

@@ -599,6 +599,12 @@ const routes = [
     meta: { title: 'Datenkonsistenz' },
   },
   {
+    path: '/security-guard',
+    name: 'security-guard',
+    component: () => import('@/views/admin/SecurityGuardView.vue'),
+    meta: { title: 'Guard' },
+  },
+  {
     path: '/logs',
     name: 'log-viewer',
     component: () => import('@/views/admin/LogViewerView.vue'),

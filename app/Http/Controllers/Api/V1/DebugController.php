@@ -10,15 +10,30 @@ use Illuminate\Http\Response;
 
 class DebugController extends Controller
 {
-    private const ALLOWED_CHANNELS = ['laravel', 'import', 'export', 'artisan-cockpit'];
+    private const ALLOWED_CHANNELS = ['laravel', 'import', 'export', 'artisan-cockpit', 'security'];
+
+    /**
+     * Log-Zugriff ist rein administrativ. Logs enthalten Stacktraces, SQL,
+     * E-Mail-Adressen und potenziell Tokens — daher zwingend Admin-only,
+     * zusaetzlich zur auth:sanctum-Middleware der Route.
+     */
+    private function assertAdmin(Request $request): void
+    {
+        $user = $request->user();
+        if (! $user || ! $user->hasRole('Admin')) {
+            abort(403, 'Nur Administratoren duerfen Logs einsehen oder loeschen.');
+        }
+    }
 
     public function logs(Request $request): Response
     {
+        $this->assertAdmin($request);
+
         $channel = $request->query('channel', 'laravel');
         $lines = min((int) $request->query('lines', 500), 5000);
 
         if (! in_array($channel, self::ALLOWED_CHANNELS, true)) {
-            return response('Unknown channel: ' . $channel, 400)
+            return response('Unknown channel: '.$channel, 400)
                 ->header('Content-Type', 'text/plain');
         }
 
@@ -37,13 +52,15 @@ class DebugController extends Controller
 
     public function parsedLogs(Request $request): JsonResponse
     {
+        $this->assertAdmin($request);
+
         $channel = $request->query('channel', 'laravel');
         $lines = min((int) $request->query('lines', 500), 5000);
         $levelFilter = strtoupper((string) $request->query('level', ''));
         $search = (string) $request->query('search', '');
 
         if (! in_array($channel, self::ALLOWED_CHANNELS, true)) {
-            return response()->json(['error' => 'Unknown channel: ' . $channel], 400);
+            return response()->json(['error' => 'Unknown channel: '.$channel], 400);
         }
 
         $path = $this->resolveLogPath($channel);
@@ -85,7 +102,7 @@ class DebugController extends Controller
                     'stack_trace' => '',
                 ];
             } elseif ($current !== null) {
-                $current['stack_trace'] .= ($current['stack_trace'] !== '' ? "\n" : '') . $line;
+                $current['stack_trace'] .= ($current['stack_trace'] !== '' ? "\n" : '').$line;
             }
         }
         if ($current !== null) {
@@ -121,10 +138,12 @@ class DebugController extends Controller
 
     public function clearLogs(Request $request): Response
     {
+        $this->assertAdmin($request);
+
         $channel = $request->query('channel', 'laravel');
 
         if (! in_array($channel, self::ALLOWED_CHANNELS, true)) {
-            return response('Unknown channel: ' . $channel, 400)
+            return response('Unknown channel: '.$channel, 400)
                 ->header('Content-Type', 'text/plain');
         }
 
@@ -137,7 +156,7 @@ class DebugController extends Controller
 
         file_put_contents($path, '');
 
-        return response('Cleared: ' . basename($path))
+        return response('Cleared: '.basename($path))
             ->header('Content-Type', 'text/plain');
     }
 
@@ -202,6 +221,6 @@ class DebugController extends Controller
             $i++;
         }
 
-        return ($i === 0 ? (string) $bytes : number_format($size, 1)) . ' ' . $units[$i];
+        return ($i === 0 ? (string) $bytes : number_format($size, 1)).' '.$units[$i];
     }
 }

@@ -11,11 +11,38 @@ use Illuminate\Support\Facades\Schema;
 
 class DatabaseViewerController extends Controller
 {
+    /**
+     * Tabellen, die der DB-Viewer NIE ausliefert (Audit M-4): Auth-/Session-/
+     * Token-Tabellen enthalten Passwort-Hashes und Sitzungs-Token.
+     */
+    private const BLOCKED_TABLES = [
+        'personal_access_tokens',
+        'sessions',
+        'password_reset_tokens',
+        'password_resets',
+    ];
+
+    /**
+     * Spalten, deren Werte auch in erlaubten Tabellen maskiert werden.
+     */
+    private const REDACTED_COLUMNS = [
+        'password',
+        'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+        'token',
+        'secret',
+        'api_token',
+    ];
+
     public function tables(): JsonResponse
     {
-        $this->authorize('viewAny', \App\Models\User::class);
+        $this->assertAdmin();
 
-        $tables = Schema::getTableListing();
+        $tables = array_values(array_filter(
+            Schema::getTableListing(),
+            fn (string $t): bool => ! in_array($t, self::BLOCKED_TABLES, true),
+        ));
 
         $result = [];
         foreach ($tables as $table) {
@@ -30,9 +57,9 @@ class DatabaseViewerController extends Controller
 
     public function columns(string $table): JsonResponse
     {
-        $this->authorize('viewAny', \App\Models\User::class);
+        $this->assertAdmin();
 
-        if (! in_array($table, Schema::getTableListing(), true)) {
+        if (! $this->tableIsAccessible($table)) {
             return response()->json(['error' => 'Table not found'], 404);
         }
 
@@ -43,9 +70,9 @@ class DatabaseViewerController extends Controller
 
     public function rows(Request $request, string $table): JsonResponse
     {
-        $this->authorize('viewAny', \App\Models\User::class);
+        $this->assertAdmin();
 
-        if (! in_array($table, Schema::getTableListing(), true)) {
+        if (! $this->tableIsAccessible($table)) {
             return response()->json(['error' => 'Table not found'], 404);
         }
 
@@ -75,7 +102,8 @@ class DatabaseViewerController extends Controller
         }
 
         $total = $query->count();
-        $rows = $query->offset(($page - 1) * $perPage)->limit($perPage)->get();
+        $rows = $query->offset(($page - 1) * $perPage)->limit($perPage)->get()
+            ->map(fn ($row) => $this->redactRow($row));
 
         return response()->json([
             'data' => $rows,
@@ -86,5 +114,38 @@ class DatabaseViewerController extends Controller
                 'last_page' => (int) ceil($total / $perPage),
             ],
         ]);
+    }
+
+    /**
+     * Der DB-Viewer erlaubt Lesezugriff auf beliebige Tabellen und ist deshalb
+     * Admin-only (Audit M-4) — die frueher genutzte 'users.view'-Berechtigung
+     * (viewAny) war fuer einen generischen Datenbank-Dump zu schwach.
+     */
+    private function assertAdmin(): void
+    {
+        $user = request()->user();
+        if (! $user || ! $user->hasRole('Admin')) {
+            abort(403, 'Nur Administratoren duerfen den Datenbank-Viewer nutzen.');
+        }
+    }
+
+    private function tableIsAccessible(string $table): bool
+    {
+        return in_array($table, Schema::getTableListing(), true)
+            && ! in_array($table, self::BLOCKED_TABLES, true);
+    }
+
+    /**
+     * Maskiert sensible Spaltenwerte in einer Ergebniszeile.
+     */
+    private function redactRow(object $row): object
+    {
+        foreach (self::REDACTED_COLUMNS as $col) {
+            if (property_exists($row, $col) && $row->{$col} !== null) {
+                $row->{$col} = '••• redacted •••';
+            }
+        }
+
+        return $row;
     }
 }

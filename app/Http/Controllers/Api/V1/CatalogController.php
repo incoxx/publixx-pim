@@ -1171,14 +1171,22 @@ class CatalogController extends BaseController
     {
         $media = Media::where('file_name', $filename)->latest()->firstOrFail();
 
+        // Audit H-2: Diese oeffentliche Route lag ausserhalb der catalog.access-Gruppe
+        // und lieferte JEDES Medium ohne Restriktions-Pruefung — ein Bypass zu
+        // MediaController::serve(), das fuer restriktionsbehaftete Medien eine
+        // signierte URL verlangt. Solche Medien hier daher nie ausliefern.
+        if ($this->isRestrictionSensitiveMedia($media)) {
+            abort(403, 'Dieses Medium ist nicht oeffentlich verfuegbar.');
+        }
+
         // For images, serve thumbnail by default (much faster for catalog grids)
         if (str_starts_with($media->mime_type, 'image/') && !$request->query('original')) {
             $thumbPath = app(\App\Services\ThumbnailService::class)->generate($media, 600, 600);
             if ($thumbPath && file_exists($thumbPath)) {
-                return response()->file($thumbPath, [
+                return response()->file($thumbPath, $this->safeMediaHeaders($media, [
                     'Content-Type' => $media->mime_type,
                     'Cache-Control' => 'public, max-age=86400',
-                ]);
+                ]));
             }
         }
 
@@ -1188,10 +1196,51 @@ class CatalogController extends BaseController
             abort(404, 'File not found.');
         }
 
-        return response()->file($path, [
+        return response()->file($path, $this->safeMediaHeaders($media, [
             'Content-Type' => $media->mime_type,
             'Cache-Control' => 'public, max-age=86400',
-        ]);
+        ]));
+    }
+
+    /**
+     * Prueft, ob fuer einen der UsageTypes des Mediums eine RoleEntityRestriction
+     * existiert. Restriktionsbehaftete Medien duerfen ueber die oeffentliche
+     * Katalog-Route nicht ausgeliefert werden (Audit H-2).
+     */
+    private function isRestrictionSensitiveMedia(Media $media): bool
+    {
+        $usageTypeIds = \App\Models\ProductMediaAssignment::where('media_id', $media->id)->pluck('usage_type_id')
+            ->merge(HierarchyNodeMediaAssignment::where('media_id', $media->id)->pluck('usage_type_id'))
+            ->filter()
+            ->unique();
+
+        if ($usageTypeIds->isEmpty()) {
+            return false;
+        }
+
+        return \App\Models\RoleEntityRestriction::where('restrictable_type', \App\Models\MediaUsageType::class)
+            ->whereIn('restrictable_id', $usageTypeIds)
+            ->exists();
+    }
+
+    /**
+     * Sichere Datei-Header: nosniff immer, und fuer script-faehige MIME-Typen
+     * (SVG/HTML/XML) zusaetzlich Content-Disposition: attachment gegen Stored XSS
+     * auf gleicher Origin (Audit H-6).
+     *
+     * @param  array<string, string>  $extra
+     * @return array<string, string>
+     */
+    private function safeMediaHeaders(Media $media, array $extra = []): array
+    {
+        $headers = array_merge(['X-Content-Type-Options' => 'nosniff'], $extra);
+
+        $unsafe = ['image/svg+xml', 'text/html', 'application/xhtml+xml', 'text/xml', 'application/xml'];
+        if (in_array(strtolower((string) $media->mime_type), $unsafe, true)) {
+            $headers['Content-Disposition'] = 'attachment; filename="' . basename((string) $media->file_name) . '"';
+        }
+
+        return $headers;
     }
 
     /**

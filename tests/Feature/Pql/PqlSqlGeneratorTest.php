@@ -186,6 +186,41 @@ final class PqlSqlGeneratorTest extends TestCase
         $this->assertTrue($result['has_fuzzy']);
     }
 
+    /**
+     * Regressionstest fuer die SQL-Injection im Score-Ausdruck (Audit K-3):
+     * Frueher wurde der Suchbegriff per String-Interpolation in
+     * "MATCH(...) AGAINST('{$term}' ...)" gebaut und via selectRaw() OHNE Bindings
+     * ausgefuehrt. Der Begriff muss stattdessen immer ein gebundener Parameter sein.
+     */
+    public function test_fuzzy_score_expression_never_interpolates_search_term(): void
+    {
+        $ast = new SelectNode(
+            fields: ['*'],
+            where: new WhereNode(
+                new SearchFieldsNode(
+                    ['productName' => 2.0],
+                    new FuzzyNode('productName', "evil') OR 1=1 -- ", 0.7),
+                ),
+            ),
+            orderByScore: new OrderByScoreNode('DESC'),
+        );
+
+        $result = $this->generator->generate($ast, [], 'de');
+
+        // Score-Ausdruecke tragen jetzt eine sichere Struktur: SQL mit '?'-Platzhaltern
+        // plus separate Bindings — niemals der Rohwert im SQL-String.
+        foreach ($result['score_expressions'] as $expr) {
+            $this->assertArrayHasKey('sql', $expr);
+            $this->assertArrayHasKey('bindings', $expr);
+            $this->assertStringNotContainsString('evil', $expr['sql']);
+            $this->assertStringNotContainsString("'", $expr['sql']);
+        }
+
+        // Auch die vollstaendig generierte SQL darf den Angriffs-String nicht enthalten.
+        $sqlInfo = $this->generator->toSql($result['query']);
+        $this->assertStringNotContainsString('OR 1=1', $sqlInfo['sql']);
+    }
+
     public function test_no_string_concatenation_in_sql(): void
     {
         $dangerousValue = "'; DROP TABLE products; --";

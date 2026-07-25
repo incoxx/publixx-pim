@@ -72,6 +72,9 @@ class DocumentPortalController extends BaseController
         $perPage = (int) $request->input('per_page', 10);
 
         $query = Product::query()
+            // Nur veroeffentlichte Produkte: das Portal ist oeffentlich, Entwuerfe
+            // (status != 'active') duerfen samt Dokumenten nicht auffindbar sein (Audit H-8).
+            ->where('status', 'active')
             ->with([
                 'media' => fn ($mq) => $mq->whereIn('media_type', ['document', 'image']),
                 'productType',
@@ -122,10 +125,13 @@ class DocumentPortalController extends BaseController
 
         $lang = $request->input('lang', 'de');
 
-        $product = Product::with([
-            'media' => fn ($mq) => $mq->whereIn('media_type', ['document', 'image']),
-            'productType',
-        ])->findOrFail($productId);
+        // Nur veroeffentlichte Produkte oeffentlich abrufbar (Audit H-8): ein
+        // Entwurf darf auch bei bekannter ID keine Dokumente preisgeben.
+        $product = Product::where('status', 'active')
+            ->with([
+                'media' => fn ($mq) => $mq->whereIn('media_type', ['document', 'image']),
+                'productType',
+            ])->findOrFail($productId);
 
         $allDocuments = $product->media
             ->where('media_type', 'document')

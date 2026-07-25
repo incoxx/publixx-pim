@@ -76,6 +76,7 @@ class UserController extends Controller
         ]);
 
         if (! empty($validated['role_ids'])) {
+            $this->guardRoleAssignment($request->user(), null, $validated['role_ids']);
             $user->syncRoles(Role::whereIn('id', $validated['role_ids'])->get());
         }
 
@@ -92,6 +93,38 @@ class UserController extends Controller
         return response()->json([
             'data' => new UserResource($user),
         ], Response::HTTP_CREATED);
+    }
+
+    /**
+     * Erzwingt die Sicherheitsregeln fuer die Rollen-Zuweisung.
+     *
+     * Ohne diesen Guard konnte ein beliebig niedrig privilegierter Nutzer sich
+     * ueber PUT /users/{eigeneId} selbst die Admin-Rolle zuweisen (die
+     * UserPolicy::update() gibt fuer den eigenen Datensatz bedingungslos true zurueck).
+     *
+     * Regeln:
+     *  - Rollen der EIGENEN Person duerfen ueber diesen Endpoint nie geaendert werden
+     *    (verhindert Selbst-Hochstufung). $target === null = Neuanlage, dort greift die Regel nicht.
+     *  - Rollen aendern erfordert die 'users.edit'-Berechtigung.
+     *  - Die Admin-Rolle darf nur ein Admin vergeben (analog AccessLinkController).
+     *
+     * @param  array<int, string>  $roleIds
+     */
+    private function guardRoleAssignment(User $actor, ?User $target, array $roleIds): void
+    {
+        if ($target !== null) {
+            if ($actor->id === $target->id) {
+                abort(Response::HTTP_FORBIDDEN, 'Eigene Rollen koennen ueber diesen Endpoint nicht geaendert werden.');
+            }
+            if (! $actor->can('users.edit')) {
+                abort(Response::HTTP_FORBIDDEN, 'Keine Berechtigung, Rollen zu aendern.');
+            }
+        }
+
+        $assignsAdmin = Role::whereIn('id', $roleIds)->where('name', 'Admin')->exists();
+        if ($assignsAdmin && ! $actor->hasRole('Admin')) {
+            abort(Response::HTTP_FORBIDDEN, 'Nur Administratoren duerfen die Admin-Rolle vergeben.');
+        }
     }
 
     /**
@@ -137,6 +170,7 @@ class UserController extends Controller
         $user->update($updateData);
 
         if (array_key_exists('role_ids', $validated)) {
+            $this->guardRoleAssignment($request->user(), $user, $validated['role_ids']);
             $user->syncRoles(Role::whereIn('id', $validated['role_ids'])->get());
         }
 

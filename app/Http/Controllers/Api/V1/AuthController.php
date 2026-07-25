@@ -11,6 +11,8 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class AuthController extends Controller
@@ -20,9 +22,37 @@ class AuthController extends Controller
      */
     public function login(LoginRequest $request): JsonResponse
     {
+        // Account-bezogener Lockout gegen (verteiltes) Credential-Stuffing (Audit M-5):
+        // Der globale throttle.pim:auth begrenzt nur pro IP. Hier zusaetzlich max.
+        // 5 Fehlversuche pro E-Mail in 15 Minuten — unabhaengig von der Angreifer-IP.
+        $throttleKey = 'login:'.Str::lower((string) $request->validated('email'));
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+
+            // Lockout = klares Brute-Force-Signal (Audit: SecurityMonitor).
+            app(\App\Services\Security\SecurityMonitor::class)->record(
+                'login_bruteforce', 'high', $request,
+                ['email' => (string) $request->validated('email')], blocked: true,
+            );
+
+            return $this->problemResponse(
+                title: 'Too Many Attempts',
+                detail: "Zu viele Anmeldeversuche. Bitte in {$seconds} Sekunden erneut versuchen.",
+                status: Response::HTTP_TOO_MANY_REQUESTS,
+                type: 'auth/too-many-attempts',
+            );
+        }
+
         $user = User::where('email', $request->validated('email'))->first();
 
         if (! $user) {
+            RateLimiter::hit($throttleKey, 900);
+            app(\App\Services\Security\SecurityMonitor::class)->record(
+                'login_failed', 'low', $request,
+                ['email' => (string) $request->validated('email'), 'reason' => 'unknown_email'],
+            );
+
             return $this->problemResponse(
                 title: 'Authentication Failed',
                 detail: 'The provided credentials are incorrect.',
@@ -42,6 +72,12 @@ class AuthController extends Controller
         }
 
         if (! Hash::check($request->validated('password'), $user->password ?? '')) {
+            RateLimiter::hit($throttleKey, 900);
+            app(\App\Services\Security\SecurityMonitor::class)->record(
+                'login_failed', 'low', $request,
+                ['email' => (string) $request->validated('email'), 'reason' => 'wrong_password'],
+            );
+
             return $this->problemResponse(
                 title: 'Authentication Failed',
                 detail: 'The provided credentials are incorrect.',
@@ -58,6 +94,9 @@ class AuthController extends Controller
                 type: 'auth/account-deactivated',
             );
         }
+
+        // Erfolgreiche Anmeldung: Fehlversuchs-Zaehler zuruecksetzen.
+        RateLimiter::clear($throttleKey);
 
         // Vorherige Session-Tokens löschen (Single-Session), API-Keys behalten
         $user->tokens()->where('token_type', '!=', 'api_key')->delete();

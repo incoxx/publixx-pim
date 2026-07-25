@@ -38,7 +38,11 @@ class DatabaseConsistencyController extends Controller
      */
     public function fix(string $issueType): JsonResponse
     {
-        $this->authorize('viewAny', \App\Models\User::class);
+        // Destruktiv (loescht Datensaetze inkl. FK-Cascade) — daher Admin-only (Audit M-4).
+        $user = request()->user();
+        if (! $user || ! $user->hasRole('Admin')) {
+            abort(403, 'Nur Administratoren duerfen Konsistenz-Korrekturen ausfuehren.');
+        }
 
         $deleted = match ($issueType) {
             'orphaned_attribute_values' => $this->fixOrphanedAttributeValues(),
@@ -358,7 +362,7 @@ class DatabaseConsistencyController extends Controller
         Media::select('id', 'file_name', 'file_path')
             ->chunkById(500, function ($records) use ($disk, &$missing) {
                 foreach ($records as $media) {
-                    if (!$this->mediaFileExists($disk, $media)) {
+                    if (! $this->mediaFileExists($disk, $media)) {
                         $missing++;
                     }
                 }
@@ -420,7 +424,7 @@ class DatabaseConsistencyController extends Controller
                         continue; // fehlende Datei wird bereits von checkMissingMediaFiles() erfasst
                     }
                     $detected = MimeTypeDetector::detectFromFile($path);
-                    if (!$detected || !str_starts_with($detected, 'image/')) {
+                    if (! $detected || ! str_starts_with($detected, 'image/')) {
                         $broken++;
                     }
                 }
@@ -651,11 +655,11 @@ class DatabaseConsistencyController extends Controller
                         continue;
                     }
                     $detected = MimeTypeDetector::detectFromFile($path);
-                    if (!$detected || !str_starts_with($detected, 'image/')) {
+                    if (! $detected || ! str_starts_with($detected, 'image/')) {
                         $ids[] = $media->id;
                     }
                 }
-                if (!empty($ids)) {
+                if (! empty($ids)) {
                     $deleted += Media::whereIn('id', $ids)->delete();
                 }
             });
@@ -698,8 +702,8 @@ class DatabaseConsistencyController extends Controller
      * language=NULL-Zeile (Duplikat) gelöscht. Andernfalls wird sie auf die Standardsprache
      * migriert, damit der Wert erhalten bleibt.
      *
-     * @param array<int, string> $scopeColumns Spalten, die zusammen mit attribute_id + multiplied_index
-     *                                         eine Werte-Instanz identifizieren (z.B. ['product_id', 'output_hierarchy_id']).
+     * @param  array<int, string>  $scopeColumns  Spalten, die zusammen mit attribute_id + multiplied_index
+     *                                            eine Werte-Instanz identifizieren (z.B. ['product_id', 'output_hierarchy_id']).
      */
     private function fixStaleTranslatableNull(string $table, array $scopeColumns): int
     {

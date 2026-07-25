@@ -153,26 +153,27 @@ class SsoController extends Controller
             return $user;
         }
 
+        // Sicherheit (Audit M-1): Verknuepfung/Provisionierung nur fuer verifizierte
+        // E-Mails aus erlaubten Domains. Verhindert Account-Takeover ueber ein in
+        // einem fremden Tenant angelegtes Konto mit der E-Mail eines PIM-Nutzers.
+        if (! $email || ! $this->isEmailTrusted($azureUser, $email)) {
+            return null;
+        }
+
         // 2. Match by email (link existing user to SSO)
-        if ($email) {
-            $user = User::where('email', $email)->first();
+        $user = User::where('email', $email)->first();
 
-            if ($user) {
-                $user->update([
-                    'sso_provider' => 'azure',
-                    'sso_id' => $azureId,
-                ]);
+        if ($user) {
+            $user->update([
+                'sso_provider' => 'azure',
+                'sso_id' => $azureId,
+            ]);
 
-                return $user;
-            }
+            return $user;
         }
 
         // 3. JIT Provisioning (if enabled)
         if (! config('sso.auto_provision', true)) {
-            return null;
-        }
-
-        if (! $email) {
             return null;
         }
 
@@ -195,6 +196,31 @@ class SsoController extends Controller
         }
 
         return $user;
+    }
+
+    /**
+     * Prueft, ob eine SSO-E-Mail vertrauenswuerdig ist (Audit M-1):
+     *  - ein explizit als unverifiziert markiertes email_verified-Claim wird abgelehnt,
+     *  - bei konfigurierter Domain-Allowlist muss die Domain enthalten sein.
+     * Ohne Allowlist (Default) greift nur die email_verified-Pruefung.
+     */
+    private function isEmailTrusted(object $azureUser, string $email): bool
+    {
+        $raw = (array) ($azureUser->user ?? []);
+        if (array_key_exists('email_verified', $raw)
+            && filter_var($raw['email_verified'], FILTER_VALIDATE_BOOLEAN) === false
+        ) {
+            return false;
+        }
+
+        $allowedDomains = array_map('strtolower', (array) config('sso.allowed_domains', []));
+        if ($allowedDomains === []) {
+            return true;
+        }
+
+        $domain = strtolower((string) substr(strrchr($email, '@') ?: '', 1));
+
+        return $domain !== '' && in_array($domain, $allowedDomains, true);
     }
 
     private function isSsoEnabled(): bool

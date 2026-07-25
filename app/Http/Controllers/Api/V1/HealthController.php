@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -16,7 +17,7 @@ class HealthController extends Controller
      * Public healthcheck endpoint — no authentication required.
      * Returns status of all critical services.
      */
-    public function __invoke(): JsonResponse
+    public function __invoke(Request $request): JsonResponse
     {
         $checks = [];
         $allHealthy = true;
@@ -55,7 +56,7 @@ class HealthController extends Controller
                 'driver' => config('cache.default'),
                 'response_ms' => $cacheTime,
             ];
-            if (!$cacheValue) {
+            if (! $cacheValue) {
                 $allHealthy = false;
             }
         } catch (\Throwable $e) {
@@ -69,7 +70,7 @@ class HealthController extends Controller
             'status' => is_writable($storagePath) ? 'ok' : 'error',
             'path' => $storagePath,
         ];
-        if (!is_writable($storagePath)) {
+        if (! is_writable($storagePath)) {
             $allHealthy = false;
         }
 
@@ -78,7 +79,7 @@ class HealthController extends Controller
             $horizonStatus = 'unknown';
             if (class_exists(\Laravel\Horizon\Contracts\MasterSupervisorRepository::class)) {
                 $masters = app(\Laravel\Horizon\Contracts\MasterSupervisorRepository::class)->all();
-                $horizonStatus = !empty($masters) ? 'running' : 'stopped';
+                $horizonStatus = ! empty($masters) ? 'running' : 'stopped';
             }
             $checks['queue'] = [
                 'status' => $horizonStatus === 'running' ? 'ok' : 'warn',
@@ -105,6 +106,14 @@ class HealthController extends Controller
 
         // Summary
         $status = $allHealthy ? 'healthy' : 'degraded';
+
+        // Sicherheit (Audit M-6): Detailfelder (app.env, app.debug, DB-/Cache-/Queue-Driver,
+        // absolute Pfade, Horizon-Status, Speicherplatz) sind Recon-Material und werden nur
+        // authentifizierten Admins gezeigt. Anonyme Aufrufer erhalten je Check nur den Status.
+        $detailed = $request->user('sanctum')?->hasRole('Admin') ?? false;
+        if (! $detailed) {
+            $checks = array_map(static fn (array $c): array => ['status' => $c['status']], $checks);
+        }
 
         return response()->json([
             'status' => $status,
