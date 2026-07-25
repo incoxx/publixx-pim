@@ -32,7 +32,7 @@ class SecurityGuardController extends Controller
      * Liefert die aktuell wirksame Konfiguration (env/config-Defaults, ueberlagert
      * von in der GUI gespeicherten Overrides) plus schreibgeschuetzte Referenzdaten.
      */
-    public function show(Request $request): JsonResponse
+    public function show(Request $request, SecurityMonitor $monitor): JsonResponse
     {
         $this->assertAdmin($request);
 
@@ -62,6 +62,12 @@ class SecurityGuardController extends Controller
                     'sensitive_path_patterns' => config('security.sensitive_path_patterns'),
                 ],
                 'has_overrides' => $overrides !== [],
+                // Aktuelle Erkennung für DIESEN Request — zeigt sofort, ob Geo verfügbar ist.
+                'detected' => [
+                    'country' => $monitor->country($request),
+                    'ip' => $monitor->clientIp($request),
+                    'geo_available' => $monitor->country($request) !== null,
+                ],
             ],
         ]);
     }
@@ -114,7 +120,7 @@ class SecurityGuardController extends Controller
         Setting::setPayload(self::SETTING_GROUP, $merged);
         Cache::forget('security_guard_settings');
 
-        return $this->show($request);
+        return $this->show($request, app(SecurityMonitor::class));
     }
 
     /**

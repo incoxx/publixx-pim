@@ -11,7 +11,14 @@ const error = ref('')
 const success = ref('')
 
 const readonly = ref({})
+const detected = ref({ country: null, ip: null, geo_available: false })
 const stats = ref(null)
+
+// Geo ist konfiguriert, aber es kommt kein Länder-Header an → Regel läuft ins Leere.
+const geoConfiguredButUnavailable = computed(() => {
+  const hasGeoRules = (form.allowed_countries || '').trim() !== '' || (form.blocked_countries || '').trim() !== ''
+  return hasGeoRules && !detected.value.geo_available
+})
 
 // Bearbeitbare Konfiguration
 const form = reactive({
@@ -58,6 +65,7 @@ async function loadConfig() {
     const { data } = await securityGuardApi.show()
     const cfg = (data.data || data).config
     readonly.value = (data.data || data).readonly || {}
+    detected.value = (data.data || data).detected || { country: null, ip: null, geo_available: false }
     form.enabled = cfg.enabled
     form.block = cfg.block
     form.mail = cfg.mail
@@ -255,8 +263,22 @@ async function save() {
           <div>
             <label class="text-sm flex items-center gap-2 mb-1"><Ban class="w-4 h-4" /> Gesperrte Länder (Blacklist)</label>
             <input v-model="form.blocked_countries" type="text" placeholder="z. B. RU, KP" class="input input-bordered input-sm w-full" />
-            <p class="text-xs text-base-content/50 mt-1">ISO-2-Codes, kommagetrennt. Erfordert Cloudflare-Header.</p>
+            <p class="text-xs text-base-content/50 mt-1">ISO-2-Codes (z. B. GB, nicht EN). Erfordert Cloudflare/Proxy-Header.</p>
           </div>
+        </div>
+
+        <!-- Aktuelle Geo-Erkennung / Warnung -->
+        <div class="text-xs flex items-center gap-2 text-base-content/60">
+          <Globe class="w-4 h-4" />
+          <span>Aktuell erkannt: Land <b>{{ detected.country || '—' }}</b> · IP <span class="font-mono">{{ detected.ip || '—' }}</span></span>
+        </div>
+        <div v-if="geoConfiguredButUnavailable" class="alert alert-warning text-sm">
+          <AlertTriangle class="w-4 h-4" />
+          <span>
+            Es wird kein Länder-Header erkannt — die Geo-Regeln greifen daher <b>nicht</b>.
+            Länder-Blocking benötigt Cloudflare (oder einen Proxy), der einen Header wie
+            <span class="font-mono">CF-IPCountry</span> setzt. Ohne CDN kann der Server das Herkunftsland nicht bestimmen.
+          </span>
         </div>
 
         <div class="flex justify-end">
