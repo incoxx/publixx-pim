@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api;
 
+use App\Models\Role;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class DebugControllerTest extends TestCase
 {
+    use RefreshDatabase;
+
     private array $filesToCleanup = [];
 
     protected function tearDown(): void
@@ -18,6 +23,20 @@ class DebugControllerTest extends TestCase
             }
         }
         parent::tearDown();
+    }
+
+    /**
+     * Debug-Logs sind Admin-only (Audit K-2). Happy-Path-Tests loggen sich
+     * explizit als Admin ein; die Negativtests bewusst nicht.
+     */
+    private function loginAsAdmin(): User
+    {
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::findOrCreate('Admin', 'sanctum'));
+        $this->actingAs($admin);
+
+        return $admin;
     }
 
     private function writeLogFile(string $name, string $content): string
@@ -31,6 +50,7 @@ class DebugControllerTest extends TestCase
 
     public function test_reads_single_file_channel_like_laravel(): void
     {
+        $this->loginAsAdmin();
         $this->writeLogFile('laravel.log', "[2026-07-02 10:00:00] local.INFO: Hello from laravel.log\n");
 
         $response = $this->getJson('/api/v1/debug/logs?channel=laravel');
@@ -41,6 +61,7 @@ class DebugControllerTest extends TestCase
 
     public function test_reads_daily_rotated_channel_by_resolving_dated_filename(): void
     {
+        $this->loginAsAdmin();
         // Der "import"-Channel nutzt driver=>daily und schreibt z.B. nach
         // import-2026-07-02.log, niemals nach import.log direkt.
         $this->writeLogFile('import-2026-07-02.log', "[2026-07-02 09:00:00] local.INFO: Import gestartet\n");
@@ -53,6 +74,7 @@ class DebugControllerTest extends TestCase
 
     public function test_picks_most_recent_dated_file_when_several_exist(): void
     {
+        $this->loginAsAdmin();
         $this->writeLogFile('export-2026-06-30.log', "[2026-06-30 09:00:00] local.INFO: Alter Eintrag\n");
         $this->writeLogFile('export-2026-07-02.log', "[2026-07-02 09:00:00] local.INFO: Neuer Eintrag\n");
 
@@ -66,6 +88,7 @@ class DebugControllerTest extends TestCase
 
     public function test_parsed_logs_resolves_daily_rotated_file_too(): void
     {
+        $this->loginAsAdmin();
         $this->writeLogFile('artisan-cockpit-2026-07-02.log', "[2026-07-02 11:00:00] local.INFO: Befehl ausgeführt\n");
 
         $response = $this->getJson('/api/v1/debug/logs/parsed?channel=artisan-cockpit');
@@ -77,6 +100,7 @@ class DebugControllerTest extends TestCase
 
     public function test_clear_truncates_the_resolved_dated_file(): void
     {
+        $this->loginAsAdmin();
         $path = $this->writeLogFile('import-2026-07-02.log', "[2026-07-02 09:00:00] local.INFO: wird gelöscht\n");
 
         $this->deleteJson('/api/v1/debug/logs?channel=import')->assertOk();
@@ -86,6 +110,7 @@ class DebugControllerTest extends TestCase
 
     public function test_missing_log_file_returns_empty_placeholder_not_error(): void
     {
+        $this->loginAsAdmin();
         $response = $this->getJson('/api/v1/debug/logs?channel=export');
 
         $response->assertOk();
@@ -94,6 +119,29 @@ class DebugControllerTest extends TestCase
 
     public function test_unknown_channel_is_rejected(): void
     {
+        $this->loginAsAdmin();
         $this->getJson('/api/v1/debug/logs?channel=not-a-real-channel')->assertStatus(400);
+    }
+
+    public function test_unauthenticated_access_is_rejected(): void
+    {
+        // Ohne Login (Audit K-2): 401 statt oeffentlichem Log-Zugriff.
+        $this->getJson('/api/v1/debug/logs?channel=laravel')->assertStatus(401);
+    }
+
+    public function test_non_admin_is_forbidden(): void
+    {
+        $user = User::factory()->create(); // ohne Admin-Rolle
+        $this->actingAs($user);
+
+        $this->getJson('/api/v1/debug/logs?channel=laravel')->assertStatus(403);
+        $this->deleteJson('/api/v1/debug/logs?channel=laravel')->assertStatus(403);
+    }
+
+    public function test_clear_via_get_is_not_routed(): void
+    {
+        // Das destruktive Loeschen darf nicht mehr per GET erreichbar sein (Audit K-2).
+        $this->loginAsAdmin();
+        $this->getJson('/api/v1/debug/logs/clear?channel=laravel')->assertStatus(404);
     }
 }

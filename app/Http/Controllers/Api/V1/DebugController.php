@@ -12,8 +12,23 @@ class DebugController extends Controller
 {
     private const ALLOWED_CHANNELS = ['laravel', 'import', 'export', 'artisan-cockpit'];
 
+    /**
+     * Log-Zugriff ist rein administrativ. Logs enthalten Stacktraces, SQL,
+     * E-Mail-Adressen und potenziell Tokens — daher zwingend Admin-only,
+     * zusaetzlich zur auth:sanctum-Middleware der Route.
+     */
+    private function assertAdmin(Request $request): void
+    {
+        $user = $request->user();
+        if (! $user || ! $user->hasRole('Admin')) {
+            abort(403, 'Nur Administratoren duerfen Logs einsehen oder loeschen.');
+        }
+    }
+
     public function logs(Request $request): Response
     {
+        $this->assertAdmin($request);
+
         $channel = $request->query('channel', 'laravel');
         $lines = min((int) $request->query('lines', 500), 5000);
 
@@ -37,6 +52,8 @@ class DebugController extends Controller
 
     public function parsedLogs(Request $request): JsonResponse
     {
+        $this->assertAdmin($request);
+
         $channel = $request->query('channel', 'laravel');
         $lines = min((int) $request->query('lines', 500), 5000);
         $levelFilter = strtoupper((string) $request->query('level', ''));
@@ -121,6 +138,8 @@ class DebugController extends Controller
 
     public function clearLogs(Request $request): Response
     {
+        $this->assertAdmin($request);
+
         $channel = $request->query('channel', 'laravel');
 
         if (! in_array($channel, self::ALLOWED_CHANNELS, true)) {

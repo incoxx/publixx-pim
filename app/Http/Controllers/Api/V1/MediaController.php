@@ -891,9 +891,9 @@ class MediaController extends Controller
             }
         }
 
-        return response()->file($path, [
+        return response()->file($path, $this->safeFileHeaders($media, [
             'Content-Type' => $media->mime_type,
-        ]);
+        ]));
     }
 
     /**
@@ -970,18 +970,18 @@ class MediaController extends Controller
         if ($thumbPath && file_exists($thumbPath)) {
             $thumbContentType = $medium->media_type === 'video' ? 'image/jpeg' : $medium->mime_type;
 
-            return response()->file($thumbPath, [
+            return response()->file($thumbPath, $this->safeFileHeaders($medium, [
                 'Content-Type' => $thumbContentType,
                 'Cache-Control' => 'public, max-age=86400',
-            ]);
+            ]));
         }
 
-        // Fallback: serve original for images
+        // Fallback: serve original for images (inkl. SVG — daher sichere Header, Audit H-6)
         if (str_starts_with($medium->mime_type, 'image/')) {
-            return response()->file($originalPath, [
+            return response()->file($originalPath, $this->safeFileHeaders($medium, [
                 'Content-Type' => $medium->mime_type,
                 'Cache-Control' => 'public, max-age=86400',
-            ]);
+            ]));
         }
 
         return response()->json([
@@ -1184,7 +1184,7 @@ class MediaController extends Controller
                     $url = $baseUrl.'/'.rawurlencode($candidate);
 
                     try {
-                        $response = Http::timeout(30)->get($url);
+                        $response = $this->fetchExternalUrl($url);
                         if (! $response->successful()) {
                             continue;
                         }
@@ -1575,7 +1575,7 @@ class MediaController extends Controller
         }
 
         try {
-            $response = Http::timeout(30)->get($validated['url']);
+            $response = $this->fetchExternalUrl($validated['url']);
             if (! $response->successful()) {
                 return response()->json(['message' => 'URL konnte nicht geladen werden (HTTP '.$response->status().').'], 422);
             }
@@ -1779,7 +1779,7 @@ class MediaController extends Controller
             }
 
             try {
-                $response = Http::timeout(30)->get($url);
+                $response = $this->fetchExternalUrl($url);
                 if (! $response->successful()) {
                     $results['failed']++;
                     if (count($results['errors']) < 50) {
@@ -2092,6 +2092,63 @@ class MediaController extends Controller
             ]) => 'document',
             default => 'other',
         };
+    }
+
+    /**
+     * MIME-Typen, die aktives Script tragen koennen. Solche Dateien duerfen bei
+     * direkter Navigation nie inline gerendert werden (Stored XSS auf gleicher
+     * Origin wie das Session-Cookie, Audit H-6). Als Attachment ausgeliefert
+     * fuehrt der Browser sie nicht aus; die Einbettung via <img> rendert weiterhin
+     * (SVG in <img> kann per Browser-Policy ohnehin kein Script ausfuehren).
+     */
+    private const INLINE_UNSAFE_MIMES = [
+        'image/svg+xml',
+        'text/html',
+        'application/xhtml+xml',
+        'text/xml',
+        'application/xml',
+    ];
+
+    /**
+     * Baut sichere Response-Header fuer die Datei-Auslieferung: immer nosniff,
+     * und fuer script-faehige MIME-Typen zusaetzlich Content-Disposition: attachment.
+     *
+     * @param  array<string, string>  $extra
+     * @return array<string, string>
+     */
+    private function safeFileHeaders(Media $media, array $extra = []): array
+    {
+        $headers = array_merge(['X-Content-Type-Options' => 'nosniff'], $extra);
+
+        if (in_array(strtolower((string) $media->mime_type), self::INLINE_UNSAFE_MIMES, true)) {
+            $headers['Content-Disposition'] = 'attachment; filename="' . basename((string) $media->file_name) . '"';
+        }
+
+        return $headers;
+    }
+
+    /**
+     * Laedt eine externe URL herunter und schuetzt dabei zusaetzlich vor SSRF ueber
+     * Redirects (Audit H-5): isInternalUrl() prueft nur die urspruengliche URL —
+     * ein Angreifer koennte sonst eine oeffentliche URL hosten, die per 302 auf
+     * http://169.254.169.254/ (Cloud-Metadata) oder interne Dienste weiterleitet.
+     * Jeder Redirect-Hop wird hier erneut gegen interne/private Netze geprueft.
+     */
+    private function fetchExternalUrl(string $url): \Illuminate\Http\Client\Response
+    {
+        return Http::withOptions([
+            'allow_redirects' => [
+                'max' => 3,
+                'strict' => true,
+                'referer' => false,
+                'protocols' => ['http', 'https'],
+                'on_redirect' => function ($request, $response, $uri): void {
+                    if ($this->isInternalUrl((string) $uri)) {
+                        throw new \RuntimeException('Redirect auf interne/private URL blockiert.');
+                    }
+                },
+            ],
+        ])->timeout(30)->get($url);
     }
 
     /**

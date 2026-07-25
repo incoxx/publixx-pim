@@ -125,7 +125,9 @@ final class PqlSqlGenerator
         // Add score columns
         if ($this->needsScoring) {
             foreach ($this->scoreExpressions as $alias => $expr) {
-                $query->selectRaw("{$expr} AS {$alias}");
+                // Sicherheit: Der Suchbegriff wird als gebundener Parameter uebergeben
+                // (siehe applySearchFields), niemals in den SQL-String interpoliert.
+                $query->selectRaw("{$expr['sql']} AS {$alias}", $expr['bindings']);
             }
 
             // Total score
@@ -390,7 +392,7 @@ final class PqlSqlGenerator
                             });
 
                             $alias = "_score_{$scoreIndex}";
-                            $this->scoreExpressions[$alias] = "1 * {$boost}";
+                            $this->scoreExpressions[$alias] = ['sql' => '1 * ?', 'bindings' => [$boost]];
                             $scoreIndex++;
                         } else {
                             $q->{$method}(function (Builder $inner) use ($ftColumn, $condition): void {
@@ -400,9 +402,13 @@ final class PqlSqlGenerator
                                 );
                             });
 
-                            // Score expression
+                            // Score expression — Suchbegriff gebunden, nicht interpoliert (SQLi-Schutz).
+                            // $ftColumn stammt aus resolveFulltextColumn() (feste Whitelist).
                             $alias = "_score_{$scoreIndex}";
-                            $this->scoreExpressions[$alias] = "MATCH({$ftColumn}) AGAINST('{$condition->term}' IN BOOLEAN MODE) * {$boost}";
+                            $this->scoreExpressions[$alias] = [
+                                'sql' => "MATCH({$ftColumn}) AGAINST(? IN BOOLEAN MODE) * ?",
+                                'bindings' => [$condition->term, $boost],
+                            ];
                             $scoreIndex++;
                         }
                     }
@@ -416,7 +422,7 @@ final class PqlSqlGenerator
                             });
 
                             $alias = "_score_{$scoreIndex}";
-                            $this->scoreExpressions[$alias] = "1 * {$boost}";
+                            $this->scoreExpressions[$alias] = ['sql' => '1 * ?', 'bindings' => [$boost]];
                             $scoreIndex++;
                         } else {
                             $q->{$method}(function (Builder $inner) use ($ftColumn, $searchTerm): void {
@@ -426,8 +432,12 @@ final class PqlSqlGenerator
                                 );
                             });
 
+                            // Score expression — Suchbegriff gebunden, nicht interpoliert (SQLi-Schutz).
                             $alias = "_score_{$scoreIndex}";
-                            $this->scoreExpressions[$alias] = "MATCH({$ftColumn}) AGAINST('{$searchTerm}' IN BOOLEAN MODE) * {$boost}";
+                            $this->scoreExpressions[$alias] = [
+                                'sql' => "MATCH({$ftColumn}) AGAINST(? IN BOOLEAN MODE) * ?",
+                                'bindings' => [$searchTerm, $boost],
+                            ];
                             $scoreIndex++;
                         }
                     }

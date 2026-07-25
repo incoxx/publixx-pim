@@ -300,12 +300,14 @@ Route::prefix('v1')->middleware('throttle.pim')->group(function () {
 Route::get('v1/health', HealthController::class);
 
 // =========================================================================
-// Debug: Log access (no auth — test server only)
+// Debug: Log access (nur authentifizierte Admins — der Controller erzwingt
+// zusaetzlich hasRole('Admin')). Logs enthalten Stacktraces, SQL, PII und
+// duerfen niemals oeffentlich lesbar oder loeschbar sein.
+// Das destruktive Loeschen ist nur per DELETE erreichbar (nie per GET).
 // =========================================================================
-Route::prefix('v1/debug')->middleware('throttle.pim')->group(function () {
+Route::prefix('v1/debug')->middleware(['auth:sanctum', 'throttle.pim'])->group(function () {
     Route::get('logs', [DebugController::class, 'logs']);
     Route::get('logs/parsed', [DebugController::class, 'parsedLogs']);
-    Route::get('logs/clear', [DebugController::class, 'clearLogs']);
     Route::delete('logs', [DebugController::class, 'clearLogs']);
 });
 

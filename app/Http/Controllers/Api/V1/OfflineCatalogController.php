@@ -422,12 +422,42 @@ class OfflineCatalogController extends BaseController
         $token = $request->query('token');
         if ($token) {
             $accessToken = PersonalAccessToken::findToken($token);
-            if ($accessToken) {
+
+            // Audit H-4: PersonalAccessToken::findToken() prueft WEDER Ablauf NOCH
+            // Abilities. Ohne diese Pruefung wuerde (a) ein abgelaufenes Token weiter
+            // funktionieren und (b) ein auf 'catalog:read' beschraenkter Embed-Token
+            // (per Design oeffentlich im Quelltext externer Websites) den kompletten
+            // Offline-Katalog als ZIP herunterladen koennen — die RestrictScopedApiToken-
+            // Middleware greift hier nicht, weil das Token manuell aufgeloest wird.
+            if ($accessToken
+                && ! $this->tokenIsExpired($accessToken)
+                && $accessToken->can('*')
+            ) {
                 return $accessToken->tokenable;
             }
         }
 
         return null;
+    }
+
+    /**
+     * Prueft Ablauf eines Sanctum-Tokens analog zur Sanctum-Guard-Logik:
+     * das tokenspezifische expires_at UND die globale sanctum.expiration.
+     */
+    private function tokenIsExpired(PersonalAccessToken $token): bool
+    {
+        if ($token->expires_at !== null && $token->expires_at->isPast()) {
+            return true;
+        }
+
+        $expiration = config('sanctum.expiration');
+        if ($expiration && $token->created_at !== null
+            && $token->created_at->lte(now()->subMinutes((int) $expiration))
+        ) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
