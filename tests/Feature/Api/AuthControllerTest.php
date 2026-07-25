@@ -94,6 +94,28 @@ class AuthControllerTest extends TestCase
             ->assertJsonValidationErrors(['email', 'password']);
     }
 
+    /**
+     * Regressionstest fuer den Account-Lockout (Audit M-5): Nach 5 Fehlversuchen
+     * ist das Konto gesperrt — auch ein danach korrektes Passwort wird mit 429
+     * abgewiesen, unabhaengig von der Angreifer-IP.
+     */
+    public function test_login_locks_out_after_repeated_failures(): void
+    {
+        $user = User::factory()->create(['password' => Hash::make('secret123')]);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/v1/auth/login', [
+                'email' => $user->email,
+                'password' => 'wrong-password',
+            ])->assertUnauthorized();
+        }
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => $user->email,
+            'password' => 'secret123',
+        ])->assertStatus(429);
+    }
+
     public function test_logout_deletes_current_token(): void
     {
         $user = User::factory()->create(['password' => Hash::make('secret123')]);

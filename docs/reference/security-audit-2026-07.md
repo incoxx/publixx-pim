@@ -66,14 +66,35 @@ Ops-/Produktentscheidung (siehe Begründung).
   „alles lesbar" ist möglicherweise beabsichtigt. Eine Read-Trennung müsste als
   globaler Query-Scope über Liste/Suche/MCP eingeführt werden (Produktentscheidung).
 
-## Mittel (nicht in diesem Branch behoben)
+## Mittel
 
-- **M-1** SSO-Account-Takeover durch ungeprüftes E-Mail-Matching (`email_verified`/Tenant nicht geprüft).
-- **M-2** SSO liefert Sanctum-Token in der URL-Query (Leak über History/Referer/Logs).
-- **M-3** `LicenseGeneratorController` & OfflineCatalog-Admin-Aktionen ohne Rollencheck.
-- **M-4** `DatabaseViewer`/`DatabaseConsistency` nur durch `viewAny(User)` gated (Systemtabellen lesbar/Datensätze löschbar).
-- **M-5** Login-Ratelimit nur pro IP, kein Account-Lockout.
-- **M-6** Health-Endpoint legt `app.debug`/Driver/Pfade offen; Share-Unlock ohne Throttle; Portal-Filter aggregiert über Entwürfe.
+| ID | Fund | Status |
+|----|------|--------|
+| M-1 | SSO-Account-Takeover durch ungeprüftes E-Mail-Matching. | **behoben** |
+| M-2 | SSO liefert Sanctum-Token in der URL-Query (Leak über History/Referer/Logs). | **offen (Frontend)** |
+| M-3 | `LicenseGeneratorController` & OfflineCatalog-Admin-Aktionen ohne Rollencheck. | **behoben** |
+| M-4 | `DatabaseViewer`/`DatabaseConsistency` nur durch `viewAny(User)` gated. | **behoben** |
+| M-5 | Login-Ratelimit nur pro IP, kein Account-Lockout. | **behoben** |
+| M-6 | Health-Endpoint legt `app.debug`/Driver/Pfade offen. | **behoben** |
+
+### Fixes im Detail
+- **M-1:** `SsoController::isEmailTrusted()` — Verknüpfung/Provisionierung nur für
+  Domains aus `SSO_ALLOWED_DOMAINS` und wenn `email_verified` nicht explizit false ist.
+- **M-3:** Admin-Guard (`hasRole('Admin')`) in `LicenseGeneratorController` (alle
+  Methoden) und `OfflineCatalogController` (generate/cancel/build/cleanup + token-basierte
+  Download-/Preview-Routen).
+- **M-4:** `DatabaseViewerController` Admin-only; Auth-/Token-/Session-Tabellen komplett
+  gesperrt; sensible Spalten (`password`, `*_token`, `secret`) maskiert. `DatabaseConsistency::fix`
+  (destruktiv) Admin-only.
+- **M-5:** `AuthController::login` zählt Fehlversuche pro E-Mail (5 in 15 Min → 429),
+  zusätzlich zum bestehenden IP-Throttle.
+- **M-6:** Health-Detailfelder nur für authentifizierte Admins; anonym nur Status.
+
+### Offene MITTEL-Punkte
+- **M-2 (SSO-Token in URL):** Sichere Übergabe (einmaliger Exchange-Code oder httpOnly-Cookie
+  statt Query-Parameter) erfordert eine koordinierte Frontend-Anpassung.
+- Der Share-Unlock-Endpoint (`web.php`) trägt bereits `throttle:10,1`; der ursprünglich
+  vermutete fehlende Throttle besteht nicht.
 
 ## Als sicher bestätigt (Auszug)
 

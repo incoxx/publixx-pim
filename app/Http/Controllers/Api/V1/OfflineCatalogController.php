@@ -25,6 +25,8 @@ class OfflineCatalogController extends BaseController
      */
     public function generate(Request $request): JsonResponse
     {
+        $this->assertAdmin($request->user());
+
         $request->validate([
             'lang' => 'sometimes|string|in:de,en',
             'template_id' => 'sometimes|nullable|uuid',
@@ -51,7 +53,7 @@ class OfflineCatalogController extends BaseController
                 ], 200);
             }
 
-            if (!$result['path']) {
+            if (! $result['path']) {
                 return response()->json([
                     'message' => 'Keine aktiven Produkte gefunden.',
                     'total_products' => 0,
@@ -72,7 +74,7 @@ class OfflineCatalogController extends BaseController
             ]);
 
             return response()->json([
-                'message' => 'Export fehlgeschlagen: ' . $e->getMessage(),
+                'message' => 'Export fehlgeschlagen: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -86,7 +88,7 @@ class OfflineCatalogController extends BaseController
     {
         $progress = $this->service->getProgress();
 
-        if (!$progress) {
+        if (! $progress) {
             return response()->json(['status' => 'idle']);
         }
 
@@ -98,8 +100,10 @@ class OfflineCatalogController extends BaseController
      *
      * Bricht den laufenden Export ab.
      */
-    public function cancel(): JsonResponse
+    public function cancel(Request $request): JsonResponse
     {
+        $this->assertAdmin($request->user());
+
         $this->service->cancel();
 
         return response()->json(['message' => 'Abbruch angefordert.']);
@@ -112,6 +116,8 @@ class OfflineCatalogController extends BaseController
      */
     public function buildBundle(Request $request): JsonResponse
     {
+        $this->assertAdmin($request->user());
+
         $request->validate([
             'debug' => 'sometimes|boolean',
         ]);
@@ -119,13 +125,13 @@ class OfflineCatalogController extends BaseController
         $debug = $request->boolean('debug');
         $catalogEmbedDir = base_path('catalog-embed');
 
-        if (!is_dir($catalogEmbedDir)) {
+        if (! is_dir($catalogEmbedDir)) {
             return response()->json(['message' => 'catalog-embed Verzeichnis nicht gefunden.'], 500);
         }
 
         // Install deps if needed
-        if (!is_dir("{$catalogEmbedDir}/node_modules")) {
-            exec("cd " . escapeshellarg($catalogEmbedDir) . " && npm install 2>&1", $output, $code);
+        if (! is_dir("{$catalogEmbedDir}/node_modules")) {
+            exec('cd '.escapeshellarg($catalogEmbedDir).' && npm install 2>&1', $output, $code);
             if ($code !== 0) {
                 return response()->json(['message' => 'npm install fehlgeschlagen.', 'output' => implode("\n", $output)], 500);
             }
@@ -139,7 +145,7 @@ class OfflineCatalogController extends BaseController
 
         $output = [];
         exec(
-            "cd " . escapeshellarg($catalogEmbedDir) . " && {$envVars} npx vite build 2>&1",
+            'cd '.escapeshellarg($catalogEmbedDir)." && {$envVars} npx vite build 2>&1",
             $output,
             $code,
         );
@@ -153,7 +159,7 @@ class OfflineCatalogController extends BaseController
 
         // Alte Source Maps aufräumen bei Non-Debug-Build,
         // damit bundleStatus() nicht fälschlich debug=true meldet
-        if (!$debug) {
+        if (! $debug) {
             @unlink("{$catalogEmbedDir}/dist/catalog-offline.umd.js.map");
             @unlink("{$catalogEmbedDir}/dist/catalog-embed.css.map");
         }
@@ -181,7 +187,7 @@ class OfflineCatalogController extends BaseController
             'js_size' => file_exists($jsPath) ? filesize($jsPath) : 0,
             'css_size' => file_exists($cssPath) ? filesize($cssPath) : 0,
             'built_at' => file_exists($jsPath) ? date('c', filemtime($jsPath)) : null,
-            'debug' => file_exists($jsPath . '.map'),
+            'debug' => file_exists($jsPath.'.map'),
         ]);
     }
 
@@ -194,14 +200,17 @@ class OfflineCatalogController extends BaseController
     public function downloadBundle(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse|JsonResponse
     {
         $user = $this->resolveUser($request);
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Nicht authentifiziert.'], 401);
+        }
+        if (! $user->hasRole('Admin')) {
+            return response()->json(['message' => 'Nur Administratoren.'], 403);
         }
 
         $distDir = base_path('catalog-embed/dist');
         $jsPath = "{$distDir}/catalog-offline.umd.js";
 
-        if (!file_exists($jsPath)) {
+        if (! file_exists($jsPath)) {
             return response()->json(['message' => 'Kein Bundle vorhanden.'], 404);
         }
 
@@ -209,12 +218,13 @@ class OfflineCatalogController extends BaseController
         if ($tempFile === false) {
             return response()->json(['message' => 'Temp-Datei konnte nicht erstellt werden.'], 500);
         }
-        $zipPath = $tempFile . '.zip';
+        $zipPath = $tempFile.'.zip';
         rename($tempFile, $zipPath);
 
-        $zip = new \ZipArchive();
+        $zip = new \ZipArchive;
         if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
             @unlink($zipPath);
+
             return response()->json(['message' => 'ZIP-Erstellung fehlgeschlagen.'], 500);
         }
 
@@ -243,12 +253,15 @@ class OfflineCatalogController extends BaseController
     public function preview(Request $request)
     {
         $user = $this->resolveUser($request);
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Nicht authentifiziert.'], 401);
+        }
+        if (! $user->hasRole('Admin')) {
+            return response()->json(['message' => 'Nur Administratoren.'], 403);
         }
 
         $previewDir = storage_path('app/offline-preview');
-        if (!is_dir($previewDir) || !file_exists("{$previewDir}/index.html")) {
+        if (! is_dir($previewDir) || ! file_exists("{$previewDir}/index.html")) {
             return response()->json(['message' => 'Keine Preview vorhanden. Bitte zuerst einen Export generieren.'], 404);
         }
 
@@ -275,11 +288,11 @@ class OfflineCatalogController extends BaseController
         $filePath = realpath("{$previewDir}/{$path}");
 
         // Sicherstellen, dass der aufgelöste Pfad innerhalb des Preview-Verzeichnisses liegt
-        if (!$filePath || !str_starts_with($filePath, realpath($previewDir))) {
+        if (! $filePath || ! str_starts_with($filePath, realpath($previewDir))) {
             return response('Datei nicht gefunden.', 404);
         }
 
-        if (!is_file($filePath)) {
+        if (! is_file($filePath)) {
             return response('Datei nicht gefunden.', 404);
         }
 
@@ -312,6 +325,8 @@ class OfflineCatalogController extends BaseController
      */
     public function cleanup(Request $request): JsonResponse
     {
+        $this->assertAdmin($request->user());
+
         $deletedFiles = 0;
         $freedBytes = 0;
 
@@ -363,7 +378,7 @@ class OfflineCatalogController extends BaseController
     {
         $result = $this->findLatestZip();
 
-        if (!$result) {
+        if (! $result) {
             return response()->json(['available' => false]);
         }
 
@@ -387,14 +402,17 @@ class OfflineCatalogController extends BaseController
     public function download(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse|JsonResponse
     {
         $user = $this->resolveUser($request);
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Nicht authentifiziert.'], 401);
+        }
+        if (! $user->hasRole('Admin')) {
+            return response()->json(['message' => 'Nur Administratoren.'], 403);
         }
 
         // 1. Versuche neueste ZIP auf der Platte zu finden
         $result = $this->findLatestZip();
 
-        if (!$result) {
+        if (! $result) {
             return response()->json(['message' => 'Keine Datei verfügbar.'], 404);
         }
 
@@ -408,6 +426,18 @@ class OfflineCatalogController extends BaseController
     }
 
     // ─── Hilfsmethoden ────────────────────────────────────────────
+
+    /**
+     * Der Offline-Katalog-Export ist ein Admin-Werkzeug (Audit M-3): er startet
+     * teure Exporte, fuehrt Bundle-Builds (npm/exec) aus und loescht Dateien.
+     * Nur Administratoren duerfen ihn bedienen.
+     */
+    private function assertAdmin($user): void
+    {
+        if (! $user || ! $user->hasRole('Admin')) {
+            abort(403, 'Nur Administratoren duerfen den Offline-Katalog verwalten.');
+        }
+    }
 
     /**
      * Authentifizierung via Bearer-Header oder ?token= Query-Parameter.
@@ -466,7 +496,7 @@ class OfflineCatalogController extends BaseController
     private function findLatestZip(): ?array
     {
         $exportsDir = storage_path('app/exports');
-        if (!is_dir($exportsDir)) {
+        if (! is_dir($exportsDir)) {
             return null;
         }
 
@@ -489,7 +519,7 @@ class OfflineCatalogController extends BaseController
 
     private function deleteDirectory(string $dir): void
     {
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             return;
         }
 
