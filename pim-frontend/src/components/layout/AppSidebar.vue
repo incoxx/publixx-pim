@@ -293,7 +293,7 @@ const sections = computed(() => {
             { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
             { icon: Database, label: () => 'Datenbank', to: '/db', permission: 'users.view' },
             { icon: Shield, label: () => 'Datenkonsistenz', to: '/db-consistency', permission: 'users.view' },
-            { icon: ShieldAlert, label: () => 'Guard', to: '/security-guard', permission: 'users.view' },
+            { icon: ShieldAlert, label: () => 'Guard', to: '/security-guard', adminOnly: true },
             { icon: FileText, label: () => 'Log Viewer', to: '/logs', permission: 'users.view' },
             { icon: Terminal, label: () => 'Artisan-Cockpit', to: '/artisan-cockpit', permission: 'users.view' },
             { icon: Bug, label: () => 'Fehler', to: '/errors', permission: 'users.view' },
@@ -319,12 +319,14 @@ const sections = computed(() => {
         if (item.children) {
           const filtered = item.children.filter(child =>
             (!child.permission || authStore.hasPermission(child.permission))
+            && (!child.adminOnly || authStore.isAdmin)
             && isModuleAccessible(child.module)
           )
           return filtered.length > 0 ? { ...item, children: filtered } : null
         }
         if (item.divider) return item
         if ((!item.permission || authStore.hasPermission(item.permission))
+          && (!item.adminOnly || authStore.isAdmin)
           && isModuleAccessible(item.module)) {
           return item
         }

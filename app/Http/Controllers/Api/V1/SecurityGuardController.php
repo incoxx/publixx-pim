@@ -46,6 +46,7 @@ class SecurityGuardController extends Controller
             'mail' => (bool) ($overrides['mail'] ?? config('security.alerts.mail', true)),
             'mail_min_severity' => (string) ($overrides['mail_min_severity'] ?? config('security.alerts.mail_min_severity', 'high')),
             'client_error_burst' => (int) ($overrides['client_error_burst'] ?? config('security.thresholds.client_error_burst', 25)),
+            'alert_emails' => array_values((array) ($overrides['alert_emails'] ?? config('security.alerts.extra_recipients', []))),
         ];
 
         return response()->json([
@@ -84,6 +85,8 @@ class SecurityGuardController extends Controller
             'mail' => ['sometimes', 'boolean'],
             'mail_min_severity' => ['sometimes', 'in:low,medium,high'],
             'client_error_burst' => ['sometimes', 'integer', 'min:1', 'max:10000'],
+            'alert_emails' => ['sometimes', 'array'],
+            'alert_emails.*' => ['email'],
         ]);
 
         // Laendercodes normalisieren (Grossbuchstaben).
@@ -94,6 +97,14 @@ class SecurityGuardController extends Controller
                     $validated[$key],
                 )));
             }
+        }
+
+        // E-Mail-Adressen trimmen und deduplizieren.
+        if (isset($validated['alert_emails'])) {
+            $validated['alert_emails'] = array_values(array_unique(array_map(
+                static fn ($e): string => trim((string) $e),
+                $validated['alert_emails'],
+            )));
         }
 
         // Nur ueberschreibbare Felder speichern (Merge mit bestehendem Override).
