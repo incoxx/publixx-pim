@@ -22,6 +22,7 @@ const form = reactive({
   client_error_burst: 25,
   allowed_countries: '',
   blocked_countries: '',
+  alert_emails: '',
 })
 
 // Events
@@ -64,6 +65,7 @@ async function loadConfig() {
     form.client_error_burst = cfg.client_error_burst
     form.allowed_countries = (cfg.allowed_countries || []).join(', ')
     form.blocked_countries = (cfg.blocked_countries || []).join(', ')
+    form.alert_emails = (cfg.alert_emails || []).join(', ')
   } catch (e) {
     error.value = e.response?.data?.detail || 'Konfiguration konnte nicht geladen werden.'
   } finally {
@@ -101,6 +103,19 @@ function parseCountries(value) {
     .filter((c) => c.length === 2)
 }
 
+function parseEmails(value) {
+  return String(value || '')
+    .split(',')
+    .map((e) => e.trim())
+    .filter((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e))
+}
+
+const emailsInvalid = computed(() => {
+  if (!form.mail) return false
+  const raw = String(form.alert_emails || '').split(',').map((e) => e.trim()).filter(Boolean)
+  return raw.length !== parseEmails(form.alert_emails).length
+})
+
 async function save() {
   saving.value = true
   error.value = ''
@@ -114,6 +129,7 @@ async function save() {
       client_error_burst: Number(form.client_error_burst),
       allowed_countries: parseCountries(form.allowed_countries),
       blocked_countries: parseCountries(form.blocked_countries),
+      alert_emails: form.mail ? parseEmails(form.alert_emails) : [],
     })
     success.value = 'Guard-Konfiguration gespeichert.'
     await loadConfig()
@@ -212,6 +228,22 @@ async function save() {
           </label>
         </div>
 
+        <!-- E-Mail-Empfänger nur anzeigen, wenn E-Mail-Alarm aktiv ist -->
+        <div v-if="form.mail" class="rounded-lg bg-base-200/50 p-4">
+          <label class="text-sm flex items-center gap-2 mb-1">Alarm-E-Mail-Adressen</label>
+          <input
+            v-model="form.alert_emails"
+            type="text"
+            placeholder="z. B. security@firma.de, admin@firma.de"
+            class="input input-bordered input-sm w-full"
+            :class="{ 'input-error': emailsInvalid }"
+          />
+          <p class="text-xs mt-1" :class="emailsInvalid ? 'text-error' : 'text-base-content/50'">
+            <template v-if="emailsInvalid">Bitte gültige, kommagetrennte E-Mail-Adressen eingeben.</template>
+            <template v-else>Kommagetrennt. Zusätzlich werden aktive Admins automatisch benachrichtigt.</template>
+          </p>
+        </div>
+
         <div class="divider my-0"></div>
 
         <div class="grid md:grid-cols-2 gap-5">
@@ -228,7 +260,7 @@ async function save() {
         </div>
 
         <div class="flex justify-end">
-          <button class="btn btn-primary btn-sm gap-2" :disabled="saving" @click="save">
+          <button class="btn pim-btn-primary btn-sm gap-2" :disabled="saving || emailsInvalid" @click="save">
             <Save class="w-4 h-4" /> Speichern
           </button>
         </div>

@@ -27,7 +27,7 @@ class SecurityMonitor
     /** In der GUI ueberschreibbare Felder (Setting-Group 'security_guard'). */
     public const OVERRIDABLE_KEYS = [
         'enabled', 'block', 'allowed_countries', 'blocked_countries',
-        'mail', 'mail_min_severity', 'client_error_burst',
+        'mail', 'mail_min_severity', 'client_error_burst', 'alert_emails',
     ];
 
     private ?array $overrides = null;
@@ -215,7 +215,9 @@ class SecurityMonitor
                 $user->notify(new SecurityAlertNotification($data));
             }
 
-            foreach ((array) config('security.alerts.extra_recipients', []) as $email) {
+            // In der GUI hinterlegte Adressen (Override) bzw. env-Fallback.
+            $extra = (array) $this->opt('alert_emails', config('security.alerts.extra_recipients', []));
+            foreach ($extra as $email) {
                 Notification::route('mail', $email)->notify(new SecurityAlertNotification($data));
             }
         } catch (\Throwable $e) {
