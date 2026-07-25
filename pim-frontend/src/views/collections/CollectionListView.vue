@@ -8,7 +8,7 @@ import { collections as collectionsApi, collectionItems as collectionItemsApi, c
 import { triggerDownload, blobErrorMessage } from '@/utils/download'
 import productsApi from '@/api/products'
 import { useRouter } from 'vue-router'
-import { Plus, ChevronLeft, Trash2, GripVertical, Upload, Eye, EyeOff, Download, Loader2, Star } from 'lucide-vue-next'
+import { Plus, ChevronLeft, Trash2, GripVertical, Upload, Eye, EyeOff, Download, Loader2, Star, ExternalLink, Link2 } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
@@ -303,6 +303,27 @@ async function previewCollection() {
   }
 }
 
+// ─── Online-Katalog: Collection als Merkliste in den Preview-Katalog geben ───
+// Wir übergeben nur die Collection-Referenz (?collection=<id>), nicht die Produkt-
+// liste — die URL bleibt konstant kurz, egal wie viele Positionen die Collection hat.
+function catalogUrl() {
+  const href = router.resolve({ name: 'catalog', query: { collection: selected.value.id } }).href
+  return `${window.location.origin}${href}`
+}
+
+function openInCatalog() {
+  window.open(catalogUrl(), '_blank', 'noopener')
+}
+
+async function copyCatalogLink() {
+  try {
+    await navigator.clipboard.writeText(catalogUrl())
+    toastStore.showToast('Katalog-Link kopiert', 'success')
+  } catch {
+    toastStore.showToast('Link konnte nicht kopiert werden', 'error')
+  }
+}
+
 async function exportSync(format) {
   exportingFormat.value = format
   try {
@@ -401,6 +422,24 @@ onMounted(() => {
             <Loader2 v-if="previewing" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
             <Eye v-else class="w-3.5 h-3.5" :stroke-width="2" />
             Vorschau
+          </button>
+          <button
+            class="pim-btn pim-btn-ghost text-xs"
+            data-testid="collection-open-catalog"
+            title="Produkte dieser Collection als Online-Katalog öffnen"
+            @click="openInCatalog"
+          >
+            <ExternalLink class="w-3.5 h-3.5" :stroke-width="2" />
+            Als Katalog öffnen
+          </button>
+          <button
+            class="pim-btn pim-btn-ghost text-xs"
+            data-testid="collection-copy-catalog-link"
+            title="Teilbaren Katalog-Link kopieren"
+            @click="copyCatalogLink"
+          >
+            <Link2 class="w-3.5 h-3.5" :stroke-width="2" />
+            Katalog-Link
           </button>
           <button class="pim-btn pim-btn-ghost text-xs" @click="openEditPanel(selected)">Bearbeiten</button>
         </div>

@@ -89,7 +89,14 @@ const themeSettingsRef = computed(() => store.themeSettings)
 useThemeApplicator(themeRoot, themeSettingsRef)
 
 onMounted(async () => {
+  // Collection-Deeplink (?collection=<id>) ersetzt die Merkliste durch die
+  // kuratierte Produktliste; ?wishlist=<ids> ergänzt sie wie bisher.
+  await store.importCollectionFromUrl()
   store.importWishlistFromUrl()
+  // Kam der Katalog über eine Collection, Merkliste direkt aufklappen.
+  if (store.collectionInfo && store.collectionInfo.count > 0) {
+    wishlistOpen.value = true
+  }
   await store.fetchThemeSettings()
   store.fetchCategories()
   store.fetchFacets()

@@ -339,4 +339,45 @@ class CatalogControllerTest extends TestCase
 
         $this->postJson('/api/v1/catalog/check-config', [])->assertUnauthorized();
     }
+
+    /**
+     * Collection-Merkliste: liefert die Produkt-IDs in Positions-Reihenfolge,
+     * lässt Freitext-Positionen (ohne product_id) und inaktive Produkte aus.
+     */
+    public function test_collection_wishlist_liefert_aktive_produkt_ids_in_reihenfolge(): void
+    {
+        $type = \App\Models\CollectionType::create([
+            'technical_name' => 'angebot',
+            'name_de' => 'Angebot',
+        ]);
+
+        $collection = \App\Models\Collection::create([
+            'collection_type_id' => $type->id,
+            'name' => 'Testkatalog',
+        ]);
+
+        $p1 = Product::factory()->active()->create();
+        $p2 = Product::factory()->active()->create();
+        $draft = Product::factory()->create(['status' => 'draft']);
+
+        // Reihenfolge bewusst verdreht anlegen – die Position bestimmt die Ausgabe.
+        \App\Models\CollectionItem::create(['collection_id' => $collection->id, 'product_id' => $p2->id, 'position' => 2]);
+        \App\Models\CollectionItem::create(['collection_id' => $collection->id, 'product_id' => $p1->id, 'position' => 1]);
+        // Freitext-Position ohne Produkt → muss ausgelassen werden
+        \App\Models\CollectionItem::create(['collection_id' => $collection->id, 'product_id' => null, 'position' => 3]);
+        // Inaktives (Draft-)Produkt → nicht im Katalog sichtbar, muss ausgelassen werden
+        \App\Models\CollectionItem::create(['collection_id' => $collection->id, 'product_id' => $draft->id, 'position' => 4]);
+
+        $response = $this->getJson('/api/v1/catalog/collections/' . $collection->id . '/wishlist');
+
+        $response->assertOk()
+            ->assertJsonPath('data.name', 'Testkatalog')
+            ->assertJsonPath('data.product_ids', [$p1->id, $p2->id]);
+    }
+
+    public function test_collection_wishlist_404_fuer_unbekannte_collection(): void
+    {
+        $this->getJson('/api/v1/catalog/collections/00000000-0000-0000-0000-000000000000/wishlist')
+            ->assertNotFound();
+    }
 }
