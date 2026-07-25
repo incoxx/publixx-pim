@@ -7,7 +7,7 @@ import { useLicenseStore } from '@/stores/license'
 import { useConnectorsStore } from '@/stores/connectors'
 import {
   Search, Package, GitBranch, Sliders, Database, Layers, FolderTree,
-  Upload, Download, Image, Images, Tags, DollarSign, Users, Settings, Shield,
+  Upload, Download, Image, Images, Tags, DollarSign, Users, Settings, Shield, ShieldAlert,
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages, LayoutTemplate,
   ChevronDown, ChevronRight, ChevronsDownUp, GripVertical, Factory, CalendarDays, ScrollText, Globe, Send,
@@ -293,6 +293,7 @@ const sections = computed(() => {
             { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
             { icon: Database, label: () => 'Datenbank', to: '/db', permission: 'users.view' },
             { icon: Shield, label: () => 'Datenkonsistenz', to: '/db-consistency', permission: 'users.view' },
+            { icon: ShieldAlert, label: () => 'Guard', to: '/security-guard', permission: 'users.view' },
             { icon: FileText, label: () => 'Log Viewer', to: '/logs', permission: 'users.view' },
             { icon: Terminal, label: () => 'Artisan-Cockpit', to: '/artisan-cockpit', permission: 'users.view' },
             { icon: Bug, label: () => 'Fehler', to: '/errors', permission: 'users.view' },

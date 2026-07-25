@@ -96,6 +96,25 @@ Ops-/Produktentscheidung (siehe Begründung).
 - Der Share-Unlock-Endpoint (`web.php`) trägt bereits `throttle:10,1`; der ursprünglich
   vermutete fehlende Throttle besteht nicht.
 
+## Proaktive Angriffs-Erkennung (SecurityMonitor / „Guard")
+
+Zusätzlich zu den behobenen Findings wurde ein Erkennungs-Guard eingebaut, der
+verdächtige Muster erkennt, protokolliert und harte Signale blockiert.
+
+- **Middleware** `DetectSuspiciousActivity` (global auf allen API-Requests).
+- **Service** `App\Services\Security\SecurityMonitor` mit Heuristiken:
+  - Login-Fehlversuche / Brute-Force (Hook in `AuthController`),
+  - Bot-User-Agents auf sensiblen Pfaden — nur **unauthentifiziert** (legitime
+    Token-Integrationen werden nie geblockt),
+  - 4xx-Enumeration/Scanner-Bursts pro Client-IP (temporärer Block via Cooldown),
+  - Geo-Anomalien über den Cloudflare-Header `CF-IPCountry` (Allow-/Blocklist).
+- **Persistenz** in `security_events` (Model + Job `RecordSecurityEvent`),
+  dedizierter Log-Channel `security`, E-Mail-Alarm an Admins (`SecurityAlertNotification`).
+- **Konfiguration** über `config/security.php` (env) und die GUI unter
+  **System → Guard** (`SecurityGuardController`, Setting-Group `security_guard`):
+  Ein/Aus, Blockieren, Länder-Listen, Alarm-Schwelle, 4xx-Schwelle. Admin-only.
+- Client-IP wird hinter Proxies aus `CF-Connecting-IP` ermittelt.
+
 ## Als sicher bestätigt (Auszug)
 
 ArtisanCockpit/Deployment/TestRunner (Whitelist + `escapeshellarg` + Admin),

@@ -53,6 +53,13 @@ return [
             'days' => 30,
             'replace_placeholders' => true,
         ],
+        'security' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/security.log'),
+            'level' => 'debug',
+            'days' => 90,
+            'replace_placeholders' => true,
+        ],
         'null' => [
             'driver' => 'monolog',
             'handler' => Monolog\Handler\NullHandler::class,

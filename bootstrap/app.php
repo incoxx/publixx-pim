@@ -3,6 +3,7 @@
 use App\Http\Middleware\CacheCatalogResponse;
 use App\Http\Middleware\CatalogAccessControl;
 use App\Http\Middleware\CheckModuleLicense;
+use App\Http\Middleware\DetectSuspiciousActivity;
 use App\Http\Middleware\RateLimitMiddleware;
 use App\Http\Middleware\RestrictScopedApiToken;
 use Illuminate\Auth\AuthenticationException;
@@ -13,9 +14,9 @@ use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        api: __DIR__ . '/../routes/api.php',
-        web: __DIR__ . '/../routes/web.php',
-        commands: __DIR__ . '/../routes/console.php',
+        api: __DIR__.'/../routes/api.php',
+        web: __DIR__.'/../routes/web.php',
+        commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
@@ -36,6 +37,8 @@ return Application::configure(basePath: dirname(__DIR__))
             // sind (z.B. die öffentliche v1/catalog-Gruppe selbst).
             append: [
                 RestrictScopedApiToken::class,
+                // Angriffs-Erkennung (Geo/Bot/Enumeration). Läuft für alle API-Requests.
+                DetectSuspiciousActivity::class,
             ],
         );
 

@@ -30,6 +30,12 @@ class AuthController extends Controller
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = RateLimiter::availableIn($throttleKey);
 
+            // Lockout = klares Brute-Force-Signal (Audit: SecurityMonitor).
+            app(\App\Services\Security\SecurityMonitor::class)->record(
+                'login_bruteforce', 'high', $request,
+                ['email' => (string) $request->validated('email')], blocked: true,
+            );
+
             return $this->problemResponse(
                 title: 'Too Many Attempts',
                 detail: "Zu viele Anmeldeversuche. Bitte in {$seconds} Sekunden erneut versuchen.",
@@ -42,6 +48,10 @@ class AuthController extends Controller
 
         if (! $user) {
             RateLimiter::hit($throttleKey, 900);
+            app(\App\Services\Security\SecurityMonitor::class)->record(
+                'login_failed', 'low', $request,
+                ['email' => (string) $request->validated('email'), 'reason' => 'unknown_email'],
+            );
 
             return $this->problemResponse(
                 title: 'Authentication Failed',
@@ -63,6 +73,10 @@ class AuthController extends Controller
 
         if (! Hash::check($request->validated('password'), $user->password ?? '')) {
             RateLimiter::hit($throttleKey, 900);
+            app(\App\Services\Security\SecurityMonitor::class)->record(
+                'login_failed', 'low', $request,
+                ['email' => (string) $request->validated('email'), 'reason' => 'wrong_password'],
+            );
 
             return $this->problemResponse(
                 title: 'Authentication Failed',
