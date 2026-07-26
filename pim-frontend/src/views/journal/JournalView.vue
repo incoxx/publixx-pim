@@ -26,10 +26,21 @@ const columns = [
 
 // ─── Filters ─────────────────────────────────────────
 const filterAction = ref('')
+const filterType = ref('')
 const filterUserId = ref('')
 const filterDateFrom = ref('')
 const filterDateTo = ref('')
 const searchQuery = ref('')
+
+// Objekttypen (auditable_type) für den Typ-Filter. Die Werte müssen den in
+// audit_logs gespeicherten Typen entsprechen (Kurzname für PIM-Objekte,
+// FQCN für Benutzer).
+const typeLabels = {
+  Product: 'Produkt',
+  HierarchyNode: 'Hierarchie',
+  Attribute: 'Attribut',
+  'App\\Models\\User': 'Benutzer',
+}
 
 let searchDebounce = null
 function onSearchInput(val) {
@@ -45,6 +56,7 @@ onUnmounted(() => clearTimeout(searchDebounce))
 function applyFilters() {
   const f = {}
   if (filterAction.value) f.action = filterAction.value
+  if (filterType.value) f.auditable_type = filterType.value
   if (filterUserId.value) f.user_id = filterUserId.value
   if (filterDateFrom.value) f.date_from = filterDateFrom.value
   if (filterDateTo.value) f.date_to = filterDateTo.value
@@ -53,7 +65,7 @@ function applyFilters() {
   store.fetchList()
 }
 
-watch([filterAction, filterUserId, filterDateFrom, filterDateTo], applyFilters)
+watch([filterAction, filterType, filterUserId, filterDateFrom, filterDateTo], applyFilters)
 
 // ─── Actions ─────────────────────────────────────────
 const actionLabels = {
@@ -173,6 +185,13 @@ onMounted(async () => {
         <select v-model="filterAction" class="pim-input w-44">
           <option value="">Alle</option>
           <option v-for="(label, key) in actionLabels" :key="key" :value="key">{{ label }}</option>
+        </select>
+      </div>
+      <div class="flex flex-col gap-1">
+        <label class="text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">Typ</label>
+        <select v-model="filterType" class="pim-input w-40">
+          <option value="">Alle</option>
+          <option v-for="(label, key) in typeLabels" :key="key" :value="key">{{ label }}</option>
         </select>
       </div>
       <div class="flex flex-col gap-1">
