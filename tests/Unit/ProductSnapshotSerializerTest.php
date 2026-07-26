@@ -38,11 +38,11 @@ class ProductSnapshotSerializerTest extends TestCase
         $key = 'pt1|EUR||';
 
         $old = $this->baseSnapshot([
-            'prices' => [$key => ['label' => 'list', 'value' => '10 EUR', 'raw' => ['price_type_id' => 'pt1']]],
+            'prices' => [$key => ['label' => 'list', 'value' => '10 EUR', 'raw' => ['price_type_id' => 'pt1', 'amount' => '10', 'currency' => 'EUR']]],
         ]);
         $new = $this->baseSnapshot([
             'name' => 'Produkt B',
-            'prices' => [$key => ['label' => 'list', 'value' => '12 EUR', 'raw' => ['price_type_id' => 'pt1']]],
+            'prices' => [$key => ['label' => 'list', 'value' => '12 EUR', 'raw' => ['price_type_id' => 'pt1', 'amount' => '12', 'currency' => 'EUR']]],
         ]);
 
         $fields = collect($serializer->compare($old, $new)['fields']);
@@ -52,11 +52,42 @@ class ProductSnapshotSerializerTest extends TestCase
         $this->assertSame('Produkt A', $name['old_value']);
         $this->assertSame('Produkt B', $name['new_value']);
 
+        // Preis wird tief verglichen: das Detailfeld "Betrag" ändert sich.
         $price = $fields->firstWhere('type', 'price');
         $this->assertNotNull($price);
         $this->assertTrue($price['changed']);
+        $this->assertStringContainsString('Betrag', $price['label']);
         $this->assertSame('10 EUR', $price['old_value']);
         $this->assertSame('12 EUR', $price['new_value']);
+    }
+
+    public function test_compare_detects_relation_attribute_value_change(): void
+    {
+        $serializer = new ProductSnapshotSerializer();
+        $key = 'rt1|target1';
+
+        $relation = fn (string $color) => [$key => [
+            'label' => 'Zubehör → SKU9',
+            'value' => 'Pos 0, 1 Attr.',
+            'attr_labels' => ['attr1' => 'Farbe'],
+            'raw' => [
+                'target_product_id' => 'target1',
+                'relation_type_id' => 'rt1',
+                'sort_order' => 0,
+                'attributes' => [['attribute_id' => 'attr1', 'value_string' => $color]],
+            ],
+        ]];
+
+        $old = $this->baseSnapshot(['relations' => $relation('rot')]);
+        $new = $this->baseSnapshot(['relations' => $relation('blau')]);
+
+        $rel = collect($serializer->compare($old, $new)['fields'])->firstWhere('type', 'relation');
+
+        $this->assertNotNull($rel);
+        $this->assertTrue($rel['changed']);
+        $this->assertStringContainsString('Farbe', $rel['label']);
+        $this->assertSame('rot', $rel['old_value']);
+        $this->assertSame('blau', $rel['new_value']);
     }
 
     public function test_compare_flags_added_assignment(): void
@@ -79,8 +110,8 @@ class ProductSnapshotSerializerTest extends TestCase
     {
         $serializer = new ProductSnapshotSerializer();
 
-        $a = $this->baseSnapshot(['prices' => ['k1' => ['a' => 1, 'b' => 2]]]);
-        $b = $this->baseSnapshot(['prices' => ['k1' => ['b' => 2, 'a' => 1]]]);
+        $a = $this->baseSnapshot(['prices' => ['k1' => ['raw' => ['a' => 1, 'b' => 2]]]]);
+        $b = $this->baseSnapshot(['prices' => ['k1' => ['raw' => ['b' => 2, 'a' => 1]]]]);
         $this->assertTrue($serializer->equals($a, $b));
 
         $c = $this->baseSnapshot(['name' => 'Anders']);
