@@ -23,6 +23,7 @@ class WriteAuditLog implements ShouldQueue
         public readonly ?string $userId = null,
         public readonly ?string $ipAddress = null,
         public readonly ?string $userAgent = null,
+        public readonly ?string $productVersionId = null,
     ) {
         $this->queue = 'default';
     }
@@ -32,6 +33,7 @@ class WriteAuditLog implements ShouldQueue
         AuditLog::create([
             'auditable_type' => $this->auditableType,
             'auditable_id' => $this->auditableId,
+            'product_version_id' => $this->productVersionId,
             'action' => $this->action,
             'old_values' => $this->oldValues,
             'new_values' => $this->newValues,

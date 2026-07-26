@@ -407,6 +407,21 @@ class ProductAttributeValueController extends Controller
         $values = $request->validated('values');
         $changedAttributeIds = [];
 
+        // Versions-Snapshot (inkl. Attributwerte) vor der Änderung erstellen und
+        // dessen ID für das Änderungsprotokoll hinterlegen. So referenziert der
+        // spätere "attributes_changed"-Audit-Eintrag die Version mit dem
+        // vollständigen Vorher-Zustand für die Diff-Ansicht.
+        try {
+            $version = app(\App\Services\ProductVersioningService::class)->createVersion(
+                $product,
+                'Attributänderung',
+                $request->user()?->id,
+            );
+            \App\Support\AuditContext::setProductVersionId($version->id);
+        } catch (\Throwable) {
+            // Versionierung darf das Speichern nie blockieren
+        }
+
         DB::transaction(function () use ($request, $product, $values, $variantAxisService, &$changedAttributeIds) {
             foreach ($values as $entry) {
                 $attribute = Attribute::findOrFail($entry['attribute_id']);
@@ -539,6 +554,10 @@ class ProductAttributeValueController extends Controller
 
         // Dispatch event for Performance / Inheritance agents
         event(new \App\Events\AttributeValuesChanged($product->id, array_unique($changedAttributeIds)));
+
+        // Version-Referenz wieder freigeben, damit nachfolgende Änderungen
+        // (z. B. der Attribut-Mapping-Sync an Zielprodukten) sie nicht erben.
+        \App\Support\AuditContext::setProductVersionId(null);
 
         // Synchroner Attribut-Mapping-Sync: Wenn Mappings vorhanden sind,
         // Ziel-Werte sofort aktualisieren (nicht über Queue).

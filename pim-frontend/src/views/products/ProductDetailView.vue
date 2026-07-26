@@ -3282,6 +3282,12 @@ onMounted(async () => {
   if (product.value?.product_type_ref === 'variant' && product.value?.parent_product_id) {
     loadInheritanceRules()
   }
+
+  // Deep-Link (z. B. aus dem Änderungsprotokoll): optional direkt einen Tab
+  // öffnen, sofern er für die Rolle verfügbar ist.
+  if (route.query.tab && tabs.value.some(t => t.key === route.query.tab)) {
+    selectTab(route.query.tab)
+  }
 })
 
 // Re-load when navigating between products/variants (same component, different ID)

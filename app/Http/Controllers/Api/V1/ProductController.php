@@ -297,13 +297,15 @@ class ProductController extends Controller
     {
         $this->authorize('update', $product);
 
-        // Auto-create version snapshot before applying changes
+        // Auto-create version snapshot before applying changes und dessen ID für
+        // das Änderungsprotokoll hinterlegen (Audit referenziert die Version).
         try {
-            app(ProductVersioningService::class)->createVersion(
+            $version = app(ProductVersioningService::class)->createVersion(
                 $product,
                 null,
                 $request->user()?->id,
             );
+            \App\Support\AuditContext::setProductVersionId($version->id);
         } catch (\Throwable) {
             // Don't break the update if versioning fails
         }
