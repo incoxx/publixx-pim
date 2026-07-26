@@ -476,4 +476,23 @@ class CatalogControllerTest extends TestCase
         $this->getJson('/api/v1/catalog/products', ['X-Catalog-Share' => $access])
             ->assertOk();
     }
+
+    public function test_share_access_token_darf_lesen_aber_nicht_bestellen(): void
+    {
+        $this->createActiveProfile(['catalog_access_mode' => 'login']);
+        $this->createIndexedProduct(['name' => 'Freigegeben']);
+
+        $link = $this->createShareLink();
+        $access = $this->postJson('/api/v1/catalog/share/' . $link->token, ['password' => 'geheim123'])
+            ->assertOk()
+            ->json('data.access');
+
+        // Lesen (Browsen) ist erlaubt …
+        $this->getJson('/api/v1/catalog/products', ['X-Catalog-Share' => $access])
+            ->assertOk();
+
+        // … schreibende Warenkorb-/Bestell-Aktionen aber nicht (catalog.no-share → 403).
+        $this->postJson('/api/v1/catalog/cart/standard/submit', [], ['X-Catalog-Share' => $access])
+            ->assertForbidden();
+    }
 }

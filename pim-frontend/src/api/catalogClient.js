@@ -35,6 +35,10 @@ catalogClient.interceptors.response.use(
     if (status === 429) {
       console.warn('[Catalog] Rate limited')
     }
+    // Abgelaufenes/widerrufenes Freigabelink-Token nicht in der Sitzung liegen lassen.
+    if (status === 401) {
+      sessionStorage.removeItem(CATALOG_SHARE_KEY)
+    }
     if (status >= 500) {
       console.error('[Catalog] Server error:', error.response?.data)
     }

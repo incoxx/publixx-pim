@@ -121,6 +121,18 @@ class AppServiceProvider extends ServiceProvider
             'product' => \App\Models\Product::class,
         ]);
 
+        // ─── Katalog-Freigabelink: Passwort-Brute-Force pro Token drosseln ──
+        // Zusätzlich zur globalen IP-Drosselung: begrenzt Entsperr-Versuche je Token,
+        // damit ein bekannt gewordener Token nicht über viele IPs durchprobiert wird.
+        \Illuminate\Support\Facades\RateLimiter::for('catalog-share', function (\Illuminate\Http\Request $request) {
+            $token = (string) $request->route('token');
+
+            return [
+                \Illuminate\Cache\RateLimiting\Limit::perMinute(5)->by('share-token:'.$token),
+                \Illuminate\Cache\RateLimiting\Limit::perMinute(20)->by('share-ip:'.$request->ip()),
+            ];
+        });
+
         // ─── SSO: Register Azure AD Socialite Driver ─────────────────
         Event::listen(SocialiteWasCalled::class, AzureExtendSocialite::class.'@handle');
 
