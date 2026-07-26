@@ -1,7 +1,7 @@
 <script setup>
 import { computed, inject, ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useCatalogStore } from '@/stores/catalog'
 import { Heart, Trash2, X, Package, FileDown, Sheet, GitCompareArrows, Share2, Check } from 'lucide-vue-next'
 import catalogApi from '@/api/catalog'
@@ -10,6 +10,7 @@ import { triggerDownload } from '@/utils/download'
 const emit = defineEmits(['open-compare'])
 
 const { t } = useI18n()
+const route = useRoute()
 const router = useRouter()
 const store = useCatalogStore()
 const wishlistOpen = inject('wishlistOpen')
@@ -17,10 +18,15 @@ const wishlistOpen = inject('wishlistOpen')
 const exporting = ref(null) // 'pdf' | 'excel' | null
 const linkCopied = ref(false)
 
-// Produktdetail öffnen: Merkliste schließen und zur Detailseite navigieren.
+// Produktdetail öffnen: Merkliste schließen und dasselbe Detail-Modal öffnen, das
+// auch das Grid nutzt (State liegt im Store). Falls wir nicht auf der Katalog-
+// Übersicht sind, dorthin wechseln, damit das Modal gemountet ist.
 function openDetail(product) {
   wishlistOpen.value = false
-  router.push({ name: 'catalog-product', params: { id: product.id } })
+  store.openProductDetail(product.id)
+  if (route.name !== 'catalog') {
+    router.push({ name: 'catalog' })
+  }
 }
 
 // Alle Merklisten-Produkte (auch solche, die nicht auf der aktuellen Grid-Seite

@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, reactive, computed, watch } from 'vue'
+import { onMounted, reactive, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
@@ -58,17 +58,9 @@ function removeChip(chip) {
   store.fetchProducts()
 }
 
-const modalOpen = ref(false)
-const modalProductId = ref(null)
-
+// Detail-Modal-State liegt im Store, damit auch die Merkliste dasselbe Modal öffnen kann.
 function openDetail(product) {
-  modalProductId.value = product.id
-  modalOpen.value = true
-}
-
-function closeDetail() {
-  modalOpen.value = false
-  modalProductId.value = null
+  store.openProductDetail(product.id)
 }
 
 function isPdf(asset) {
@@ -208,9 +200,9 @@ onMounted(() => {
 
     <!-- Product detail modal -->
     <CatalogProductModal
-      :product-id="modalProductId"
-      :open="modalOpen"
-      @close="closeDetail"
+      :product-id="store.detailProductId"
+      :open="store.detailOpen"
+      @close="store.closeProductDetail"
     />
   </div>
 </template>
