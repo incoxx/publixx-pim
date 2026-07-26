@@ -1,5 +1,5 @@
 <script setup>
-import { computed, inject, ref } from 'vue'
+import { computed, inject, ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
 import { Heart, Trash2, X, Package, FileDown, Sheet, GitCompareArrows, Share2, Check } from 'lucide-vue-next'
@@ -15,16 +15,20 @@ const wishlistOpen = inject('wishlistOpen')
 const exporting = ref(null) // 'pdf' | 'excel' | null
 const linkCopied = ref(false)
 
-// Find product data from loaded products
-const wishlistProducts = computed(() => {
-  return store.products.filter((p) => store.isInWishlist(p.id))
-})
+// Alle Merklisten-Produkte (auch solche, die nicht auf der aktuellen Grid-Seite
+// liegen) — der Store lädt fehlende serverseitig nach.
+const wishlistProducts = computed(() => store.wishlistProducts)
 
-// IDs that are in wishlist but not loaded — show just the IDs
-const unloadedIds = computed(() => {
-  const loadedIds = new Set(store.products.map((p) => p.id))
-  return store.wishlistIds.filter((id) => !loadedIds.has(id))
-})
+// Restliche IDs ohne Produktdaten (inaktiv/gelöscht oder jenseits des Limits)
+const unloadedCount = computed(() => store.wishlistUnresolvedCount)
+
+// Fehlende Merklisten-Produkte nachladen, sobald sich die Liste ändert.
+onMounted(() => store.fetchWishlistProducts())
+watch(
+  () => store.wishlistIds.slice(),
+  () => store.fetchWishlistProducts(),
+  { deep: true },
+)
 
 const canCompare = computed(() =>
   store.themeSettings.catalog_compare_enabled &&
@@ -151,12 +155,12 @@ async function shareWishlist() {
           </button>
         </div>
 
-        <!-- Unloaded items (just show count) -->
+        <!-- Restliche IDs ohne Produktdaten (inaktiv/gelöscht) -->
         <div
-          v-if="unloadedIds.length > 0"
+          v-if="unloadedCount > 0"
           class="text-center text-xs text-base-content/40 py-2"
         >
-          + {{ unloadedIds.length }} weitere Produkte
+          + {{ unloadedCount }} weitere Produkte
         </div>
       </div>
     </div>

@@ -153,6 +153,42 @@ describe('Catalog Store', () => {
       store.importWishlistFromUrl()
       expect(store.wishlistIds).toEqual([])
     })
+
+    it('wishlistProducts merges loaded grid products with the fetched cache in wishlist order', async () => {
+      // p1 liegt auf der aktuellen Grid-Seite, p2 nicht → muss nachgeladen werden
+      catalogApi.getProducts.mockResolvedValueOnce({
+        data: [{ id: 'p1', image_url: '/img/1.jpg' }],
+        headers: {},
+      })
+      await store.fetchProducts()
+
+      store.toggleWishlist('p2')
+      store.toggleWishlist('p1')
+
+      catalogApi.getProducts.mockResolvedValueOnce({
+        data: [{ id: 'p2', name: 'Zwei', image_url: '/img/2.jpg' }],
+        headers: {},
+      })
+      await store.fetchWishlistProducts()
+
+      // Nur die fehlende ID (p2) wird angefragt
+      const [opts] = catalogApi.getProducts.mock.calls[1]
+      expect(opts.ids).toEqual(['p2'])
+
+      // Reihenfolge folgt der Merkliste (p2, p1), beide sind aufgelöst
+      expect(store.wishlistProducts.map((p) => p.id)).toEqual(['p2', 'p1'])
+      expect(store.wishlistUnresolvedCount).toBe(0)
+    })
+
+    it('wishlistUnresolvedCount counts ids that could not be resolved', async () => {
+      store.toggleWishlist('missing')
+
+      catalogApi.getProducts.mockResolvedValueOnce({ data: [], headers: {} })
+      await store.fetchWishlistProducts()
+
+      expect(store.wishlistProducts).toEqual([])
+      expect(store.wishlistUnresolvedCount).toBe(1)
+    })
   })
 
   describe('facet filters', () => {

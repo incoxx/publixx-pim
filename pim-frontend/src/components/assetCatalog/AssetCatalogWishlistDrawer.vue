@@ -1,5 +1,5 @@
 <script setup>
-import { computed, inject, ref } from 'vue'
+import { computed, inject, ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
 import { Heart, Trash2, X, Image, Download } from 'lucide-vue-next'
@@ -9,14 +9,20 @@ const { t } = useI18n()
 const store = useAssetCatalogStore()
 const wishlistOpen = inject('wishlistOpen', ref(false))
 
-const wishlistAssets = computed(() => {
-  return store.assets.filter((a) => store.isInWishlist(a.id))
-})
+// Alle Merklisten-Assets (auch solche, die nicht auf der aktuellen Grid-Seite
+// liegen) — der Store lädt fehlende serverseitig nach.
+const wishlistAssets = computed(() => store.wishlistAssets)
 
-const unloadedIds = computed(() => {
-  const loadedIds = new Set(store.assets.map((a) => a.id))
-  return store.wishlistIds.filter((id) => !loadedIds.has(id))
-})
+// Restliche IDs ohne Asset-Daten (gelöscht oder jenseits des Limits)
+const unloadedCount = computed(() => store.wishlistUnresolvedCount)
+
+// Fehlende Merklisten-Assets nachladen, sobald sich die Liste ändert.
+onMounted(() => store.fetchWishlistAssets())
+watch(
+  () => store.wishlistIds.slice(),
+  () => store.fetchWishlistAssets(),
+  { deep: true },
+)
 
 function closeDrawer() {
   wishlistOpen.value = false
@@ -84,10 +90,10 @@ async function downloadAll() {
         </div>
 
         <div
-          v-if="unloadedIds.length > 0"
+          v-if="unloadedCount > 0"
           class="text-center text-xs text-base-content/40 py-2"
         >
-          + {{ unloadedIds.length }} {{ t('assetCatalog.moreAssets') }}
+          + {{ unloadedCount }} {{ t('assetCatalog.moreAssets') }}
         </div>
       </div>
     </div>

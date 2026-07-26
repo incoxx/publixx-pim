@@ -71,10 +71,35 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
     savedWishlist = []
   }
   const wishlistIds = ref(savedWishlist)
+  // Serverseitig nachgeladene Merklisten-Assets, die NICHT auf der aktuellen
+  // Grid-Seite liegen (id -> Asset-Zusammenfassung). Nötig, damit die Merkliste
+  // z. B. eine geteilte Merkliste vollständig anzeigen kann.
+  const wishlistAssetCache = ref({})
 
   // --- Computed ---
   const isEmpty = computed(() => assets.value.length === 0 && !loading.value)
   const wishlistCount = computed(() => wishlistIds.value.length)
+
+  // Alle Merklisten-Assets in Merklisten-Reihenfolge: bevorzugt die bereits im
+  // Grid geladenen Assets, ergänzt um serverseitig nachgeladene aus dem Cache.
+  const wishlistAssets = computed(() => {
+    const byId = {}
+    for (const a of assets.value) byId[a.id] = a
+    const cache = wishlistAssetCache.value
+    const result = []
+    for (const id of wishlistIds.value) {
+      const a = byId[id] || cache[id]
+      if (a) result.push(a)
+    }
+    return result
+  })
+
+  // Merklisten-IDs ohne Asset-Daten (gelöscht oder jenseits des Nachlade-Limits) —
+  // werden als "+ N weitere Assets" zusammengefasst.
+  const wishlistUnresolvedCount = computed(() => {
+    const resolved = new Set(wishlistAssets.value.map((a) => a.id))
+    return wishlistIds.value.filter((id) => !resolved.has(id)).length
+  })
 
   // Automatisch Relevanz-Sort bei aktiver Suche, wenn der User keinen anderen Sort gewählt hat
   const _userChangedSort = ref(false)
@@ -161,6 +186,29 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
       assets.value = []
     } finally {
       loading.value = false
+    }
+  }
+
+  // Lädt Asset-Daten für Merklisten-IDs, die nicht bereits geladen/gecacht sind.
+  async function fetchWishlistAssets() {
+    const loaded = new Set(assets.value.map((a) => a.id))
+    const cache = wishlistAssetCache.value
+    const missing = wishlistIds.value.filter((id) => !loaded.has(id) && !cache[id])
+    if (missing.length === 0) return
+    try {
+      const { data } = await assetCatalogApi.getAssets({
+        ids: missing.slice(0, 200),
+        perPage: 200,
+        lang: locale.value,
+      })
+      const raw = data.data || []
+      const next = { ...wishlistAssetCache.value }
+      for (const a of raw) {
+        next[a.id] = a
+      }
+      wishlistAssetCache.value = next
+    } catch (e) {
+      console.warn('Failed to load wishlist assets:', e.message)
     }
   }
 
@@ -364,6 +412,9 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
     locale,
     wishlistIds,
     wishlistCount,
+    wishlistAssets,
+    wishlistUnresolvedCount,
+    fetchWishlistAssets,
     isEmpty,
     isInWishlist,
     themeSettings,

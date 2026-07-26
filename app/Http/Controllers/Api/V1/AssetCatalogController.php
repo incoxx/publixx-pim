@@ -49,6 +49,30 @@ class AssetCatalogController extends BaseController
         $mediaType = $request->query('media_type');
         $usageTypeId = $request->query('usage_type');
 
+        // Explizite ID-Liste (?ids=uuid,uuid,...): liefert genau diese Assets, ohne
+        // Ordner-/Facetten-/Such-Filter. Von der Merkliste genutzt, um Assets
+        // anzuzeigen, die nicht auf der aktuellen Grid-Seite geladen sind. Auf 200 IDs
+        // begrenzt, um übergroße IN-Abfragen zu vermeiden.
+        $explicitIds = [];
+        $idsParam = $request->query('ids');
+        if (is_string($idsParam) && $idsParam !== '') {
+            $explicitIds = array_slice(
+                array_values(array_unique(array_filter(array_map('trim', explode(',', $idsParam))))),
+                0,
+                200
+            );
+        }
+        $explicitIdsMode = $explicitIds !== [];
+        if ($explicitIdsMode) {
+            // Alle anderen Filter deaktivieren — die Merkliste ist genau diese Liste.
+            $folderId = null;
+            $usagePurpose = null;
+            $mediaType = null;
+            $usageTypeId = null;
+            $search = null;
+            $perPage = count($explicitIds);
+        }
+
         $query = Media::query()->with([
             'attributeValues.attribute',
             'attributeValues.valueListEntry',
@@ -107,8 +131,15 @@ class AssetCatalogController extends BaseController
             });
         }
 
+        // Explizite ID-Liste hat Vorrang vor Ordner-/Facetten-/Such-Filtern.
+        if ($explicitIdsMode) {
+            $query->whereIn('id', $explicitIds);
+        }
+
         // Attribut-Facetten-Filter (aus /asset-catalog/facets ausgewählte Werte)
-        $this->applyFacetFilters($query, $request->query('filters', []));
+        if (!$explicitIdsMode) {
+            $this->applyFacetFilters($query, $request->query('filters', []));
+        }
 
         // Enhanced search
         if ($isSearchActive) {
