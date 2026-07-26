@@ -1062,6 +1062,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::delete('cockpit-profiles/{role}', [\App\Http\Controllers\Api\V1\CockpitProfileController::class, 'destroy']);
 
     Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);
+    Route::get('settings/product-versions', [SettingController::class, 'productVersions']);
+    Route::put('settings/product-versions', [SettingController::class, 'updateProductVersions']);
     Route::post('catalog/check-config', [\App\Http\Controllers\Api\V1\CatalogController::class, 'checkConfig']);
     Route::get('settings/enforced-appearance', [SettingController::class, 'enforcedAppearance']);
     Route::put('settings/enforced-appearance', [SettingController::class, 'updateEnforcedAppearance']);

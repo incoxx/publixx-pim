@@ -34,4 +34,13 @@ export default {
       params: { from: fromId, to: toId },
     })
   },
+
+  // Globales Aufbewahrungslimit (Versionen pro Produkt, 0 = unbegrenzt)
+  getLimit() {
+    return client.get('/settings/product-versions')
+  },
+
+  setLimit(maxPerProduct) {
+    return client.put('/settings/product-versions', { max_per_product: maxPerProduct })
+  },
 }

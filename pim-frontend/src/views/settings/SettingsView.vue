@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
-import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Pencil, Shield, Key, Eye, Monitor, RefreshCw, FileCode2, Activity, HardDrive, Cpu, Check, Zap, Play, Clock, Ban, RotateCw, Power, Terminal, WifiOff, ChevronDown, Search } from 'lucide-vue-next'
+import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Pencil, Shield, Key, Eye, Monitor, RefreshCw, FileCode2, Activity, HardDrive, Cpu, Check, Zap, Play, Clock, Ban, RotateCw, Power, Terminal, WifiOff, ChevronDown, Search, History } from 'lucide-vue-next'
 import { useAppearanceStore, PRESETS, SECTION_ICON_COLORS } from '@/stores/appearance'
 import { useLicenseStore } from '@/stores/license'
 import adminApi from '@/api/admin'
@@ -17,6 +17,7 @@ import { priceTypes as priceTypesApi, relationTypes as relationTypesApi } from '
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import catalogPresets from '@/config/catalogPresets'
 import offlineCatalogApi from '@/api/offlineCatalog'
+import productVersionsApi from '@/api/productVersions'
 import catalogTemplatesApi from '@/api/catalogTemplates'
 import websiteProfilesApi from '@/api/websiteProfiles'
 import searchProfilesApi from '@/api/searchProfiles'
@@ -1816,6 +1817,32 @@ watch(() => themeForm.value.hierarchy_id, (newId, oldId) => {
   }
 })
 
+// ── Produkt-Versionen: globales Aufbewahrungslimit (Versionen pro Produkt) ──
+const versionLimit = ref(null)
+const versionLimitSaving = ref(false)
+const versionLimitSaved = ref(false)
+
+async function loadVersionLimit() {
+  try {
+    const { data } = await productVersionsApi.getLimit()
+    versionLimit.value = data.data?.max_per_product ?? 0
+  } catch { /* GET unkritisch */ }
+}
+
+async function saveVersionLimit() {
+  versionLimitSaving.value = true
+  versionLimitSaved.value = false
+  try {
+    const val = Math.max(0, parseInt(versionLimit.value, 10) || 0)
+    await productVersionsApi.setLimit(val)
+    versionLimit.value = val
+    versionLimitSaved.value = true
+    setTimeout(() => { versionLimitSaved.value = false }, 2000)
+  } finally {
+    versionLimitSaving.value = false
+  }
+}
+
 onMounted(async () => {
   // Deep-Link: /settings?tab=system (z.B. vom App-Footer)
   const requestedTab = route.query.tab
@@ -1825,6 +1852,7 @@ onMounted(async () => {
 
   loadStatus()
   if (isAdmin) {
+    loadVersionLimit()
     await loadThemeSettings()
     loadWebsiteProfiles()
     loadHierarchies()
@@ -3368,6 +3396,27 @@ onUnmounted(() => {
           <button @click="triggerLoadDemo" class="pim-btn pim-btn-danger">Ja, laden</button>
           <button @click="showConfirmDemo = false" class="pim-btn pim-btn-secondary">Abbrechen</button>
         </template>
+      </div>
+    </div>
+
+    <!-- Admin: Produkt-Versionen (zentrales Aufbewahrungslimit für alle Produkte) -->
+    <div v-if="isAdmin" class="pim-card p-4 sm:p-6 space-y-4">
+      <div class="flex items-center gap-3 mb-2">
+        <History class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+        <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Produkt-Versionen</h3>
+      </div>
+      <p class="text-xs text-[var(--color-text-tertiary)]">
+        Maximale Anzahl gespeicherter Versionen pro Produkt (gilt zentral für alle Produkte).
+        Ältere Versionen werden beim Speichern automatisch entfernt; aktive und geplante
+        Versionen bleiben erhalten. 0 = unbegrenzt.
+      </p>
+      <div class="flex items-center gap-2">
+        <label class="text-xs font-medium text-[var(--color-text-secondary)]">Max. Versionen pro Produkt</label>
+        <input v-model.number="versionLimit" type="number" min="0" max="10000" class="pim-input w-28" />
+        <button class="pim-btn pim-btn-primary" :disabled="versionLimitSaving" @click="saveVersionLimit">
+          {{ versionLimitSaving ? 'Speichern…' : 'Speichern' }}
+        </button>
+        <span v-if="versionLimitSaved" class="text-xs text-[var(--color-success)]">✓ gespeichert</span>
       </div>
     </div>
 

@@ -639,6 +639,43 @@ class SettingController extends Controller
     }
 
     /**
+     * GET /api/v1/settings/product-versions
+     *
+     * Liefert das aktuell wirksame Versions-Limit pro Produkt.
+     */
+    public function productVersions(): JsonResponse
+    {
+        $max = app(\App\Services\ProductVersioningService::class)->maxVersionsPerProduct();
+
+        return response()->json(['data' => ['max_per_product' => $max]]);
+    }
+
+    /**
+     * PUT /api/v1/settings/product-versions (admin only)
+     *
+     * Legt fest, wie viele Versionen pro Produkt maximal behalten werden
+     * (0 = unbegrenzt). Ältere Versionen werden beim Anlegen neuer Versionen
+     * automatisch entfernt; aktive und geplante Versionen bleiben unberührt.
+     */
+    public function updateProductVersions(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $validated = $request->validate([
+            'max_per_product' => 'required|integer|min:0|max:10000',
+        ]);
+
+        Setting::setPayload('product_versions', ['max_per_product' => (int) $validated['max_per_product']]);
+
+        return response()->json([
+            'data' => ['max_per_product' => (int) $validated['max_per_product']],
+            'message' => 'Versions-Limit gespeichert.',
+        ]);
+    }
+
+    /**
      * POST /api/v1/settings/typo3-integration/embed-token (admin only)
      *
      * Erzeugt (bzw. erneuert) einen auf catalog:read beschränkten Sanctum-Token
