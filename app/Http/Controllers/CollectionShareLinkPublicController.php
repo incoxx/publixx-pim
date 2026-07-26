@@ -28,6 +28,13 @@ class CollectionShareLinkPublicController extends Controller
             return response()->view('collections.shared.password-gate', ['expired' => true], 410);
         }
 
+        // Passwortlose Links: Der Token allein ist der Zugang — einmalig als Aufruf zählen.
+        if ($link->password_hash === null && $request->session()->get("share_unlocked_{$token}") !== true) {
+            $request->session()->put("share_unlocked_{$token}", true);
+            $link->increment('view_count');
+            $link->forceFill(['last_viewed_at' => now()])->save();
+        }
+
         if ($request->session()->get("share_unlocked_{$token}") === true) {
             $html = $renderService->renderHtml($link->collection);
 
@@ -44,6 +51,11 @@ class CollectionShareLinkPublicController extends Controller
     public function unlock(Request $request, string $token): RedirectResponse
     {
         $link = CollectionShareLink::where('token', $token)->firstOrFail();
+
+        // Passwortlose Links haben keine Eingabemaske; ein POST wäre hier gegenstandslos.
+        if ($link->password_hash === null) {
+            return redirect("/shared/collections/{$token}");
+        }
 
         $request->validate(['password' => 'required|string']);
 

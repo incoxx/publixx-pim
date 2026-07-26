@@ -380,4 +380,100 @@ class CatalogControllerTest extends TestCase
         $this->getJson('/api/v1/catalog/collections/00000000-0000-0000-0000-000000000000/wishlist')
             ->assertNotFound();
     }
+
+    // ─── Katalog-Freigabelink (Token + optionales Passwort, ohne PIM-Login) ───
+
+    private function createShareLink(array $attrs = []): \App\Models\CollectionShareLink
+    {
+        $type = \App\Models\CollectionType::create([
+            'technical_name' => 'angebot-' . \Illuminate\Support\Str::random(6),
+            'name_de' => 'Angebot',
+        ]);
+        $collection = \App\Models\Collection::create([
+            'collection_type_id' => $type->id,
+            'name' => 'Freigabe-Katalog',
+        ]);
+
+        return $collection->shareLinks()->create(array_merge([
+            'token' => \Illuminate\Support\Str::random(48),
+            'password_hash' => \Illuminate\Support\Facades\Hash::make('geheim123'),
+        ], $attrs));
+    }
+
+    public function test_share_info_meldet_passwortpflicht(): void
+    {
+        $link = $this->createShareLink();
+
+        $this->getJson('/api/v1/catalog/share/' . $link->token)
+            ->assertOk()
+            ->assertJsonPath('data.expired', false)
+            ->assertJsonPath('data.requires_password', true)
+            ->assertJsonPath('data.collection_name', 'Freigabe-Katalog');
+    }
+
+    public function test_share_info_410_fuer_abgelaufenen_link(): void
+    {
+        $link = $this->createShareLink(['expires_at' => now()->subDay()]);
+
+        $this->getJson('/api/v1/catalog/share/' . $link->token)
+            ->assertStatus(410)
+            ->assertJsonPath('data.expired', true);
+    }
+
+    public function test_share_unlock_liefert_access_und_produkt_ids(): void
+    {
+        $link = $this->createShareLink();
+        $p1 = Product::factory()->active()->create();
+        $p2 = Product::factory()->active()->create();
+        \App\Models\CollectionItem::create(['collection_id' => $link->collection_id, 'product_id' => $p2->id, 'position' => 2]);
+        \App\Models\CollectionItem::create(['collection_id' => $link->collection_id, 'product_id' => $p1->id, 'position' => 1]);
+
+        $response = $this->postJson('/api/v1/catalog/share/' . $link->token, ['password' => 'geheim123']);
+
+        $response->assertOk()
+            ->assertJsonPath('data.collection_name', 'Freigabe-Katalog')
+            ->assertJsonPath('data.product_ids', [$p1->id, $p2->id]);
+        $this->assertNotEmpty($response->json('data.access'));
+
+        // Zugriffszähler wurde hochgezählt.
+        $this->assertSame(1, $link->fresh()->view_count);
+    }
+
+    public function test_share_unlock_falsches_passwort_422(): void
+    {
+        $link = $this->createShareLink();
+
+        $this->postJson('/api/v1/catalog/share/' . $link->token, ['password' => 'falsch'])
+            ->assertStatus(422);
+
+        $this->assertSame(0, $link->fresh()->view_count);
+    }
+
+    public function test_share_unlock_ohne_passwort_wenn_link_keines_hat(): void
+    {
+        $link = $this->createShareLink(['password_hash' => null]);
+
+        $this->postJson('/api/v1/catalog/share/' . $link->token, [])
+            ->assertOk()
+            ->assertJsonStructure(['data' => ['access', 'collection_name', 'product_ids']]);
+    }
+
+    public function test_share_access_token_oeffnet_login_gesicherten_katalog(): void
+    {
+        // Katalog auf Login-Zwang stellen — ohne Auth/Token ist /products dann gesperrt.
+        $this->createActiveProfile(['catalog_access_mode' => 'login']);
+        $this->createIndexedProduct(['name' => 'Freigegeben']);
+
+        $this->getJson('/api/v1/catalog/products')->assertUnauthorized();
+
+        // Über den Freigabelink ein Access-Token holen …
+        $link = $this->createShareLink();
+        $access = $this->postJson('/api/v1/catalog/share/' . $link->token, ['password' => 'geheim123'])
+            ->assertOk()
+            ->json('data.access');
+
+        // … und damit den Katalog ohne PIM-Login öffnen.
+        $this->getJson('/api/v1/catalog/products', ['X-Catalog-Share' => $access])
+            ->assertOk();
+    }
 }

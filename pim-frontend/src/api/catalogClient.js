@@ -9,11 +9,21 @@ const catalogClient = axios.create({
   timeout: 15000,
 })
 
+// Key für das Freigabelink-Access-Token (von /catalog/share/{token} ausgegeben).
+// sessionStorage statt localStorage: gilt nur für den aktuellen Tab/die Sitzung des
+// Empfängers und wird nicht dauerhaft auf fremden Geräten gespeichert.
+export const CATALOG_SHARE_KEY = 'pim_catalog_share_access'
+
 // Attach auth token when available (needed for login-protected catalog mode)
 catalogClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('pim_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  // Freigabelink-Zugang: erlaubt Katalogzugriff ohne PIM-Login.
+  const shareAccess = sessionStorage.getItem(CATALOG_SHARE_KEY)
+  if (shareAccess) {
+    config.headers['X-Catalog-Share'] = shareAccess
   }
   return config
 })

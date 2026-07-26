@@ -107,4 +107,13 @@ export default {
   getCollectionWishlist(collectionId) {
     return catalogClient.get(`/catalog/collections/${collectionId}/wishlist`)
   },
+
+  // Freigabelink: Info (Passwort nötig? abgelaufen?) und Entsperren.
+  getShareInfo(token) {
+    return catalogClient.get(`/catalog/share/${token}`)
+  },
+
+  unlockShare(token, password) {
+    return catalogClient.post(`/catalog/share/${token}`, { password: password || undefined })
+  },
 }
