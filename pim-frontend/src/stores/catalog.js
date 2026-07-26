@@ -239,6 +239,40 @@ export const useCatalogStore = defineStore('catalog', () => {
     window.history.replaceState({}, '', newUrl)
   }
 
+  // --- Collection als Merkliste (Deeplink ?collection=<id>) ---
+  // Der kuratierte Katalog gibt nur die Collection-Referenz mit, nicht die Produkt-
+  // liste selbst — so bleibt die URL konstant kurz, egal wie viele Produkte drin sind.
+  // Der Katalog holt die Produkt-IDs serverseitig auf und ERSETZT die Merkliste
+  // (die Collection = genau diese Produkte).
+  const collectionInfo = ref(null)
+
+  async function loadWishlistFromCollection(collectionId) {
+    if (!collectionId) return null
+    try {
+      const { data } = await catalogApi.getCollectionWishlist(collectionId)
+      const ids = data?.data?.product_ids || []
+      wishlistIds.value = [...ids]
+      collectionInfo.value = { id: collectionId, name: data?.data?.name || null, count: ids.length }
+      return collectionInfo.value
+    } catch (e) {
+      console.warn('Failed to load collection wishlist:', e.message)
+      return null
+    }
+  }
+
+  async function importCollectionFromUrl() {
+    const params = new URLSearchParams(window.location.search)
+    const collectionId = params.get('collection')
+    if (!collectionId) return
+    await loadWishlistFromCollection(collectionId)
+    // Clean the URL (Collection-Referenz nicht dauerhaft in der Adresszeile lassen)
+    params.delete('collection')
+    const newUrl = params.toString()
+      ? `${window.location.pathname}?${params.toString()}`
+      : window.location.pathname
+    window.history.replaceState({}, '', newUrl)
+  }
+
   // Navigation
   function setSearch(term) {
     search.value = term
@@ -385,6 +419,9 @@ export const useCatalogStore = defineStore('catalog', () => {
     toggleWishlist,
     clearWishlist,
     importWishlistFromUrl,
+    collectionInfo,
+    loadWishlistFromCollection,
+    importCollectionFromUrl,
     setSearch,
     setCategory,
     clearCategory,

@@ -1884,6 +1884,53 @@ class CatalogController extends BaseController
      *
      * Compare 2-3 products across all attributes.
      */
+    /**
+     * Löst eine Collection in eine geordnete Liste von Produkt-IDs auf, damit der
+     * Preview-Katalog sie als Merkliste laden kann (Deeplink ?collection=<id>).
+     *
+     * Wir geben nur die Produkt-IDs zurück statt sie in die URL zu packen — so bleibt
+     * der teilbare Katalog-Link konstant kurz, egal ob 10 oder 5.000 Positionen.
+     * Freitext-Positionen (ohne product_id) werden ausgelassen, die Positions-
+     * Reihenfolge der Collection bleibt erhalten, und nur im Katalog sichtbare
+     * (aktive) Produkte werden zurückgegeben.
+     */
+    public function collectionWishlist(string $collection): JsonResponse
+    {
+        $col = \App\Models\Collection::find($collection);
+
+        if ($col === null) {
+            return response()->json(['message' => 'Collection nicht gefunden.'], 404);
+        }
+
+        // Produkt-IDs in Positions-Reihenfolge; Freitext-Positionen ohne Produkt auslassen.
+        $orderedIds = $col->items()
+            ->whereNotNull('product_id')
+            ->orderBy('position')
+            ->pluck('product_id')
+            ->all();
+
+        $productIds = [];
+        if ($orderedIds !== []) {
+            // Nur aktive (im Katalog sichtbare) Produkte behalten, Reihenfolge bewahren.
+            $activeSet = array_flip(
+                Product::where('status', 'active')
+                    ->whereIn('id', $orderedIds)
+                    ->pluck('id')
+                    ->all()
+            );
+            $productIds = array_values(
+                array_filter($orderedIds, static fn ($id) => isset($activeSet[$id]))
+            );
+        }
+
+        return response()->json([
+            'data' => [
+                'name' => $col->name,
+                'product_ids' => $productIds,
+            ],
+        ]);
+    }
+
     public function compareProducts(Request $request): JsonResponse
     {
         $themePayload = WebsiteProfile::getActivePayload();

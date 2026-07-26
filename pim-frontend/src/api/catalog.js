@@ -102,4 +102,9 @@ export default {
       lang,
     })
   },
+
+  // Löst eine Collection in ihre Produkt-IDs auf (für Deeplink ?collection=<id>).
+  getCollectionWishlist(collectionId) {
+    return catalogClient.get(`/catalog/collections/${collectionId}/wishlist`)
+  },
 }

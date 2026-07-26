@@ -258,6 +258,9 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
             Route::get('attribute-groups', [CatalogController::class, 'attributeGroups']);
         });
 
+        // Collection als Merkliste laden (Deeplink ?collection=<id> im Preview-Katalog)
+        Route::get('collections/{collection}/wishlist', [CatalogController::class, 'collectionWishlist']);
+
         // PDF, Excel & Compare
         Route::get('products/{product}/pdf', [CatalogController::class, 'productPdf']);
         Route::post('wishlist/pdf', [CatalogController::class, 'wishlistPdf']);
