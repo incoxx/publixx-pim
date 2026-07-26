@@ -64,7 +64,7 @@ class ProductSnapshotSerializer
             'mediaAssignments.usageType',
             'outgoingRelations.targetProduct',
             'outgoingRelations.relationType',
-            'outgoingRelations.attributeValues',
+            'outgoingRelations.attributeValues.attribute',
             'outputHierarchyAssignments.hierarchyNode',
         ]);
 
@@ -118,23 +118,135 @@ class ProductSnapshotSerializer
             foreach ($keys as $key) {
                 $oldItem = $oldItems[$key] ?? null;
                 $newItem = $newItems[$key] ?? null;
-
-                $oldValue = $this->displayOf($oldItem);
-                $newValue = $this->displayOf($newItem);
                 $label = $newItem['label'] ?? $oldItem['label'] ?? $key;
 
-                $fields[] = [
-                    'field' => "{$type}:{$key}",
-                    'label' => $label,
-                    'old_value' => $oldValue,
-                    'new_value' => $newValue,
-                    'changed' => $oldValue !== $newValue,
-                    'type' => $type,
-                ];
+                // Attribute: eine Zeile pro Attribut (direkter Wertvergleich).
+                if ($section === 'attributes') {
+                    $oldValue = $this->displayOf($oldItem);
+                    $newValue = $this->displayOf($newItem);
+                    $fields[] = $this->row("{$type}:{$key}", $label, $oldValue, $newValue, $oldValue !== $newValue, $type);
+
+                    continue;
+                }
+
+                // Hinzugefügt oder entfernt → eine Zusammenfassungszeile.
+                if ($oldItem === null || $newItem === null) {
+                    $fields[] = $this->row(
+                        "{$type}:{$key}",
+                        $label,
+                        $this->displayOf($oldItem),
+                        $this->displayOf($newItem),
+                        true,
+                        $type,
+                    );
+
+                    continue;
+                }
+
+                // In beiden vorhanden → alle Detailfelder vergleichen (tiefer Diff).
+                $oldDesc = $this->describeItem($section, $oldItem);
+                $newDesc = $this->describeItem($section, $newItem);
+                $subKeys = array_unique(array_merge(array_keys($oldDesc), array_keys($newDesc)));
+                sort($subKeys);
+
+                $changedRows = [];
+                foreach ($subKeys as $sub) {
+                    $subOld = $oldDesc[$sub] ?? null;
+                    $subNew = $newDesc[$sub] ?? null;
+                    if ($subOld !== $subNew) {
+                        $changedRows[] = $this->row("{$type}:{$key}:{$sub}", "{$label} · {$sub}", $subOld, $subNew, true, $type);
+                    }
+                }
+
+                if ($changedRows === []) {
+                    // Unverändert → kompakte Zusammenfassungszeile.
+                    $fields[] = $this->row(
+                        "{$type}:{$key}",
+                        $label,
+                        $this->displayOf($oldItem),
+                        $this->displayOf($newItem),
+                        false,
+                        $type,
+                    );
+                } else {
+                    array_push($fields, ...$changedRows);
+                }
             }
         }
 
         return ['fields' => $fields];
+    }
+
+    private function row(string $field, string $label, mixed $oldValue, mixed $newValue, bool $changed, string $type): array
+    {
+        return [
+            'field' => $field,
+            'label' => $label,
+            'old_value' => $oldValue,
+            'new_value' => $newValue,
+            'changed' => $changed,
+            'type' => $type,
+        ];
+    }
+
+    /**
+     * Zerlegt einen Sektions-Eintrag in vergleichbare, lesbare Detailfelder.
+     *
+     * @return array<string, mixed>
+     */
+    private function describeItem(string $section, array $item): array
+    {
+        $raw = $item['raw'] ?? [];
+
+        return match ($section) {
+            'prices' => [
+                'Betrag' => trim(((string) ($raw['amount'] ?? '')) . ' ' . ($raw['currency'] ?? '')),
+                'Gültig ab' => $raw['valid_from'] ?? null,
+                'Gültig bis' => $raw['valid_to'] ?? null,
+                'Staffel ab' => $raw['scale_from'] ?? null,
+                'Staffel bis' => $raw['scale_to'] ?? null,
+                'Region' => $raw['price_region_id'] ?? null,
+            ],
+            'media' => [
+                'Position' => (string) ($raw['sort_order'] ?? 0),
+                'Primär' => ! empty($raw['is_primary']) ? 'Ja' : 'Nein',
+            ],
+            'relations' => $this->describeRelation($item),
+            'output_hierarchies' => [
+                'Position' => (string) ($raw['sort_order'] ?? 0),
+            ],
+            default => ['Wert' => $item['value'] ?? null],
+        };
+    }
+
+    /**
+     * Beziehung → Position + je Beziehungs-Attributwert eine lesbare Zeile.
+     *
+     * @return array<string, mixed>
+     */
+    private function describeRelation(array $item): array
+    {
+        $raw = $item['raw'] ?? [];
+        $labels = $item['attr_labels'] ?? [];
+
+        $desc = ['Position' => (string) ($raw['sort_order'] ?? 0)];
+
+        foreach ($raw['attributes'] ?? [] as $ra) {
+            $name = $labels[$ra['attribute_id']] ?? $ra['attribute_id'];
+            $lang = ! empty($ra['language']) ? " ({$ra['language']})" : '';
+            $desc["Attr: {$name}{$lang}"] = $this->relationAttributeValue($ra);
+        }
+
+        return $desc;
+    }
+
+    private function relationAttributeValue(array $ra): ?string
+    {
+        return $ra['value_string']
+            ?? ($ra['value_number'] ?? null)
+            ?? ($ra['value_date'] ?? null)
+            ?? (isset($ra['value_flag']) && $ra['value_flag'] !== null ? ($ra['value_flag'] ? 'Ja' : 'Nein') : null)
+            ?? ($ra['value_selection_id'] ?? null);
     }
 
     /**
@@ -142,7 +254,34 @@ class ProductSnapshotSerializer
      */
     public function equals(array $a, array $b): bool
     {
-        return $this->canonical($a) === $this->canonical($b);
+        return $this->canonical($this->restoreProjection($a))
+            === $this->canonical($this->restoreProjection($b));
+    }
+
+    /**
+     * Reduziert einen Snapshot auf die restore-relevanten Daten (Basisfelder +
+     * raw je Sektion). Anzeige-Felder (label/value/attr_labels) bleiben außen vor,
+     * damit reine Namens-/Label-Änderungen den Dedup-Vergleich nicht beeinflussen.
+     *
+     * @param  array<string, mixed>  $snapshot
+     * @return array<string, mixed>
+     */
+    private function restoreProjection(array $snapshot): array
+    {
+        $projection = [];
+
+        foreach (self::BASE_FIELDS as $field) {
+            $projection[$field] = $snapshot[$field] ?? null;
+        }
+
+        foreach (array_keys(self::SECTIONS) as $section) {
+            $projection[$section] = [];
+            foreach ($snapshot[$section] ?? [] as $key => $item) {
+                $projection[$section][$key] = $item['raw'] ?? [];
+            }
+        }
+
+        return $projection;
     }
 
     private function displayOf(?array $item): mixed
@@ -279,8 +418,13 @@ class ProductSnapshotSerializer
             $type = $relation->relationType?->technical_name ?? 'Beziehung';
             $targetSku = $relation->targetProduct?->sku ?? $relation->target_product_id;
 
+            // Beziehungs-Attributwerte stabil nach attribute_id sortieren, damit
+            // Snapshot/Dedup reihenfolgeunabhängig sind.
+            $sortedRav = $relation->attributeValues->sortBy('attribute_id')->values();
+
             $relAttrs = [];
-            foreach ($relation->attributeValues as $rav) {
+            $attrLabels = [];
+            foreach ($sortedRav as $rav) {
                 $relAttrs[] = [
                     'attribute_id' => $rav->attribute_id,
                     'value_string' => $rav->value_string,
@@ -292,12 +436,16 @@ class ProductSnapshotSerializer
                     'language' => $rav->language,
                     'multiplied_index' => $rav->multiplied_index ?? 0,
                 ];
+                $attrLabels[$rav->attribute_id] = $rav->attribute?->name_de
+                    ?? $rav->attribute?->technical_name
+                    ?? $rav->attribute_id;
             }
 
             $relations[$key] = [
                 'label' => "{$type} → {$targetSku}",
                 'value' => 'Pos ' . ($relation->sort_order ?? 0)
                     . (count($relAttrs) > 0 ? ', ' . count($relAttrs) . ' Attr.' : ''),
+                'attr_labels' => $attrLabels,
                 'raw' => [
                     'target_product_id' => $relation->target_product_id,
                     'relation_type_id' => $relation->relation_type_id,
