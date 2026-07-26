@@ -91,6 +91,18 @@ function update(value) {
   emit('update:modelValue', value)
 }
 
+// ─── Zahl-Anzeige ────────────────────────────────────
+// value_number kommt aus der DB als DECIMAL (z.B. "5.00"). Für den Typ
+// "Ganzzahl" (number) muss der Wert ohne Nachkommastellen dargestellt werden,
+// damit Typ und Darstellung übereinstimmen. Dezimalzahlen bleiben unverändert.
+const numberDisplayValue = computed(() => {
+  const v = props.modelValue
+  if (v === null || v === undefined || v === '') return ''
+  const num = typeof v === 'number' ? v : parseFloat(v)
+  if (Number.isNaN(num)) return v
+  return props.type === 'number' ? Math.round(num) : num
+})
+
 // ─── Link data type helpers ───────────────────────────
 const LINK_TYPES = ['hyperlink', 'imagelink', 'pdflink', 'videolink']
 
@@ -176,7 +188,7 @@ function dvCancelEdit() {
     v-else-if="type === 'number' || type === 'decimal'"
     type="number"
     :class="inputClass"
-    :value="modelValue"
+    :value="numberDisplayValue"
     :placeholder="placeholder"
     :disabled="disabled"
     :min="min"
