@@ -1158,6 +1158,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
         Route::get('collections/{collection}/share-links', [\App\Http\Controllers\Api\V1\CollectionShareLinkController::class, 'index']);
         Route::post('collections/{collection}/share-links', [\App\Http\Controllers\Api\V1\CollectionShareLinkController::class, 'store']);
+        Route::patch('collections/{collection}/share-links/{shareLink}', [\App\Http\Controllers\Api\V1\CollectionShareLinkController::class, 'update']);
         Route::delete('collections/{collection}/share-links/{shareLink}', [\App\Http\Controllers\Api\V1\CollectionShareLinkController::class, 'destroy']);
     });
 
