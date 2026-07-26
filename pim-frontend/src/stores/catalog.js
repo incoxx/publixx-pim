@@ -254,6 +254,20 @@ export const useCatalogStore = defineStore('catalog', () => {
     }
   }
 
+  // --- Produktdetail-Modal (gemeinsam genutzt: Grid + Merkliste) ---
+  const detailProductId = ref(null)
+  const detailOpen = ref(false)
+
+  function openProductDetail(productId) {
+    detailProductId.value = productId
+    detailOpen.value = true
+  }
+
+  function closeProductDetail() {
+    detailOpen.value = false
+    detailProductId.value = null
+  }
+
   // Wishlist
   function toggleWishlist(productId) {
     const idx = wishlistIds.value.indexOf(productId)
@@ -505,6 +519,10 @@ export const useCatalogStore = defineStore('catalog', () => {
     wishlistProducts,
     wishlistUnresolvedCount,
     fetchWishlistProducts,
+    detailProductId,
+    detailOpen,
+    openProductDetail,
+    closeProductDetail,
     isEmpty,
     isInWishlist,
     searchActive,
