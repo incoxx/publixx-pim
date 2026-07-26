@@ -61,6 +61,26 @@ class CatalogController extends BaseController
         $categoryId = $request->query('category');
         $hierarchyType = $request->query('hierarchy_type', 'master');
 
+        // Explizite ID-Liste (?ids=uuid,uuid,...): liefert genau diese aktiven
+        // Produkte, ohne Kategorie-/Facetten-/Such-Filter. Von der Merkliste genutzt,
+        // um Produkte anzuzeigen, die nicht auf der aktuellen Grid-Seite geladen sind
+        // (z. B. eine als Merkliste geöffnete Collection). Auf 200 IDs begrenzt, um
+        // übergroße IN-Abfragen zu vermeiden.
+        $explicitIds = [];
+        $idsParam = $request->query('ids');
+        if (is_string($idsParam) && $idsParam !== '') {
+            $explicitIds = array_slice(
+                array_values(array_unique(array_filter(array_map('trim', explode(',', $idsParam))))),
+                0,
+                200
+            );
+        }
+        $explicitIdsMode = $explicitIds !== [];
+        if ($explicitIdsMode) {
+            // Alle angeforderten IDs auf einer einzigen Seite zurückgeben.
+            $perPage = count($explicitIds);
+        }
+
         $themePayload = WebsiteProfile::getActivePayload();
 
         $query = ProductSearchIndex::query()
@@ -71,10 +91,12 @@ class CatalogController extends BaseController
         // Suchprofil als versteckter Basis-Filter (aus Katalog-Einstellungen)
         $this->applySearchProfileFilter($query, $themePayload['search_profile_id'] ?? null);
 
-        $isSearchActive = $search && trim($search) !== '';
+        $isSearchActive = !$explicitIdsMode && $search && trim($search) !== '';
 
-        // Search overrides all other filters (category + facets)
-        if ($isSearchActive) {
+        // Explizite ID-Liste hat Vorrang vor Suche/Kategorie/Facetten.
+        if ($explicitIdsMode) {
+            $query->whereIn('products.id', $explicitIds);
+        } elseif ($isSearchActive) {
             $term = trim($search);
             $likeTerm = '%' . $term . '%';
 

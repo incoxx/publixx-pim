@@ -35,6 +35,10 @@ function buildParams(options = {}) {
   if (options.lang) params.lang = options.lang
   if (options.type) params.type = options.type
   if (options.hierarchyId) params.hierarchy_id = options.hierarchyId
+  // Explizite ID-Liste (z. B. Merkliste): genau diese Produkte laden
+  if (options.ids) {
+    params.ids = Array.isArray(options.ids) ? options.ids.join(',') : options.ids
+  }
   if (options.filters) {
     for (const [attrId, value] of Object.entries(options.filters)) {
       params[`filters[${attrId}]`] = value

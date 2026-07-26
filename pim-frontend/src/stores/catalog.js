@@ -86,6 +86,10 @@ export const useCatalogStore = defineStore('catalog', () => {
   // --- Wishlist (localStorage-backed) ---
   const WISHLIST_KEY = 'pim_catalog_wishlist'
   const wishlistIds = ref(JSON.parse(localStorage.getItem(WISHLIST_KEY) || '[]'))
+  // Serverseitig nachgeladene Merklisten-Produkte, die NICHT auf der aktuellen
+  // Grid-Seite liegen (id -> Produkt-Zusammenfassung). Nötig, damit die Merkliste
+  // z. B. eine als Merkliste geöffnete Collection vollständig anzeigen kann.
+  const wishlistProductCache = ref({})
 
   // --- Computed ---
   const isEmpty = computed(() => products.value.length === 0 && !loading.value)
@@ -94,6 +98,51 @@ export const useCatalogStore = defineStore('catalog', () => {
 
   function isInWishlist(productId) {
     return wishlistIds.value.includes(productId)
+  }
+
+  // Alle Merklisten-Produkte in Merklisten-Reihenfolge: bevorzugt die bereits im
+  // Grid geladenen Produkte, ergänzt um serverseitig nachgeladene aus dem Cache.
+  const wishlistProducts = computed(() => {
+    const byId = {}
+    for (const p of products.value) byId[p.id] = p
+    const cache = wishlistProductCache.value
+    const result = []
+    for (const id of wishlistIds.value) {
+      const p = byId[id] || cache[id]
+      if (p) result.push(p)
+    }
+    return result
+  })
+
+  // Merklisten-IDs, für die (noch) keine Produktdaten vorliegen — z. B. inaktive/
+  // gelöschte Produkte oder solche jenseits des Nachlade-Limits. Diese werden in der
+  // Merkliste als "+ N weitere Produkte" zusammengefasst.
+  const wishlistUnresolvedCount = computed(() => {
+    const resolved = new Set(wishlistProducts.value.map((p) => p.id))
+    return wishlistIds.value.filter((id) => !resolved.has(id)).length
+  })
+
+  // Lädt Produktdaten für Merklisten-IDs, die nicht bereits geladen/gecacht sind.
+  async function fetchWishlistProducts() {
+    const loaded = new Set(products.value.map((p) => p.id))
+    const cache = wishlistProductCache.value
+    const missing = wishlistIds.value.filter((id) => !loaded.has(id) && !cache[id])
+    if (missing.length === 0) return
+    try {
+      const resp = await catalogApi.getProducts({
+        ids: missing.slice(0, 200),
+        perPage: 200,
+        lang: locale.value,
+      })
+      const raw = Array.isArray(resp.data) ? resp.data : resp.data.data || resp.data
+      const next = { ...wishlistProductCache.value }
+      for (const p of raw) {
+        next[p.id] = { ...p, image_url: resolveMediaUrl(p.image_url) }
+      }
+      wishlistProductCache.value = next
+    } catch (e) {
+      console.warn('Failed to load wishlist products:', e.message)
+    }
   }
 
   // Persist wishlist
@@ -453,6 +502,9 @@ export const useCatalogStore = defineStore('catalog', () => {
     locale,
     wishlistIds,
     wishlistCount,
+    wishlistProducts,
+    wishlistUnresolvedCount,
+    fetchWishlistProducts,
     isEmpty,
     isInWishlist,
     searchActive,

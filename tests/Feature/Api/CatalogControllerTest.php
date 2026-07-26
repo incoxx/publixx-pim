@@ -150,6 +150,42 @@ class CatalogControllerTest extends TestCase
             ->assertHeader('X-Per-Page', '2');
     }
 
+    public function test_products_ids_liefert_nur_angeforderte_produkte(): void
+    {
+        $eins = $this->createIndexedProduct(['name' => 'Merk Eins'], ['name_de' => 'Merk Eins']);
+        $zwei = $this->createIndexedProduct(['name' => 'Merk Zwei'], ['name_de' => 'Merk Zwei']);
+        // Weiteres Produkt, das NICHT angefragt wird, darf nicht erscheinen.
+        $this->createIndexedProduct(['name' => 'Nicht Gemerkt'], ['name_de' => 'Nicht Gemerkt']);
+
+        $response = $this->getJson('/api/v1/catalog/products?ids=' . $eins->id . ',' . $zwei->id);
+
+        $response->assertOk()
+            ->assertJsonCount(2)
+            ->assertHeader('X-Total-Count', '2');
+
+        $returnedIds = collect($response->json())->pluck('id')->all();
+        $this->assertEqualsCanonicalizing([$eins->id, $zwei->id], $returnedIds);
+    }
+
+    public function test_products_ids_ignoriert_inaktive_und_unbekannte(): void
+    {
+        $aktiv = $this->createIndexedProduct(['name' => 'Aktiv Merk'], ['name_de' => 'Aktiv Merk']);
+
+        $draft = Product::factory()->create(['status' => 'draft']);
+        ProductSearchIndex::updateOrCreate(
+            ['product_id' => $draft->id],
+            ['sku' => $draft->sku, 'name_de' => $draft->name, 'status' => 'draft', 'product_type' => 'product']
+        );
+
+        $unbekannt = '00000000-0000-0000-0000-000000000000';
+
+        $response = $this->getJson('/api/v1/catalog/products?ids=' . $aktiv->id . ',' . $draft->id . ',' . $unbekannt);
+
+        $response->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.id', $aktiv->id);
+    }
+
     // ── GET /catalog/products/{product} ──────────────────────────────
 
     public function test_product_detail_liefert_aktives_produkt(): void
