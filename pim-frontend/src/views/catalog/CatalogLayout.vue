@@ -7,7 +7,6 @@ import CatalogSidebar from '@/components/catalog/CatalogSidebar.vue'
 import CatalogFacets from '@/components/catalog/CatalogFacets.vue'
 import CatalogWishlistDrawer from '@/components/catalog/CatalogWishlistDrawer.vue'
 import CatalogCompareModal from '@/components/catalog/CatalogCompareModal.vue'
-import CatalogProductModal from '@/components/catalog/CatalogProductModal.vue'
 import CatalogFooter from '@/components/catalog/CatalogFooter.vue'
 import CatalogShareGate from '@/components/catalog/CatalogShareGate.vue'
 import { SlidersHorizontal } from 'lucide-vue-next'
@@ -22,8 +21,6 @@ const shareToken = ref(store.getShareTokenFromUrl())
 const shareGateActive = ref(!!shareToken.value)
 const showCompare = ref(false)
 const compareProductIds = ref([])
-const detailProductId = ref(null)
-const showDetail = ref(false)
 const themeRoot = ref(null)
 
 // Resizable sidebar
@@ -87,18 +84,6 @@ function startFacetResize(e) {
 function handleOpenCompare(ids) {
   compareProductIds.value = ids
   showCompare.value = true
-}
-
-// Produktdetail aus der Merkliste: Modal auf Layout-Ebene öffnen (wie beim Vergleich),
-// die Merkliste bleibt darunter offen.
-function handleOpenDetail(productId) {
-  detailProductId.value = productId
-  showDetail.value = true
-}
-
-function closeDetail() {
-  showDetail.value = false
-  detailProductId.value = null
 }
 
 // Provide wishlist state to child components (Header, WishlistDrawer)
@@ -261,10 +246,7 @@ onMounted(async () => {
         <div class="absolute inset-0 bg-black/40" @click="wishlistOpen = false"></div>
         <Transition name="wishlist-slide" appear>
           <div class="absolute inset-y-0 right-0 shadow-2xl">
-            <CatalogWishlistDrawer
-              @open-compare="handleOpenCompare"
-              @open-detail="handleOpenDetail"
-            />
+            <CatalogWishlistDrawer @open-compare="handleOpenCompare" />
           </div>
         </Transition>
       </div>
@@ -275,13 +257,6 @@ onMounted(async () => {
       :open="showCompare"
       :product-ids="compareProductIds"
       @update:open="showCompare = $event"
-    />
-
-    <!-- Produktdetail aus der Merkliste -->
-    <CatalogProductModal
-      :product-id="detailProductId"
-      :open="showDetail"
-      @close="closeDetail"
     />
 
     <!-- Freigabelink-Gate (Token/Passwort) — deckt den Katalog bis zur Freischaltung ab -->

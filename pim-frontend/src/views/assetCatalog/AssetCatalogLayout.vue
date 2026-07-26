@@ -15,8 +15,10 @@ const detailAssetId = ref(null)
 const showDetail = ref(false)
 const themeRoot = ref(null)
 
-// Asset-Detail aus der Merkliste: Modal auf Layout-Ebene öffnen.
+// Asset-Detail aus der Merkliste: Merkliste schließen und Detail-Modal öffnen.
+// (Der Asset-Katalog hat keine eigene Detailseite — daher Modal statt Navigation.)
 function handleOpenDetail(assetId) {
+  wishlistOpen.value = false
   detailAssetId.value = assetId
   showDetail.value = true
 }

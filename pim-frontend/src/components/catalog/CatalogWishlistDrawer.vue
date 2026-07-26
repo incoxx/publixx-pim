@@ -1,25 +1,26 @@
 <script setup>
 import { computed, inject, ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useCatalogStore } from '@/stores/catalog'
 import { Heart, Trash2, X, Package, FileDown, Sheet, GitCompareArrows, Share2, Check } from 'lucide-vue-next'
 import catalogApi from '@/api/catalog'
 import { triggerDownload } from '@/utils/download'
 
-const emit = defineEmits(['open-compare', 'open-detail'])
+const emit = defineEmits(['open-compare'])
 
 const { t } = useI18n()
+const router = useRouter()
 const store = useCatalogStore()
 const wishlistOpen = inject('wishlistOpen')
 
 const exporting = ref(null) // 'pdf' | 'excel' | null
 const linkCopied = ref(false)
 
-// Produktdetail öffnen: nach oben ans Layout melden, das (wie beim Vergleich) das
-// Modal auf Layout-Ebene rendert — die Merkliste selbst liegt in einem eigenen
-// Overlay und kann das Detail-Modal nicht sauber darüber anzeigen.
+// Produktdetail öffnen: Merkliste schließen und zur Detailseite navigieren.
 function openDetail(product) {
-  emit('open-detail', product.id)
+  wishlistOpen.value = false
+  router.push({ name: 'catalog-product', params: { id: product.id } })
 }
 
 // Alle Merklisten-Produkte (auch solche, die nicht auf der aktuellen Grid-Seite
