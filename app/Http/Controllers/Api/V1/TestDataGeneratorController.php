@@ -55,14 +55,16 @@ class TestDataGeneratorController extends Controller
             : null;
 
         try {
-            $result = $this->service->generate(
+            // Massen-Generierung nicht ins Änderungsprotokoll schreiben
+            // (läuft synchron im Auth-Kontext, würde die Tabelle sonst fluten).
+            $result = \App\Support\AuditContext::withoutAuditing(fn () => $this->service->generate(
                 count: $count,
                 withPrices: $withPrices,
                 categoryCount: $categoryCount,
                 categoryDepth: $categoryDepth,
                 attributesPerProduct: $attributesPerProduct,
                 userId: $request->user()->id,
-            );
+            ));
 
             Log::info('Test data generated via API', [
                 'user' => $request->user()->email,
