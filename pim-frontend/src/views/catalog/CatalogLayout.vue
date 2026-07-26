@@ -8,11 +8,17 @@ import CatalogFacets from '@/components/catalog/CatalogFacets.vue'
 import CatalogWishlistDrawer from '@/components/catalog/CatalogWishlistDrawer.vue'
 import CatalogCompareModal from '@/components/catalog/CatalogCompareModal.vue'
 import CatalogFooter from '@/components/catalog/CatalogFooter.vue'
+import CatalogShareGate from '@/components/catalog/CatalogShareGate.vue'
 import { SlidersHorizontal } from 'lucide-vue-next'
 
 const store = useCatalogStore()
 const sidebarOpen = ref(false)
 const wishlistOpen = ref(false)
+
+// Freigabelink-Zugang (?share=<token>): Gate blendet sich über den Katalog, bis
+// Token/Passwort geprüft sind. Erst danach werden die (ggf. login-gesicherten) Daten geladen.
+const shareToken = ref(store.getShareTokenFromUrl())
+const shareGateActive = ref(!!shareToken.value)
 const showCompare = ref(false)
 const compareProductIds = ref([])
 const themeRoot = ref(null)
@@ -88,16 +94,36 @@ provide('sidebarOpen', sidebarOpen)
 const themeSettingsRef = computed(() => store.themeSettings)
 useThemeApplicator(themeRoot, themeSettingsRef)
 
+function openWishlistIfCollectionLoaded() {
+  if (store.collectionInfo && store.collectionInfo.count > 0) {
+    wishlistOpen.value = true
+  }
+}
+
+async function onShareUnlocked() {
+  // Nach erfolgreicher Freischaltung: Gate entfernen, Daten laden, Merkliste zeigen.
+  // Produkte neu laden — der erste Versuch von CatalogView lief noch vor dem Entsperren
+  // (im login-gesicherten Modus mit 401).
+  shareGateActive.value = false
+  store.clearShareParamFromUrl()
+  store.fetchProducts()
+  store.fetchCategories()
+  store.fetchFacets()
+  openWishlistIfCollectionLoaded()
+}
+
 onMounted(async () => {
+  // Theme zuerst — enthält access_mode und hierarchy_id (von fetchCategories benötigt).
+  await store.fetchThemeSettings()
+
+  // Freigabelink: Gate übernimmt das Laden nach dem Entsperren (siehe onShareUnlocked).
+  if (shareGateActive.value) return
+
   // Collection-Deeplink (?collection=<id>) ersetzt die Merkliste durch die
   // kuratierte Produktliste; ?wishlist=<ids> ergänzt sie wie bisher.
   await store.importCollectionFromUrl()
   store.importWishlistFromUrl()
-  // Kam der Katalog über eine Collection, Merkliste direkt aufklappen.
-  if (store.collectionInfo && store.collectionInfo.count > 0) {
-    wishlistOpen.value = true
-  }
-  await store.fetchThemeSettings()
+  openWishlistIfCollectionLoaded()
   store.fetchCategories()
   store.fetchFacets()
 })
@@ -231,6 +257,13 @@ onMounted(async () => {
       :open="showCompare"
       :product-ids="compareProductIds"
       @update:open="showCompare = $event"
+    />
+
+    <!-- Freigabelink-Gate (Token/Passwort) — deckt den Katalog bis zur Freischaltung ab -->
+    <CatalogShareGate
+      v-if="shareGateActive"
+      :token="shareToken"
+      @unlocked="onShareUnlocked"
     />
   </div>
 </template>

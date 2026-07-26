@@ -242,6 +242,11 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
     });
     Route::get('media/{filename}', [CatalogController::class, 'media'])->name('catalog.media');
 
+    // Katalog-Freigabelink (public): Token+Passwort ersetzen den Login für Empfänger.
+    // Bewusst NICHT hinter catalog.access — diese Endpunkte SIND der Zugangsweg.
+    Route::get('share/{token}', [CatalogController::class, 'shareInfo']);
+    Route::post('share/{token}', [CatalogController::class, 'shareUnlock'])->middleware('throttle:10,1');
+
     // Data routes protected by catalog access control
     Route::middleware('catalog.access')->group(function () {
         // Rein lesend, nicht personalisiert — TTL-gecached (siehe CacheCatalogResponse).

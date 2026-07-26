@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, reactive, computed, watch } from 'vue'
 import catalogApi, { resolveMediaUrl } from '@/api/catalog'
+import { CATALOG_SHARE_KEY } from '@/api/catalogClient'
 
 export const useCatalogStore = defineStore('catalog', () => {
   // --- State ---
@@ -273,6 +274,48 @@ export const useCatalogStore = defineStore('catalog', () => {
     window.history.replaceState({}, '', newUrl)
   }
 
+  // --- Freigabelink-Zugang (?share=<token>) ---
+  // Der Empfänger öffnet den Katalog ohne PIM-Login: Token (+ evtl. Passwort) werden
+  // gegen /catalog/share/<token> geprüft; bei Erfolg liefert der Server ein kurzlebiges
+  // Access-Token (für login-gesicherte Kataloge) sowie die Produkt-IDs der Collection.
+  function getShareTokenFromUrl() {
+    return new URLSearchParams(window.location.search).get('share')
+  }
+
+  function clearShareParamFromUrl() {
+    const params = new URLSearchParams(window.location.search)
+    if (!params.has('share')) return
+    params.delete('share')
+    const newUrl = params.toString()
+      ? `${window.location.pathname}?${params.toString()}`
+      : window.location.pathname
+    window.history.replaceState({}, '', newUrl)
+  }
+
+  async function fetchShareInfo(token) {
+    // Liefert { expired, requires_password, collection_name } bzw. wirft bei 404/410.
+    const { data } = await catalogApi.getShareInfo(token)
+    return data.data
+  }
+
+  async function unlockShare(token, password) {
+    const { data } = await catalogApi.unlockShare(token, password)
+    const payload = data.data
+    // Access-Token für Folge-Requests hinterlegen (Header X-Catalog-Share).
+    if (payload.access) {
+      sessionStorage.setItem(CATALOG_SHARE_KEY, payload.access)
+    }
+    // Collection als Merkliste laden (ersetzen — kuratierter Katalog = diese Produkte).
+    wishlistIds.value = [...(payload.product_ids || [])]
+    collectionInfo.value = {
+      id: null,
+      name: payload.collection_name || null,
+      count: (payload.product_ids || []).length,
+      fromShare: true,
+    }
+    return collectionInfo.value
+  }
+
   // Navigation
   function setSearch(term) {
     search.value = term
@@ -422,6 +465,10 @@ export const useCatalogStore = defineStore('catalog', () => {
     collectionInfo,
     loadWishlistFromCollection,
     importCollectionFromUrl,
+    getShareTokenFromUrl,
+    clearShareParamFromUrl,
+    fetchShareInfo,
+    unlockShare,
     setSearch,
     setCategory,
     clearCategory,

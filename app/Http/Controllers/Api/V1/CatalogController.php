@@ -34,7 +34,9 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller as BaseController;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -1902,31 +1904,119 @@ class CatalogController extends BaseController
             return response()->json(['message' => 'Collection nicht gefunden.'], 404);
         }
 
-        // Produkt-IDs in Positions-Reihenfolge; Freitext-Positionen ohne Produkt auslassen.
-        $orderedIds = $col->items()
+        return response()->json([
+            'data' => [
+                'name' => $col->name,
+                'product_ids' => $this->resolveCollectionProductIds($col),
+            ],
+        ]);
+    }
+
+    /**
+     * Produkt-IDs einer Collection in Positions-Reihenfolge; Freitext-Positionen
+     * (ohne product_id) und inaktive (im Katalog nicht sichtbare) Produkte werden
+     * ausgelassen. Von collectionWishlist() und shareUnlock() gemeinsam genutzt.
+     *
+     * @return list<string>
+     */
+    private function resolveCollectionProductIds(\App\Models\Collection $collection): array
+    {
+        $orderedIds = $collection->items()
             ->whereNotNull('product_id')
             ->orderBy('position')
             ->pluck('product_id')
             ->all();
 
-        $productIds = [];
-        if ($orderedIds !== []) {
-            // Nur aktive (im Katalog sichtbare) Produkte behalten, Reihenfolge bewahren.
-            $activeSet = array_flip(
-                Product::where('status', 'active')
-                    ->whereIn('id', $orderedIds)
-                    ->pluck('id')
-                    ->all()
-            );
-            $productIds = array_values(
-                array_filter($orderedIds, static fn ($id) => isset($activeSet[$id]))
-            );
+        if ($orderedIds === []) {
+            return [];
+        }
+
+        // Nur aktive Produkte behalten, dabei die Positions-Reihenfolge bewahren.
+        $activeSet = array_flip(
+            Product::where('status', 'active')
+                ->whereIn('id', $orderedIds)
+                ->pluck('id')
+                ->all()
+        );
+
+        return array_values(
+            array_filter($orderedIds, static fn ($id) => isset($activeSet[$id]))
+        );
+    }
+
+    /**
+     * Öffentliche Info zu einem Katalog-Freigabelink: ob ein Passwort nötig ist und
+     * ob der Link abgelaufen ist. Der Empfänger sieht damit die richtige Eingabemaske,
+     * bevor er entsperrt. Kein Auth nötig — der Token selbst ist der Zugang.
+     */
+    public function shareInfo(string $token): JsonResponse
+    {
+        $link = \App\Models\CollectionShareLink::where('token', $token)->first();
+
+        if ($link === null) {
+            return response()->json(['message' => 'Freigabelink nicht gefunden.'], 404);
+        }
+
+        if ($link->isExpired()) {
+            return response()->json(['data' => ['expired' => true]], 410);
         }
 
         return response()->json([
             'data' => [
-                'name' => $col->name,
-                'product_ids' => $productIds,
+                'expired' => false,
+                'requires_password' => $link->password_hash !== null,
+                'collection_name' => $link->collection?->name,
+            ],
+        ]);
+    }
+
+    /**
+     * Entsperrt einen Katalog-Freigabelink. Passwort wird nur geprüft, wenn der Link
+     * eines gesetzt hat (Passwort optional). Bei Erfolg liefern wir ein kurzlebiges,
+     * mit dem APP_KEY verschlüsseltes Access-Token — der Katalog sendet es im Header
+     * X-Catalog-Share zurück, womit CatalogAccessControl den Zugriff auch im
+     * login-gesicherten Modus ohne PIM-Login durchlässt.
+     */
+    public function shareUnlock(Request $request, string $token): JsonResponse
+    {
+        $link = \App\Models\CollectionShareLink::where('token', $token)->first();
+
+        if ($link === null) {
+            return response()->json(['message' => 'Freigabelink nicht gefunden.'], 404);
+        }
+
+        if ($link->isExpired()) {
+            return response()->json(['message' => 'Freigabelink ist abgelaufen.'], 410);
+        }
+
+        if ($link->password_hash !== null) {
+            $validated = $request->validate(['password' => 'required|string']);
+
+            if (! Hash::check($validated['password'], $link->password_hash)) {
+                return response()->json(['message' => 'Falsches Passwort.'], 422);
+            }
+        }
+
+        $collection = $link->collection;
+
+        if ($collection === null) {
+            return response()->json(['message' => 'Collection nicht gefunden.'], 404);
+        }
+
+        // Zugriffszähler wie bei der bestehenden Dokument-Freigabe pflegen.
+        $link->increment('view_count');
+        $link->forceFill(['last_viewed_at' => now()])->save();
+
+        $access = Crypt::encrypt([
+            't' => $link->token,
+            'exp' => now()->addHours(8)->getTimestamp(),
+        ]);
+
+        return response()->json([
+            'data' => [
+                'access' => $access,
+                'collection_name' => $collection->name,
+                'product_ids' => $this->resolveCollectionProductIds($collection),
             ],
         ]);
     }

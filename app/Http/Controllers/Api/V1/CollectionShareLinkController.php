@@ -34,16 +34,20 @@ class CollectionShareLinkController extends Controller
         $this->authorize('update', $collection);
 
         $validated = $request->validate([
-            'password' => 'required|string|min:4|max:100',
+            // Passwort optional: Ein Link kann auch nur über den (nicht erratbaren) Token
+            // ohne Passwort zugänglich sein. Wenn gesetzt, gilt weiterhin min:4.
+            'password' => 'nullable|string|min:4|max:100',
             // "after_or_equal:today" statt "after:now" -- ein vom Nutzer gewaehltes Datum meint
             // das ENDE dieses Tages (siehe endOfDay() unten), "heute" waehlen muss daher gueltig
             // bleiben statt an einem Mitternacht-vs-Mitternacht-Vergleich zu scheitern.
             'expires_at' => 'nullable|date|after_or_equal:today',
         ]);
 
+        $password = $validated['password'] ?? null;
+
         $link = $collection->shareLinks()->create([
             'token' => Str::random(48),
-            'password_hash' => Hash::make($validated['password']),
+            'password_hash' => $password !== null ? Hash::make($password) : null,
             'expires_at' => isset($validated['expires_at']) ? Carbon::parse($validated['expires_at'])->endOfDay() : null,
             'created_by' => $request->user()?->id,
         ]);
@@ -73,7 +77,11 @@ class CollectionShareLinkController extends Controller
         return [
             'id' => $link->id,
             'token' => $link->token,
+            // Dokument-Ansicht (statisches HTML) und interaktiver Katalog nutzen denselben
+            // Link/dasselbe Passwort — der Nutzer wählt beim Versand, welche URL er schickt.
             'url' => url("/shared/collections/{$link->token}"),
+            'catalog_url' => url("/preview?share={$link->token}"),
+            'has_password' => $link->password_hash !== null,
             'expires_at' => $link->expires_at,
             'is_expired' => $link->isExpired(),
             'view_count' => $link->view_count,

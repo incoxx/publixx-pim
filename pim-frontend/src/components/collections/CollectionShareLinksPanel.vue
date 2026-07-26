@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { collectionShareLinks as shareLinksApi } from '@/api/collections'
 import { useToastStore } from '@/stores/toast'
-import { Link2, Copy, Trash2, Loader2, Plus, X } from 'lucide-vue-next'
+import { Link2, Copy, Trash2, Loader2, Plus, X, LayoutGrid } from 'lucide-vue-next'
 
 const props = defineProps({
   collectionId: { type: String, required: true },
@@ -28,18 +28,24 @@ async function load() {
 }
 
 async function createLink() {
-  if (!newPassword.value.trim()) return
   creating.value = true
   try {
+    // Passwort optional: leer lassen = Zugang nur über den (nicht erratbaren) Link.
+    const password = newPassword.value.trim() || null
     await shareLinksApi.create(props.collectionId, {
-      password: newPassword.value.trim(),
+      password,
       expiresAt: newExpiresAt.value || null,
     })
     newPassword.value = ''
     newExpiresAt.value = ''
     showCreate.value = false
     await load()
-    toastStore.showToast('Freigabe-Link erstellt — Passwort dem Kunden separat mitteilen', 'success')
+    toastStore.showToast(
+      password
+        ? 'Freigabe-Link erstellt — Passwort dem Kunden separat mitteilen'
+        : 'Freigabe-Link erstellt (ohne Passwort)',
+      'success',
+    )
   } catch (e) {
     toastStore.showToast(e.response?.data?.message || 'Link konnte nicht erstellt werden', 'error')
   } finally {
@@ -55,7 +61,12 @@ async function revokeLink(link) {
 
 async function copyUrl(link) {
   await navigator.clipboard.writeText(link.url)
-  toastStore.showToast('Link kopiert', 'success')
+  toastStore.showToast('Dokument-Link kopiert', 'success')
+}
+
+async function copyCatalogUrl(link) {
+  await navigator.clipboard.writeText(link.catalog_url)
+  toastStore.showToast('Katalog-Link kopiert', 'success')
 }
 
 defineExpose({ load })
@@ -78,16 +89,17 @@ onMounted(load)
 
     <div v-if="showCreate" class="border border-[var(--color-border)] rounded-lg p-3 space-y-2">
       <div>
-        <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Passwort</label>
+        <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Passwort (optional)</label>
         <input
           v-model="newPassword"
           type="text"
           class="pim-input text-xs w-full"
-          placeholder="z.B. Musterkunde2026"
+          placeholder="Leer lassen = kein Passwort"
           data-testid="share-link-password"
         />
         <p class="text-[10px] text-[var(--color-text-tertiary)] mt-1">
-          Wird nicht automatisch versendet — bitte dem Kunden separat mitteilen (Telefon/E-Mail).
+          Wenn gesetzt (min. 4 Zeichen): nicht automatisch versendet — bitte dem Kunden separat
+          mitteilen (Telefon/E-Mail). Ohne Passwort genügt der Link selbst.
         </p>
       </div>
       <div>
@@ -98,7 +110,7 @@ onMounted(load)
         <button
           class="pim-btn pim-btn-primary text-xs"
           data-testid="share-link-submit"
-          :disabled="creating || !newPassword.trim()"
+          :disabled="creating"
           @click="createLink"
         >
           <Loader2 v-if="creating" class="w-3.5 h-3.5 animate-spin" />
@@ -121,15 +133,19 @@ onMounted(load)
         class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-[var(--color-border)] text-xs"
       >
         <div class="min-w-0 flex-1">
-          <p class="font-mono text-[11px] truncate">{{ link.url }}</p>
+          <p class="font-mono text-[11px] truncate">{{ link.catalog_url }}</p>
           <p class="text-[10px] text-[var(--color-text-tertiary)]">
             <span v-if="link.is_expired" class="text-[var(--color-error)]">Abgelaufen</span>
             <span v-else-if="link.expires_at">Gültig bis {{ new Date(link.expires_at).toLocaleDateString('de-DE') }}</span>
             <span v-else>Kein Ablaufdatum</span>
             · {{ link.view_count }} Aufruf{{ link.view_count !== 1 ? 'e' : '' }}
+            · <span v-if="link.has_password">🔒 Passwort</span><span v-else>🌐 ohne Passwort</span>
           </p>
         </div>
-        <button class="pim-btn pim-btn-ghost !p-1.5" title="Link kopieren" @click="copyUrl(link)">
+        <button class="pim-btn pim-btn-ghost !p-1.5" title="Katalog-Link kopieren (interaktiver Online-Katalog)" @click="copyCatalogUrl(link)">
+          <LayoutGrid class="w-3.5 h-3.5" :stroke-width="1.75" />
+        </button>
+        <button class="pim-btn pim-btn-ghost !p-1.5" title="Dokument-Link kopieren (statische PDF/HTML-Ansicht)" @click="copyUrl(link)">
           <Copy class="w-3.5 h-3.5" :stroke-width="1.75" />
         </button>
         <button class="pim-btn pim-btn-ghost !p-1.5 hover:text-[var(--color-error)]" title="Widerrufen" @click="revokeLink(link)">
