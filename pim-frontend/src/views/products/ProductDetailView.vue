@@ -3258,6 +3258,24 @@ watch(tabs, (newTabs) => {
   }
 })
 
+// Nach Versions-Aktivierung/-Wiederherstellung den kompletten Produktzustand
+// neu laden – die Aktivierung ersetzt Basisfelder, Attribute, Preise, Medien
+// und Beziehungen, daher reicht ein reines fetchOne() nicht aus.
+async function reloadAfterVersionChange() {
+  const id = product.value?.id || route.params.id
+  await store.fetchOne(id)
+  // "Geladen"-Guards zurücksetzen, sonst brechen die Loader sofort ab und
+  // der Tab zeigt weiter den alten (vor der Aktivierung geladenen) Stand.
+  attrLoaded.value = false
+  pricesLoaded.value = false
+  mediaLoaded.value = false
+  relationsLoaded.value = false
+  loadAttributeData()
+  loadPrices()
+  loadMedia()
+  loadRelations()
+}
+
 onMounted(async () => {
   await store.fetchOne(route.params.id)
   // Update tab title with SKU instead of UUID
@@ -6311,7 +6329,7 @@ onUnmounted(() => {
     <ProductVersionsTab
       v-else-if="activeTab === 'versions' && product"
       :productId="product.id"
-      @reverted="store.fetchOne(product.id)"
+      @reverted="reloadAfterVersionChange"
     />
 
     <!-- ═══ Conformance Tab ═══ -->

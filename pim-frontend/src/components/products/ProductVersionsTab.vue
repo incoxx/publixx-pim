@@ -96,6 +96,9 @@ async function activateVersion() {
     await productVersionsApi.activate(props.productId, activateTarget.value.id)
     activateTarget.value = null
     await loadVersions()
+    // Produktdaten (Basis, Attribute, Preise, Medien, …) neu laden, da die
+    // Aktivierung den kompletten Produktzustand ersetzt hat.
+    emit('reverted')
   } catch { /* silently fail */ }
   finally { activating.value = false }
 }
