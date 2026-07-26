@@ -93,7 +93,7 @@ function openCatalogPreview() {
       </button>
 
       <!-- Ansichts-Umschalter: Cockpit (Fokus) ⇄ klassisches Menü -->
-      <div class="hidden sm:flex ml-1 items-center rounded-lg border p-0.5 shrink-0" :style="{ borderColor: 'var(--pim-toolbar-border)' }">
+      <div class="hidden lg:flex ml-1 items-center rounded-lg border p-0.5 shrink-0" :style="{ borderColor: 'var(--pim-toolbar-border)' }">
         <button
           class="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md transition-colors"
           :class="authStore.effectiveViewMode === 'cockpit' ? 'bg-white/15 font-medium' : 'hover:bg-white/10 opacity-70'"
@@ -119,20 +119,20 @@ function openCatalogPreview() {
       <!-- Katalog-Vorschau (öffnet öffentlichen Katalog in neuem Tab) -->
       <button
         v-if="authStore.hasPermission('preview.view')"
-        class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border transition-colors hover:bg-white/10 shrink-0"
+        class="hidden lg:flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border transition-colors hover:bg-white/10 shrink-0"
         :style="{ borderColor: 'var(--pim-toolbar-border)', color: 'inherit' }"
         title="Katalog-Vorschau öffnen"
         @click="openCatalogPreview"
       >
         <Eye class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">Preview</span>
+        <span>Preview</span>
       </button>
     </div>
 
     <!-- Right: Actions -->
     <div class="flex items-center gap-1 sm:gap-2 shrink-0">
       <!-- Semantische Schnellsuche (nur wenn Meilisearch aktiv) -->
-      <div class="hidden sm:block">
+      <div class="hidden md:block">
         <SemanticSearchBox />
       </div>
 
@@ -145,12 +145,12 @@ function openCatalogPreview() {
         @click="copilotStore.toggle()"
       >
         <Sparkles class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">Copilot</span>
+        <span class="hidden lg:inline">Copilot</span>
       </button>
 
       <!-- Befehls-/Navigationspalette ("Wo ist was?") -->
       <button
-        class="hidden sm:flex items-center px-2 py-1.5 text-xs rounded-md border transition-colors hover:bg-white/10"
+        class="hidden lg:flex items-center px-2 py-1.5 text-xs rounded-md border transition-colors hover:bg-white/10"
         :style="{ color: 'inherit', borderColor: 'var(--pim-toolbar-border)' }"
         title="Wo ist was? — Menüpunkte und Aktionen finden (⌘K)"
         @click="authStore.toggleCommandPalette()"
@@ -218,7 +218,7 @@ function openCatalogPreview() {
           @click.stop="userOpen = !userOpen; localeOpen = false"
         >
           <User class="w-3.5 h-3.5" :stroke-width="1.75" />
-          <span class="hidden sm:inline">{{ authStore.userName }}</span>
+          <span class="hidden lg:inline max-w-[8rem] truncate">{{ authStore.userName }}</span>
         </button>
         <div
           v-if="userOpen"
