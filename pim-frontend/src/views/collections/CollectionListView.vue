@@ -376,12 +376,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex gap-6 h-full">
-    <!-- Left: Collection list -->
-    <div :class="['space-y-4 transition-all', selected ? 'w-1/3 flex-none' : 'flex-1']">
-      <div class="flex items-center justify-between">
+  <div class="flex flex-col lg:flex-row gap-6 h-full">
+    <!-- Left: Collection list — auf Mobil ausgeblendet, sobald eine Collection offen ist
+         (die Detailansicht hat einen Zurück-Button); ab lg zweispaltiges Master-Detail. -->
+    <div :class="['space-y-4 transition-all', selected ? 'hidden lg:block lg:w-1/3 lg:flex-none' : 'flex-1']">
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Collections</h2>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <button class="pim-btn pim-btn-ghost" @click="router.push('/collections/import')">
             <Upload class="w-4 h-4" :stroke-width="2" /> Import
           </button>
@@ -405,19 +406,19 @@ onMounted(() => {
 
     <!-- Right: Collection detail -->
     <div v-if="selected" class="flex-1 space-y-4 min-w-0">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-3 min-w-0">
           <button class="pim-btn pim-btn-ghost p-1.5" @click="selected = null" title="Zurück">
             <ChevronLeft class="w-4 h-4" :stroke-width="2" />
           </button>
-          <div>
-            <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">{{ selected.name }}</h3>
-            <p class="text-[10px] text-[var(--color-text-tertiary)]">
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold text-[var(--color-text-primary)] truncate">{{ selected.name }}</h3>
+            <p class="text-[10px] text-[var(--color-text-tertiary)] truncate">
               {{ selected.collection_type?.name_de }} · {{ statusLabels[selected.status] || selected.status }}
             </p>
           </div>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-1.5">
           <button class="pim-btn pim-btn-ghost text-xs" data-testid="collection-preview" :disabled="previewing" @click="previewCollection">
             <Loader2 v-if="previewing" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
             <Eye v-else class="w-3.5 h-3.5" :stroke-width="2" />

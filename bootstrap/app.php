@@ -24,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'throttle.pim' => RateLimitMiddleware::class,
             'catalog.access' => CatalogAccessControl::class,
+            'catalog.no-share' => \App\Http\Middleware\RejectCatalogShareAccess::class,
             'catalog.cache' => CacheCatalogResponse::class,
             'module' => CheckModuleLicense::class,
         ]);

@@ -776,8 +776,9 @@ router.beforeEach(async (to, from, next) => {
   // For public catalog/asset routes, check if login is required
   if (to.meta.public && (to.path.startsWith('/preview') || to.path.startsWith('/assetpreview') || to.path.startsWith('/documentportal'))) {
     // Freigabelink (?share=<token>): eigener Zugang über Token/Passwort — kein PIM-Login.
-    // Das CatalogShareGate übernimmt die Authentifizierung, daher hier durchlassen.
-    if (to.query.share) {
+    // Nur /preview mountet das CatalogShareGate, das die Authentifizierung übernimmt;
+    // daher den Login-Redirect ausschließlich für diesen Pfad überspringen.
+    if (to.query.share && to.path.startsWith('/preview')) {
       return next()
     }
     if (catalogAccessMode === null) {

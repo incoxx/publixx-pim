@@ -57,6 +57,28 @@ class CollectionShareLinkController extends Controller
         return response()->json(['data' => $this->present($link->refresh())], 201);
     }
 
+    /**
+     * Passwort eines bestehenden Freigabelinks neu setzen oder entfernen. Das alte
+     * Passwort ist (bcrypt-gehasht) nicht rekonstruierbar — für einen vergessenen Link
+     * setzt der Nutzer hier einfach ein neues. Leeres Passwort = kein Passwort mehr.
+     */
+    public function update(Request $request, Collection $collection, CollectionShareLink $shareLink): JsonResponse
+    {
+        $this->authorize('update', $collection);
+        abort_if($shareLink->collection_id !== $collection->id, 404);
+
+        $validated = $request->validate([
+            'password' => 'nullable|string|min:4|max:100',
+        ]);
+
+        $password = $validated['password'] ?? null;
+        $shareLink->update([
+            'password_hash' => $password !== null ? Hash::make($password) : null,
+        ]);
+
+        return response()->json(['data' => $this->present($shareLink->refresh())]);
+    }
+
     public function destroy(Collection $collection, CollectionShareLink $shareLink): JsonResponse
     {
         $this->authorize('update', $collection);

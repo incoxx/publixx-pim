@@ -78,6 +78,9 @@ export const collectionShareLinks = {
   create(collectionId, { password, expiresAt = null } = {}) {
     return client.post(`/collections/${collectionId}/share-links`, { password, expires_at: expiresAt })
   },
+  updatePassword(collectionId, linkId, password) {
+    return client.patch(`/collections/${collectionId}/share-links/${linkId}`, { password })
+  },
   delete(collectionId, linkId) {
     return client.delete(`/collections/${collectionId}/share-links/${linkId}`)
   },

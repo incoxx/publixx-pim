@@ -19,11 +19,18 @@ class CatalogAccessControl
         $payload = WebsiteProfile::getActivePayload();
         $mode = $payload['catalog_access_mode'] ?? 'public';
 
-        if ($mode === 'login'
-            && !Auth::guard('web')->check()
-            && !Auth::guard('sanctum')->check()
-            && !$this->hasValidShareAccess($request)
-        ) {
+        $isAuthenticated = Auth::guard('web')->check() || Auth::guard('sanctum')->check();
+
+        // Freigabelink-Zugang: nur lesendes Browsen des Katalogs. Wir markieren solche
+        // Requests, damit schreibende Aktionen (Warenkorb/Bestellung) sie ablehnen können
+        // (siehe RejectCatalogShareAccess). Ein Freigabelink soll nie Bestellungen auslösen.
+        if (!$isAuthenticated && $this->hasValidShareAccess($request)) {
+            $request->attributes->set('catalog_share_access', true);
+
+            return $next($request);
+        }
+
+        if ($mode === 'login' && !$isAuthenticated) {
             abort(401, 'Authentication required.');
         }
 

@@ -245,7 +245,8 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
     // Katalog-Freigabelink (public): Token+Passwort ersetzen den Login für Empfänger.
     // Bewusst NICHT hinter catalog.access — diese Endpunkte SIND der Zugangsweg.
     Route::get('share/{token}', [CatalogController::class, 'shareInfo']);
-    Route::post('share/{token}', [CatalogController::class, 'shareUnlock'])->middleware('throttle:10,1');
+    // Passwort-Brute-Force pro Token UND pro IP drosseln (siehe AppServiceProvider).
+    Route::post('share/{token}', [CatalogController::class, 'shareUnlock'])->middleware('throttle:catalog-share');
 
     // Data routes protected by catalog access control
     Route::middleware('catalog.access')->group(function () {
@@ -274,15 +275,19 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
 
         // =====================================================================
         // E-Commerce Warenkorb (session-basiert, kein Auth erforderlich)
+        // Für Freigabelink-Besucher gesperrt (catalog.no-share) — ein geteilter
+        // Katalog dient dem Durchstöbern, nicht dem Auslösen von Bestellungen.
         // =====================================================================
-        Route::get('cart/{cartTypeName}', [CartController::class, 'show']);
-        Route::post('cart/{cartTypeName}/items', [CartController::class, 'addItem']);
-        Route::put('cart/{cartTypeName}/items/{productId}', [CartController::class, 'updateItem']);
-        Route::delete('cart/{cartTypeName}/items/{productId}', [CartController::class, 'removeItem']);
-        Route::delete('cart/{cartTypeName}', [CartController::class, 'clear']);
-        Route::post('cart/{cartTypeName}/submit', [CartController::class, 'submit']);
-        // Gast-Cart nach Login mit Benutzer-Account mergen (optionale Auth)
-        Route::post('cart/merge', [CartController::class, 'merge']);
+        Route::middleware('catalog.no-share')->group(function () {
+            Route::get('cart/{cartTypeName}', [CartController::class, 'show']);
+            Route::post('cart/{cartTypeName}/items', [CartController::class, 'addItem']);
+            Route::put('cart/{cartTypeName}/items/{productId}', [CartController::class, 'updateItem']);
+            Route::delete('cart/{cartTypeName}/items/{productId}', [CartController::class, 'removeItem']);
+            Route::delete('cart/{cartTypeName}', [CartController::class, 'clear']);
+            Route::post('cart/{cartTypeName}/submit', [CartController::class, 'submit']);
+            // Gast-Cart nach Login mit Benutzer-Account mergen (optionale Auth)
+            Route::post('cart/merge', [CartController::class, 'merge']);
+        });
     });
 });
 
@@ -1153,6 +1158,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
         Route::get('collections/{collection}/share-links', [\App\Http\Controllers\Api\V1\CollectionShareLinkController::class, 'index']);
         Route::post('collections/{collection}/share-links', [\App\Http\Controllers\Api\V1\CollectionShareLinkController::class, 'store']);
+        Route::patch('collections/{collection}/share-links/{shareLink}', [\App\Http\Controllers\Api\V1\CollectionShareLinkController::class, 'update']);
         Route::delete('collections/{collection}/share-links/{shareLink}', [\App\Http\Controllers\Api\V1\CollectionShareLinkController::class, 'destroy']);
     });
 
