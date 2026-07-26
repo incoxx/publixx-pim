@@ -19,6 +19,12 @@ class AuditLogResource extends JsonResource
             ]),
             'auditable_type' => $this->auditable_type,
             'auditable_id' => $this->auditable_id,
+            'product_version_id' => $this->product_version_id,
+            'product_version' => $this->whenLoaded('productVersion', fn () => $this->productVersion ? [
+                'id' => $this->productVersion->id,
+                'version_number' => $this->productVersion->version_number,
+                'product_id' => $this->productVersion->product_id,
+            ] : null),
             'action' => $this->action,
             'old_values' => $this->old_values,
             'new_values' => $this->new_values,

@@ -123,6 +123,25 @@ class ModelAuditTest extends TestCase
         Queue::assertNotPushed(WriteAuditLog::class);
     }
 
+    public function test_audit_entry_references_product_version_from_context(): void
+    {
+        Queue::fake();
+
+        $versionId = '11111111-1111-1111-1111-111111111111';
+        AuditContext::setProductVersionId($versionId);
+
+        $product = Product::factory()->create();
+
+        Queue::assertPushed(
+            WriteAuditLog::class,
+            fn (WriteAuditLog $job) => $job->auditableType === 'Product'
+                && $job->auditableId === $product->id
+                && $job->productVersionId === $versionId
+        );
+
+        AuditContext::setProductVersionId(null);
+    }
+
     public function test_without_auditing_suppresses_audit(): void
     {
         Queue::fake();

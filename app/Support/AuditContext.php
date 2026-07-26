@@ -21,6 +21,22 @@ final class AuditContext
     }
 
     /**
+     * Hinterlegt die ID der Produkt-Version, die zur gerade laufenden Änderung
+     * gehört. Wird vom Audit-Hook / Listener am erzeugten Audit-Eintrag als
+     * Referenz gespeichert. Bewusst am Request-Attribut-Bag abgelegt
+     * (request-scoped, kein Leak zwischen Requests im Worker).
+     */
+    public static function setProductVersionId(?string $id): void
+    {
+        request()?->attributes->set('audit.product_version_id', $id);
+    }
+
+    public static function productVersionId(): ?string
+    {
+        return request()?->attributes->get('audit.product_version_id');
+    }
+
+    /**
      * Führt den Callback aus, ohne dass verändernde Model-Operationen
      * protokolliert werden. Der vorherige Zustand wird anschließend
      * wiederhergestellt (reentrant-sicher, auch bei Exceptions).

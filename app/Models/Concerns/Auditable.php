@@ -84,6 +84,7 @@ trait Auditable
             userId: $userId,
             ipAddress: $request?->ip(),
             userAgent: $request?->userAgent(),
+            productVersionId: AuditContext::productVersionId(),
         )->afterCommit();
     }
 

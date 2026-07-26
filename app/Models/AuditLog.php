@@ -20,6 +20,7 @@ class AuditLog extends Model
         'user_id',
         'auditable_type',
         'auditable_id',
+        'product_version_id',
         'action',
         'old_values',
         'new_values',
@@ -45,5 +46,14 @@ class AuditLog extends Model
     public function auditable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    /**
+     * Optionale Referenz auf die zur Änderung erzeugte Produkt-Version
+     * (Snapshot inkl. Attributwerte für die Diff-Ansicht).
+     */
+    public function productVersion(): BelongsTo
+    {
+        return $this->belongsTo(ProductVersion::class);
     }
 }

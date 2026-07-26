@@ -23,10 +23,16 @@ class AuditLogListener
         $ip = $request->ip();
         $ua = $request->userAgent();
 
+        // Produkt-Lifecycle-Events nur im System-/Queue-Kontext (kein
+        // angemeldeter Nutzer) protokollieren. Benutzerausgelöste Änderungen
+        // deckt das Auditable-Trait am Model ab – sonst gäbe es Doppel-Einträge
+        // (z. B. feuert ProductController::update zusätzlich ProductUpdated).
+        // AttributeValuesChanged bleibt immer aktiv, da Attributwert-Änderungen
+        // (ProductAttributeValue) nicht vom Trait erfasst werden.
         match (true) {
-            $event instanceof ProductCreated => $this->handleCreated($event, $userId, $ip, $ua),
-            $event instanceof ProductUpdated => $this->handleUpdated($event, $userId, $ip, $ua),
-            $event instanceof ProductDeleted => $this->handleDeleted($event, $userId, $ip, $ua),
+            $event instanceof ProductCreated => $userId === null ? $this->handleCreated($event, $userId, $ip, $ua) : null,
+            $event instanceof ProductUpdated => $userId === null ? $this->handleUpdated($event, $userId, $ip, $ua) : null,
+            $event instanceof ProductDeleted => $userId === null ? $this->handleDeleted($event, $userId, $ip, $ua) : null,
             $event instanceof AttributeValuesChanged => $this->handleAttributeValues($event, $userId, $ip, $ua),
             default => null,
         };
@@ -104,6 +110,7 @@ class AuditLogListener
             userId: $userId,
             ipAddress: $ip,
             userAgent: $ua,
+            productVersionId: \App\Support\AuditContext::productVersionId(),
         )->afterCommit();
     }
 }
