@@ -18,7 +18,7 @@ class AuditLogController extends Controller
     {
         $this->authorizeAdmin($request);
 
-        $query = AuditLog::query()->with('user:id,name,email');
+        $query = AuditLog::query()->with(['user:id,name,email', 'productVersion:id,version_number,product_id']);
 
         $this->applyAuditFilters($query, $request);
         $this->applySorting($query, $request, 'created_at', 'desc');
@@ -32,7 +32,7 @@ class AuditLogController extends Controller
     {
         $this->authorizeAdmin($request);
 
-        $query = AuditLog::query()->with('user:id,name,email');
+        $query = AuditLog::query()->with(['user:id,name,email', 'productVersion:id,version_number,product_id']);
         $this->applyAuditFilters($query, $request);
         $query->orderBy('created_at', 'desc');
 

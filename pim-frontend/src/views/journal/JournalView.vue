@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { Download, Trash2, ChevronDown, ChevronRight } from 'lucide-vue-next'
+import { Download, Trash2, ChevronDown, ChevronRight, History } from 'lucide-vue-next'
 import { useJournalStore } from '@/stores/journal'
 import { useAuthStore } from '@/stores/auth'
 import usersApi from '@/api/users'
@@ -256,6 +256,16 @@ onMounted(async () => {
             <ChevronRight v-else class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
           </button>
           <div class="text-xs text-[var(--color-text-secondary)] min-w-0">
+            <!-- Referenz auf die Produkt-Version (Snapshot inkl. Attributwerte) -->
+            <router-link
+              v-if="row.product_version"
+              :to="{ name: 'product-detail', params: { id: row.product_version.product_id }, query: { tab: 'versions' } }"
+              class="inline-flex items-center gap-1 mb-0.5 text-[11px] font-medium text-[var(--color-accent)] hover:underline"
+              @click.stop
+            >
+              <History class="w-3 h-3" :stroke-width="2" />
+              Version {{ row.product_version.version_number }} ansehen
+            </router-link>
             <template v-if="!expandedRows.has(row.id)">
               {{ truncate(formatValues(row.new_values || row.old_values)) }}
             </template>
