@@ -4,10 +4,26 @@ import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
 import { Heart, Trash2, X, Image, Download } from 'lucide-vue-next'
 import { formatFileSize } from '@/utils/formatting'
+import AssetCatalogDetailModal from './AssetCatalogDetailModal.vue'
 
 const { t } = useI18n()
 const store = useAssetCatalogStore()
 const wishlistOpen = inject('wishlistOpen', ref(false))
+
+// Asset-Detail direkt aus der Merkliste öffnen (eigene Modal-Instanz, da die
+// Merkliste außerhalb der Grid-Ansicht liegt).
+const detailAssetId = ref(null)
+const detailOpen = ref(false)
+
+function openDetail(asset) {
+  detailAssetId.value = asset.id
+  detailOpen.value = true
+}
+
+function closeDetail() {
+  detailOpen.value = false
+  detailAssetId.value = null
+}
 
 // Alle Merklisten-Assets (auch solche, die nicht auf der aktuellen Grid-Seite
 // liegen) — der Store lädt fehlende serverseitig nach.
@@ -64,7 +80,11 @@ async function downloadAll() {
         <div
           v-for="asset in wishlistAssets"
           :key="asset.id"
-          class="flex items-center gap-3 p-2 rounded-lg hover:bg-base-200 transition-colors"
+          class="flex items-center gap-3 p-2 rounded-lg hover:bg-base-200 transition-colors cursor-pointer"
+          role="button"
+          tabindex="0"
+          @click="openDetail(asset)"
+          @keydown.enter="openDetail(asset)"
         >
           <div class="w-12 h-12 flex-none rounded-lg bg-base-200 overflow-hidden">
             <img
@@ -83,7 +103,7 @@ async function downloadAll() {
           </div>
           <button
             class="btn btn-ghost btn-xs btn-circle flex-none text-base-content/30 hover:text-error"
-            @click="store.toggleWishlist(asset.id)"
+            @click.stop="store.toggleWishlist(asset.id)"
           >
             <Trash2 class="w-3.5 h-3.5" />
           </button>
@@ -115,5 +135,12 @@ async function downloadAll() {
         {{ t('assetCatalog.clearWishlist') }}
       </button>
     </div>
+
+    <!-- Asset-Detail aus der Merkliste -->
+    <AssetCatalogDetailModal
+      :asset-id="detailAssetId"
+      :open="detailOpen"
+      @close="closeDetail"
+    />
   </div>
 </template>

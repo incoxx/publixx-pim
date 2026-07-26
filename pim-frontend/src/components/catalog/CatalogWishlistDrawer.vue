@@ -5,6 +5,7 @@ import { useCatalogStore } from '@/stores/catalog'
 import { Heart, Trash2, X, Package, FileDown, Sheet, GitCompareArrows, Share2, Check } from 'lucide-vue-next'
 import catalogApi from '@/api/catalog'
 import { triggerDownload } from '@/utils/download'
+import CatalogProductModal from './CatalogProductModal.vue'
 
 const emit = defineEmits(['open-compare'])
 
@@ -14,6 +15,21 @@ const wishlistOpen = inject('wishlistOpen')
 
 const exporting = ref(null) // 'pdf' | 'excel' | null
 const linkCopied = ref(false)
+
+// Produktdetail direkt aus der Merkliste öffnen (eigene Modal-Instanz, da die
+// Merkliste außerhalb der Grid-Ansicht liegt).
+const detailProductId = ref(null)
+const detailOpen = ref(false)
+
+function openDetail(product) {
+  detailProductId.value = product.id
+  detailOpen.value = true
+}
+
+function closeDetail() {
+  detailOpen.value = false
+  detailProductId.value = null
+}
 
 // Alle Merklisten-Produkte (auch solche, die nicht auf der aktuellen Grid-Seite
 // liegen) — der Store lädt fehlende serverseitig nach.
@@ -127,7 +143,11 @@ async function shareWishlist() {
         <div
           v-for="product in wishlistProducts"
           :key="product.id"
-          class="flex items-center gap-3 p-2 rounded-lg hover:bg-base-200 transition-colors"
+          class="flex items-center gap-3 p-2 rounded-lg hover:bg-base-200 transition-colors cursor-pointer"
+          role="button"
+          tabindex="0"
+          @click="openDetail(product)"
+          @keydown.enter="openDetail(product)"
         >
           <div class="w-12 h-12 flex-none rounded-lg bg-base-200 overflow-hidden">
             <img
@@ -149,7 +169,7 @@ async function shareWishlist() {
           </div>
           <button
             class="btn btn-ghost btn-xs btn-circle flex-none text-base-content/30 hover:text-error"
-            @click="store.toggleWishlist(product.id)"
+            @click.stop="store.toggleWishlist(product.id)"
           >
             <Trash2 class="w-3.5 h-3.5" />
           </button>
@@ -224,5 +244,12 @@ async function shareWishlist() {
         {{ t('catalog.clearWishlist') }}
       </button>
     </div>
+
+    <!-- Produktdetail aus der Merkliste -->
+    <CatalogProductModal
+      :product-id="detailProductId"
+      :open="detailOpen"
+      @close="closeDetail"
+    />
   </div>
 </template>
