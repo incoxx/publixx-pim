@@ -12,6 +12,10 @@ function buildParams(options = {}) {
   if (options.mediaType) params.media_type = options.mediaType
   if (options.usageType) params.usage_type = options.usageType
   if (options.lang) params.lang = options.lang
+  // Explizite ID-Liste (z. B. Merkliste): genau diese Assets laden
+  if (options.ids) {
+    params.ids = Array.isArray(options.ids) ? options.ids.join(',') : options.ids
+  }
   if (options.filters) {
     for (const [attrId, value] of Object.entries(options.filters)) {
       params[`filters[${attrId}]`] = value
