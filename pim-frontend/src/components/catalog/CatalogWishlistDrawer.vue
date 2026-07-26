@@ -18,11 +18,11 @@ const wishlistOpen = inject('wishlistOpen')
 const exporting = ref(null) // 'pdf' | 'excel' | null
 const linkCopied = ref(false)
 
-// Produktdetail öffnen: Merkliste schließen und dasselbe Detail-Modal öffnen, das
-// auch das Grid nutzt (State liegt im Store). Falls wir nicht auf der Katalog-
-// Übersicht sind, dorthin wechseln, damit das Modal gemountet ist.
+// Produktdetail öffnen: dasselbe Detail-Modal wie im Grid (State liegt im Store).
+// Die Merkliste bleibt offen — das Modal (z-index 999) liegt darüber, genau wie
+// beim Vergleichen. Falls wir nicht auf der Katalog-Übersicht sind, dorthin
+// wechseln, damit das Modal gemountet ist.
 function openDetail(product) {
-  wishlistOpen.value = false
   store.openProductDetail(product.id)
   if (route.name !== 'catalog') {
     router.push({ name: 'catalog' })
