@@ -5,12 +5,26 @@ import { useThemeApplicator } from '@/composables/useThemeApplicator'
 import AssetCatalogHeader from '@/components/assetCatalog/AssetCatalogHeader.vue'
 import AssetCatalogSidebar from '@/components/assetCatalog/AssetCatalogSidebar.vue'
 import AssetCatalogWishlistDrawer from '@/components/assetCatalog/AssetCatalogWishlistDrawer.vue'
+import AssetCatalogDetailModal from '@/components/assetCatalog/AssetCatalogDetailModal.vue'
 import CatalogFooter from '@/components/catalog/CatalogFooter.vue'
 
 const store = useAssetCatalogStore()
 const sidebarOpen = ref(false)
 const wishlistOpen = ref(false)
+const detailAssetId = ref(null)
+const showDetail = ref(false)
 const themeRoot = ref(null)
+
+// Asset-Detail aus der Merkliste: Modal auf Layout-Ebene öffnen.
+function handleOpenDetail(assetId) {
+  detailAssetId.value = assetId
+  showDetail.value = true
+}
+
+function closeDetail() {
+  showDetail.value = false
+  detailAssetId.value = null
+}
 
 provide('wishlistOpen', wishlistOpen)
 provide('sidebarOpen', sidebarOpen)
@@ -64,11 +78,18 @@ onMounted(async () => {
         <div class="absolute inset-0 bg-black/40" @click="wishlistOpen = false"></div>
         <Transition name="wishlist-slide" appear>
           <div class="absolute inset-y-0 right-0 shadow-2xl">
-            <AssetCatalogWishlistDrawer />
+            <AssetCatalogWishlistDrawer @open-detail="handleOpenDetail" />
           </div>
         </Transition>
       </div>
     </Transition>
+
+    <!-- Asset-Detail aus der Merkliste -->
+    <AssetCatalogDetailModal
+      :asset-id="detailAssetId"
+      :open="showDetail"
+      @close="closeDetail"
+    />
   </div>
 </template>
 

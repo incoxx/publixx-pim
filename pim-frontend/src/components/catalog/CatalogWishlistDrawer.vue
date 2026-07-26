@@ -5,9 +5,8 @@ import { useCatalogStore } from '@/stores/catalog'
 import { Heart, Trash2, X, Package, FileDown, Sheet, GitCompareArrows, Share2, Check } from 'lucide-vue-next'
 import catalogApi from '@/api/catalog'
 import { triggerDownload } from '@/utils/download'
-import CatalogProductModal from './CatalogProductModal.vue'
 
-const emit = defineEmits(['open-compare'])
+const emit = defineEmits(['open-compare', 'open-detail'])
 
 const { t } = useI18n()
 const store = useCatalogStore()
@@ -16,19 +15,11 @@ const wishlistOpen = inject('wishlistOpen')
 const exporting = ref(null) // 'pdf' | 'excel' | null
 const linkCopied = ref(false)
 
-// Produktdetail direkt aus der Merkliste öffnen (eigene Modal-Instanz, da die
-// Merkliste außerhalb der Grid-Ansicht liegt).
-const detailProductId = ref(null)
-const detailOpen = ref(false)
-
+// Produktdetail öffnen: nach oben ans Layout melden, das (wie beim Vergleich) das
+// Modal auf Layout-Ebene rendert — die Merkliste selbst liegt in einem eigenen
+// Overlay und kann das Detail-Modal nicht sauber darüber anzeigen.
 function openDetail(product) {
-  detailProductId.value = product.id
-  detailOpen.value = true
-}
-
-function closeDetail() {
-  detailOpen.value = false
-  detailProductId.value = null
+  emit('open-detail', product.id)
 }
 
 // Alle Merklisten-Produkte (auch solche, die nicht auf der aktuellen Grid-Seite
@@ -244,12 +235,5 @@ async function shareWishlist() {
         {{ t('catalog.clearWishlist') }}
       </button>
     </div>
-
-    <!-- Produktdetail aus der Merkliste -->
-    <CatalogProductModal
-      :product-id="detailProductId"
-      :open="detailOpen"
-      @close="closeDetail"
-    />
   </div>
 </template>
