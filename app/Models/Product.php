@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,7 +17,7 @@ use Illuminate\Validation\ValidationException;
 
 class Product extends Model
 {
-    use HasDeletionConstraints, HasFactory, HasUuids;
+    use Auditable, HasDeletionConstraints, HasFactory, HasUuids;
 
     /**
      * Invariante: Ein Produkt darf nie ein abstraktes Referenz-Profil

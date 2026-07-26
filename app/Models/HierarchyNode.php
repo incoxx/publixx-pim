@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\DB;
 
 class HierarchyNode extends Model
 {
-    use HasDeletionConstraints, HasFactory, HasUuids;
+    use Auditable, HasDeletionConstraints, HasFactory, HasUuids;
 
     protected $fillable = [
         'hierarchy_id',

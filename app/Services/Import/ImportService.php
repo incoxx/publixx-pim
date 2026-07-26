@@ -9,6 +9,7 @@ use App\Jobs\ExecuteFlatImportJob;
 use App\Jobs\ExecuteImportJob;
 use App\Models\ImportJob;
 use App\Models\ImportJobError;
+use App\Support\AuditContext;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -235,7 +236,10 @@ class ImportService
         $this->logger->info($importJob, 'execution', 'Import-Ausführung gestartet');
 
         try {
-            $result = $this->executor->execute($parseResult);
+            // Import schreibt Produkte/Attribute/Hierarchie als Massenoperation.
+            // Einzelne Zeilen werden nicht ins Änderungsprotokoll geschrieben
+            // (sonst Flutung); der Abschluss wird über ImportCompleted signalisiert.
+            $result = AuditContext::withoutAuditing(fn () => $this->executor->execute($parseResult));
 
             $importJob->update([
                 'status' => 'completed',
@@ -317,7 +321,8 @@ class ImportService
 
             $this->flatExecutor->setLogger($this->logger, $importJob);
 
-            $result = $this->flatExecutor->execute(
+            // Massenimport nicht pro Zeile auditieren (s. execute()).
+            $result = AuditContext::withoutAuditing(fn () => $this->flatExecutor->execute(
                 $fullPath,
                 $options['column_mappings'] ?? [],
                 $options['sku_column'] ?? 'SKU',
@@ -325,7 +330,7 @@ class ImportService
                 $options['master_hierarchy_node_id'] ?? null,
                 $options['name_column'] ?? null,
                 $options['ean_column'] ?? null,
-            );
+            ));
 
             $importJob->update([
                 'status' => 'completed',

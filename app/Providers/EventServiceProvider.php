@@ -64,12 +64,18 @@ class EventServiceProvider extends ServiceProvider
         // Produkt-Lifecycle-Events
         ProductCreated::class => [
             UpdateSearchIndexListener::class,
-            AuditLogListener::class,
+            // Kein AuditLogListener: Produkt-Erstellung wird zentral über das
+            // Auditable-Trait am Model protokolliert (nur benutzerausgelöst).
+            // Dieses Event wird ausschließlich von der Demo-Daten-Generierung
+            // gefeuert, die bewusst nicht auditiert werden soll.
         ],
 
         ProductUpdated::class => [
             InvalidateProductCacheListener::class,
             UpdateSearchIndexListener::class,
+            // AuditLogListener bleibt: fängt system-/queue-seitige Änderungen
+            // ohne Auth-Kontext (z. B. geplante Aktionen) ab, die das
+            // Auditable-Trait bewusst überspringt.
             AuditLogListener::class,
         ],
 
