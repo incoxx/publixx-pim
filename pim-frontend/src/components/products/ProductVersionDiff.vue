@@ -22,10 +22,22 @@ const statusLabels = {
 }
 
 const baseFields = computed(() =>
-  props.diffData.fields.filter(f => f.type !== 'attribute')
+  props.diffData.fields.filter(f => f.type === 'base')
 )
-const attributeFields = computed(() =>
-  props.diffData.fields.filter(f => f.type === 'attribute')
+
+// Gruppierte Sektionen (in Anzeige-Reihenfolge). Leere Sektionen werden ausgeblendet.
+const sectionDefs = [
+  { type: 'attribute', label: 'Attributwerte' },
+  { type: 'price', label: 'Preise' },
+  { type: 'media', label: 'Medien' },
+  { type: 'relation', label: 'Beziehungen' },
+  { type: 'output_hierarchy', label: 'Hierarchie-Zuordnungen' },
+]
+
+const sectionGroups = computed(() =>
+  sectionDefs
+    .map(s => ({ ...s, fields: props.diffData.fields.filter(f => f.type === s.type) }))
+    .filter(g => g.fields.length > 0)
 )
 
 const changedCount = computed(() =>
@@ -115,42 +127,42 @@ function formatValue(field, value) {
             </td>
           </tr>
 
-          <!-- Attribute fields separator -->
-          <tr v-if="attributeFields.length > 0" class="border-t border-[var(--color-border)]">
-            <td colspan="3" class="px-3 py-1.5 bg-[var(--color-bg)] text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">
-              Attributwerte
-            </td>
-          </tr>
-
-          <!-- Attribute fields -->
-          <tr
-            v-for="field in attributeFields"
-            :key="field.field"
-            :class="[
-              'border-t border-[var(--color-border)]',
-              field.changed ? '' : 'opacity-60',
-            ]"
-          >
-            <td class="px-3 py-2 font-medium text-[var(--color-text-secondary)]">
-              {{ getFieldLabel(field) }}
-            </td>
-            <td
+          <!-- Weitere Sektionen: Attribute, Preise, Medien, Beziehungen, Hierarchien -->
+          <template v-for="group in sectionGroups" :key="group.type">
+            <tr class="border-t border-[var(--color-border)]">
+              <td colspan="3" class="px-3 py-1.5 bg-[var(--color-bg)] text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">
+                {{ group.label }}
+              </td>
+            </tr>
+            <tr
+              v-for="field in group.fields"
+              :key="field.field"
               :class="[
-                'px-3 py-2',
-                field.changed ? 'bg-red-50 text-red-800' : 'text-[var(--color-text-primary)]',
+                'border-t border-[var(--color-border)]',
+                field.changed ? '' : 'opacity-60',
               ]"
             >
-              {{ formatValue(field, field.old_value) }}
-            </td>
-            <td
-              :class="[
-                'px-3 py-2',
-                field.changed ? 'bg-green-50 text-green-800' : 'text-[var(--color-text-primary)]',
-              ]"
-            >
-              {{ formatValue(field, field.new_value) }}
-            </td>
-          </tr>
+              <td class="px-3 py-2 font-medium text-[var(--color-text-secondary)]">
+                {{ getFieldLabel(field) }}
+              </td>
+              <td
+                :class="[
+                  'px-3 py-2',
+                  field.changed ? 'bg-red-50 text-red-800' : 'text-[var(--color-text-primary)]',
+                ]"
+              >
+                {{ formatValue(field, field.old_value) }}
+              </td>
+              <td
+                :class="[
+                  'px-3 py-2',
+                  field.changed ? 'bg-green-50 text-green-800' : 'text-[var(--color-text-primary)]',
+                ]"
+              >
+                {{ formatValue(field, field.new_value) }}
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>
