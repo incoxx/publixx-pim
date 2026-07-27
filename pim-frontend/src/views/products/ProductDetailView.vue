@@ -2611,8 +2611,21 @@ async function toggleRelationExpand(relation) {
   }
   if (!relationAttrListLoaded.value) {
     try {
-      const { data } = await attributesApiDefault.list({ perPage: 9999 })
-      relationAttrList.value = data.data || data
+      // Alle Seiten laden (API cappt per_page auf 100) und alphabetisch sortieren —
+      // sonst nur ein unsortierter Ausschnitt in der freien Attribut-Auswahl.
+      const all = []
+      let page = 1
+      for (let guard = 0; guard < 100; guard++) {
+        const { data } = await attributesApiDefault.list({ perPage: 100, page })
+        const items = data.data || data || []
+        all.push(...items)
+        const lastPage = data.meta?.last_page ?? 1
+        if (items.length === 0 || page >= lastPage) break
+        page++
+      }
+      relationAttrList.value = all.sort((a, b) =>
+        (a.name_de || a.technical_name || '').localeCompare(b.name_de || b.technical_name || '', 'de')
+      )
       relationAttrListLoaded.value = true
     } catch (e) { console.error('Failed to load attributes:', e.message) }
   }
@@ -5461,21 +5474,25 @@ onUnmounted(() => {
                       </div>
                       <p v-else class="text-[11px] text-[var(--color-text-tertiary)]">Keine Attribute gepflegt.</p>
 
-                      <!-- Add attribute -->
-                      <div class="flex items-end gap-2">
+                      <!-- Freie Attribute hinzufügen (durchsuchbare Lookup-Auswahl) —
+                           nur wenn der Beziehungstyp freie Attribute zulässt. -->
+                      <div v-if="rel.relation_type?.allows_free_attributes !== false" class="flex items-end gap-2">
                         <div class="flex-1">
                           <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Attribut hinzufügen</label>
                           <PimAttributeInput
-                            type="select"
+                            type="dictionary"
                             v-model="newRelationAttr.attribute_id"
-                            :options="relationAttrList.filter(a => !relationAttrValues.some(v => v.attribute_id === a.id)).map(a => ({ value: a.id, label: a.name_de || a.technical_name }))"
-                            placeholder="Attribut wählen…"
+                            :options="relationAttrList.filter(a => !relationAttrValues.some(v => v.attribute_id === a.id)).map(a => ({ value: a.id, label: (a.name_de || a.technical_name) + ' — ' + a.technical_name }))"
+                            placeholder="Attribut suchen…"
                           />
                         </div>
                         <button class="pim-btn pim-btn-secondary text-xs px-3 py-1.5 mb-0.5" :disabled="!newRelationAttr.attribute_id" @click="addRelationAttribute">
                           <Plus class="w-3 h-3" :stroke-width="2" /> Hinzufügen
                         </button>
                       </div>
+                      <p v-else class="text-[11px] text-[var(--color-text-tertiary)] italic">
+                        Dieser Beziehungstyp lässt keine freien Attribute zu — nur die vordefinierten Attribute sind pflegbar.
+                      </p>
 
                       <!-- Save button -->
                       <div class="flex justify-end pt-1">

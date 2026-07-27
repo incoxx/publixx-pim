@@ -54,12 +54,14 @@ const formData = ref(
         name_de: props.relationType.name_de || '',
         name_en: props.relationType.name_en || '',
         is_bidirectional: props.relationType.is_bidirectional ?? false,
+        allows_free_attributes: props.relationType.allows_free_attributes ?? true,
       }
     : {
         technical_name: '',
         name_de: '',
         name_en: '',
         is_bidirectional: false,
+        allows_free_attributes: true,
       }
 )
 
@@ -92,6 +94,7 @@ const fields = computed(() => [
   { key: 'name_de', label: 'Name (DE)', type: 'text', required: true },
   { key: 'name_en', label: 'Name (EN)', type: 'text' },
   { key: 'is_bidirectional', label: 'Bidirektional', type: 'boolean' },
+  { key: 'allows_free_attributes', label: 'Freie Attribute zulassen', type: 'boolean' },
 ])
 
 const availableAttributes = computed(() =>
