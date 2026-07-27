@@ -4,7 +4,28 @@ import { useAuthStore } from '@/stores/auth'
 import { relationTypes } from '@/api/prices'
 import attributesApi, { productTypes } from '@/api/attributes'
 import PimForm from '@/components/shared/PimForm.vue'
+import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import { X, Plus } from 'lucide-vue-next'
+
+// Lädt ALLE Attribute über alle Seiten. Nötig, weil die API per_page serverseitig
+// auf 100 cappt (getPerPage) — ein einzelner Aufruf lieferte sonst nur einen
+// Ausschnitt. Ergebnis alphabetisch nach Anzeigename sortiert.
+async function fetchAllAttributes() {
+  const all = []
+  let page = 1
+  // Obergrenze als Sicherheitsnetz gegen Endlosschleifen bei unerwarteten Meta-Daten.
+  for (let guard = 0; guard < 100; guard++) {
+    const { data } = await attributesApi.list({ perPage: 100, page })
+    const items = data.data || data || []
+    all.push(...items)
+    const lastPage = data.meta?.last_page ?? 1
+    if (items.length === 0 || page >= lastPage) break
+    page++
+  }
+  return all.sort((a, b) =>
+    (a.name_de || a.technical_name || '').localeCompare(b.name_de || b.technical_name || '', 'de')
+  )
+}
 
 const props = defineProps({
   relationType: { type: Object, default: null },
@@ -79,17 +100,14 @@ const availableAttributes = computed(() =>
 
 onMounted(async () => {
   try {
-    const { data } = await productTypes.list({ per_page: 9999 })
+    const { data } = await productTypes.list({ perPage: 100 })
     allProductTypes.value = data.data || data
   } catch (e) { /* ignore */ }
 
   if (isEdit.value && props.relationType?.id) {
     loadingAttributes.value = true
     try {
-      const [attrResp] = await Promise.all([
-        attributesApi.list({ per_page: 9999 }),
-      ])
-      allAttributes.value = attrResp.data.data || attrResp.data
+      allAttributes.value = await fetchAllAttributes()
       defaultAttributes.value = (props.relationType.default_attributes || []).map(a => ({ ...a }))
     } catch (e) { /* ignore */ }
     finally { loadingAttributes.value = false }
@@ -264,19 +282,16 @@ async function handleSubmit(data) {
           </div>
         </div>
 
-        <!-- Add attribute -->
+        <!-- Add attribute (durchsuchbare Lookup-Auswahl) -->
         <div class="flex items-end gap-2">
           <div class="flex-1">
             <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Attribut hinzufügen</label>
-            <select
+            <PimAttributeInput
+              type="dictionary"
               v-model="newAttrId"
-              class="pim-input text-xs w-full"
-            >
-              <option value="" disabled>Attribut wählen…</option>
-              <option v-for="attr in availableAttributes" :key="attr.id" :value="attr.id">
-                {{ attr.technical_name }} — {{ attr.name_de || '' }}
-              </option>
-            </select>
+              :options="availableAttributes.map(a => ({ value: a.id, label: (a.name_de || a.technical_name) + ' — ' + a.technical_name }))"
+              placeholder="Attribut suchen…"
+            />
           </div>
           <button
             class="pim-btn pim-btn-secondary text-xs px-3 py-1.5 mb-0.5"
