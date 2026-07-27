@@ -24,6 +24,8 @@ class StoreMediaUsageTypeRequest extends FormRequest
             'allowed_extensions' => 'nullable|array',
             'allowed_extensions.*' => 'string|max:10',
             'restricted_display_mode' => 'sometimes|in:hidden,locked',
+            'allowed_product_type_ids' => 'nullable|array',
+            'allowed_product_type_ids.*' => 'uuid|exists:product_types,id',
         ];
     }
 }

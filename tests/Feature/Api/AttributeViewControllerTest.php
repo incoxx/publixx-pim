@@ -7,6 +7,7 @@ namespace Tests\Feature\Api;
 use App\Models\Attribute;
 use App\Models\AttributeView;
 use App\Models\AttributeViewAssignment;
+use App\Models\ProductType;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -185,5 +186,78 @@ class AttributeViewControllerTest extends TestCase
         $response = $this->deleteJson("/api/v1/attribute-views/{$view->id}/attributes/{$attribute->id}");
 
         $response->assertNoContent();
+    }
+
+    // ─── Produkttyp-Einschränkung (allowed_product_type_ids) ──────
+
+    public function test_store_persistiert_erlaubte_produkttypen(): void
+    {
+        $typeA = ProductType::factory()->create();
+        $typeB = ProductType::factory()->create();
+
+        $response = $this->postJson('/api/v1/attribute-views', [
+            'technical_name' => 'nur-fuer-typen',
+            'name_de' => 'Nur für Typen',
+            'allowed_product_type_ids' => [$typeA->id, $typeB->id],
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.allowed_product_type_ids', [$typeA->id, $typeB->id]);
+
+        $view = AttributeView::firstWhere('technical_name', 'nur-fuer-typen');
+        $this->assertSame([$typeA->id, $typeB->id], $view->allowed_product_type_ids);
+    }
+
+    public function test_store_ohne_einschraenkung_liefert_leeres_array(): void
+    {
+        $response = $this->postJson('/api/v1/attribute-views', [
+            'technical_name' => 'generisch',
+            'name_de' => 'Generisch',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.allowed_product_type_ids', []);
+    }
+
+    public function test_update_aktualisiert_erlaubte_produkttypen(): void
+    {
+        $type = ProductType::factory()->create();
+        $view = AttributeView::factory()->create();
+
+        $response = $this->putJson("/api/v1/attribute-views/{$view->id}", [
+            'allowed_product_type_ids' => [$type->id],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.allowed_product_type_ids', [$type->id]);
+    }
+
+    public function test_store_validiert_existierende_produkttyp_ids(): void
+    {
+        $response = $this->postJson('/api/v1/attribute-views', [
+            'technical_name' => 'ungueltig',
+            'name_de' => 'Ungültig',
+            'allowed_product_type_ids' => ['00000000-0000-0000-0000-000000000000'],
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['allowed_product_type_ids.0']);
+    }
+
+    public function test_allows_product_type_gilt_ohne_einschraenkung_fuer_alle(): void
+    {
+        $view = AttributeView::factory()->create(['allowed_product_type_ids' => null]);
+
+        $this->assertTrue($view->allowsProductType('irgendein-typ'));
+        $this->assertTrue($view->allowsProductType(null));
+    }
+
+    public function test_allows_product_type_beschraenkt_auf_erlaubte_typen(): void
+    {
+        $type = ProductType::factory()->create();
+        $view = AttributeView::factory()->create(['allowed_product_type_ids' => [$type->id]]);
+
+        $this->assertTrue($view->allowsProductType($type->id));
+        $this->assertFalse($view->allowsProductType('anderer-typ'));
     }
 }

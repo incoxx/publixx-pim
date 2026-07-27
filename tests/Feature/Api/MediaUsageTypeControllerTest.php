@@ -9,6 +9,7 @@ use App\Models\Media;
 use App\Models\MediaUsageType;
 use App\Models\Product;
 use App\Models\ProductMediaAssignment;
+use App\Models\ProductType;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -215,5 +216,78 @@ class MediaUsageTypeControllerTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['attributes.0.attribute_id']);
+    }
+
+    // ─── Produkttyp-Einschränkung (allowed_product_type_ids) ──────
+
+    public function test_store_persistiert_erlaubte_produkttypen(): void
+    {
+        $typeA = ProductType::factory()->create();
+        $typeB = ProductType::factory()->create();
+
+        $response = $this->postJson('/api/v1/media-usage-types', [
+            'technical_name' => 'nur-fuer-typen',
+            'name_de' => 'Nur für Typen',
+            'allowed_product_type_ids' => [$typeA->id, $typeB->id],
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.allowed_product_type_ids', [$typeA->id, $typeB->id]);
+
+        $usageType = MediaUsageType::firstWhere('technical_name', 'nur-fuer-typen');
+        $this->assertSame([$typeA->id, $typeB->id], $usageType->allowed_product_type_ids);
+    }
+
+    public function test_store_ohne_einschraenkung_liefert_leeres_array(): void
+    {
+        $response = $this->postJson('/api/v1/media-usage-types', [
+            'technical_name' => 'generisch',
+            'name_de' => 'Generisch',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.allowed_product_type_ids', []);
+    }
+
+    public function test_update_aktualisiert_erlaubte_produkttypen(): void
+    {
+        $productType = ProductType::factory()->create();
+        $usageType = MediaUsageType::factory()->create();
+
+        $response = $this->putJson("/api/v1/media-usage-types/{$usageType->id}", [
+            'allowed_product_type_ids' => [$productType->id],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.allowed_product_type_ids', [$productType->id]);
+    }
+
+    public function test_store_validiert_existierende_produkttyp_ids(): void
+    {
+        $response = $this->postJson('/api/v1/media-usage-types', [
+            'technical_name' => 'ungueltig',
+            'name_de' => 'Ungültig',
+            'allowed_product_type_ids' => ['00000000-0000-0000-0000-000000000000'],
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['allowed_product_type_ids.0']);
+    }
+
+    public function test_allows_product_type_gilt_ohne_einschraenkung_fuer_alle(): void
+    {
+        $usageType = MediaUsageType::factory()->create(['allowed_product_type_ids' => null]);
+
+        $this->assertTrue($usageType->allowsProductType('irgendein-typ'));
+        $this->assertTrue($usageType->allowsProductType(null));
+    }
+
+    public function test_allows_product_type_beschraenkt_auf_erlaubte_typen(): void
+    {
+        $productType = ProductType::factory()->create();
+        $usageType = MediaUsageType::factory()->create(['allowed_product_type_ids' => [$productType->id]]);
+
+        $this->assertTrue($usageType->allowsProductType($productType->id));
+        $this->assertFalse($usageType->allowsProductType('anderer-typ'));
     }
 }

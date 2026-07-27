@@ -28,6 +28,8 @@ class UpdateAttributeViewRequest extends FormRequest
             'sort_order' => 'integer',
             'is_write_protected' => 'boolean',
             'show_as_tab' => 'boolean',
+            'allowed_product_type_ids' => 'nullable|array',
+            'allowed_product_type_ids.*' => 'uuid|exists:product_types,id',
         ];
     }
 }

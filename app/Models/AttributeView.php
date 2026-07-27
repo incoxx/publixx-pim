@@ -27,6 +27,7 @@ class AttributeView extends Model
         'sort_order',
         'is_write_protected',
         'show_as_tab',
+        'allowed_product_type_ids',
     ];
 
     protected function casts(): array
@@ -36,7 +37,18 @@ class AttributeView extends Model
             'sort_order' => 'integer',
             'is_write_protected' => 'boolean',
             'show_as_tab' => 'boolean',
+            'allowed_product_type_ids' => 'array',
         ];
+    }
+
+    /**
+     * Gilt diese Sicht für den angegebenen Produkttyp?
+     * Leere/NULL-Einschränkung = für alle Produkttypen gültig (Default).
+     */
+    public function allowsProductType(?string $productTypeId): bool
+    {
+        return empty($this->allowed_product_type_ids)
+            || in_array($productTypeId, $this->allowed_product_type_ids, true);
     }
 
     /**

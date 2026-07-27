@@ -20,6 +20,9 @@ class MediaUsageTypeResource extends JsonResource
             'sort_order' => $this->sort_order,
             'allowed_extensions' => $this->allowed_extensions,
             'restricted_display_mode' => $this->restricted_display_mode,
+            // Optionale Produkttyp-Einschränkung: leer/null = für alle Produkttypen gültig.
+            // Wird im Produkteditor gespiegelt, um die angebotenen Medientypen zu filtern.
+            'allowed_product_type_ids' => $this->allowed_product_type_ids ?? [],
             'default_attributes' => $this->whenLoaded('defaultAttributes', function () {
                 return $this->defaultAttributes->map(fn ($attr) => [
                     'id' => $attr->id,

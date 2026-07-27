@@ -170,8 +170,19 @@ async function loadProductTypes() {
 // Attribut-Sichten, die als eigener Tab im Produkteditor aktiviert wurden
 // (per "Eigener Tab im Produkteditor"-Option in der Attribut-Sicht-Verwaltung),
 // sortiert nach der Sicht-eigenen Sortierung (dieselbe, die auch die Sichten-Liste ordnet).
+// Attribut-Sichten, die für den Produkttyp des aktuellen Produkts gelten.
+// Leere allowed_product_type_ids = für alle Produkttypen gültig (Default);
+// gefüllt = nur wenn die product_type_id enthalten ist. Steuert sowohl die
+// dynamischen Sicht-Tabs als auch den Sicht-Auswahlfilter im Attribute-Tab.
+const productTypeAttrViews = computed(() => {
+  const typeId = product.value?.product_type_id
+  return availableAttrViews.value.filter(v =>
+    !v.allowed_product_type_ids?.length || v.allowed_product_type_ids.includes(typeId)
+  )
+})
+
 const attributeViewTabs = computed(() =>
-  availableAttrViews.value
+  productTypeAttrViews.value
     .filter(v => v.show_as_tab)
     .slice()
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
@@ -180,8 +191,10 @@ const attributeViewTabs = computed(() =>
 
 // Ist der aktive Tab einer der dynamischen Attribut-Sicht-Tabs? Über die tab_key-Liste aus der
 // API geprüft, statt das "attribute-view:"-Präfix im Frontend erneut zu bilden.
+// Ebenfalls produkttyp-gefiltert, damit eine für den Typ unzulässige Sicht nicht
+// (z.B. über einen Deeplink) doch als erzwungene Sicht greift.
 const activeAttributeView = computed(() =>
-  availableAttrViews.value.find(v => v.show_as_tab && v.tab_key === activeTab.value) || null
+  productTypeAttrViews.value.find(v => v.show_as_tab && v.tab_key === activeTab.value) || null
 )
 const activeAttributeViewId = computed(() => activeAttributeView.value?.id || null)
 
@@ -1007,7 +1020,7 @@ const filteredAttributes = computed(() => {
   // selbst vorgegeben (Filter-Dropdown ausgeblendet); sonst zählt die manuelle Auswahl.
   const forcedView = activeAttributeView.value
   const effectiveView = forcedView || (attrFilterView.value
-    ? availableAttrViews.value.find(v => v.id === attrFilterView.value)
+    ? productTypeAttrViews.value.find(v => v.id === attrFilterView.value)
     : null)
   if (effectiveView) {
     const viewAttrIds = new Set((effectiveView.attributes || []).map(a => a.id))
@@ -1444,6 +1457,17 @@ const mediaLoading = ref(false)
 const showMediaPicker = ref(false)
 const usageTypesList = ref([])
 const selectedUsageTypeId = ref(null)
+
+// Medientypen, die für den Produkttyp des aktuellen Produkts gelten.
+// Leere allowed_product_type_ids = für alle Produkttypen gültig (Default);
+// gefüllt = nur wenn die product_type_id enthalten ist. Steuert die im
+// Medien-Tab (Upload-Auswahl + Zuordnungs-Dialog) angebotenen Bildtypen.
+const productTypeUsageTypes = computed(() => {
+  const typeId = product.value?.product_type_id
+  return usageTypesList.value.filter(ut =>
+    !ut.allowed_product_type_ids?.length || ut.allowed_product_type_ids.includes(typeId)
+  )
+})
 const mediaViewMode = ref('grid') // 'grid' | 'list'
 const mediaFilter = ref('')
 const selectedMediaIds = ref(new Set())
@@ -1579,9 +1603,9 @@ async function openMediaPicker() {
       usageTypesList.value = types
     } catch (e) { console.error('Failed to load usage types:', e.message) }
   }
-  // Immer sicherstellen dass ein Usage Type gewählt ist
-  if (!selectedUsageTypeId.value && usageTypesList.value.length > 0) {
-    selectedUsageTypeId.value = usageTypesList.value[0].id
+  // Immer sicherstellen dass ein (für den Produkttyp erlaubter) Usage Type gewählt ist
+  if (!selectedUsageTypeId.value && productTypeUsageTypes.value.length > 0) {
+    selectedUsageTypeId.value = productTypeUsageTypes.value[0].id
   }
 }
 
@@ -1714,12 +1738,12 @@ async function openMediaUpload() {
       const { data } = await mediaUsageTypes.list()
       const types = data.data || data
       usageTypesList.value = types
-      if (types.length > 0 && !uploadUsageTypeId.value) {
-        uploadUsageTypeId.value = types[0].id
+      if (productTypeUsageTypes.value.length > 0 && !uploadUsageTypeId.value) {
+        uploadUsageTypeId.value = productTypeUsageTypes.value[0].id
       }
     } catch (e) { console.error('Failed to load usage types:', e.message) }
-  } else if (!uploadUsageTypeId.value && usageTypesList.value.length > 0) {
-    uploadUsageTypeId.value = usageTypesList.value[0].id
+  } else if (!uploadUsageTypeId.value && productTypeUsageTypes.value.length > 0) {
+    uploadUsageTypeId.value = productTypeUsageTypes.value[0].id
   }
   loadAssetFolders()
 }
@@ -1780,8 +1804,8 @@ async function openMotifPicker() {
       usageTypesList.value = data.data || data
     } catch (e) { console.error('Failed to load usage types:', e.message) }
   }
-  if (!selectedUsageTypeId.value && usageTypesList.value.length > 0) {
-    selectedUsageTypeId.value = usageTypesList.value[0].id
+  if (!selectedUsageTypeId.value && productTypeUsageTypes.value.length > 0) {
+    selectedUsageTypeId.value = productTypeUsageTypes.value[0].id
   }
   showMotifPicker.value = true
 }
@@ -2425,7 +2449,7 @@ async function loadVirtualMediaInheritanceData() {
     const { data } = await productsApi.getVirtualMediaInheritanceRules(product.value.id)
     const existingRules = data.data || data || []
     const rulesMap = {}
-    for (const ut of usageTypesList.value) {
+    for (const ut of productTypeUsageTypes.value) {
       const existing = existingRules.find(r => r.usage_type_id === ut.id)
       rulesMap[ut.id] = {
         enabled: !!existing,
@@ -3956,7 +3980,7 @@ onUnmounted(() => {
           </div>
           <select v-if="!activeAttributeViewId" v-model="attrFilterView" class="pim-select text-xs">
             <option :value="null">Alle Sichten</option>
-            <option v-for="view in availableAttrViews" :key="view.id" :value="view.id">
+            <option v-for="view in productTypeAttrViews" :key="view.id" :value="view.id">
               {{ view.name_de || view.technical_name }}
             </option>
           </select>
@@ -4793,7 +4817,7 @@ onUnmounted(() => {
           <div class="space-y-1">
             <label class="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Bildtyp</label>
             <select v-model="uploadUsageTypeId" class="pim-input text-xs w-48">
-              <option v-for="ut in usageTypesList" :key="ut.id" :value="ut.id">{{ ut.name_de || ut.technical_name }}</option>
+              <option v-for="ut in productTypeUsageTypes" :key="ut.id" :value="ut.id">{{ ut.name_de || ut.technical_name }}</option>
             </select>
           </div>
           <!-- Zielordner -->
@@ -5028,7 +5052,7 @@ onUnmounted(() => {
       <!-- Media picker dialog -->
       <MediaPickerDialog
         v-model="showMediaPicker"
-        :usage-types="usageTypesList"
+        :usage-types="productTypeUsageTypes"
         :selected-usage-type-id="selectedUsageTypeId"
         :exclude-media-ids="assignedMediaIds"
         :allowed-extensions="selectedUsageTypeExtensions"
@@ -5671,8 +5695,8 @@ onUnmounted(() => {
           <div v-if="virtualMediaRulesLoading" class="text-center py-4">
             <p class="text-sm text-[var(--color-text-tertiary)]">Laden…</p>
           </div>
-          <div v-else-if="usageTypesList.length === 0" class="text-center py-4">
-            <p class="text-sm text-[var(--color-text-tertiary)]">Keine Bildtypen (Usage-Types) im System vorhanden.</p>
+          <div v-else-if="productTypeUsageTypes.length === 0" class="text-center py-4">
+            <p class="text-sm text-[var(--color-text-tertiary)]">Keine Bildtypen (Usage-Types) für diesen Produkttyp vorhanden.</p>
           </div>
           <div v-else class="pim-card overflow-hidden">
             <table class="w-full text-xs">
@@ -5684,7 +5708,7 @@ onUnmounted(() => {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="ut in usageTypesList" :key="ut.id" class="border-b border-[var(--color-border)] last:border-0">
+                <tr v-for="ut in productTypeUsageTypes" :key="ut.id" class="border-b border-[var(--color-border)] last:border-0">
                   <td class="px-3 py-2">
                     <input type="checkbox" v-model="virtualMediaRules[ut.id].enabled" />
                   </td>
