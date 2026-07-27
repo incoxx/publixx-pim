@@ -2149,6 +2149,15 @@ const relationAttrSaving = ref(false)
 const relationAttrList = ref([]) // all available attributes for dropdown
 const relationAttrListLoaded = ref(false)
 const newRelationAttr = ref({ attribute_id: '' })
+// IDs bereits gespeicherter (freier) Attributwerte, die beim nächsten Speichern
+// gelöscht werden sollen — nötig, weil der Bulk-Endpoint sonst nur upsertet.
+const removedRelationAttrValueIds = ref([])
+
+// Vorgabe-Attribut? (aus den Default-Attributen des Beziehungstyps) — solche
+// dürfen nicht entfernt werden, nur freie Attribute.
+function isDefaultRelationAttr(rel, attrVal) {
+  return (rel?.relation_type?.default_attributes || []).some(d => d.id === attrVal.attribute_id)
+}
 
 // Kernspalten der Beziehungs-Tabelle (Standard sichtbar). Die Keys entsprechen
 // den Sortierfeldern in filteredRelations, damit toggleRelationSort(col.key) greift.
@@ -2208,11 +2217,25 @@ async function loadRelations() {
   if (relationsLoaded.value || !product.value) return
   relationsLoading.value = true
   try {
-    const [relResp, typesResp] = await Promise.all([
-      productsApi.getRelations(product.value.id),
-      relationTypesList.value.length ? Promise.resolve(null) : relationTypes.list(),
-    ])
-    relations.value = relResp.data.data || relResp.data
+    // Alle Beziehungs-Seiten laden (Backend paginiert, Default 25) — sonst
+    // würden bei >25 Beziehungen Tabelle, Filter und Metadaten-Spalten
+    // nur einen Ausschnitt sehen.
+    const all = []
+    let page = 1
+    let typesResp = null
+    for (let guard = 0; guard < 200; guard++) {
+      const [relResp, tResp] = await Promise.all([
+        productsApi.getRelations(product.value.id, { perPage: 100, page }),
+        (page === 1 && !relationTypesList.value.length) ? relationTypes.list() : Promise.resolve(null),
+      ])
+      if (tResp) typesResp = tResp
+      const items = relResp.data.data || relResp.data || []
+      all.push(...items)
+      const lastPage = relResp.data.meta?.last_page ?? 1
+      if (items.length === 0 || page >= lastPage) break
+      page++
+    }
+    relations.value = all
     if (typesResp) relationTypesList.value = typesResp.data.data || typesResp.data
     relationsLoaded.value = true
     // Thumbnails der Zielprodukte im Hintergrund laden
@@ -2590,6 +2613,7 @@ async function toggleRelationExpand(relation) {
     return
   }
   expandedRelationId.value = relation.id
+  removedRelationAttrValueIds.value = []
   await loadRelationAttrValues(relation.id)
   // Pre-populate default attributes from relation type if no attributes exist yet
   if (relationAttrValues.value.length === 0) {
@@ -2634,8 +2658,19 @@ async function toggleRelationExpand(relation) {
 async function loadRelationAttrValues(relationId) {
   relationAttrLoading.value = true
   try {
-    const { data } = await productsApi.getRelationAttributeValues(relationId)
-    relationAttrValues.value = (data.data || data).map(v => ({ ...v }))
+    // Alle Seiten laden (Backend paginiert, Default 25), damit bei vielen
+    // Sprach-/Wiederholungs-Werten nichts fehlt.
+    const all = []
+    let page = 1
+    for (let guard = 0; guard < 200; guard++) {
+      const { data } = await productsApi.getRelationAttributeValues(relationId, { perPage: 100, page })
+      const items = data.data || data || []
+      all.push(...items)
+      const lastPage = data.meta?.last_page ?? 1
+      if (items.length === 0 || page >= lastPage) break
+      page++
+    }
+    relationAttrValues.value = all.map(v => ({ ...v }))
   } catch (e) {
     console.error('Failed to load relation attribute values:', e.message)
     relationAttrValues.value = []
@@ -2691,7 +2726,10 @@ function addRelationAttribute() {
 }
 
 function removeRelationAttribute(index) {
-  relationAttrValues.value.splice(index, 1)
+  const [removed] = relationAttrValues.value.splice(index, 1)
+  // Bereits gespeicherte Werte (mit id) zum Löschen vormerken; noch nicht
+  // gespeicherte (frisch hinzugefügte) verschwinden rein lokal.
+  if (removed?.id) removedRelationAttrValueIds.value.push(removed.id)
 }
 
 async function saveRelationAttrValues() {
@@ -2712,8 +2750,13 @@ async function saveRelationAttrValues() {
       if (v.unit_id) entry.unit_id = v.unit_id
       return entry
     })
-    const { data } = await productsApi.saveRelationAttributeValues(expandedRelationId.value, values)
+    const { data } = await productsApi.saveRelationAttributeValues(
+      expandedRelationId.value,
+      values,
+      removedRelationAttrValueIds.value,
+    )
     relationAttrValues.value = (data.data || data).map(v => ({ ...v }))
+    removedRelationAttrValueIds.value = []
   } catch (e) {
     console.error('Failed to save relation attribute values:', e.message)
   } finally {
@@ -5451,7 +5494,7 @@ onUnmounted(() => {
 
                       <!-- Existing attribute values -->
                       <div v-if="relationAttrValues.length > 0" class="space-y-2">
-                        <div v-for="(attrVal, idx) in relationAttrValues" :key="attrVal.attribute_id" class="flex items-end gap-2">
+                        <div v-for="(attrVal, idx) in relationAttrValues" :key="attrVal.id || (attrVal.attribute_id + '|' + (attrVal.language || '') + '|' + (attrVal.multiplied_index || 0))" class="flex items-end gap-2">
                           <div class="flex-1">
                             <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">
                               {{ attrVal.attribute?.name_de || attrVal.attribute?.technical_name || 'Attribut' }}
@@ -5464,12 +5507,18 @@ onUnmounted(() => {
                             />
                           </div>
                           <button
+                            v-if="!isDefaultRelationAttr(rel, attrVal)"
                             class="pim-btn pim-btn-secondary text-xs px-2 py-1.5 mb-0.5"
                             title="Entfernen"
                             @click="removeRelationAttribute(idx)"
                           >
                             <X class="w-3 h-3" :stroke-width="2" />
                           </button>
+                          <span
+                            v-else
+                            class="text-[10px] text-[var(--color-text-tertiary)] italic mb-1.5 whitespace-nowrap"
+                            title="Vorgabe des Beziehungstyps – nicht entfernbar"
+                          >Vorgabe</span>
                         </div>
                       </div>
                       <p v-else class="text-[11px] text-[var(--color-text-tertiary)]">Keine Attribute gepflegt.</p>

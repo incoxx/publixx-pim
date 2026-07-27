@@ -125,8 +125,8 @@ export default {
   },
 
   // Relations
-  getRelations(id) {
-    return client.get(`/products/${id}/relations`)
+  getRelations(id, options = {}) {
+    return client.get(`/products/${id}/relations`, { params: buildParams(options) })
   },
 
   createRelation(id, data) {
@@ -137,12 +137,12 @@ export default {
     return client.delete(`/product-relations/${relationId}`)
   },
 
-  getRelationAttributeValues(relationId) {
-    return client.get(`/product-relations/${relationId}/attribute-values`)
+  getRelationAttributeValues(relationId, options = {}) {
+    return client.get(`/product-relations/${relationId}/attribute-values`, { params: buildParams(options) })
   },
 
-  saveRelationAttributeValues(relationId, values) {
-    return client.put(`/product-relations/${relationId}/attribute-values`, { values })
+  saveRelationAttributeValues(relationId, values, deleteIds = []) {
+    return client.put(`/product-relations/${relationId}/attribute-values`, { values, delete_ids: deleteIds })
   },
 
   // Virtuelle Produkte (dynamische Cluster)
