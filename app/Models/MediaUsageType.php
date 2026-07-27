@@ -23,6 +23,7 @@ class MediaUsageType extends Model
         'sort_order',
         'allowed_extensions',
         'restricted_display_mode',
+        'allowed_product_type_ids',
     ];
 
     protected function casts(): array
@@ -31,7 +32,18 @@ class MediaUsageType extends Model
             'name_json' => 'array',
             'sort_order' => 'integer',
             'allowed_extensions' => 'array',
+            'allowed_product_type_ids' => 'array',
         ];
+    }
+
+    /**
+     * Gilt dieser Medientyp für den angegebenen Produkttyp?
+     * Leere/NULL-Einschränkung = für alle Produkttypen gültig (Default).
+     */
+    public function allowsProductType(?string $productTypeId): bool
+    {
+        return empty($this->allowed_product_type_ids)
+            || in_array($productTypeId, $this->allowed_product_type_ids, true);
     }
 
     public function mediaAssignments(): HasMany

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { Plus, X, Save, Check, AlertCircle } from 'lucide-vue-next'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
+import { productTypes } from '@/api/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useAttributeStore } from '@/stores/attributes'
 import PimTable from '@/components/shared/PimTable.vue'
@@ -16,10 +17,24 @@ const deleteTarget = ref(null)
 const deleting = ref(false)
 const showForm = ref(false)
 const editId = ref(null)
-const formData = ref({ technical_name: '', name_de: '', name_en: '', sort_order: 0, allowed_extensions: null, restricted_display_mode: 'locked' })
+const formData = ref({ technical_name: '', name_de: '', name_en: '', sort_order: 0, allowed_extensions: null, restricted_display_mode: 'locked', allowed_product_type_ids: [] })
 const formErrors = ref({})
 const formSaving = ref(false)
 const allExtensionsAllowed = ref(true)
+
+// Produkttypen für die optionale Einschränkung (leer = für alle Produkttypen gültig)
+const allProductTypes = ref([])
+
+function toggleProductType(id) {
+  const list = formData.value.allowed_product_type_ids || []
+  const idx = list.indexOf(id)
+  if (idx >= 0) formData.value.allowed_product_type_ids = list.filter(v => v !== id)
+  else formData.value.allowed_product_type_ids = [...list, id]
+}
+
+function isProductTypeSelected(id) {
+  return (formData.value.allowed_product_type_ids || []).includes(id)
+}
 
 const extensionGroups = [
   { label: 'Bilder', exts: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff'] },
@@ -87,11 +102,12 @@ function openForm(item = null) {
       sort_order: item.sort_order ?? 0,
       allowed_extensions: item.allowed_extensions ? [...item.allowed_extensions] : null,
       restricted_display_mode: item.restricted_display_mode || 'locked',
+      allowed_product_type_ids: [...(item.allowed_product_type_ids || [])],
     }
     allExtensionsAllowed.value = item.allowed_extensions === null
   } else {
     editId.value = null
-    formData.value = { technical_name: '', name_de: '', name_en: '', sort_order: 0, allowed_extensions: null, restricted_display_mode: 'locked' }
+    formData.value = { technical_name: '', name_de: '', name_en: '', sort_order: 0, allowed_extensions: null, restricted_display_mode: 'locked', allowed_product_type_ids: [] }
     allExtensionsAllowed.value = true
   }
   formErrors.value = {}
@@ -229,9 +245,13 @@ async function saveDefaultAttributes() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   fetchItems()
   attributeStore.fetchAttributes()
+  try {
+    const { data } = await productTypes.list({ per_page: 9999 })
+    allProductTypes.value = data.data || data
+  } catch (e) { /* ignore */ }
 })
 </script>
 
@@ -311,6 +331,29 @@ onMounted(() => {
           Greift nur, wenn eine Rolle über die Rollenverwaltung auf diesen Bildtyp eingeschränkt wurde.
           Ohne Einschränkung haben alle Rollen Zugriff.
         </p>
+      </div>
+
+      <!-- Erlaubte Produkttypen: leer = für alle Produkttypen gültig (Default) -->
+      <div>
+        <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Erlaubte Produkttypen</label>
+        <p class="text-[11px] text-[var(--color-text-tertiary)] mb-2">
+          Dieser Bildtyp wird im Produkteditor nur bei Produkten der gewählten Typen zur
+          Zuordnung angeboten. Keine Auswahl = für alle Produkttypen gültig.
+        </p>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            v-for="pt in allProductTypes"
+            :key="pt.id"
+            type="button"
+            class="px-2 py-0.5 rounded text-[11px] border transition-colors"
+            :class="isProductTypeSelected(pt.id)
+              ? 'bg-[var(--color-accent)] text-white border-[var(--color-accent)]'
+              : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-accent)]'"
+            @click="toggleProductType(pt.id)"
+          >
+            {{ pt.name_de || pt.technical_name }}
+          </button>
+        </div>
       </div>
 
       <div class="flex gap-2">
