@@ -60,14 +60,20 @@ const sizes = {
     </svg>
 
     <!-- Text block -->
+    <!--
+      Textfarben über CSS-Variablen mit Fallback: Standard nutzt die globalen
+      Theme-Farben; Kontexte mit eigenem Hintergrund (z.B. die Sidebar mit
+      einstellbarer Menü-Hintergrundfarbe) können --anypim-logo-text /
+      --anypim-logo-subtext überschreiben, damit „PIM“/„by incoxx“ lesbar bleiben.
+    -->
     <div v-if="showText" class="flex flex-col">
       <span
         class="tracking-tight"
         :style="{ fontSize: sizes[size].text1 + 'px', lineHeight: 1.3 }"
-      ><span style="color: #2563eb; font-weight: 500">any</span><span style="color: var(--color-text-primary); font-weight: 800">PIM</span></span>
+      ><span style="color: #2563eb; font-weight: 500">any</span><span style="color: var(--anypim-logo-text, var(--color-text-primary)); font-weight: 800">PIM</span></span>
       <span
-        class="text-[var(--color-text-tertiary)] font-medium tracking-wide"
-        :style="{ fontSize: sizes[size].text2 + 'px', lineHeight: 1.3 }"
+        class="font-medium tracking-wide"
+        :style="{ fontSize: sizes[size].text2 + 'px', lineHeight: 1.3, color: 'var(--anypim-logo-subtext, var(--color-text-tertiary))' }"
       >by incoxx</span>
     </div>
   </div>

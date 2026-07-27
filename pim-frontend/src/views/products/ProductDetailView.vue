@@ -167,9 +167,6 @@ async function loadProductTypes() {
 // Flache Liste aller verfügbaren Content-Tabs (Quelle für Sichtbarkeit,
 // Reset-Logik und Lazy-Loading). Die GUI rendert daraus gruppierte Reiter
 // (siehe navGroups), die Content-Blöcke schalten weiterhin über activeTab.
-// Attribut-Sichten, die als eigener Tab im Produkteditor aktiviert wurden
-// (per "Eigener Tab im Produkteditor"-Option in der Attribut-Sicht-Verwaltung),
-// sortiert nach der Sicht-eigenen Sortierung (dieselbe, die auch die Sichten-Liste ordnet).
 // Attribut-Sichten, die für den Produkttyp des aktuellen Produkts gelten.
 // Leere allowed_product_type_ids = für alle Produkttypen gültig (Default);
 // gefüllt = nur wenn die product_type_id enthalten ist. Steuert sowohl die
@@ -181,6 +178,9 @@ const productTypeAttrViews = computed(() => {
   )
 })
 
+// Attribut-Sichten, die als eigener Tab im Produkteditor aktiviert wurden
+// (per "Eigener Tab im Produkteditor"-Option in der Attribut-Sicht-Verwaltung),
+// sortiert nach der Sicht-eigenen Sortierung (dieselbe, die auch die Sichten-Liste ordnet).
 const attributeViewTabs = computed(() =>
   productTypeAttrViews.value
     .filter(v => v.show_as_tab)
@@ -2150,12 +2150,56 @@ const relationAttrList = ref([]) // all available attributes for dropdown
 const relationAttrListLoaded = ref(false)
 const newRelationAttr = ref({ attribute_id: '' })
 
-const relationColumns = [
-  { key: 'relation_type.name_de', label: 'Beziehungstyp' },
-  { key: 'target_product.sku', label: 'Ziel-SKU', mono: true },
-  { key: 'target_product.name', label: 'Zielprodukt' },
-  { key: 'sort_order', label: 'Reihenfolge' },
+// Kernspalten der Beziehungs-Tabelle (Standard sichtbar). Die Keys entsprechen
+// den Sortierfeldern in filteredRelations, damit toggleRelationSort(col.key) greift.
+const relationCoreColumns = [
+  { key: 'relation_type', label: 'Beziehungstyp', sortable: true },
+  { key: 'target_sku',    label: 'Ziel-SKU',      sortable: true, mono: true },
+  { key: 'target_name',   label: 'Zielprodukt',   sortable: true },
+  { key: 'sort_order',    label: 'Reihenfolge',   sortable: true },
 ]
+
+// Dynamische Metadaten-Spalten: Vereinigung aus (a) den in den Beziehungen real
+// gepflegten Attributwerten und (b) den Default-Attributen der Beziehungstypen.
+// Key-Präfix 'attributes.' — damit die localStorage-Persistenz in useColumnConfig
+// (Whitelist für 'attributes.*') die Spaltenauswahl über Reloads hinweg hält.
+const relationMetadataColumns = computed(() => {
+  const map = new Map()
+  const add = (attr, sortOrder) => {
+    if (!attr?.id || map.has(attr.id)) return
+    map.set(attr.id, {
+      key: 'attributes.' + attr.id,
+      label: attr.name_de || attr.technical_name || 'Attribut',
+      group: 'Beziehungsattribute',
+      attribute_id: attr.id,
+      metaSort: sortOrder ?? 9999,
+    })
+  }
+  for (const rel of relations.value) {
+    for (const av of (rel.attribute_values || [])) add(av.attribute)
+    for (const da of (rel.relation_type?.default_attributes || [])) add(da, da.pivot?.sort_order ?? da.sort_order)
+  }
+  return [...map.values()].sort((a, b) =>
+    (a.metaSort - b.metaSort) || a.label.localeCompare(b.label, 'de')
+  )
+})
+
+const {
+  allColumns: allRelationColumns,
+  visibleColumns: visibleRelationColumns,
+  visibleKeys: visibleRelationKeys,
+  toggleColumn: toggleRelationColumn,
+  moveColumn: moveRelationColumn,
+  resetColumns: resetRelationColumns,
+} = useColumnConfig('columns:product-relations', relationCoreColumns, [], relationMetadataColumns)
+
+// Anzeigewert einer Metadaten-Zelle: alle Werte des Attributs für diese Beziehung
+// (mehrere möglich bei Sprache/Wiederholung) menschenlesbar zusammenfassen.
+function getRelationMetaCell(rel, col) {
+  const vals = (rel.attribute_values || []).filter(v => v.attribute_id === col.attribute_id)
+  if (!vals.length) return ''
+  return vals.map(getRelationAttrDisplayValue).filter(s => s !== '' && s != null).join(', ')
+}
 
 // Thumbnail-Cache für Zielprodukte (Beziehungen Kachelansicht)
 const relationTargetThumbs = ref({}) // { productId: thumbUrl }
@@ -2602,7 +2646,13 @@ function getRelationAttrValueField(attrVal) {
 function getRelationAttrDisplayValue(attrVal) {
   if (attrVal.value_flag !== null && attrVal.value_flag !== undefined && attrVal.attribute?.data_type === 'Flag') return attrVal.value_flag ? 'Ja' : 'Nein'
   if (attrVal.value_selection_id && attrVal.value_list_entry) return attrVal.value_list_entry.value_de || attrVal.value_list_entry.code
-  return attrVal.value_string ?? attrVal.value_number ?? attrVal.value_date ?? ''
+  if (attrVal.value_string != null && attrVal.value_string !== '') return attrVal.value_string
+  // value_number kommt als decimal:6-String ("1.800000") — überflüssige Nachkommanullen entfernen.
+  if (attrVal.value_number != null && attrVal.value_number !== '') {
+    const n = Number(attrVal.value_number)
+    return Number.isFinite(n) ? String(n) : String(attrVal.value_number)
+  }
+  return attrVal.value_date ?? ''
 }
 
 function addRelationAttribute() {
@@ -5172,6 +5222,16 @@ onUnmounted(() => {
             placeholder="Filtern…"
           />
         </div>
+        <!-- Spaltenkonfiguration (nur Listenansicht) -->
+        <ColumnConfigPopover
+          v-if="relationViewMode === 'list'"
+          :allColumns="allRelationColumns"
+          :visibleKeys="visibleRelationKeys"
+          @toggle="toggleRelationColumn"
+          @move="moveRelationColumn"
+          @reset="resetRelationColumns"
+          @reorder="visibleRelationKeys = $event"
+        />
         <!-- View toggle -->
         <div class="flex items-center border border-[var(--color-border)] rounded-md overflow-hidden">
           <button
@@ -5294,49 +5354,32 @@ onUnmounted(() => {
       <div v-else class="pim-card overflow-hidden">
         <table class="w-full text-xs">
           <thead>
-            <!-- Sortierbare Spaltenköpfe -->
+            <!-- Sortierbare Spaltenköpfe (Kern- + Metadaten-Spalten dynamisch) -->
             <tr class="border-b border-[var(--color-border)] bg-[var(--color-bg)]">
-              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium cursor-pointer select-none hover:text-[var(--color-text-primary)] transition-colors" @click="toggleRelationSort('relation_type')">
-                <span class="inline-flex items-center gap-1">Beziehungstyp
-                  <ChevronUp v-if="relationSortField === 'relation_type' && relationSortOrder === 'asc'" class="w-3 h-3" :stroke-width="2" />
-                  <ChevronDown v-else-if="relationSortField === 'relation_type' && relationSortOrder === 'desc'" class="w-3 h-3" :stroke-width="2" />
-                </span>
-              </th>
-              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium cursor-pointer select-none hover:text-[var(--color-text-primary)] transition-colors" @click="toggleRelationSort('target_sku')">
-                <span class="inline-flex items-center gap-1">Ziel-SKU
-                  <ChevronUp v-if="relationSortField === 'target_sku' && relationSortOrder === 'asc'" class="w-3 h-3" :stroke-width="2" />
-                  <ChevronDown v-else-if="relationSortField === 'target_sku' && relationSortOrder === 'desc'" class="w-3 h-3" :stroke-width="2" />
-                </span>
-              </th>
-              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium cursor-pointer select-none hover:text-[var(--color-text-primary)] transition-colors" @click="toggleRelationSort('target_name')">
-                <span class="inline-flex items-center gap-1">Zielprodukt
-                  <ChevronUp v-if="relationSortField === 'target_name' && relationSortOrder === 'asc'" class="w-3 h-3" :stroke-width="2" />
-                  <ChevronDown v-else-if="relationSortField === 'target_name' && relationSortOrder === 'desc'" class="w-3 h-3" :stroke-width="2" />
-                </span>
-              </th>
-              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium cursor-pointer select-none hover:text-[var(--color-text-primary)] transition-colors" @click="toggleRelationSort('sort_order')">
-                <span class="inline-flex items-center gap-1">Reihenfolge
-                  <ChevronUp v-if="relationSortField === 'sort_order' && relationSortOrder === 'asc'" class="w-3 h-3" :stroke-width="2" />
-                  <ChevronDown v-else-if="relationSortField === 'sort_order' && relationSortOrder === 'desc'" class="w-3 h-3" :stroke-width="2" />
+              <th
+                v-for="col in visibleRelationColumns"
+                :key="col.key"
+                class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium"
+                :class="col.sortable ? 'cursor-pointer select-none hover:text-[var(--color-text-primary)] transition-colors' : ''"
+                @click="col.sortable && toggleRelationSort(col.key)"
+              >
+                <span class="inline-flex items-center gap-1">{{ col.label }}
+                  <ChevronUp v-if="col.sortable && relationSortField === col.key && relationSortOrder === 'asc'" class="w-3 h-3" :stroke-width="2" />
+                  <ChevronDown v-else-if="col.sortable && relationSortField === col.key && relationSortOrder === 'desc'" class="w-3 h-3" :stroke-width="2" />
                 </span>
               </th>
               <th class="px-3 py-2 text-right text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium" style="width:100px"></th>
             </tr>
             <!-- Quick Lookup Filter-Zeile -->
             <tr v-if="relations.length > 3" class="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-              <td class="px-2 py-1.5">
-                <select class="pim-input text-xs w-full py-1 px-2" :value="relationQuickLookup['relation_type'] || ''" @change="relationQuickLookup = { ...relationQuickLookup, relation_type: $event.target.value }">
+              <td v-for="col in visibleRelationColumns" :key="col.key" class="px-2 py-1.5">
+                <select v-if="col.key === 'relation_type'" class="pim-input text-xs w-full py-1 px-2" :value="relationQuickLookup['relation_type'] || ''" @change="relationQuickLookup = { ...relationQuickLookup, relation_type: $event.target.value }">
                   <option value="">— Alle —</option>
                   <option v-for="t in relationTypesList" :key="t.id" :value="t.name_de || t.technical_name">{{ t.name_de || t.technical_name }}</option>
                 </select>
+                <input v-else-if="col.key === 'target_sku'" type="text" class="pim-input text-xs w-full py-1 px-2" placeholder="SKU…" :value="relationQuickLookup['target_sku'] || ''" @input="relationQuickLookup = { ...relationQuickLookup, target_sku: $event.target.value }" />
+                <input v-else-if="col.key === 'target_name'" type="text" class="pim-input text-xs w-full py-1 px-2" placeholder="Name…" :value="relationQuickLookup['target_name'] || ''" @input="relationQuickLookup = { ...relationQuickLookup, target_name: $event.target.value }" />
               </td>
-              <td class="px-2 py-1.5">
-                <input type="text" class="pim-input text-xs w-full py-1 px-2" placeholder="SKU…" :value="relationQuickLookup['target_sku'] || ''" @input="relationQuickLookup = { ...relationQuickLookup, target_sku: $event.target.value }" />
-              </td>
-              <td class="px-2 py-1.5">
-                <input type="text" class="pim-input text-xs w-full py-1 px-2" placeholder="Name…" :value="relationQuickLookup['target_name'] || ''" @input="relationQuickLookup = { ...relationQuickLookup, target_name: $event.target.value }" />
-              </td>
-              <td class="px-2 py-1.5"></td>
               <td class="px-2 py-1.5"></td>
             </tr>
           </thead>
@@ -5346,20 +5389,15 @@ onUnmounted(() => {
                 class="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-bg)] transition-colors cursor-pointer"
                 @click="toggleRelationExpand(rel)"
               >
-                <td class="px-3 py-2.5">
-                  <span class="text-[var(--color-text-secondary)]">{{ rel.relation_type?.name_de || '—' }}</span>
-                </td>
-                <td class="px-3 py-2.5">
-                  <span class="font-mono text-[var(--color-text-secondary)]">{{ rel.target_product?.sku || '—' }}</span>
-                </td>
-                <td class="px-3 py-2.5">
-                  <span>{{ rel.target_product?.name || '—' }}</span>
-                </td>
-                <td class="px-3 py-2.5">
-                  <span class="flex items-center gap-1 text-[var(--color-text-tertiary)]">
+                <td v-for="col in visibleRelationColumns" :key="col.key" class="px-3 py-2.5">
+                  <span v-if="col.key === 'relation_type'" class="text-[var(--color-text-secondary)]">{{ rel.relation_type?.name_de || '—' }}</span>
+                  <span v-else-if="col.key === 'target_sku'" class="font-mono text-[var(--color-text-secondary)]">{{ rel.target_product?.sku || '—' }}</span>
+                  <span v-else-if="col.key === 'target_name'">{{ rel.target_product?.name || '—' }}</span>
+                  <span v-else-if="col.key === 'sort_order'" class="flex items-center gap-1 text-[var(--color-text-tertiary)]">
                     <span>{{ rel.sort_order ?? '—' }}</span>
                     <Tags v-if="rel.attribute_values?.length" class="w-3 h-3 ml-2" :stroke-width="1.75" :title="(rel.attribute_values.length) + ' Attribute'" />
                   </span>
+                  <span v-else class="text-[var(--color-text-secondary)]">{{ getRelationMetaCell(rel, col) || '—' }}</span>
                 </td>
                 <td class="px-3 py-2.5 text-right">
                   <div class="flex items-center justify-end gap-0.5">
@@ -5390,7 +5428,7 @@ onUnmounted(() => {
               </tr>
               <!-- Expanded: Attribute editing -->
               <tr v-if="expandedRelationId === rel.id">
-                <td colspan="5" class="border-b border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3">
+                <td :colspan="visibleRelationColumns.length + 1" class="border-b border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3">
                   <div class="space-y-3">
                     <div v-if="relationAttrLoading" class="text-center py-4">
                       <p class="text-xs text-[var(--color-text-tertiary)]">Attribute laden…</p>

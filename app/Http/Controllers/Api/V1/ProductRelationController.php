@@ -28,7 +28,15 @@ class ProductRelationController extends Controller
         $this->authorize('view', $product);
 
         $query = $product->relations()
-            ->with(['relationType.defaultAttributes', 'targetProduct', 'attributeValues.attribute'])
+            ->with([
+                'relationType.defaultAttributes',
+                'targetProduct',
+                // valueListEntry/unit mitladen, damit die Metadaten-Spalten in der
+                // Beziehungs-Tabelle Auswahllisten-Labels (statt leer) und Einheiten zeigen.
+                'attributeValues.attribute',
+                'attributeValues.valueListEntry',
+                'attributeValues.unit',
+            ])
             ->orderBy('sort_order', 'asc');
 
         return ProductRelationResource::collection(

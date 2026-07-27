@@ -446,7 +446,11 @@ const sidebarStyle = computed(() => ({
   >
     <!-- Logo -->
     <div class="flex items-center px-3 h-14 border-b border-[var(--pim-sidebar-border)] shrink-0">
-      <AnyPimLogo :showText="!authStore.sidebarCollapsed" size="sm" />
+      <AnyPimLogo
+        :showText="!authStore.sidebarCollapsed"
+        size="sm"
+        :style="{ '--anypim-logo-text': 'var(--pim-sidebar-text)', '--anypim-logo-subtext': 'var(--pim-sidebar-icon)' }"
+      />
       <button
         v-if="!authStore.sidebarCollapsed && hasAnySectionOpen"
         class="ml-auto p-1 rounded text-[var(--pim-sidebar-icon)] hover:text-[var(--pim-sidebar-text)] hover:bg-[var(--pim-sidebar-hover-bg)] transition-colors cursor-pointer"
