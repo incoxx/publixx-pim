@@ -167,9 +167,6 @@ async function loadProductTypes() {
 // Flache Liste aller verfügbaren Content-Tabs (Quelle für Sichtbarkeit,
 // Reset-Logik und Lazy-Loading). Die GUI rendert daraus gruppierte Reiter
 // (siehe navGroups), die Content-Blöcke schalten weiterhin über activeTab.
-// Attribut-Sichten, die als eigener Tab im Produkteditor aktiviert wurden
-// (per "Eigener Tab im Produkteditor"-Option in der Attribut-Sicht-Verwaltung),
-// sortiert nach der Sicht-eigenen Sortierung (dieselbe, die auch die Sichten-Liste ordnet).
 // Attribut-Sichten, die für den Produkttyp des aktuellen Produkts gelten.
 // Leere allowed_product_type_ids = für alle Produkttypen gültig (Default);
 // gefüllt = nur wenn die product_type_id enthalten ist. Steuert sowohl die
@@ -181,6 +178,9 @@ const productTypeAttrViews = computed(() => {
   )
 })
 
+// Attribut-Sichten, die als eigener Tab im Produkteditor aktiviert wurden
+// (per "Eigener Tab im Produkteditor"-Option in der Attribut-Sicht-Verwaltung),
+// sortiert nach der Sicht-eigenen Sortierung (dieselbe, die auch die Sichten-Liste ordnet).
 const attributeViewTabs = computed(() =>
   productTypeAttrViews.value
     .filter(v => v.show_as_tab)
@@ -2646,7 +2646,13 @@ function getRelationAttrValueField(attrVal) {
 function getRelationAttrDisplayValue(attrVal) {
   if (attrVal.value_flag !== null && attrVal.value_flag !== undefined && attrVal.attribute?.data_type === 'Flag') return attrVal.value_flag ? 'Ja' : 'Nein'
   if (attrVal.value_selection_id && attrVal.value_list_entry) return attrVal.value_list_entry.value_de || attrVal.value_list_entry.code
-  return attrVal.value_string ?? attrVal.value_number ?? attrVal.value_date ?? ''
+  if (attrVal.value_string != null && attrVal.value_string !== '') return attrVal.value_string
+  // value_number kommt als decimal:6-String ("1.800000") — überflüssige Nachkommanullen entfernen.
+  if (attrVal.value_number != null && attrVal.value_number !== '') {
+    const n = Number(attrVal.value_number)
+    return Number.isFinite(n) ? String(n) : String(attrVal.value_number)
+  }
+  return attrVal.value_date ?? ''
 }
 
 function addRelationAttribute() {
