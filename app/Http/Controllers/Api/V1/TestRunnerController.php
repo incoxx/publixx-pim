@@ -23,9 +23,14 @@ class TestRunnerController extends Controller
 
         $suites = $this->discoverTestSuites();
 
+        $totalFiles = array_sum(array_column($suites, 'test_files'));
+        $totalTests = array_sum(array_column($suites, 'test_cases'));
+
         return response()->json([
             'data' => [
                 'suites' => $suites,
+                'total_test_files' => $totalFiles,
+                'total_tests' => $totalTests,
                 'php_version' => PHP_VERSION,
                 'phpunit_available' => file_exists(base_path('vendor/bin/phpunit')),
                 'vitest_available' => file_exists(base_path('pim-frontend/node_modules/.bin/vitest')),
@@ -59,9 +64,20 @@ class TestRunnerController extends Controller
         $totalPassed = 0;
         $totalFailed = 0;
         $totalErrors = 0;
+        $totalUnavailable = 0;
+        $ranCount = 0;
         $allPassed = true;
 
         foreach ($results as $result) {
+            // Runner, der wegen fehlender Umgebung (PHPUnit/Composer/Test-DB)
+            // gar nicht ausgeführt werden konnte, ist kein Testfehler.
+            if (! empty($result['unavailable'])) {
+                $totalUnavailable++;
+
+                continue;
+            }
+
+            $ranCount++;
             $totalTests += $result['tests'];
             $totalPassed += $result['passed'];
             $totalFailed += $result['failures'];
@@ -71,14 +87,19 @@ class TestRunnerController extends Controller
             }
         }
 
+        // Erfolg nur, wenn mindestens ein Runner lief, alles grün war
+        // und keine Umgebung fehlte.
+        $success = $ranCount > 0 && $allPassed && $totalUnavailable === 0;
+
         return response()->json([
             'data' => [
-                'success' => $allPassed,
+                'success' => $success,
                 'summary' => [
                     'total_tests' => $totalTests,
                     'passed' => $totalPassed,
                     'failed' => $totalFailed,
                     'errors' => $totalErrors,
+                    'unavailable' => $totalUnavailable,
                 ],
                 'results' => $results,
                 'ran_at' => now()->toIso8601String(),
@@ -201,6 +222,7 @@ class TestRunnerController extends Controller
                 'failures' => $data['numFailedTests'] ?? 0,
                 'errors' => 0,
                 'duration_ms' => round(($data['testResults'][0]['endTime'] ?? 0) - ($data['startTime'] ?? 0)),
+                'unavailable' => false,
                 'test_files' => collect($data['testResults'] ?? [])->map(fn ($f) => [
                     'file' => str_replace(base_path('pim-frontend/'), '', $f['name'] ?? ''),
                     'tests' => ($f['numPassingTests'] ?? 0) + ($f['numFailingTests'] ?? 0),
@@ -252,6 +274,7 @@ class TestRunnerController extends Controller
             'failures' => $failures,
             'errors' => $errors,
             'duration_ms' => $durationMs,
+            'unavailable' => false,
             'test_files' => null,
             'output' => mb_substr($output, -3000), // Last 3000 chars
         ];
@@ -279,11 +302,16 @@ class TestRunnerController extends Controller
             'failures' => $failed,
             'errors' => 0,
             'duration_ms' => 0,
+            'unavailable' => false,
             'test_files' => null,
             'output' => mb_substr($output, -3000),
         ];
     }
 
+    /**
+     * Ergebnis für einen Runner, der wegen fehlender Umgebung nicht
+     * ausgeführt werden konnte (kein Testfehler, sondern nicht verfügbar).
+     */
     private function errorResult(string $runner, string $message): array
     {
         return [
@@ -292,8 +320,9 @@ class TestRunnerController extends Controller
             'tests' => 0,
             'passed' => 0,
             'failures' => 0,
-            'errors' => 1,
+            'errors' => 0,
             'duration_ms' => 0,
+            'unavailable' => true,
             'test_files' => null,
             'output' => $message,
         ];
@@ -320,32 +349,96 @@ class TestRunnerController extends Controller
     {
         $suites = [];
 
-        // Count PHP test files
-        $unitCount = count(glob(base_path('tests/Unit/**/*.php')) ?: []);
-        $featureCount = count(glob(base_path('tests/Feature/**/*.php')) ?: []);
+        // PHPUnit-Testdateien rekursiv erfassen (*Test.php).
+        $unitFiles = $this->findFiles(base_path('tests/Unit'), '/Test\.php$/');
+        $featureFiles = $this->findFiles(base_path('tests/Feature'), '/Test\.php$/');
 
         $suites[] = [
             'id' => 'unit',
             'name' => 'Backend Unit Tests',
             'runner' => 'PHPUnit',
-            'test_files' => $unitCount,
+            'test_files' => count($unitFiles),
+            'test_cases' => $this->countPhpTestCases($unitFiles),
         ];
         $suites[] = [
             'id' => 'feature',
             'name' => 'Backend Feature Tests',
             'runner' => 'PHPUnit',
-            'test_files' => $featureCount,
+            'test_files' => count($featureFiles),
+            'test_cases' => $this->countPhpTestCases($featureFiles),
         ];
 
-        // Count JS test files
-        $frontendTests = glob(base_path('pim-frontend/src/**/__tests__/*.test.js')) ?: [];
+        // Vitest-Testdateien rekursiv erfassen (*.test.js).
+        $frontendFiles = $this->findFiles(base_path('pim-frontend/src'), '/\.test\.js$/');
         $suites[] = [
             'id' => 'frontend',
             'name' => 'Frontend Tests',
             'runner' => 'Vitest',
-            'test_files' => count($frontendTests),
+            'test_files' => count($frontendFiles),
+            'test_cases' => $this->countJsTestCases($frontendFiles),
         ];
 
         return $suites;
+    }
+
+    /**
+     * Findet alle Dateien unterhalb von $dir, deren Name auf $pattern passt
+     * (rekursiv — im Gegensatz zu glob('**') zählt das alle Ebenen).
+     *
+     * @return list<string>
+     */
+    private function findFiles(string $dir, string $pattern): array
+    {
+        if (! is_dir($dir)) {
+            return [];
+        }
+
+        $files = [];
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $file) {
+            if ($file->isFile() && preg_match($pattern, $file->getFilename())) {
+                $files[] = $file->getPathname();
+            }
+        }
+
+        return $files;
+    }
+
+    /**
+     * Zählt PHPUnit-Testmethoden (Namenskonvention test* + #[Test]-Attribut).
+     *
+     * @param  list<string>  $files
+     */
+    private function countPhpTestCases(array $files): int
+    {
+        $count = 0;
+
+        foreach ($files as $file) {
+            $src = @file_get_contents($file) ?: '';
+            $count += preg_match_all('/function\s+test\w/i', $src);
+            $count += preg_match_all('/#\[\s*Test\s*\]/', $src);
+        }
+
+        return $count;
+    }
+
+    /**
+     * Zählt Vitest-Testfälle (it(...) und test(...)).
+     *
+     * @param  list<string>  $files
+     */
+    private function countJsTestCases(array $files): int
+    {
+        $count = 0;
+
+        foreach ($files as $file) {
+            $src = @file_get_contents($file) ?: '';
+            $count += preg_match_all('/\b(?:it|test)\s*(?:\.\w+)?\s*\(/', $src);
+        }
+
+        return $count;
     }
 }

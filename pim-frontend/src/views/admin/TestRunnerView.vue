@@ -20,9 +20,17 @@ const suiteOptions = [
   { id: 'frontend', label: 'Frontend Tests', desc: 'Stores, Utils, Composables' },
 ]
 
+// Gesamt-Testzahl aus der Live-Discovery (ersetzt die früher hartkodierte Zahl).
+const totalTests = computed(() => info.value?.total_tests ?? null)
+
 const overallStatus = computed(() => {
   if (!results.value) return null
-  return results.value.success ? 'passed' : 'failed'
+  if (results.value.success) return 'passed'
+  const s = results.value.summary || {}
+  // Echte Testfehler → "failed"; nur fehlende Umgebung → "incomplete".
+  if ((s.failed || 0) > 0 || (s.errors || 0) > 0) return 'failed'
+  if ((s.unavailable || 0) > 0) return 'incomplete'
+  return 'failed'
 })
 
 const passRate = computed(() => {
@@ -100,7 +108,7 @@ function formatDuration(ms) {
             <Shield class="w-4 h-4 text-emerald-500 shrink-0" />
             <div>
               <div class="text-[10px] text-[var(--color-text-secondary)]">Abgesichert</div>
-              <div class="text-sm font-semibold text-[var(--color-text-primary)]">167+ Tests</div>
+              <div class="text-sm font-semibold text-[var(--color-text-primary)]">{{ totalTests !== null ? totalTests + ' Tests' : '… Tests' }}</div>
             </div>
           </div>
           <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--color-bg)]/60 border border-[var(--color-border)]">
@@ -193,17 +201,36 @@ function formatDuration(ms) {
       <!-- Overall Status Banner -->
       <div
         class="flex items-center gap-4 p-5 rounded-2xl border-2 transition-all"
-        :class="overallStatus === 'passed'
-          ? 'bg-emerald-500/5 border-emerald-500/30'
-          : 'bg-red-500/5 border-red-500/30'"
+        :class="{
+          'bg-emerald-500/5 border-emerald-500/30': overallStatus === 'passed',
+          'bg-amber-500/5 border-amber-500/30': overallStatus === 'incomplete',
+          'bg-red-500/5 border-red-500/30': overallStatus === 'failed',
+        }"
       >
-        <div class="p-3 rounded-xl" :class="overallStatus === 'passed' ? 'bg-emerald-500/15' : 'bg-red-500/15'">
+        <div
+          class="p-3 rounded-xl"
+          :class="{
+            'bg-emerald-500/15': overallStatus === 'passed',
+            'bg-amber-500/15': overallStatus === 'incomplete',
+            'bg-red-500/15': overallStatus === 'failed',
+          }"
+        >
           <CheckCircle2 v-if="overallStatus === 'passed'" class="w-8 h-8 text-emerald-500" />
+          <AlertTriangle v-else-if="overallStatus === 'incomplete'" class="w-8 h-8 text-amber-500" />
           <XCircle v-else class="w-8 h-8 text-red-500" />
         </div>
         <div class="flex-1">
-          <div class="text-lg font-bold" :class="overallStatus === 'passed' ? 'text-emerald-600' : 'text-red-600'">
-            {{ overallStatus === 'passed' ? 'Alle Tests bestanden!' : 'Tests fehlgeschlagen' }}
+          <div
+            class="text-lg font-bold"
+            :class="{
+              'text-emerald-600': overallStatus === 'passed',
+              'text-amber-600': overallStatus === 'incomplete',
+              'text-red-600': overallStatus === 'failed',
+            }"
+          >
+            <template v-if="overallStatus === 'passed'">Alle Tests bestanden!</template>
+            <template v-else-if="overallStatus === 'incomplete'">Nicht vollst&auml;ndig ausf&uuml;hrbar</template>
+            <template v-else>Tests fehlgeschlagen</template>
           </div>
           <div class="text-xs text-[var(--color-text-secondary)] mt-0.5">
             {{ results.summary.passed }}/{{ results.summary.total_tests }} Tests erfolgreich
@@ -212,6 +239,9 @@ function formatDuration(ms) {
             </template>
             <template v-if="results.summary.errors > 0">
               &middot; {{ results.summary.errors }} Fehler
+            </template>
+            <template v-if="results.summary.unavailable > 0">
+              &middot; {{ results.summary.unavailable }} Runner-Umgebung nicht verf&uuml;gbar
             </template>
           </div>
         </div>
@@ -224,11 +254,22 @@ function formatDuration(ms) {
               cx="18" cy="18" r="15.5" fill="none" stroke-width="3"
               stroke-linecap="round"
               :stroke-dasharray="`${passRate * 0.974} 100`"
-              :class="overallStatus === 'passed' ? 'stroke-emerald-500' : 'stroke-red-500'"
+              :class="{
+                'stroke-emerald-500': overallStatus === 'passed',
+                'stroke-amber-500': overallStatus === 'incomplete',
+                'stroke-red-500': overallStatus === 'failed',
+              }"
             />
           </svg>
           <div class="absolute inset-0 flex items-center justify-center">
-            <span class="text-sm font-bold" :class="overallStatus === 'passed' ? 'text-emerald-600' : 'text-red-600'">
+            <span
+              class="text-sm font-bold"
+              :class="{
+                'text-emerald-600': overallStatus === 'passed',
+                'text-amber-600': overallStatus === 'incomplete',
+                'text-red-600': overallStatus === 'failed',
+              }"
+            >
               {{ passRate }}%
             </span>
           </div>
@@ -238,20 +279,31 @@ function formatDuration(ms) {
       <!-- Per-Runner Results -->
       <div v-for="(result, key) in results.results" :key="key" class="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] overflow-hidden">
         <div class="flex items-center gap-3 px-4 py-3">
-          <div class="p-1.5 rounded-lg" :class="result.success ? 'bg-emerald-500/10' : 'bg-red-500/10'">
+          <div
+            class="p-1.5 rounded-lg"
+            :class="{
+              'bg-emerald-500/10': result.success,
+              'bg-amber-500/10': !result.success && result.unavailable,
+              'bg-red-500/10': !result.success && !result.unavailable,
+            }"
+          >
             <CheckCircle2 v-if="result.success" class="w-4 h-4 text-emerald-500" />
+            <AlertTriangle v-else-if="result.unavailable" class="w-4 h-4 text-amber-500" />
             <XCircle v-else class="w-4 h-4 text-red-500" />
           </div>
           <div class="flex-1">
             <div class="text-xs font-semibold text-[var(--color-text-primary)]">{{ result.runner }}</div>
             <div class="text-[10px] text-[var(--color-text-secondary)]">
-              {{ result.passed }}/{{ result.tests }} bestanden
-              <template v-if="result.duration_ms"> &middot; {{ formatDuration(result.duration_ms) }}</template>
+              <template v-if="result.unavailable">Umgebung nicht verf&uuml;gbar &middot; nicht ausgef&uuml;hrt</template>
+              <template v-else>
+                {{ result.passed }}/{{ result.tests }} bestanden
+                <template v-if="result.duration_ms"> &middot; {{ formatDuration(result.duration_ms) }}</template>
+              </template>
             </div>
           </div>
 
           <!-- Mini bar -->
-          <div class="w-32 h-2 rounded-full bg-[var(--color-border)] overflow-hidden hidden sm:block">
+          <div v-if="!result.unavailable" class="w-32 h-2 rounded-full bg-[var(--color-border)] overflow-hidden hidden sm:block">
             <div
               class="h-full rounded-full transition-all duration-500"
               :class="result.success ? 'bg-emerald-500' : 'bg-red-500'"
