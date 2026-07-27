@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="anyPIM">
+  <defs>
+    <linearGradient id="anypim-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1"></stop>
+      <stop offset="50%" stop-color="#8B5CF6"></stop>
+      <stop offset="100%" stop-color="#06B6D4"></stop>
+    </linearGradient>
+  </defs>
+  <path d="M24 4 41.32 14v20L24 44 6.68 34V14L24 4z" fill="none" stroke="url(#anypim-grad)" stroke-width="3" stroke-linejoin="round"></path>
+  <g fill="none" stroke="url(#anypim-grad)" stroke-width="2.2" stroke-linecap="round">
+    <path d="M24 17.4 24 11.4"></path>
+    <path d="M29.72 20.7 34.91 17.7"></path>
+    <path d="M29.72 27.3 34.91 30.3"></path>
+    <path d="M24 30.6 24 36.6"></path>
+    <path d="M18.28 27.3 13.09 30.3"></path>
+    <path d="M18.28 20.7 13.09 17.7"></path>
+  </g>
+  <g fill="url(#anypim-grad)">
+    <circle cx="24" cy="24" r="4.4"></circle>
+    <circle cx="24" cy="8.4" r="2.5"></circle>
+    <circle cx="37.51" cy="16.2" r="2.5"></circle>
+    <circle cx="37.51" cy="31.8" r="2.5"></circle>
+    <circle cx="24" cy="39.6" r="2.5"></circle>
+    <circle cx="10.49" cy="31.8" r="2.5"></circle>
+    <circle cx="10.49" cy="16.2" r="2.5"></circle>
+  </g>
+</svg>
