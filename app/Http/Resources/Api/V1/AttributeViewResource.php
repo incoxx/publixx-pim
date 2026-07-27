@@ -21,6 +21,9 @@ class AttributeViewResource extends JsonResource
             'sort_order' => $this->sort_order,
             'is_write_protected' => $this->is_write_protected,
             'show_as_tab' => $this->show_as_tab,
+            // Optionale Produkttyp-Einschränkung: leer/null = für alle Produkttypen gültig.
+            // Wird im Produkteditor gespiegelt, um Sicht-Tab und Attribut-Filter zu filtern.
+            'allowed_product_type_ids' => $this->allowed_product_type_ids ?? [],
             // Synthetischer RoleTabPermission-Tab-Key — vom Frontend direkt zu übernehmen,
             // statt das "attribute-view:"-Präfix in mehreren Dateien erneut zu bilden.
             'tab_key' => $this->tabKey(),

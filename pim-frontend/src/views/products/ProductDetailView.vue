@@ -170,8 +170,19 @@ async function loadProductTypes() {
 // Attribut-Sichten, die als eigener Tab im Produkteditor aktiviert wurden
 // (per "Eigener Tab im Produkteditor"-Option in der Attribut-Sicht-Verwaltung),
 // sortiert nach der Sicht-eigenen Sortierung (dieselbe, die auch die Sichten-Liste ordnet).
+// Attribut-Sichten, die für den Produkttyp des aktuellen Produkts gelten.
+// Leere allowed_product_type_ids = für alle Produkttypen gültig (Default);
+// gefüllt = nur wenn die product_type_id enthalten ist. Steuert sowohl die
+// dynamischen Sicht-Tabs als auch den Sicht-Auswahlfilter im Attribute-Tab.
+const productTypeAttrViews = computed(() => {
+  const typeId = product.value?.product_type_id
+  return availableAttrViews.value.filter(v =>
+    !v.allowed_product_type_ids?.length || v.allowed_product_type_ids.includes(typeId)
+  )
+})
+
 const attributeViewTabs = computed(() =>
-  availableAttrViews.value
+  productTypeAttrViews.value
     .filter(v => v.show_as_tab)
     .slice()
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
@@ -180,8 +191,10 @@ const attributeViewTabs = computed(() =>
 
 // Ist der aktive Tab einer der dynamischen Attribut-Sicht-Tabs? Über die tab_key-Liste aus der
 // API geprüft, statt das "attribute-view:"-Präfix im Frontend erneut zu bilden.
+// Ebenfalls produkttyp-gefiltert, damit eine für den Typ unzulässige Sicht nicht
+// (z.B. über einen Deeplink) doch als erzwungene Sicht greift.
 const activeAttributeView = computed(() =>
-  availableAttrViews.value.find(v => v.show_as_tab && v.tab_key === activeTab.value) || null
+  productTypeAttrViews.value.find(v => v.show_as_tab && v.tab_key === activeTab.value) || null
 )
 const activeAttributeViewId = computed(() => activeAttributeView.value?.id || null)
 
@@ -1007,7 +1020,7 @@ const filteredAttributes = computed(() => {
   // selbst vorgegeben (Filter-Dropdown ausgeblendet); sonst zählt die manuelle Auswahl.
   const forcedView = activeAttributeView.value
   const effectiveView = forcedView || (attrFilterView.value
-    ? availableAttrViews.value.find(v => v.id === attrFilterView.value)
+    ? productTypeAttrViews.value.find(v => v.id === attrFilterView.value)
     : null)
   if (effectiveView) {
     const viewAttrIds = new Set((effectiveView.attributes || []).map(a => a.id))
@@ -3956,7 +3969,7 @@ onUnmounted(() => {
           </div>
           <select v-if="!activeAttributeViewId" v-model="attrFilterView" class="pim-select text-xs">
             <option :value="null">Alle Sichten</option>
-            <option v-for="view in availableAttrViews" :key="view.id" :value="view.id">
+            <option v-for="view in productTypeAttrViews" :key="view.id" :value="view.id">
               {{ view.name_de || view.technical_name }}
             </option>
           </select>

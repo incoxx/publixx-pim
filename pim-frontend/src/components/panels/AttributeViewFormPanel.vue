@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { attributeViews } from '@/api/attributes'
+import { attributeViews, productTypes } from '@/api/attributes'
 import attributesApi from '@/api/attributes'
 import { Plus, X, GripVertical, ChevronUp, ChevronDown, Maximize2, Minimize2 } from 'lucide-vue-next'
 import PimForm from '@/components/shared/PimForm.vue'
@@ -51,6 +51,19 @@ const formData = ref(
       }
 )
 
+// Erlaubte Produkttypen — bewusst getrennt von formData/PimForm gehalten:
+// PimForm klont modelValue einmalig beim Mount, externe Mutationen an
+// formData nach dem Mount würden beim Submit sonst nicht mitgeschickt.
+// (Gleiches Muster wie RelationTypeFormPanel.)
+const allProductTypes = ref([])
+const allowedProductTypeIds = ref([...(props.attributeView?.allowed_product_type_ids || [])])
+
+function toggleProductType(id) {
+  const idx = allowedProductTypeIds.value.indexOf(id)
+  if (idx === -1) allowedProductTypeIds.value = [...allowedProductTypeIds.value, id]
+  else allowedProductTypeIds.value = allowedProductTypeIds.value.filter(v => v !== id)
+}
+
 const fields = computed(() => [
   { key: 'technical_name', label: 'Technischer Name', type: 'text', required: true, disabled: isEdit.value },
   { key: 'name_de', label: 'Name (DE)', type: 'text', required: true },
@@ -67,6 +80,11 @@ const availableAttributes = computed(() =>
 )
 
 onMounted(async () => {
+  try {
+    const { data } = await productTypes.list({ per_page: 9999 })
+    allProductTypes.value = data.data || data
+  } catch (e) { /* ignore */ }
+
   if (isEdit.value && props.attributeView?.id) {
     loadingAttributes.value = true
     try {
@@ -158,11 +176,15 @@ async function toggleAttributeReadOnly(attr) {
 async function handleSubmit(data) {
   loading.value = true
   errors.value = {}
+  const payload = {
+    ...data,
+    allowed_product_type_ids: allowedProductTypeIds.value,
+  }
   try {
     if (isEdit.value) {
-      await attributeViews.update(props.attributeView.id, data)
+      await attributeViews.update(props.attributeView.id, payload)
     } else {
-      await attributeViews.create(data)
+      await attributeViews.create(payload)
     }
     authStore.closePanel()
     if (props.onSaved) props.onSaved()
@@ -204,6 +226,28 @@ async function handleSubmit(data) {
       @submit="handleSubmit"
       @cancel="authStore.closePanel()"
     />
+
+    <!-- Erlaubte Produkttypen: leer = für alle Produkttypen gültig (Default) -->
+    <div class="space-y-1">
+      <h4 class="text-xs font-semibold text-[var(--color-text-secondary)]">Erlaubte Produkttypen</h4>
+      <p class="text-[11px] text-[var(--color-text-tertiary)] mb-2">
+        Diese Sicht (Tab &amp; Attribut-Filter) erscheint im Produkteditor nur bei Produkten
+        der gewählten Typen. Keine Auswahl = für alle Produkttypen gültig.
+      </p>
+      <div class="flex flex-wrap gap-1.5">
+        <label
+          v-for="pt in allProductTypes"
+          :key="pt.id"
+          class="flex items-center gap-1 text-xs px-2 py-1 rounded border cursor-pointer transition-colors"
+          :class="allowedProductTypeIds.includes(pt.id)
+            ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+            : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]'"
+        >
+          <input type="checkbox" class="pim-checkbox w-3 h-3" :checked="allowedProductTypeIds.includes(pt.id)" @change="toggleProductType(pt.id)" />
+          {{ pt.name_de || pt.technical_name }}
+        </label>
+      </div>
+    </div>
 
     <!-- Zugeordnete Attribute -->
     <div v-if="isEdit" class="border-t border-[var(--color-border)] pt-4">
