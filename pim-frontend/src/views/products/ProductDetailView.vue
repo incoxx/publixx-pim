@@ -2217,11 +2217,25 @@ async function loadRelations() {
   if (relationsLoaded.value || !product.value) return
   relationsLoading.value = true
   try {
-    const [relResp, typesResp] = await Promise.all([
-      productsApi.getRelations(product.value.id),
-      relationTypesList.value.length ? Promise.resolve(null) : relationTypes.list(),
-    ])
-    relations.value = relResp.data.data || relResp.data
+    // Alle Beziehungs-Seiten laden (Backend paginiert, Default 25) — sonst
+    // würden bei >25 Beziehungen Tabelle, Filter und Metadaten-Spalten
+    // nur einen Ausschnitt sehen.
+    const all = []
+    let page = 1
+    let typesResp = null
+    for (let guard = 0; guard < 200; guard++) {
+      const [relResp, tResp] = await Promise.all([
+        productsApi.getRelations(product.value.id, { perPage: 100, page }),
+        (page === 1 && !relationTypesList.value.length) ? relationTypes.list() : Promise.resolve(null),
+      ])
+      if (tResp) typesResp = tResp
+      const items = relResp.data.data || relResp.data || []
+      all.push(...items)
+      const lastPage = relResp.data.meta?.last_page ?? 1
+      if (items.length === 0 || page >= lastPage) break
+      page++
+    }
+    relations.value = all
     if (typesResp) relationTypesList.value = typesResp.data.data || typesResp.data
     relationsLoaded.value = true
     // Thumbnails der Zielprodukte im Hintergrund laden
@@ -2644,8 +2658,19 @@ async function toggleRelationExpand(relation) {
 async function loadRelationAttrValues(relationId) {
   relationAttrLoading.value = true
   try {
-    const { data } = await productsApi.getRelationAttributeValues(relationId)
-    relationAttrValues.value = (data.data || data).map(v => ({ ...v }))
+    // Alle Seiten laden (Backend paginiert, Default 25), damit bei vielen
+    // Sprach-/Wiederholungs-Werten nichts fehlt.
+    const all = []
+    let page = 1
+    for (let guard = 0; guard < 200; guard++) {
+      const { data } = await productsApi.getRelationAttributeValues(relationId, { perPage: 100, page })
+      const items = data.data || data || []
+      all.push(...items)
+      const lastPage = data.meta?.last_page ?? 1
+      if (items.length === 0 || page >= lastPage) break
+      page++
+    }
+    relationAttrValues.value = all.map(v => ({ ...v }))
   } catch (e) {
     console.error('Failed to load relation attribute values:', e.message)
     relationAttrValues.value = []
@@ -5469,7 +5494,7 @@ onUnmounted(() => {
 
                       <!-- Existing attribute values -->
                       <div v-if="relationAttrValues.length > 0" class="space-y-2">
-                        <div v-for="(attrVal, idx) in relationAttrValues" :key="attrVal.attribute_id" class="flex items-end gap-2">
+                        <div v-for="(attrVal, idx) in relationAttrValues" :key="attrVal.id || (attrVal.attribute_id + '|' + (attrVal.language || '') + '|' + (attrVal.multiplied_index || 0))" class="flex items-end gap-2">
                           <div class="flex-1">
                             <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">
                               {{ attrVal.attribute?.name_de || attrVal.attribute?.technical_name || 'Attribut' }}
