@@ -341,18 +341,17 @@ onMounted(async () => {
           Zuordnung angeboten. Keine Auswahl = für alle Produkttypen gültig.
         </p>
         <div class="flex flex-wrap gap-1.5">
-          <button
+          <label
             v-for="pt in allProductTypes"
             :key="pt.id"
-            type="button"
-            class="px-2 py-0.5 rounded text-[11px] border transition-colors"
+            class="flex items-center gap-1 text-xs px-2 py-1 rounded border cursor-pointer transition-colors"
             :class="isProductTypeSelected(pt.id)
-              ? 'bg-[var(--color-accent)] text-white border-[var(--color-accent)]'
-              : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-accent)]'"
-            @click="toggleProductType(pt.id)"
+              ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+              : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]'"
           >
+            <input type="checkbox" class="pim-checkbox w-3 h-3" :checked="isProductTypeSelected(pt.id)" @change="toggleProductType(pt.id)" />
             {{ pt.name_de || pt.technical_name }}
-          </button>
+          </label>
         </div>
       </div>
 

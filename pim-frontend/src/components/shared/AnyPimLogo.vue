@@ -13,46 +13,50 @@ const sizes = {
 
 <template>
   <div class="inline-flex items-center" :style="{ gap: sizes[size].gap + 'px' }">
-    <!-- Icon: Abstract data-hub with hexagonal shape -->
+    <!-- Icon: anyPIM-Mark (Quelle: public/anypim-mark.svg) -->
     <svg
       :width="sizes[size].icon"
       :height="sizes[size].icon"
       viewBox="0 0 48 48"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-label="anyPIM"
     >
       <defs>
-        <linearGradient :id="'pim-grad-' + size" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#6366f1" />
-          <stop offset="50%" stop-color="#2563eb" />
-          <stop offset="100%" stop-color="#06b6d4" />
+        <linearGradient :id="'anypim-grad-' + size" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#6366F1" />
+          <stop offset="50%" stop-color="#8B5CF6" />
+          <stop offset="100%" stop-color="#06B6D4" />
         </linearGradient>
       </defs>
-      <!-- Rounded hexagon outline -->
+      <!-- Hexagon-Umriss -->
       <path
-        d="M24 4L40 13v22L24 44L8 35V13L24 4z"
+        d="M24 4 41.32 14v20L24 44 6.68 34V14L24 4z"
         fill="none"
-        :stroke="`url(#pim-grad-${size})`"
-        stroke-width="2.5"
+        :stroke="`url(#anypim-grad-${size})`"
+        stroke-width="3"
         stroke-linejoin="round"
       />
-      <!-- Central hub -->
-      <circle cx="24" cy="24" r="4.5" :fill="`url(#pim-grad-${size})`" />
-      <!-- Top-right connector + node -->
-      <line x1="27" y1="20.5" x2="34" y2="15" :stroke="`url(#pim-grad-${size})`" stroke-width="2" stroke-linecap="round" />
-      <circle cx="35" cy="14" r="2.5" :fill="`url(#pim-grad-${size})`" />
-      <!-- Top-left connector + node -->
-      <line x1="21" y1="20.5" x2="14" y2="15" :stroke="`url(#pim-grad-${size})`" stroke-width="2" stroke-linecap="round" />
-      <circle cx="13" cy="14" r="2.5" :fill="`url(#pim-grad-${size})`" />
-      <!-- Bottom connector + node -->
-      <line x1="24" y1="28.5" x2="24" y2="36" :stroke="`url(#pim-grad-${size})`" stroke-width="2" stroke-linecap="round" />
-      <circle cx="24" cy="37.5" r="2.5" :fill="`url(#pim-grad-${size})`" />
-      <!-- Left connector + node -->
-      <line x1="19.5" y1="24" x2="12" y2="27" :stroke="`url(#pim-grad-${size})`" stroke-width="2" stroke-linecap="round" />
-      <circle cx="11" cy="27.5" r="2" :fill="`url(#pim-grad-${size})`" />
-      <!-- Right connector + node -->
-      <line x1="28.5" y1="24" x2="36" y2="27" :stroke="`url(#pim-grad-${size})`" stroke-width="2" stroke-linecap="round" />
-      <circle cx="37" cy="27.5" r="2" :fill="`url(#pim-grad-${size})`" />
+      <!-- Verbindungen zu den Knoten -->
+      <g fill="none" :stroke="`url(#anypim-grad-${size})`" stroke-width="2.2" stroke-linecap="round">
+        <path d="M24 17.4 24 11.4" />
+        <path d="M29.72 20.7 34.91 17.7" />
+        <path d="M29.72 27.3 34.91 30.3" />
+        <path d="M24 30.6 24 36.6" />
+        <path d="M18.28 27.3 13.09 30.3" />
+        <path d="M18.28 20.7 13.09 17.7" />
+      </g>
+      <!-- Zentrale Nabe + Knoten -->
+      <g :fill="`url(#anypim-grad-${size})`">
+        <circle cx="24" cy="24" r="4.4" />
+        <circle cx="24" cy="8.4" r="2.5" />
+        <circle cx="37.51" cy="16.2" r="2.5" />
+        <circle cx="37.51" cy="31.8" r="2.5" />
+        <circle cx="24" cy="39.6" r="2.5" />
+        <circle cx="10.49" cy="31.8" r="2.5" />
+        <circle cx="10.49" cy="16.2" r="2.5" />
+      </g>
     </svg>
 
     <!-- Text block -->
