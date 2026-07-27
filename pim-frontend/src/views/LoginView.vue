@@ -155,7 +155,7 @@ onBeforeUnmount(() => {
           <div class="brand-mark">
             <AnyPimLogo size="lg" :show-text="false" />
           </div>
-          <h1 class="brand-word">anyPIM</h1>
+          <h1 class="brand-word"><span class="any">any</span><span class="pim">PIM</span></h1>
           <p class="brand-tagline">Product Information Management</p>
         </div>
 
@@ -307,7 +307,7 @@ onBeforeUnmount(() => {
   opacity: 0.5;
 }
 .blob-1 { width: 460px; height: 460px; top: -120px; left: -80px; background: #6366f1; }
-.blob-2 { width: 380px; height: 380px; top: 30%; left: 50%; transform: translateX(-50%); background: #8b5cf6; opacity: 0.32; }
+.blob-2 { width: 380px; height: 380px; top: 30%; left: 50%; transform: translateX(-50%); background: #2563eb; opacity: 0.32; }
 .blob-3 { width: 520px; height: 520px; bottom: -160px; right: -100px; background: #06b6d4; opacity: 0.4; }
 .grid-overlay {
   position: absolute;
@@ -349,14 +349,12 @@ onBeforeUnmount(() => {
 }
 .brand-word {
   font-size: 44px;
-  font-weight: 800;
   letter-spacing: -0.02em;
-  line-height: 1;
-  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 45%, #22d3ee 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  line-height: 1.25;
+  padding-bottom: 0.06em;
 }
+.brand-word .any { font-weight: 500; color: #60a5fa; }
+.brand-word .pim { font-weight: 800; color: #ffffff; }
 .brand-tagline {
   margin-top: 12px;
   font-size: 12px;
@@ -426,7 +424,7 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: 10px;
   cursor: pointer;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #06b6d4 100%);
+  background: linear-gradient(135deg, #6366f1 0%, #2563eb 50%, #06b6d4 100%);
   background-size: 160% 160%;
   background-position: 0% 50%;
   box-shadow: 0 10px 26px -8px rgba(99, 102, 241, 0.65);
@@ -434,7 +432,7 @@ onBeforeUnmount(() => {
 }
 .btn-gradient:hover:not(:disabled) {
   background-position: 100% 50%;
-  box-shadow: 0 12px 30px -8px rgba(139, 92, 246, 0.7);
+  box-shadow: 0 12px 30px -8px rgba(37, 99, 235, 0.7);
 }
 .btn-gradient:active:not(:disabled) { transform: translateY(1px); }
 .btn-gradient:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -538,7 +536,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   border-radius: 10px;
   color: #fff;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6 55%, #06b6d4);
+  background: linear-gradient(135deg, #6366f1, #2563eb 55%, #06b6d4);
   box-shadow: 0 6px 16px -6px rgba(99, 102, 241, 0.8);
 }
 .video-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }

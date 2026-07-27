@@ -24,7 +24,7 @@ const sizes = {
       <defs>
         <linearGradient :id="'pim-grad-' + size" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="#6366f1" />
-          <stop offset="50%" stop-color="#8b5cf6" />
+          <stop offset="50%" stop-color="#2563eb" />
           <stop offset="100%" stop-color="#06b6d4" />
         </linearGradient>
       </defs>
@@ -56,11 +56,11 @@ const sizes = {
     </svg>
 
     <!-- Text block -->
-    <div v-if="showText" class="flex flex-col leading-none">
+    <div v-if="showText" class="flex flex-col">
       <span
-        class="font-bold tracking-tight"
-        :style="{ fontSize: sizes[size].text1 + 'px', lineHeight: 1.1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }"
-      >anyPIM</span>
+        class="tracking-tight"
+        :style="{ fontSize: sizes[size].text1 + 'px', lineHeight: 1.3 }"
+      ><span style="color: #2563eb; font-weight: 500">any</span><span style="color: var(--color-text-primary); font-weight: 800">PIM</span></span>
       <span
         class="text-[var(--color-text-tertiary)] font-medium tracking-wide"
         :style="{ fontSize: sizes[size].text2 + 'px', lineHeight: 1.3 }"
