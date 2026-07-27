@@ -141,8 +141,8 @@ export default {
     return client.get(`/product-relations/${relationId}/attribute-values`)
   },
 
-  saveRelationAttributeValues(relationId, values) {
-    return client.put(`/product-relations/${relationId}/attribute-values`, { values })
+  saveRelationAttributeValues(relationId, values, deleteIds = []) {
+    return client.put(`/product-relations/${relationId}/attribute-values`, { values, delete_ids: deleteIds })
   },
 
   // Virtuelle Produkte (dynamische Cluster)

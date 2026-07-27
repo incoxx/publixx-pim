@@ -2149,6 +2149,15 @@ const relationAttrSaving = ref(false)
 const relationAttrList = ref([]) // all available attributes for dropdown
 const relationAttrListLoaded = ref(false)
 const newRelationAttr = ref({ attribute_id: '' })
+// IDs bereits gespeicherter (freier) Attributwerte, die beim nächsten Speichern
+// gelöscht werden sollen — nötig, weil der Bulk-Endpoint sonst nur upsertet.
+const removedRelationAttrValueIds = ref([])
+
+// Vorgabe-Attribut? (aus den Default-Attributen des Beziehungstyps) — solche
+// dürfen nicht entfernt werden, nur freie Attribute.
+function isDefaultRelationAttr(rel, attrVal) {
+  return (rel?.relation_type?.default_attributes || []).some(d => d.id === attrVal.attribute_id)
+}
 
 // Kernspalten der Beziehungs-Tabelle (Standard sichtbar). Die Keys entsprechen
 // den Sortierfeldern in filteredRelations, damit toggleRelationSort(col.key) greift.
@@ -2590,6 +2599,7 @@ async function toggleRelationExpand(relation) {
     return
   }
   expandedRelationId.value = relation.id
+  removedRelationAttrValueIds.value = []
   await loadRelationAttrValues(relation.id)
   // Pre-populate default attributes from relation type if no attributes exist yet
   if (relationAttrValues.value.length === 0) {
@@ -2691,7 +2701,10 @@ function addRelationAttribute() {
 }
 
 function removeRelationAttribute(index) {
-  relationAttrValues.value.splice(index, 1)
+  const [removed] = relationAttrValues.value.splice(index, 1)
+  // Bereits gespeicherte Werte (mit id) zum Löschen vormerken; noch nicht
+  // gespeicherte (frisch hinzugefügte) verschwinden rein lokal.
+  if (removed?.id) removedRelationAttrValueIds.value.push(removed.id)
 }
 
 async function saveRelationAttrValues() {
@@ -2712,8 +2725,13 @@ async function saveRelationAttrValues() {
       if (v.unit_id) entry.unit_id = v.unit_id
       return entry
     })
-    const { data } = await productsApi.saveRelationAttributeValues(expandedRelationId.value, values)
+    const { data } = await productsApi.saveRelationAttributeValues(
+      expandedRelationId.value,
+      values,
+      removedRelationAttrValueIds.value,
+    )
     relationAttrValues.value = (data.data || data).map(v => ({ ...v }))
+    removedRelationAttrValueIds.value = []
   } catch (e) {
     console.error('Failed to save relation attribute values:', e.message)
   } finally {
@@ -5464,12 +5482,18 @@ onUnmounted(() => {
                             />
                           </div>
                           <button
+                            v-if="!isDefaultRelationAttr(rel, attrVal)"
                             class="pim-btn pim-btn-secondary text-xs px-2 py-1.5 mb-0.5"
                             title="Entfernen"
                             @click="removeRelationAttribute(idx)"
                           >
                             <X class="w-3 h-3" :stroke-width="2" />
                           </button>
+                          <span
+                            v-else
+                            class="text-[10px] text-[var(--color-text-tertiary)] italic mb-1.5 whitespace-nowrap"
+                            title="Vorgabe des Beziehungstyps – nicht entfernbar"
+                          >Vorgabe</span>
                         </div>
                       </div>
                       <p v-else class="text-[11px] text-[var(--color-text-tertiary)]">Keine Attribute gepflegt.</p>

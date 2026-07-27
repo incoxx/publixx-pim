@@ -47,7 +47,17 @@ class ProductRelationAttributeValueController extends Controller
         $this->authorize('update', $productRelation->sourceProduct);
         $this->assertTabWriteAccess('relations');
 
-        $values = $request->validated()['values'];
+        $validated = $request->validated();
+        $values = $validated['values'];
+
+        // Entfernte (freie) Attributwerte löschen — bewusst auf diese Beziehung
+        // gescopet, damit keine fremden Werte über untergeschobene IDs löschbar sind.
+        $deleteIds = $validated['delete_ids'] ?? [];
+        if (!empty($deleteIds)) {
+            $productRelation->attributeValues()
+                ->whereIn('id', $deleteIds)
+                ->delete();
+        }
 
         foreach ($values as $entry) {
             $key = [

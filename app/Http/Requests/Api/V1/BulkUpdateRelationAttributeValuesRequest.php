@@ -16,7 +16,12 @@ class BulkUpdateRelationAttributeValuesRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'values' => 'required|array|min:1',
+            // Zu löschende (zuvor gespeicherte) Attributwert-IDs dieser Beziehung.
+            'delete_ids' => 'sometimes|array',
+            'delete_ids.*' => 'uuid',
+            // present statt required|min:1 — beim Entfernen des letzten Attributs
+            // wird eine leere Liste plus delete_ids geschickt.
+            'values' => 'present|array',
             'values.*.attribute_id' => 'required|uuid|exists:attributes,id',
             'values.*.value_string' => 'nullable|string',
             'values.*.value_number' => 'nullable|numeric',
