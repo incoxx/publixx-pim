@@ -215,4 +215,48 @@ class RelationTypeControllerTest extends TestCase
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['attributes.0.attribute_id']);
     }
+
+    // ─── Freie Attribute (allows_free_attributes) ────────────────
+
+    public function test_store_default_erlaubt_freie_attribute(): void
+    {
+        $response = $this->postJson('/api/v1/relation-types', [
+            'technical_name'   => 'zubehoer',
+            'name_de'          => 'Zubehör',
+            'is_bidirectional' => false,
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.allows_free_attributes', true);
+    }
+
+    public function test_store_kann_freie_attribute_deaktivieren(): void
+    {
+        $response = $this->postJson('/api/v1/relation-types', [
+            'technical_name'         => 'strikt',
+            'name_de'                => 'Strikt',
+            'is_bidirectional'       => false,
+            'allows_free_attributes' => false,
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.allows_free_attributes', false);
+
+        $this->assertDatabaseHas('product_relation_types', [
+            'technical_name'         => 'strikt',
+            'allows_free_attributes' => false,
+        ]);
+    }
+
+    public function test_update_schaltet_freie_attribute_um(): void
+    {
+        $type = ProductRelationType::factory()->create(['allows_free_attributes' => true]);
+
+        $response = $this->putJson("/api/v1/relation-types/{$type->id}", [
+            'allows_free_attributes' => false,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.allows_free_attributes', false);
+    }
 }

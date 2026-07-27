@@ -36,6 +36,7 @@ class ProductRelationType extends Model
         'name_en',
         'name_json',
         'is_bidirectional',
+        'allows_free_attributes',
         'allowed_source_product_type_ids',
         'allowed_target_product_type_ids',
     ];
@@ -45,6 +46,7 @@ class ProductRelationType extends Model
         return [
             'name_json' => 'array',
             'is_bidirectional' => 'boolean',
+            'allows_free_attributes' => 'boolean',
             'allowed_source_product_type_ids' => 'array',
             'allowed_target_product_type_ids' => 'array',
         ];

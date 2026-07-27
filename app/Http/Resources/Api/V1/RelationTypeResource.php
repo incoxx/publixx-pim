@@ -18,6 +18,7 @@ class RelationTypeResource extends JsonResource
             'name_en' => $this->name_en,
             'name_json' => $this->name_json,
             'is_bidirectional' => $this->is_bidirectional,
+            'allows_free_attributes' => (bool) $this->allows_free_attributes,
             'allowed_source_product_type_ids' => $this->allowed_source_product_type_ids,
             'allowed_target_product_type_ids' => $this->allowed_target_product_type_ids,
             'default_attributes' => AttributeResource::collection($this->whenLoaded('defaultAttributes')),
