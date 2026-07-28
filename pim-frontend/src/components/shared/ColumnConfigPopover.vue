@@ -60,17 +60,44 @@ function onDragEnd() {
   emit('reorder', sortableVisible.value.map(c => c.key))
 }
 
-const baseColumns = computed(() => props.allColumns.filter(c => !c.group && !isVisible(c.key)))
+// Suchfeld zum Filtern der auswählbaren Spalten (v. a. bei vielen Attributen)
+const columnFilter = ref('')
+const normalizedFilter = computed(() => columnFilter.value.trim().toLowerCase())
+
+function matchesFilter(col) {
+  if (!normalizedFilter.value) return true
+  const haystack = `${col.label || ''} ${col.hint || ''}`.toLowerCase()
+  return haystack.includes(normalizedFilter.value)
+}
+
+// Filter beim Schließen zurücksetzen
+watch(open, (isOpen) => {
+  if (!isOpen) columnFilter.value = ''
+})
+
+const baseColumns = computed(() =>
+  props.allColumns.filter(c => !c.group && !isVisible(c.key) && matchesFilter(c))
+)
 const groupedColumns = computed(() => {
   const groups = {}
   for (const col of props.allColumns) {
-    if (col.group && !isVisible(col.key)) {
+    if (col.group && !isVisible(col.key) && matchesFilter(col)) {
       if (!groups[col.group]) groups[col.group] = []
       groups[col.group].push(col)
     }
   }
+  // Spalten innerhalb einer Gruppe alphabetisch sortieren (locale-aware, Deutsch)
+  for (const key of Object.keys(groups)) {
+    groups[key].sort((a, b) =>
+      (a.label || '').localeCompare(b.label || '', 'de', { sensitivity: 'base' })
+    )
+  }
   return groups
 })
+
+const hasFilterResults = computed(() =>
+  baseColumns.value.length > 0 || Object.keys(groupedColumns.value).length > 0
+)
 
 function isVisible(key) {
   return props.visibleKeys.includes(key)
@@ -150,6 +177,17 @@ onUnmounted(() => window.removeEventListener('keydown', onEscape))
             </div>
           </div>
 
+          <!-- Suchfeld -->
+          <div class="px-2 py-2 border-b border-[var(--color-border)] shrink-0">
+            <input
+              v-model="columnFilter"
+              type="text"
+              placeholder="Spalten suchen…"
+              class="pim-input w-full py-1.5 px-2"
+              :class="isMobile ? 'text-sm' : 'text-xs'"
+            />
+          </div>
+
           <!-- Column list -->
           <div class="overflow-y-auto p-1" :class="isMobile ? 'flex-1' : 'max-h-80'">
             <!-- Sichtbare Spalten: per Drag&Drop sortierbar -->
@@ -200,8 +238,16 @@ onUnmounted(() => window.removeEventListener('keydown', onEscape))
               </div>
             </VueDraggable>
 
+            <!-- Keine Treffer bei aktiver Suche -->
+            <div
+              v-if="normalizedFilter && !hasFilterResults"
+              class="px-3 py-4 text-center text-xs text-[var(--color-text-tertiary)]"
+            >
+              Keine passenden Spalten gefunden
+            </div>
+
             <!-- Weitere Spalten (ausgeblendet) -->
-            <template v-if="baseColumns.length > 0 || Object.keys(groupedColumns).length > 0">
+            <template v-if="hasFilterResults">
               <div class="flex items-center gap-2 px-2 pt-2 pb-1 mt-1 border-t border-[var(--color-border)]">
                 <span class="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider"
                       :class="isMobile ? 'text-xs' : ''"
@@ -243,7 +289,10 @@ onUnmounted(() => window.removeEventListener('keydown', onEscape))
                     class="rounded border-[var(--color-border)] text-[var(--color-accent)] shrink-0"
                     :class="isMobile ? 'w-5 h-5' : ''"
                   />
-                  <span class="text-[var(--color-text-secondary)] flex-1 truncate" :class="isMobile ? 'text-sm' : 'text-[11px]'">{{ col.label }}</span>
+                  <span class="flex-1 truncate min-w-0" :class="isMobile ? 'text-sm' : 'text-[11px]'">
+                    <span class="text-[var(--color-text-secondary)]">{{ col.label }}</span>
+                    <span v-if="col.hint && col.hint !== col.label" class="ml-1.5 font-mono text-[var(--color-text-tertiary)] opacity-70">{{ col.hint }}</span>
+                  </span>
                 </div>
               </template>
             </template>
