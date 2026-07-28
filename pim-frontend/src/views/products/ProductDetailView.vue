@@ -72,6 +72,17 @@ const toastStore = useToastStore()
 const recordNavigatorStore = useRecordNavigatorStore()
 const { t } = useI18n()
 
+// Zurück zum Ursprung navigieren (z.B. Schnellsuche, Merkliste) statt immer
+// zur Produktliste. Fallback auf /products, wenn kein In-App-Verlauf existiert
+// (z.B. Direktaufruf per URL/Lesezeichen).
+function goBack() {
+  if (window.history.state?.back) {
+    router.back()
+  } else {
+    router.push('/products')
+  }
+}
+
 // Navigator "Produkt X/Y" — nur sichtbar, wenn das Produkt aus einer Kontextliste
 // (z.B. Merkliste) geöffnet wurde und dort mehr als ein Eintrag steht.
 const recordNavIndex = computed(() => recordNavigatorStore.indexOf(route.params.id))
@@ -3531,7 +3542,7 @@ onUnmounted(() => {
   <div class="space-y-4" data-testid="product-detail">
     <!-- Header -->
     <div class="pim-card flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-[var(--color-surface)] to-[color-mix(in_srgb,var(--color-accent)_4%,var(--color-surface))]">
-      <button class="pim-btn pim-btn-ghost p-1.5" @click="router.push('/products')">
+      <button class="pim-btn pim-btn-ghost p-1.5" @click="goBack" title="Zurück">
         <ArrowLeft class="w-4 h-4" :stroke-width="1.75" />
       </button>
       <div class="flex-1">
