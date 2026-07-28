@@ -417,7 +417,7 @@ onMounted(async () => {
           <p class="text-xs text-[var(--color-text-tertiary)]">{{ meta.total }} Produkt{{ meta.total !== 1 ? 'e' : '' }} gespeichert</p>
         </div>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
         <ColumnConfigPopover
           v-if="meta.total > 0"
           :allColumns="allColumns"
