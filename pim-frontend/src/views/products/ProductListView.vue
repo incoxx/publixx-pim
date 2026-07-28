@@ -525,7 +525,7 @@ onBeforeUnmount(() => {
     <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">{{ t('product.title') }}</h2>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
         <!-- Ansichtsmodus -->
         <div class="flex items-center border border-[var(--color-border)] rounded-md overflow-hidden">
           <button
