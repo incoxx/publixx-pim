@@ -179,6 +179,12 @@ function clearAll() {
   nextTick(() => inputRef.value?.focus())
 }
 
+// ─── Kategorie-Chip im Leerzustand: Tab wechseln + Fokus ───
+function selectCategory(key) {
+  store.switchTab(key)
+  nextTick(() => inputRef.value?.focus())
+}
+
 // ─── Media Thumb URL ─────────────────────────────────
 const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
@@ -271,7 +277,7 @@ function typeIcon(type) {
         :value="store.query"
         @input="onInput"
         @keydown="onKeyDown"
-        class="w-full h-12 pl-12 pr-12 text-base rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/20 transition-colors"
+        class="w-full h-12 pl-12 pr-12 text-base rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] shadow-sm hover:border-[var(--color-accent)]/50 focus:outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/20 focus:shadow-md transition-all"
         placeholder="Schnellsuche..."
         autocomplete="off"
         spellcheck="false"
@@ -482,9 +488,11 @@ function typeIcon(type) {
 
       <!-- Hinweis wenn kein Query -->
       <div v-else-if="!store.query.trim() && !store.semanticLoading" class="max-w-2xl w-full text-center py-16">
-        <Sparkles class="w-16 h-16 mx-auto mb-4 text-[var(--color-accent)] opacity-25" :stroke-width="1.25" />
-        <h2 class="text-xl font-semibold text-[var(--color-text-secondary)] mb-2">Semantische Suche</h2>
-        <p class="text-[var(--color-text-tertiary)] text-sm">
+        <div class="inline-flex p-4 rounded-2xl mb-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--color-accent)_18%,transparent)] to-[color-mix(in_srgb,var(--color-accent)_5%,transparent)] border border-[color-mix(in_srgb,var(--color-accent)_20%,transparent)]">
+          <Sparkles class="w-9 h-9 text-[var(--color-accent)]" :stroke-width="1.5" />
+        </div>
+        <h2 class="text-2xl font-bold tracking-tight text-[var(--color-text-primary)] mb-2">Semantische Suche</h2>
+        <p class="text-[var(--color-text-secondary)] text-sm max-w-md mx-auto">
           Natürlichsprachige Suchanfragen direkt ins Suchfeld eingeben.<br />
           Quantitative Angaben werden automatisch als Filter erkannt.
         </p>
@@ -522,13 +530,29 @@ function typeIcon(type) {
 
     <!-- Leerer Zustand: Kein Suchbegriff (klassische Tabs) -->
     <div v-if="store.activeTab !== 'semantic' && !store.hasQuery && !store.loading && store.results.length === 0" class="max-w-2xl w-full text-center py-16">
-      <Sparkles class="w-16 h-16 mx-auto mb-4 text-[var(--color-accent)] opacity-25" :stroke-width="1.25" />
-      <h2 class="text-xl font-semibold text-[var(--color-text-secondary)] mb-2">Schnellsuche</h2>
-      <p class="text-[var(--color-text-tertiary)] text-sm">
+      <div class="inline-flex p-4 rounded-2xl mb-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--color-accent)_18%,transparent)] to-[color-mix(in_srgb,var(--color-accent)_5%,transparent)] border border-[color-mix(in_srgb,var(--color-accent)_20%,transparent)]">
+        <Sparkles class="w-9 h-9 text-[var(--color-accent)]" :stroke-width="1.5" />
+      </div>
+      <h2 class="text-2xl font-bold tracking-tight text-[var(--color-text-primary)] mb-2">Schnellsuche</h2>
+      <p class="text-[var(--color-text-secondary)] text-sm max-w-md mx-auto">
         Durchsuche Produkte, Medien, Hierarchien und Attribute.<br />
         Klicke auf Querverweise, um tiefer einzutauchen.
       </p>
-      <div class="flex items-center justify-center gap-4 mt-6 text-xs text-[var(--color-text-tertiary)]">
+
+      <!-- Kategorie-Chips: schneller Tab-Wechsel -->
+      <div class="mt-6 flex flex-wrap items-center justify-center gap-2">
+        <button
+          v-for="tab in staticTabs"
+          :key="tab.key"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
+          @click="selectCategory(tab.key)"
+        >
+          <component :is="tab.icon" class="w-3.5 h-3.5" :stroke-width="1.75" />
+          {{ tab.label }}
+        </button>
+      </div>
+
+      <div class="flex items-center justify-center gap-4 mt-7 text-xs text-[var(--color-text-tertiary)]">
         <span><span class="pim-kbd text-[10px]">&uarr;</span><span class="pim-kbd text-[10px]">&darr;</span> Navigieren</span>
         <span><span class="pim-kbd text-[10px]">Enter</span> Öffnen</span>
         <span><span class="pim-kbd text-[10px]">Esc</span> Löschen</span>
