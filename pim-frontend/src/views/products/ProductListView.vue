@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, markRaw } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useProductStore } from '@/stores/products'
@@ -496,6 +496,17 @@ function fetchWithAttributes() {
     if (viewMode.value === 'grid') loadGridThumbnails()
   })
 }
+
+// Neu eingeblendete Attribut-Spalten benötigen ihre Werte vom Server. Wird eine
+// solche Spalte hinzugefügt (oder das Thumbnail eingeblendet), neu laden, damit
+// die Zellen sofort gefüllt sind statt erst nach einem Reload.
+const serverBackedColumnKeys = computed(() =>
+  visibleKeys.value.filter(k => k.startsWith('attributes.') || k === 'thumbnail')
+)
+watch(serverBackedColumnKeys, (newKeys, oldKeys) => {
+  const added = newKeys.some(k => !oldKeys.includes(k))
+  if (added) fetchWithAttributes()
+})
 
 onMounted(async () => {
   // Load searchable attributes for dynamic columns

@@ -225,6 +225,18 @@ const { visibleColumns: searchVisibleColumns, allColumns: searchAllColumns, visi
 
 const { columnProfiles, selectedColumnProfileId, loadColumnProfiles, loadColumnProfile, saveColumnProfile, updateColumnProfile, deleteColumnProfile } = useColumnProfiles('search', searchVisibleKeys)
 
+// Neu eingeblendete Attribut-Spalten benötigen ihre Werte vom Server. Wird eine
+// solche Spalte eingeblendet, während bereits Ergebnisse vorliegen, die aktuelle
+// Ergebnisseite neu laden, damit die Zellen sofort gefüllt sind.
+const searchAttributeColumnKeys = computed(() =>
+  searchVisibleKeys.value.filter(k => k.startsWith('attributes.'))
+)
+watch(searchAttributeColumnKeys, (newKeys, oldKeys) => {
+  if (searchCategory.value !== 'products' || results.value.length === 0) return
+  const added = newKeys.some(k => !oldKeys.includes(k))
+  if (added) doProductSearch(resultMeta.value.current_page || 1).catch(() => {})
+})
+
 // Excel export
 const excelExporting = ref(false)
 
