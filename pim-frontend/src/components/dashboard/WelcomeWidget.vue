@@ -57,7 +57,7 @@ const quickActions = [
           {{ contextLine }}
         </p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <button
           v-for="action in quickActions"
           :key="action.label"
