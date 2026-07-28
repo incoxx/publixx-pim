@@ -7,6 +7,7 @@ import {
   Regex, AudioLines, Languages, Download, GitCompareArrows, Pencil, Settings,
   Package, Sliders, GitBranch, Image, FolderTree, FileSpreadsheet, FileText, Code2, ListFilter,
   Trash2, CheckCheck, FileOutput, LayoutGrid, List,
+  Factory, Type, Plus,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useServerQuickLookup } from '@/composables/useServerQuickLookup'
@@ -547,6 +548,132 @@ const searchModeLabel = computed(() => ({
   soundex: 'SOUNDEX (Ähnlichkeit)',
   regex: 'REGEXP (Muster)',
 }[searchMode.value]))
+
+// ─────────────────────────────────────────────────────────────
+// Geführter Modus ("Was suchen Sie?")
+// Vorgeschaltete Ebene, die aus Intent-Bausteinen die vorhandenen
+// Filter-Refs füllt. KEINE neue Suchlogik — nur ein freundlicher
+// Einstieg über doSearch(). "Erweiterte Suche" zeigt weiterhin das
+// komplette technische Formular.
+// ─────────────────────────────────────────────────────────────
+const guidedMode = ref(localStorage.getItem('search:mode') !== 'expert') // Default: geführt, letzte Wahl gemerkt
+watch(guidedMode, (v) => localStorage.setItem('search:mode', v ? 'guided' : 'expert'))
+
+const isProductGuided = computed(() => guidedMode.value && searchCategory.value === 'products')
+
+const guidedIntents = [
+  { key: 'merkmal', title: 'mit einem bestimmten Merkmal', sub: 'Attribut · Wert', icon: Sliders },
+  { key: 'kategorie', title: 'aus einer Kategorie', sub: 'Hierarchie-Knoten', icon: FolderTree },
+  { key: 'hersteller', title: 'von einem Hersteller', sub: 'Marke / Lieferant', icon: Factory },
+  { key: 'typ', title: 'eines bestimmten Produkttyps', sub: 'z. B. BMEcat, Schulung', icon: Package },
+  { key: 'translation', title: 'mit fehlender Übersetzung', sub: 'Datenqualität', icon: Languages },
+  { key: 'name', title: 'mit einem Namen oder einer SKU', sub: 'Volltext', icon: Type },
+  { key: 'muster', title: 'nach einem Muster (REGEXP)', sub: 'für Profis', icon: Regex },
+]
+
+const openIntents = ref([]) // manuell aufgeklappte Bausteine
+
+function intentHasValue(key) {
+  switch (key) {
+    case 'merkmal': return !!attributeFilterGroups.value.rules?.some(r => r.type === 'rule' && r.attribute_id)
+    case 'kategorie': return selectedCategories.value.length > 0
+    case 'hersteller': return selectedManufacturers.value.length > 0
+    case 'typ': return selectedProductTypes.value.length > 0
+    case 'translation': return !!(missingTranslationFilter.value.attribute_id && missingTranslationFilter.value.target_language)
+    case 'name': return !!searchInput.value.trim() && searchMode.value !== 'regex'
+    case 'muster': return !!searchInput.value.trim() && searchMode.value === 'regex'
+  }
+  return false
+}
+// Baustein ist sichtbar, wenn manuell geöffnet ODER der zugehörige Filter Werte hat
+// (z.B. aus einem geladenen Suchprofil).
+function isIntentOpen(key) {
+  return openIntents.value.includes(key) || intentHasValue(key)
+}
+function openIntent(key) {
+  if (!openIntents.value.includes(key)) openIntents.value = [...openIntents.value, key]
+  if (key === 'merkmal' && !attributeFilterGroups.value.rules?.some(r => r.type === 'rule')) {
+    attributeFilterGroups.value = {
+      operator: attributeFilterGroups.value.operator || 'AND',
+      rules: [...(attributeFilterGroups.value.rules || []), { type: 'rule', attribute_id: '', operator: 'eq', value: '' }],
+    }
+  }
+  if (key === 'kategorie') showCategoryPicker.value = true
+  if (key === 'name' && searchMode.value === 'regex') searchMode.value = 'like'
+  if (key === 'muster') searchMode.value = 'regex'
+}
+function closeIntent(key) {
+  openIntents.value = openIntents.value.filter(k => k !== key)
+  switch (key) {
+    case 'merkmal': attributeFilterGroups.value = { operator: attributeFilterGroups.value.operator || 'AND', rules: [] }; break
+    case 'kategorie': selectedCategories.value = []; break
+    case 'hersteller': selectedManufacturers.value = []; break
+    case 'typ': selectedProductTypes.value = []; break
+    case 'translation': missingTranslationFilter.value = { attribute_id: null, target_language: null }; break
+    case 'name': searchInput.value = ''; break
+    case 'muster': searchInput.value = ''; searchMode.value = 'like'; break
+  }
+}
+function toggleIntent(key) {
+  if (isIntentOpen(key)) closeIntent(key)
+  else openIntent(key)
+}
+function resetGuided() {
+  openIntents.value = []
+  statusFilter.value = ''
+  selectedCategories.value = []
+  selectedManufacturers.value = []
+  selectedProductTypes.value = []
+  missingTranslationFilter.value = { attribute_id: null, target_language: null }
+  attributeFilterGroups.value = { operator: 'AND', rules: [] }
+  searchInput.value = ''
+  searchMode.value = 'like'
+}
+
+const guidedStatusWord = computed(() => ({
+  '': '', active: 'aktiven ', draft: 'Entwurfs-', inactive: 'inaktiven ', discontinued: 'auslaufenden ',
+}[statusFilter.value] || ''))
+
+const guidedOpLabels = {
+  like: 'enthält', eq: 'ist', neq: 'ist nicht', gt: '>', gte: '≥', lt: '<', lte: '≤',
+  starts_with: 'beginnt mit', ends_with: 'endet mit', regex: 'Regex', soundex: 'klingt wie', between: 'zwischen',
+}
+
+// Klartext-Suchsatz aus dem tatsächlichen Filterzustand (immer wahrheitsgetreu).
+const guidedClauses = computed(() => {
+  const c = []
+  for (const r of (attributeFilterGroups.value.rules || [])) {
+    if (r.type === 'rule' && r.attribute_id) {
+      const a = searchableAttributes.value.find(x => x.id === r.attribute_id)
+      const name = a?.name_de || a?.technical_name || 'Merkmal'
+      const val = (r.value !== '' && r.value != null) ? r.value : '…'
+      c.push(`mit ${name} ${guidedOpLabels[r.operator] || r.operator} ${val}`)
+    }
+  }
+  if (selectedCategories.value.length) {
+    const names = selectedCategories.value.map(id => flatCategoryNodes.value.find(n => n.id === id)?.name).filter(Boolean)
+    if (names.length) c.push(`aus Kategorie „${names.join('“, „')}“`)
+  }
+  if (selectedManufacturers.value.length) {
+    const names = selectedManufacturers.value.map(id => manufacturerList.value.find(m => m.id === id)?.name).filter(Boolean)
+    if (names.length) c.push(`von ${names.join(', ')}`)
+  }
+  if (selectedProductTypes.value.length) {
+    const names = selectedProductTypes.value.map(id => attrStore.prodTypes.find(p => p.id === id)).map(p => p?.name_de || p?.technical_name).filter(Boolean)
+    if (names.length) c.push(`vom Typ ${names.join(', ')}`)
+  }
+  if (missingTranslationFilter.value.attribute_id && missingTranslationFilter.value.target_language) {
+    const lang = translationLanguages.find(l => l.code === missingTranslationFilter.value.target_language)
+    c.push(`ohne ${lang?.label || missingTranslationFilter.value.target_language}-Übersetzung`)
+  }
+  const q = searchInput.value.trim()
+  if (q) {
+    if (searchMode.value === 'regex') c.push(`mit Muster /${q}/`)
+    else if (searchMode.value === 'soundex') c.push(`ähnlich klingend zu „${q}“`)
+    else c.push(`mit „${q}“ im Namen/SKU`)
+  }
+  return c
+})
 
 // --- Load data ---
 onMounted(async () => {
@@ -1100,8 +1227,214 @@ const apiCallDisplay = computed(() => {
       @delete="deleteProfile"
     />
 
+    <!-- Modus-Umschalter: Geführt / Erweitert (nur Produkte) -->
+    <div v-if="searchCategory === 'products'" class="flex justify-end">
+      <div class="inline-flex rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-0.5">
+        <button
+          class="px-3 py-1 text-xs font-medium rounded-md transition-colors"
+          :class="guidedMode ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'"
+          @click="guidedMode = true"
+        >Geführt</button>
+        <button
+          class="px-3 py-1 text-xs font-medium rounded-md transition-colors"
+          :class="!guidedMode ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'"
+          @click="guidedMode = false"
+        >Erweitert</button>
+      </div>
+    </div>
+
+    <!-- ═══ Geführter Modus: „Was möchten Sie finden?" ═══ -->
+    <div v-if="isProductGuided" class="space-y-4" data-testid="guided-search">
+      <div>
+        <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Was möchten Sie finden?</h2>
+        <p class="text-xs text-[var(--color-text-secondary)] mt-0.5">
+          Wählen Sie einen Ausgangspunkt — daraus entsteht Ihre Suche in Klartext. Mehreres lässt sich kombinieren.
+        </p>
+      </div>
+
+      <!-- Status-Vorfilter -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)]">Status</span>
+        <div class="inline-flex rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-0.5">
+          <button
+            v-for="opt in [{ v: '', l: 'Alle' }, { v: 'active', l: 'Aktiv' }, { v: 'draft', l: 'Entwurf' }]"
+            :key="opt.v"
+            class="px-3 py-1 text-xs font-medium rounded-md transition-colors"
+            :class="statusFilter === opt.v ? 'bg-[var(--color-surface)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'"
+            @click="statusFilter = opt.v"
+          >{{ opt.l }}</button>
+        </div>
+      </div>
+
+      <!-- Intent-Bausteine -->
+      <p class="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)]">Ich brauche alle Produkte …</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+        <button
+          v-for="it in guidedIntents"
+          :key="it.key"
+          type="button"
+          class="flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all"
+          :class="isIntentOpen(it.key)
+            ? 'border-[var(--color-accent)] bg-[var(--color-accent-light)]'
+            : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-accent)]'"
+          @click="toggleIntent(it.key)"
+        >
+          <span class="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+            <component :is="it.icon" class="w-4 h-4" :stroke-width="1.75" />
+          </span>
+          <span class="flex-1 min-w-0">
+            <span class="block text-[13px] font-semibold text-[var(--color-text-primary)] leading-tight">… {{ it.title }}</span>
+            <span class="block text-[11px] text-[var(--color-text-tertiary)] mt-0.5">{{ it.sub }}</span>
+          </span>
+          <CheckCheck v-if="isIntentOpen(it.key)" class="w-4 h-4 text-[var(--color-accent)] shrink-0" :stroke-width="2" />
+          <Plus v-else class="w-4 h-4 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
+        </button>
+      </div>
+
+      <!-- Ihre Suche: Klartext + Detailfelder -->
+      <div class="pim-card overflow-hidden p-0">
+        <div class="flex items-center gap-2 px-4 py-3 border-b border-[var(--color-border)]">
+          <span class="w-2 h-2 rounded-full bg-[var(--color-accent)]"></span>
+          <span class="text-sm font-semibold text-[var(--color-text-primary)]">Ihre Suche</span>
+          <span class="ml-auto text-xs text-[var(--color-text-secondary)]">
+            <span v-if="liveCount !== null"><strong class="text-[var(--color-text-primary)]">{{ liveCount.toLocaleString('de-DE') }}</strong> Treffer (Vorschau)</span>
+            <span v-else-if="activeFilterCount > 0">{{ activeFilterCount }} Filter aktiv</span>
+          </span>
+        </div>
+
+        <!-- Klartext-Suchsatz -->
+        <div class="px-4 pt-3 text-[15px] leading-relaxed">
+          <span class="text-[var(--color-text-tertiary)]">Alle {{ guidedStatusWord }}Produkte</span><template
+            v-for="(cl, i) in guidedClauses" :key="i"
+          ><span class="text-[var(--color-text-tertiary)]">{{ i === 0 ? ' ' : (i === guidedClauses.length - 1 ? ' und ' : ', ') }}</span><span
+            class="font-semibold text-[var(--color-accent)] bg-[var(--color-accent-light)] rounded px-1.5 py-0.5"
+          >{{ cl }}</span></template><span v-if="!guidedClauses.length" class="text-[var(--color-text-tertiary)]"> …</span><span class="text-[var(--color-text-tertiary)]">.</span>
+        </div>
+
+        <!-- Detailfelder je aktivem Baustein -->
+        <div class="px-4 py-3 space-y-3">
+          <!-- Merkmal -->
+          <div v-if="isIntentOpen('merkmal')" class="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5"><Sliders class="w-3.5 h-3.5" :stroke-width="1.75" />Merkmal</span>
+              <button class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]" @click="closeIntent('merkmal')" title="Entfernen"><X class="w-4 h-4" :stroke-width="2" /></button>
+            </div>
+            <QueryBuilderGroup :group="attributeFilterGroups" :attributes="searchableAttributes" @update="attributeFilterGroups = $event" />
+          </div>
+
+          <!-- Kategorie -->
+          <div v-if="isIntentOpen('kategorie')" class="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5"><FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />Kategorie (inkl. Unterkategorien)</span>
+              <button class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]" @click="closeIntent('kategorie')" title="Entfernen"><X class="w-4 h-4" :stroke-width="2" /></button>
+            </div>
+            <div v-if="hierarchies.length > 1" class="flex items-center gap-2 mb-2">
+              <label class="text-[11px] font-medium text-[var(--color-text-tertiary)]">Hierarchie:</label>
+              <select class="pim-input text-xs flex-1" :value="selectedHierarchyId" @change="selectedHierarchyId = $event.target.value">
+                <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.name_en || h.technical_name }}</option>
+              </select>
+            </div>
+            <div class="max-h-44 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5 bg-[var(--color-surface)]">
+              <label v-for="cat in flatCategoryNodes" :key="cat.id" class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs">
+                <input type="checkbox" :checked="isCategorySelected(cat.id)" @change="toggleCategory(cat.id)" class="rounded border-[var(--color-border)]" />
+                <span class="text-[var(--color-text-primary)]">{{ cat.label }}</span>
+              </label>
+              <p v-if="flatCategoryNodes.length === 0" class="text-xs text-[var(--color-text-tertiary)] py-2 text-center">Keine Kategorien vorhanden</p>
+            </div>
+          </div>
+
+          <!-- Hersteller -->
+          <div v-if="isIntentOpen('hersteller')" class="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5"><Factory class="w-3.5 h-3.5" :stroke-width="1.75" />Hersteller</span>
+              <button class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]" @click="closeIntent('hersteller')" title="Entfernen"><X class="w-4 h-4" :stroke-width="2" /></button>
+            </div>
+            <div v-if="manufacturerList.length === 0" class="text-xs text-[var(--color-text-tertiary)] py-2 text-center">Keine Hersteller angelegt</div>
+            <div v-else class="max-h-44 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5 bg-[var(--color-surface)]">
+              <label v-for="m in manufacturerList" :key="m.id" class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs">
+                <input type="checkbox" :checked="isManufacturerSelected(m.id)" @change="toggleManufacturer(m.id)" class="rounded border-[var(--color-border)]" />
+                <span class="text-[var(--color-text-primary)]">{{ m.name }}</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Produkttyp -->
+          <div v-if="isIntentOpen('typ')" class="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5"><Package class="w-3.5 h-3.5" :stroke-width="1.75" />Produkttyp</span>
+              <button class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]" @click="closeIntent('typ')" title="Entfernen"><X class="w-4 h-4" :stroke-width="2" /></button>
+            </div>
+            <div v-if="attrStore.prodTypes.length === 0" class="text-xs text-[var(--color-text-tertiary)] py-2 text-center">Keine Produkttypen vorhanden</div>
+            <div v-else class="max-h-44 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5 bg-[var(--color-surface)]">
+              <label v-for="pt in attrStore.prodTypes" :key="pt.id" class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs">
+                <input type="checkbox" :checked="isProductTypeSelected(pt.id)" @change="toggleProductType(pt.id)" class="rounded border-[var(--color-border)]" />
+                <span class="text-[var(--color-text-primary)]">{{ pt.name_de || pt.technical_name }}</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Fehlende Übersetzung -->
+          <div v-if="isIntentOpen('translation')" class="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5"><Languages class="w-3.5 h-3.5" :stroke-width="1.75" />Fehlende Übersetzung</span>
+              <button class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]" @click="closeIntent('translation')" title="Entfernen"><X class="w-4 h-4" :stroke-width="2" /></button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[11px] font-medium text-[var(--color-text-tertiary)] mb-1">Attribut</label>
+                <select class="pim-input text-xs w-full" :value="missingTranslationFilter.attribute_id || ''" @change="missingTranslationFilter.attribute_id = $event.target.value || null">
+                  <option value="">— Keins —</option>
+                  <option v-for="attr in translatableSearchAttributes" :key="attr.id" :value="attr.id">{{ attr.name_de || attr.technical_name }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-[var(--color-text-tertiary)] mb-1">Zielsprache</label>
+                <select class="pim-input text-xs w-full" :value="missingTranslationFilter.target_language || ''" @change="missingTranslationFilter.target_language = $event.target.value || null">
+                  <option value="">— Wählen —</option>
+                  <option v-for="lang in translationLanguages" :key="lang.code" :value="lang.code">{{ lang.label }} ({{ lang.code }})</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Name / SKU -->
+          <div v-if="isIntentOpen('name')" class="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5"><Type class="w-3.5 h-3.5" :stroke-width="1.75" />Name oder SKU</span>
+              <button class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]" @click="closeIntent('name')" title="Entfernen"><X class="w-4 h-4" :stroke-width="2" /></button>
+            </div>
+            <input v-model="searchInput" type="text" class="pim-input text-sm w-full" placeholder="z. B. Akkubohrer oder 10023" @keydown.enter="doSearch(1)" />
+            <label class="flex items-center gap-1.5 text-[11px] text-[var(--color-text-secondary)] mt-2 cursor-pointer select-none">
+              <input type="checkbox" :checked="searchMode === 'soundex'" @change="searchMode = $event.target.checked ? 'soundex' : 'like'" class="rounded border-[var(--color-border)]" />
+              Ähnlich klingend suchen (Tippfehler-tolerant, SOUNDEX)
+            </label>
+          </div>
+
+          <!-- Muster (REGEXP) -->
+          <div v-if="isIntentOpen('muster')" class="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5"><Regex class="w-3.5 h-3.5" :stroke-width="1.75" />Muster (REGEXP)</span>
+              <button class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]" @click="closeIntent('muster')" title="Entfernen"><X class="w-4 h-4" :stroke-width="2" /></button>
+            </div>
+            <input v-model="searchInput" type="text" class="pim-input text-sm w-full font-mono" placeholder="^AK-[0-9]{4}$" @keydown.enter="doSearch(1)" />
+          </div>
+        </div>
+
+        <!-- Aktionen -->
+        <div class="flex items-center gap-3 px-4 py-3 border-t border-[var(--color-border)] bg-[var(--color-bg)]">
+          <button class="pim-btn pim-btn-primary" @click="doSearch(1)" data-testid="btn-guided-search">
+            <Search class="w-4 h-4" :stroke-width="2" /> Suchen
+          </button>
+          <button class="pim-btn pim-btn-ghost text-xs" @click="resetGuided">Zurücksetzen</button>
+          <button class="ml-auto text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] flex items-center gap-1" @click="guidedMode = false" title="Zur erweiterten Suche">
+            <Settings class="w-3.5 h-3.5" :stroke-width="1.75" /> Erweiterte Suche
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Search header -->
-    <div class="space-y-2 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+    <div v-if="!isProductGuided" class="space-y-2 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
       <div class="flex items-center gap-3 flex-1 min-w-0">
         <Search class="w-5 h-5 text-[var(--color-text-tertiary)] shrink-0 hidden sm:block" :stroke-width="1.75" />
         <input
@@ -1243,7 +1576,7 @@ const apiCallDisplay = computed(() => {
     </div>
 
     <!-- Search mode toggle (products only) -->
-    <div v-if="searchCategory === 'products'" class="flex flex-wrap items-center gap-2 text-xs">
+    <div v-if="searchCategory === 'products' && !guidedMode" class="flex flex-wrap items-center gap-2 text-xs">
       <span class="text-[var(--color-text-tertiary)]">Suchmodus:</span>
       <button
         v-for="mode in ['like', 'soundex', 'regex']"
@@ -1273,7 +1606,7 @@ const apiCallDisplay = computed(() => {
 
     <!-- Filter panel (products only) -->
     <transition name="slide">
-      <div v-if="showAttributeFilters && searchCategory === 'products'" class="pim-card p-4 space-y-4">
+      <div v-if="showAttributeFilters && searchCategory === 'products' && !guidedMode" class="pim-card p-4 space-y-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Suchfilter</h3>
           <div class="flex gap-2">
@@ -1814,7 +2147,7 @@ const apiCallDisplay = computed(() => {
       </p>
     </div>
 
-    <div v-else-if="!hasSearched" class="text-center py-16">
+    <div v-else-if="!hasSearched && !isProductGuided" class="text-center py-16">
       <component :is="searchCategoryDefs.find(c => c.key === searchCategory)?.icon || Search" class="w-10 h-10 mx-auto mb-3 text-[var(--color-border-strong)]" :stroke-width="1.5" />
       <p class="text-sm text-[var(--color-text-tertiary)]">
         {{ searchCategory === 'products' ? 'Filter konfigurieren und Suche starten' :
