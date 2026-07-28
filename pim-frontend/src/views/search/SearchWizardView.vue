@@ -1275,11 +1275,11 @@ const apiCallDisplay = computed(() => {
           type="button"
           class="flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all"
           :class="isIntentOpen(it.key)
-            ? 'border-[var(--color-accent)] bg-[var(--color-accent-light)]'
+            ? 'border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_10%,var(--color-surface))] ring-1 ring-[var(--color-accent)]'
             : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-accent)]'"
           @click="toggleIntent(it.key)"
         >
-          <span class="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+          <span class="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center bg-[var(--color-accent)] text-white">
             <component :is="it.icon" class="w-4 h-4" :stroke-width="1.75" />
           </span>
           <span class="flex-1 min-w-0">
@@ -1307,7 +1307,7 @@ const apiCallDisplay = computed(() => {
           <span class="text-[var(--color-text-tertiary)]">Alle {{ guidedStatusWord }}Produkte</span><template
             v-for="(cl, i) in guidedClauses" :key="i"
           ><span class="text-[var(--color-text-tertiary)]">{{ i === 0 ? ' ' : (i === guidedClauses.length - 1 ? ' und ' : ', ') }}</span><span
-            class="font-semibold text-[var(--color-accent)] bg-[var(--color-accent-light)] rounded px-1.5 py-0.5"
+            class="font-semibold text-[var(--color-accent-dark)] bg-[color-mix(in_srgb,var(--color-accent)_12%,transparent)] rounded px-1.5 py-0.5"
           >{{ cl }}</span></template><span v-if="!guidedClauses.length" class="text-[var(--color-text-tertiary)]"> …</span><span class="text-[var(--color-text-tertiary)]">.</span>
         </div>
 
