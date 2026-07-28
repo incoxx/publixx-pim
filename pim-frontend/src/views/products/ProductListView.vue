@@ -104,6 +104,7 @@ const attributeColumns = computed(() =>
   searchableAttributes.value.map(attr => ({
     key: `attributes.${attr.id}`,
     label: attr.name_de || attr.technical_name,
+    hint: attr.technical_name,
     group: 'Attribute',
   }))
 )
