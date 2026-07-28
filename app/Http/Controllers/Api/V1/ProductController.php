@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Services\Preview\ProductCompletenessService;
 use App\Services\Preview\ProductPreviewService;
+use App\Support\AttributeValueFormatter;
 use App\Models\WorkflowTask;
 use App\Models\WorkflowTransition;
 use App\Services\ProductVersioningService;
@@ -136,7 +137,7 @@ class ProductController extends Controller
                     } elseif ($av->value_date !== null) {
                         $attrs[$attrId] = $av->value_date;
                     } elseif ($av->value_number !== null) {
-                        $attrs[$attrId] = $av->value_number;
+                        $attrs[$attrId] = AttributeValueFormatter::number($av->value_number);
                     } else {
                         $attrs[$attrId] = $av->value_string ?? '';
                     }

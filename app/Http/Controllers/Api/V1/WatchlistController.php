@@ -12,6 +12,7 @@ use App\Models\ProductAttributeValue;
 use App\Models\WatchlistItem;
 use App\Services\PdfTemplate\PdfTemplateService;
 use App\Services\Preview\ProductPreviewService;
+use App\Support\AttributeValueFormatter;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -129,7 +130,7 @@ class WatchlistController extends Controller
                     } elseif ($av->value_date !== null) {
                         $attrs[$attrId] = $av->value_date;
                     } elseif ($av->value_number !== null) {
-                        $attrs[$attrId] = $av->value_number;
+                        $attrs[$attrId] = AttributeValueFormatter::number($av->value_number);
                     } else {
                         $attrs[$attrId] = $av->value_string ?? '';
                     }

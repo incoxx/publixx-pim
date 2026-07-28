@@ -10,6 +10,7 @@ use App\Models\HierarchyNode;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductPrice;
+use App\Support\AttributeValueFormatter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -197,7 +198,7 @@ class ProductSearchController extends Controller
                     } elseif ($av->value_date !== null) {
                         $attrs[$attrId] = $av->value_date;
                     } elseif ($av->value_number !== null) {
-                        $attrs[$attrId] = $av->value_number;
+                        $attrs[$attrId] = AttributeValueFormatter::number($av->value_number);
                     } else {
                         $attrs[$attrId] = $av->value_string ?? '';
                     }
