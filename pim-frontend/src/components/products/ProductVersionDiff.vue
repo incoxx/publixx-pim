@@ -1,24 +1,27 @@
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps({
   diffData: { type: Object, required: true },
 })
 
 const fieldLabels = {
-  name: 'Name',
-  sku: 'SKU',
-  ean: 'EAN',
-  status: 'Status',
-  master_hierarchy_node_id: 'Hierarchie-Knoten',
+  name: t('Name'),
+  sku: t('SKU'),
+  ean: t('EAN'),
+  status: t('Status'),
+  master_hierarchy_node_id: t('Hierarchie-Knoten'),
 }
 
 const statusLabels = {
-  current: 'Aktueller Stand',
-  draft: 'Entwurf',
-  active: 'Aktiv',
-  inactive: 'Inaktiv',
-  discontinued: 'Auslaufend',
+  current: t('Aktueller Stand'),
+  draft: t('Entwurf'),
+  active: t('Aktiv'),
+  inactive: t('Inaktiv'),
+  discontinued: t('Auslaufend'),
 }
 
 const baseFields = computed(() =>
@@ -27,11 +30,11 @@ const baseFields = computed(() =>
 
 // Gruppierte Sektionen (in Anzeige-Reihenfolge). Leere Sektionen werden ausgeblendet.
 const sectionDefs = [
-  { type: 'attribute', label: 'Attributwerte' },
-  { type: 'price', label: 'Preise' },
-  { type: 'media', label: 'Medien' },
-  { type: 'relation', label: 'Beziehungen' },
-  { type: 'output_hierarchy', label: 'Hierarchie-Zuordnungen' },
+  { type: 'attribute', label: t('Attributwerte') },
+  { type: 'price', label: t('Preise') },
+  { type: 'media', label: t('Medien') },
+  { type: 'relation', label: t('Beziehungen') },
+  { type: 'output_hierarchy', label: t('Hierarchie-Zuordnungen') },
 ]
 
 const sectionGroups = computed(() =>

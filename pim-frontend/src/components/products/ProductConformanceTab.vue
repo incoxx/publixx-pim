@@ -1,8 +1,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { conformance, referenceProfiles } from '@/api/referenceProfiles'
 import { ShieldCheck, ShieldAlert, ShieldX, RefreshCw, AlertTriangle, Info, XCircle, Sparkles } from 'lucide-vue-next'
+
+const { t } = useI18n()
 
 const props = defineProps({
   productId: { type: String, required: true },
@@ -24,16 +27,16 @@ const assigning = ref(false)
 const actionError = ref('')
 
 const STATUS_META = {
-  pass: { label: 'Konform', icon: ShieldCheck, color: 'var(--color-success)' },
-  warning: { label: 'Warnungen', icon: ShieldAlert, color: 'var(--color-warning)' },
-  fail: { label: 'Nicht konform', icon: ShieldX, color: 'var(--color-error)' },
+  pass: { label: t('Konform'), icon: ShieldCheck, color: 'var(--color-success)' },
+  warning: { label: t('Warnungen'), icon: ShieldAlert, color: 'var(--color-warning)' },
+  fail: { label: t('Nicht konform'), icon: ShieldX, color: 'var(--color-error)' },
 }
 const statusMeta = computed(() => STATUS_META[result.value?.status] || null)
 
 const SEVERITY_META = {
-  error: { label: 'Fehler', icon: XCircle, color: 'var(--color-error)' },
-  warning: { label: 'Warnung', icon: AlertTriangle, color: 'var(--color-warning)' },
-  info: { label: 'Hinweis', icon: Info, color: 'var(--color-text-tertiary)' },
+  error: { label: t('Fehler'), icon: XCircle, color: 'var(--color-error)' },
+  warning: { label: t('Warnung'), icon: AlertTriangle, color: 'var(--color-warning)' },
+  info: { label: t('Hinweis'), icon: Info, color: 'var(--color-text-tertiary)' },
 }
 
 const groupedDeviations = computed(() => {

@@ -1,9 +1,12 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Plus, Trash2, Edit3, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-vue-next'
 import scheduledActionsApi from '@/api/scheduledActions'
 import exportJobsApi from '@/api/exportJobs'
 import ScheduledActionDialog from '@/components/calendar/ScheduledActionDialog.vue'
+
+const { t } = useI18n()
 
 const props = defineProps({
   productId: { type: String, required: true },
@@ -32,10 +35,10 @@ const ACTION_COLORS = {
 }
 
 const STATUS_CONFIG = {
-  pending: { icon: Clock, label: 'Ausstehend', class: 'text-amber-500' },
-  processing: { icon: AlertCircle, label: 'In Bearbeitung', class: 'text-blue-500' },
-  completed: { icon: CheckCircle, label: 'Abgeschlossen', class: 'text-green-500' },
-  failed: { icon: XCircle, label: 'Fehlgeschlagen', class: 'text-red-500' },
+  pending: { icon: Clock, label: t('Ausstehend'), class: 'text-amber-500' },
+  processing: { icon: AlertCircle, label: t('In Bearbeitung'), class: 'text-blue-500' },
+  completed: { icon: CheckCircle, label: t('Abgeschlossen'), class: 'text-green-500' },
+  failed: { icon: XCircle, label: t('Fehlgeschlagen'), class: 'text-red-500' },
 }
 
 async function loadActions() {

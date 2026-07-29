@@ -3,10 +3,12 @@
 // Presets werden per User-Preferences-API gespeichert (geraeteübergreifend).
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import adminApi from '@/api/admin'
 import userPreferencesApi from '@/api/userPreferences'
 import { X, Plus } from 'lucide-vue-next'
 
+const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 
@@ -45,11 +47,13 @@ const activeServices = computed(() =>
 
 const overallLabel = computed(() => {
   const overall = status.value?.overall
-  if (overall === 'ok') return 'Alle Dienste aktiv'
-  if (overall === 'warn') return 'Dienste eingeschränkt'
+  if (overall === 'ok') return t('Alle Dienste aktiv')
+  if (overall === 'warn') return t('Dienste eingeschränkt')
   if (overall === 'error') {
     const broken = activeServices.value.filter(s => s.status !== 'running').map(s => s.name)
-    return broken.length === 1 ? `${broken[0]} gestört` : `${broken.length} Dienste gestört`
+    return broken.length === 1
+      ? t('{name} gestört', { name: broken[0] })
+      : t('{count} Dienste gestört', { count: broken.length })
   }
   return ''
 })
@@ -151,7 +155,7 @@ function slotLabel(label) {
     <!-- Versionsstand (klickbar → System) -->
     <button
       class="flex items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity min-w-0 shrink-0"
-      :title="'Einstellungen > System\n' + (versionLabel || '')"
+      :title="t('Einstellungen > System') + '\n' + (versionLabel || '')"
       @click="openSystemSettings"
     >
       <span class="font-semibold">anyPIM</span>
@@ -177,18 +181,18 @@ function slotLabel(label) {
           :class="route.fullPath === preset.path
             ? 'bg-white/20 opacity-100'
             : 'bg-white/5 hover:bg-white/15 opacity-80 hover:opacity-100'"
-          :title="preset.label + '\n(Klick: öffnen · Edit-Icon: ändern)'"
+          :title="t(preset.label) + '\n' + t('(Klick: öffnen · Edit-Icon: ändern)')"
           @click="navigateTo(preset)"
         >
           <span class="text-[9px] opacity-50 shrink-0 font-mono">P{{ idx + 1 }}</span>
-          <span class="truncate">{{ slotLabel(preset.label) }}</span>
+          <span class="truncate">{{ slotLabel(t(preset.label)) }}</span>
         </button>
 
         <!-- Leerer Slot -->
         <button
           v-else
           class="flex items-center justify-center h-5 w-8 rounded text-[11px] transition-colors opacity-30 hover:opacity-70 border border-dashed border-current"
-          :title="`P${idx + 1} — Leer\n(Edit-Icon: aktuelle Seite zuweisen)`"
+          :title="`P${idx + 1} — ${t('Leer')}\n(${t('Edit-Icon: aktuelle Seite zuweisen')})`"
           @click="assignSlot(idx)"
         >
           <span class="text-[9px] font-mono">P{{ idx + 1 }}</span>
@@ -198,7 +202,7 @@ function slotLabel(label) {
         <button
           v-if="hoveredSlot === idx"
           class="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[var(--pim-toolbar-bg)] border border-[var(--pim-toolbar-border)] flex items-center justify-center z-10 opacity-90 hover:opacity-100 transition-opacity"
-          :title="preset ? 'Slot bearbeiten' : 'Aktuelle Seite zuweisen'"
+          :title="preset ? t('Slot bearbeiten') : t('Aktuelle Seite zuweisen')"
           @click.stop="openMenu(idx, $event)"
         >
           <svg class="w-2 h-2" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
@@ -214,15 +218,15 @@ function slotLabel(label) {
           @click.stop
         >
           <div class="px-3 py-1.5 text-[10px] text-[var(--color-text-tertiary)] border-b border-[var(--color-border)] font-medium">
-            Slot P{{ idx + 1 }}
+            {{ t('Slot P') }}{{ idx + 1 }}
           </div>
           <button
             class="w-full px-3 py-1.5 text-left text-xs hover:bg-[var(--color-bg)] transition-colors flex items-center gap-2"
             @click="assignSlot(idx)"
           >
             <Plus class="w-3 h-3 shrink-0" :stroke-width="2" />
-            Aktuelle Seite zuweisen
-            <span class="ml-auto text-[10px] text-[var(--color-text-tertiary)] truncate max-w-[6rem]">{{ slotLabel(route.meta?.title || route.path) }}</span>
+            {{ t('Aktuelle Seite zuweisen') }}
+            <span class="ml-auto text-[10px] text-[var(--color-text-tertiary)] truncate max-w-[6rem]">{{ slotLabel(route.meta?.title ? t(route.meta.title) : route.path) }}</span>
           </button>
           <button
             v-if="preset"
@@ -230,7 +234,7 @@ function slotLabel(label) {
             @click="clearSlot(idx)"
           >
             <X class="w-3 h-3 shrink-0" :stroke-width="2" />
-            Slot leeren
+            {{ t('Slot leeren') }}
           </button>
         </div>
       </div>
@@ -254,7 +258,7 @@ function slotLabel(label) {
       </div>
       <button
         class="flex items-center gap-1.5 font-medium opacity-80 hover:opacity-100 transition-opacity"
-        :title="'Einstellungen > System öffnen'"
+        :title="t('Einstellungen > System öffnen')"
         @click="openSystemSettings"
       >
         <span class="w-2 h-2 rounded-full" :class="overallColor()"></span>

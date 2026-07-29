@@ -38,6 +38,25 @@ export default [
     },
   },
   {
+    // vitest.config.js hat "globals: true" -- describe/it/expect/vi etc. sind
+    // zur Laufzeit ohne Import verfuegbar. ESLint weiss das nicht von selbst.
+    files: ['src/**/__tests__/**/*.js', 'src/**/*.test.js'],
+    languageOptions: {
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        vi: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        suite: 'readonly',
+      },
+    },
+  },
+  {
     ignores: ['dist/**', 'node_modules/**'],
   },
 ];

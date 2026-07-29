@@ -212,12 +212,12 @@ const activeAttributeViewId = computed(() => activeAttributeView.value?.id || nu
 const tabs = computed(() => {
   const pt = product.value?.product_type
   const base = [
-    { key: 'base-data', label: 'Grunddaten' },
+    { key: 'base-data', label: t('Grunddaten') },
     { key: 'attributes', label: t('product.attributes') },
     ...attributeViewTabs.value,
   ]
   if (!pt || pt.has_variants) {
-    base.push({ key: 'variant-attributes', label: 'Varianten-Attribute' })
+    base.push({ key: 'variant-attributes', label: t('Varianten-Attribute') })
     base.push({ key: 'variants', label: t('product.variants') })
   }
   if (!pt || pt.has_media) {
@@ -233,18 +233,18 @@ const tabs = computed(() => {
   // dynamisch aufgelösten Mitgliedern (Suchprofil/PQL/Merkliste) plus
   // Attribut-/Medien-Vererbung an diese Mitglieder.
   if (pt?.has_dynamic_cluster) {
-    base.push({ key: 'virtual-cluster', label: 'Cluster-Vererbung' })
+    base.push({ key: 'virtual-cluster', label: t('Cluster-Vererbung') })
   }
   base.push(
-    { key: 'output-hierarchies', label: 'Ausgabehierarchien' },
-    { key: 'conformance', label: 'Konformität' },
-    { key: 'notes', label: 'Notizen' },
-    { key: 'preview', label: 'Export' },
+    { key: 'output-hierarchies', label: t('Ausgabehierarchien') },
+    { key: 'conformance', label: t('Konformität') },
+    { key: 'notes', label: t('Notizen') },
+    { key: 'preview', label: t('Export') },
     { key: 'versions', label: t('product.versions') },
-    { key: 'scheduled-actions', label: 'Planung' },
+    { key: 'scheduled-actions', label: t('Planung') },
   )
   if (workflowEnabled.value) {
-    base.push({ key: 'workflow-history', label: 'Workflow-Verlauf' })
+    base.push({ key: 'workflow-history', label: t('Workflow-Verlauf') })
   }
   // Filter out tabs the user's role has set to 'hidden'
   return base.filter(tab => authStore.getTabAccess(tab.key) !== 'hidden')
@@ -284,8 +284,8 @@ const navGroups = computed(() => {
 
   // Varianten-Attribute + Varianten zu einer Gruppe mit Sub-Tabs zusammenfassen
   const variantChildren = []
-  if (has('variant-attributes')) variantChildren.push({ key: 'variant-attributes', label: 'Attribute' })
-  if (has('variants')) variantChildren.push({ key: 'variants', label: 'Liste' })
+  if (has('variant-attributes')) variantChildren.push({ key: 'variant-attributes', label: t('Attribute') })
+  if (has('variants')) variantChildren.push({ key: 'variants', label: t('Liste') })
   if (variantChildren.length) {
     groups.push({ type: 'subtabs', key: 'variants-group', label: t('product.variants'), children: variantChildren })
   }
@@ -300,7 +300,7 @@ const navGroups = computed(() => {
   // Selten genutzte Verwaltungs-Tabs in "Mehr" bündeln
   const moreChildren = MORE_TAB_KEYS.filter(has).map(k => ({ key: k, label: tabLabel(k) }))
   if (moreChildren.length) {
-    groups.push({ type: 'dropdown', key: 'more', label: 'Mehr', children: moreChildren })
+    groups.push({ type: 'dropdown', key: 'more', label: t('Mehr'), children: moreChildren })
   }
 
   return groups
@@ -1178,9 +1178,9 @@ async function saveVariantAxes() {
 
 const variantColumns = computed(() => {
   const base = [
-    { key: 'sku', label: 'SKU', mono: true },
-    { key: 'name', label: 'Name' },
-    { key: 'status', label: 'Status' },
+    { key: 'sku', label: t('SKU'), mono: true },
+    { key: 'name', label: t('Name') },
+    { key: 'status', label: t('Status') },
   ]
   for (const attr of variantAttributeDefs.value) {
     base.push({ key: `_va_${attr.id}`, label: attr.name_de || attr.technical_name })
@@ -1486,20 +1486,20 @@ const downloadingMediaZip = ref(false)
 
 // Spalten-Konfiguration
 const defaultMediaColumns = [
-  { key: 'thumb',      label: 'Bild',       sortable: false },
-  { key: 'file_name',  label: 'Dateiname',  sortable: true, mono: true },
-  { key: 'usage_type', label: 'Bildtyp',    sortable: true },
-  { key: 'mime_type',  label: 'MIME',        sortable: true },
+  { key: 'thumb',      label: t('Bild'),       sortable: false },
+  { key: 'file_name',  label: t('Dateiname'),  sortable: true, mono: true },
+  { key: 'usage_type', label: t('Bildtyp'),    sortable: true },
+  { key: 'mime_type',  label: t('MIME'),        sortable: true },
 ]
 const extraMediaColumns = [
-  { key: 'title',          label: 'Titel (DE)',         sortable: true },
-  { key: 'media_type',     label: 'Medientyp',          sortable: true },
-  { key: 'usage_purpose',  label: 'Verwendungszweck',   sortable: true },
-  { key: 'file_size',      label: 'Dateigröße',         sortable: true },
-  { key: 'dimensions',     label: 'Abmessungen',        sortable: false },
-  { key: 'alt_text',       label: 'Alt-Text',           sortable: false },
-  { key: 'sort_order',     label: 'Sortierung',         sortable: true },
-  { key: 'is_primary',     label: 'Primär',             sortable: true },
+  { key: 'title',          label: t('Titel (DE)'),         sortable: true },
+  { key: 'media_type',     label: t('Medientyp'),          sortable: true },
+  { key: 'usage_purpose',  label: t('Verwendungszweck'),   sortable: true },
+  { key: 'file_size',      label: t('Dateigröße'),         sortable: true },
+  { key: 'dimensions',     label: t('Abmessungen'),        sortable: false },
+  { key: 'alt_text',       label: t('Alt-Text'),           sortable: false },
+  { key: 'sort_order',     label: t('Sortierung'),         sortable: true },
+  { key: 'is_primary',     label: t('Primär'),             sortable: true },
 ]
 const {
   allColumns: allMediaColumns,
@@ -1963,18 +1963,18 @@ const priceDeleteTarget = ref(null)
 const priceDeleting = ref(false)
 
 const priceColumns = [
-  { key: 'price_type.name_de', label: 'Preistyp' },
-  { key: 'amount', label: 'Betrag', align: 'right' },
-  { key: 'currency', label: 'Währung' },
-  { key: 'valid_from', label: 'Gültig ab' },
-  { key: 'valid_to', label: 'Gültig bis' },
-  { key: 'price_region.name', label: 'Preisregion' },
+  { key: 'price_type.name_de', label: t('Preistyp') },
+  { key: 'amount', label: t('Betrag'), align: 'right' },
+  { key: 'currency', label: t('Währung') },
+  { key: 'valid_from', label: t('Gültig ab') },
+  { key: 'valid_to', label: t('Gültig bis') },
+  { key: 'price_region.name', label: t('Preisregion') },
 ]
 
 const priceQuickLookup = ref({})
 const priceQuickLookupConfig = computed(() => ({
   'price_type.name_de': { type: 'select', options: priceTypesList.value.map(t => ({ value: t.name_de || t.technical_name, label: t.name_de || t.technical_name })) },
-  'currency': { type: 'select', options: [{ value: 'EUR', label: 'EUR' }, { value: 'USD', label: 'USD' }, { value: 'CHF', label: 'CHF' }, { value: 'GBP', label: 'GBP' }] },
+  'currency': { type: 'select', options: [{ value: 'EUR', label: t('EUR') }, { value: 'USD', label: t('USD') }, { value: 'CHF', label: t('CHF') }, { value: 'GBP', label: t('GBP') }] },
   'price_region.name': { type: 'text', placeholder: 'Region…' },
 }))
 const filteredPrices = computed(() => {
@@ -2173,10 +2173,10 @@ function isDefaultRelationAttr(rel, attrVal) {
 // Kernspalten der Beziehungs-Tabelle (Standard sichtbar). Die Keys entsprechen
 // den Sortierfeldern in filteredRelations, damit toggleRelationSort(col.key) greift.
 const relationCoreColumns = [
-  { key: 'relation_type', label: 'Beziehungstyp', sortable: true },
-  { key: 'target_sku',    label: 'Ziel-SKU',      sortable: true, mono: true },
-  { key: 'target_name',   label: 'Zielprodukt',   sortable: true },
-  { key: 'sort_order',    label: 'Reihenfolge',   sortable: true },
+  { key: 'relation_type', label: t('Beziehungstyp'), sortable: true },
+  { key: 'target_sku',    label: t('Ziel-SKU'),      sortable: true, mono: true },
+  { key: 'target_name',   label: t('Zielprodukt'),   sortable: true },
+  { key: 'sort_order',    label: t('Reihenfolge'),   sortable: true },
 ]
 
 // Dynamische Metadaten-Spalten: Vereinigung aus (a) den in den Beziehungen real
@@ -3119,10 +3119,10 @@ function switchPreviewLang(lang) {
 
 const previewVariantColumns = computed(() => {
   const base = [
-    { key: 'sku', label: 'SKU', mono: true },
-    { key: 'name', label: 'Name' },
-    { key: 'ean', label: 'EAN', mono: true },
-    { key: 'status', label: 'Status' },
+    { key: 'sku', label: t('SKU'), mono: true },
+    { key: 'name', label: t('Name') },
+    { key: 'ean', label: t('EAN'), mono: true },
+    { key: 'status', label: t('Status') },
   ]
   if (previewData.value?.variants?.[0]?.variant_attributes?.length) {
     for (const va of previewData.value.variants[0].variant_attributes) {
@@ -3913,7 +3913,7 @@ onUnmounted(() => {
               <PimAttributeInput
                 type="select"
                 v-model="product.status"
-                :options="[{ value: 'active', label: 'Aktiv' }, { value: 'draft', label: 'Entwurf' }, { value: 'inactive', label: 'Inaktiv' }, { value: 'discontinued', label: 'Auslaufend' }]"
+                :options="[{ value: 'active', label: t('Aktiv') }, { value: 'draft', label: t('Entwurf') }, { value: 'inactive', label: t('Inaktiv') }, { value: 'discontinued', label: t('Auslaufend') }]"
               />
             </div>
           </div>
@@ -4553,7 +4553,7 @@ onUnmounted(() => {
           </div>
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Status</label>
-            <PimAttributeInput type="select" v-model="variantForm.status" :options="[{ value: 'draft', label: 'Entwurf' }, { value: 'active', label: 'Aktiv' }]" />
+            <PimAttributeInput type="select" v-model="variantForm.status" :options="[{ value: 'draft', label: t('Entwurf') }, { value: 'active', label: t('Aktiv') }]" />
           </div>
           <div v-for="attr in variantAttributeDefs" :key="attr.id">
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">{{ attr.name_de || attr.technical_name }}</label>
@@ -5203,7 +5203,7 @@ onUnmounted(() => {
           </div>
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Währung <span class="text-[var(--color-error)]">*</span></label>
-            <PimAttributeInput type="select" v-model="priceForm.currency" :options="[{ value: 'EUR', label: 'EUR' }, { value: 'USD', label: 'USD' }, { value: 'CHF', label: 'CHF' }, { value: 'GBP', label: 'GBP' }]" />
+            <PimAttributeInput type="select" v-model="priceForm.currency" :options="[{ value: 'EUR', label: t('EUR') }, { value: 'USD', label: t('USD') }, { value: 'CHF', label: t('CHF') }, { value: 'GBP', label: t('GBP') }]" />
           </div>
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Preisregion</label>
@@ -6365,10 +6365,10 @@ onUnmounted(() => {
           <div class="pt-3">
             <PimTable
               :columns="[
-                { key: 'relation_type', label: 'Typ' },
-                { key: 'target_product.sku', label: 'Ziel-SKU', mono: true },
-                { key: 'target_product.name', label: 'Zielprodukt' },
-                { key: 'sort_order', label: 'Reihenfolge' },
+                { key: 'relation_type', label: t('Typ') },
+                { key: 'target_product.sku', label: t('Ziel-SKU'), mono: true },
+                { key: 'target_product.name', label: t('Zielprodukt') },
+                { key: 'sort_order', label: t('Reihenfolge') },
               ]"
               :rows="previewData.relations"
               emptyText="Keine Beziehungen"
@@ -6387,12 +6387,12 @@ onUnmounted(() => {
           <div class="pt-3">
             <PimTable
               :columns="[
-                { key: 'price_type', label: 'Preistyp' },
-                { key: 'amount', label: 'Betrag', align: 'right' },
-                { key: 'currency', label: 'Währung' },
-                { key: 'valid_from', label: 'Gültig ab' },
-                { key: 'valid_to', label: 'Gültig bis' },
-                { key: 'country', label: 'Land' },
+                { key: 'price_type', label: t('Preistyp') },
+                { key: 'amount', label: t('Betrag'), align: 'right' },
+                { key: 'currency', label: t('Währung') },
+                { key: 'valid_from', label: t('Gültig ab') },
+                { key: 'valid_to', label: t('Gültig bis') },
+                { key: 'country', label: t('Land') },
               ]"
               :rows="previewData.prices"
               emptyText="Keine Preise"
