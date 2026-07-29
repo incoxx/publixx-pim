@@ -13,6 +13,7 @@ import { NodeTypes } from '@vue/compiler-core';
 
 const SCOPE_PATTERNS = [
   /[/\\]views[/\\]products[/\\]ProductDetailView\.vue$/,
+  /[/\\]views[/\\]products[/\\]ProductListView\.vue$/,
   /[/\\]components[/\\]products[/\\]/,
 ];
 

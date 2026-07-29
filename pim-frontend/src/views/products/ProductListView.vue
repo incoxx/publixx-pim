@@ -81,20 +81,20 @@ const { search, activeFilters, setSearch, removeFilter, clearFilters } = useFilt
 })
 
 const defaultColumns = [
-  { key: 'sku', label: 'SKU', sortable: true, mono: true },
-  { key: 'name', label: 'Name', sortable: true },
-  { key: 'product_type.name_de', label: 'Typ' },
-  { key: 'status', label: 'Status', sortable: true },
-  { key: 'updated_at', label: 'Geändert', sortable: true },
+  { key: 'sku', label: t('SKU'), sortable: true, mono: true },
+  { key: 'name', label: t('Name'), sortable: true },
+  { key: 'product_type.name_de', label: t('Typ') },
+  { key: 'status', label: t('Status'), sortable: true },
+  { key: 'updated_at', label: t('Geändert'), sortable: true },
 ]
 
 const extraColumns = [
-  { key: 'thumbnail', label: 'Bild', width: '52px' },
-  { key: 'ean', label: 'EAN', mono: true },
-  { key: 'workflow_status', label: 'Workflow' },
-  { key: 'manufacturer.name', label: 'Hersteller' },
-  { key: 'master_hierarchy_node.name_de', label: 'Hierarchie-Knoten', sortable: true },
-  { key: 'created_at', label: 'Erstellt', sortable: true },
+  { key: 'thumbnail', label: t('Bild'), width: '52px' },
+  { key: 'ean', label: t('EAN'), mono: true },
+  { key: 'workflow_status', label: t('Workflow') },
+  { key: 'manufacturer.name', label: t('Hersteller') },
+  { key: 'master_hierarchy_node.name_de', label: t('Hierarchie-Knoten'), sortable: true },
+  { key: 'created_at', label: t('Erstellt'), sortable: true },
 ]
 
 // Dynamic attribute columns
@@ -132,10 +132,10 @@ const QUICK_LOOKUP_FIELD_MAP = {
 }
 
 const statusOptions = [
-  { value: 'active', label: 'Aktiv' },
-  { value: 'draft', label: 'Entwurf' },
-  { value: 'inactive', label: 'Inaktiv' },
-  { value: 'discontinued', label: 'Auslaufend' },
+  { value: 'active', label: t('Aktiv') },
+  { value: 'draft', label: t('Entwurf') },
+  { value: 'inactive', label: t('Inaktiv') },
+  { value: 'discontinued', label: t('Auslaufend') },
 ]
 
 const productTypeOptions = computed(() =>
@@ -162,9 +162,9 @@ const quickLookupConfig = computed(() => ({
   'master_hierarchy_node.name_de': { type: 'hierarchy-node' },
   status: { type: 'select', options: statusOptions },
   workflow_status: { type: 'select', options: [
-    { value: 'editing', label: 'In Bearbeitung' },
-    { value: 'review', label: 'Zur Prüfung' },
-    { value: 'approved', label: 'Freigegeben' },
+    { value: 'editing', label: t('In Bearbeitung') },
+    { value: 'review', label: t('Zur Prüfung') },
+    { value: 'approved', label: t('Freigegeben') },
   ] },
   ean: { type: 'text', placeholder: 'EAN...' },
 }))
@@ -821,7 +821,7 @@ onBeforeUnmount(() => {
                 class="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium"
                 :class="row.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : row.status === 'draft' ? 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]' : 'bg-[var(--color-error-light)] text-[var(--color-error)]'"
               >
-                {{ row.status === 'active' ? 'Aktiv' : row.status === 'draft' ? 'Entwurf' : row.status === 'inactive' ? 'Inaktiv' : 'Auslaufend' }}
+                {{ row.status === 'active' ? t('Aktiv') : row.status === 'draft' ? t('Entwurf') : row.status === 'inactive' ? t('Inaktiv') : t('Auslaufend') }}
               </span>
             </div>
             <p class="text-xs text-[var(--color-text-primary)] truncate font-medium">{{ row.name || '—' }}</p>
@@ -917,7 +917,7 @@ onBeforeUnmount(() => {
             'bg-[var(--color-error-light)] text-[var(--color-error)]'
           ]"
         >
-          {{ value === 'active' ? 'Aktiv' : value === 'draft' ? 'Entwurf' : value === 'inactive' ? 'Inaktiv' : 'Auslaufend' }}
+          {{ value === 'active' ? t('Aktiv') : value === 'draft' ? t('Entwurf') : value === 'inactive' ? t('Inaktiv') : t('Auslaufend') }}
         </span>
       </template>
 
