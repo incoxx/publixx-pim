@@ -1,7 +1,12 @@
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { X } from 'lucide-vue-next'
 import { translationLanguages } from '@/config/languages'
+import { useLocalizedName } from '@/composables/useLocalizedName'
+
+const { t } = useI18n()
+const { localizedName } = useLocalizedName()
 
 const props = defineProps({
   rule: { type: Object, required: true },
@@ -19,7 +24,7 @@ const groupedAttributes = computed(() => {
   if (props.attributes.length < 10) return null
   const groups = {}
   for (const attr of props.attributes) {
-    const groupName = attr.attribute_type?.name_de || 'Sonstige'
+    const groupName = localizedName(attr.attribute_type) || t('Sonstige')
     if (!groups[groupName]) groups[groupName] = { label: groupName, items: [] }
     groups[groupName].items.push(attr)
   }
@@ -50,13 +55,13 @@ const operatorOptions = computed(() => {
     case 'String':
     case 'RichText':
       ops.push(
-        { value: 'like', label: 'enthält' },
-        { value: 'eq', label: 'ist genau' },
-        { value: 'starts_with', label: 'beginnt mit' },
-        { value: 'ends_with', label: 'endet mit' },
-        { value: 'neq', label: 'ist nicht' },
-        { value: 'regex', label: 'Regex' },
-        { value: 'soundex', label: 'klingt wie' },
+        { value: 'like', label: t('enthält') },
+        { value: 'eq', label: t('ist genau') },
+        { value: 'starts_with', label: t('beginnt mit') },
+        { value: 'ends_with', label: t('endet mit') },
+        { value: 'neq', label: t('ist nicht') },
+        { value: 'regex', label: t('Regex') },
+        { value: 'soundex', label: t('klingt wie') },
       )
       break
     case 'Number':
@@ -68,40 +73,40 @@ const operatorOptions = computed(() => {
         { value: 'lt', label: '<' },
         { value: 'gte', label: '≥' },
         { value: 'lte', label: '≤' },
-        { value: 'between', label: 'zwischen' },
+        { value: 'between', label: t('zwischen') },
       )
       break
     case 'Date':
       ops.push(
         { value: 'eq', label: '=' },
-        { value: 'gt', label: 'nach' },
-        { value: 'lt', label: 'vor' },
-        { value: 'between', label: 'zwischen' },
+        { value: 'gt', label: t('nach') },
+        { value: 'lt', label: t('vor') },
+        { value: 'between', label: t('zwischen') },
       )
       break
     case 'Selection':
     case 'Dictionary':
       ops.push(
-        { value: 'eq', label: 'ist' },
-        { value: 'in', label: 'ist einer von' },
+        { value: 'eq', label: t('ist') },
+        { value: 'in', label: t('ist einer von') },
       )
       break
     case 'Flag':
-      ops.push({ value: 'eq', label: 'ist' })
+      ops.push({ value: 'eq', label: t('ist') })
       break
     default:
       ops.push({ value: 'eq', label: '=' })
   }
 
   ops.push(
-    { value: 'exists', label: 'vorhanden' },
-    { value: 'not_exists', label: 'nicht vorhanden' },
+    { value: 'exists', label: t('vorhanden') },
+    { value: 'not_exists', label: t('nicht vorhanden') },
   )
 
   if (selectedAttribute.value?.is_translatable) {
     ops.push(
-      { value: 'exists_lang', label: 'Sprache vorhanden' },
-      { value: 'not_exists_lang', label: 'Sprache fehlt' },
+      { value: 'exists_lang', label: t('Sprache vorhanden') },
+      { value: 'not_exists_lang', label: t('Sprache fehlt') },
     )
   }
 
@@ -162,13 +167,13 @@ function getInputType() {
       <template v-if="groupedAttributes">
         <optgroup v-for="group in groupedAttributes" :key="group.label" :label="group.label">
           <option v-for="attr in group.items" :key="attr.id" :value="attr.id">
-            {{ attr.name_de || attr.technical_name }}
+            {{ localizedName(attr) || attr.technical_name }}
           </option>
         </optgroup>
       </template>
       <template v-else>
         <option v-for="attr in sortedAttributes" :key="attr.id" :value="attr.id">
-          {{ attr.name_de || attr.technical_name }}
+          {{ localizedName(attr) || attr.technical_name }}
         </option>
       </template>
     </select>
@@ -183,7 +188,7 @@ function getInputType() {
       <!-- Language -->
       <select v-if="isLanguageOp" class="pim-input text-xs min-w-[120px]" :value="rule.value || ''" @change="update('value', $event.target.value)">
         <option value="">— Sprache —</option>
-        <option v-for="lang in translationLanguages" :key="lang.code" :value="lang.code">{{ lang.label }} ({{ lang.code }})</option>
+        <option v-for="lang in translationLanguages" :key="lang.code" :value="lang.code">{{ t(lang.label) }} ({{ lang.code }})</option>
       </select>
 
       <!-- Flag -->
@@ -195,7 +200,7 @@ function getInputType() {
       <!-- Selection single -->
       <select v-else-if="isSelection && !isMultiSelect" class="pim-input text-xs min-w-[140px] flex-1" :value="rule.value" @change="update('value', $event.target.value)">
         <option value="">— Wert —</option>
-        <option v-for="entry in valueListEntries" :key="entry.id" :value="entry.id">{{ entry.display_value_de || entry.code }}</option>
+        <option v-for="entry in valueListEntries" :key="entry.id" :value="entry.id">{{ localizedName(entry, 'display_value') || entry.code }}</option>
       </select>
 
       <!-- Multi-select chips -->
@@ -208,7 +213,7 @@ function getInputType() {
             : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'"
         >
           <input type="checkbox" class="hidden" :checked="(rule.value || []).includes(entry.id)" @change="toggleInValue(entry.id)" />
-          {{ entry.display_value_de || entry.code }}
+          {{ localizedName(entry, 'display_value') || entry.code }}
         </label>
       </div>
 

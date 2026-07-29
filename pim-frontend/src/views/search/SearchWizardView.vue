@@ -1,7 +1,9 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
+import { useLocalizedName } from '@/composables/useLocalizedName'
 import {
   Search, Filter, ChevronDown, ChevronUp, ChevronRight, X, Star,
   Regex, AudioLines, Languages, Download, GitCompareArrows, Pencil, Settings,
@@ -35,6 +37,9 @@ import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialo
 import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierarchyNodeDialog.vue'
 import QueryBuilderGroup from '@/components/search/QueryBuilderGroup.vue'
 
+const { t, locale } = useI18n()
+const numberLocale = computed(() => (locale.value === 'de' ? 'de-DE' : 'en-US'))
+const { localizedName } = useLocalizedName()
 const router = useRouter()
 const localeStore = useLocaleStore()
 
@@ -121,7 +126,7 @@ async function saveProfile({ name, is_shared }) {
     })
     await loadProfiles()
   } catch (e) {
-    error.value = 'Profil konnte nicht gespeichert werden'
+    error.value = t('Profil konnte nicht gespeichert werden')
   }
 }
 
@@ -141,7 +146,7 @@ async function updateProfile({ id, name, is_shared }) {
     })
     await loadProfiles()
   } catch (e) {
-    error.value = 'Profil konnte nicht aktualisiert werden'
+    error.value = t('Profil konnte nicht aktualisiert werden')
   }
 }
 
@@ -154,7 +159,7 @@ async function deleteProfile(id) {
     if (e.response?.status === 409) {
       const deps = e.response.data?.dependencies || {}
       const labels = Object.values(deps).map(d => `${d.label} (${d.count})`).join(', ')
-      if (confirm(`Dieses Suchprofil wird noch verwendet: ${labels}. Trotzdem löschen?`)) {
+      if (confirm(t('Dieses Suchprofil wird noch verwendet: {labels}. Trotzdem löschen?', { labels }))) {
         try {
           await searchProfilesApi.remove(id, { force: true })
           selectedProfileId.value = null
@@ -165,7 +170,7 @@ async function deleteProfile(id) {
         return
       }
     }
-    error.value = 'Profil konnte nicht gelöscht werden'
+    error.value = t('Profil konnte nicht gelöscht werden')
   }
 }
 
@@ -185,39 +190,39 @@ const sortOrder = ref('desc')
 
 const searchCategoryDefs = computed(() => {
   const defs = [
-    { key: 'products', label: 'Produkte', icon: Package },
-    { key: 'attributes', label: 'Attribute', icon: Sliders },
-    { key: 'nodes', label: 'Kategorieknoten', icon: FolderTree },
-    { key: 'media', label: 'Medien', icon: Image },
+    { key: 'products', label: t('Produkte'), icon: Package },
+    { key: 'attributes', label: t('Attribute'), icon: Sliders },
+    { key: 'nodes', label: t('Kategorieknoten'), icon: FolderTree },
+    { key: 'media', label: t('Medien'), icon: Image },
   ]
   // Content-Tab nur anzeigen, wenn das Content-Lizenzmodul aktiv ist
   if (licenseStore.isModuleActive('content')) {
-    defs.push({ key: 'content', label: 'Content', icon: FileText })
+    defs.push({ key: 'content', label: t('Content'), icon: FileText })
   }
   return defs
 })
 
 // Column config for products search tab
 const defaultSearchColumns = [
-  { key: 'sku', label: 'SKU', mono: true, sortable: true },
-  { key: 'name', label: 'Name', sortable: true },
-  { key: 'product_type.name_de', label: 'Typ' },
-  { key: 'status', label: 'Status', sortable: true },
-  { key: 'updated_at', label: 'Geändert', sortable: true },
+  { key: 'sku', label: t('SKU'), mono: true, sortable: true },
+  { key: 'name', label: t('Name'), sortable: true },
+  { key: 'product_type.name_de', label: t('Typ'), render: (row) => row.product_type ? (localizedName(row.product_type) || row.product_type.technical_name) : '—' },
+  { key: 'status', label: t('Status'), sortable: true },
+  { key: 'updated_at', label: t('Geändert'), sortable: true },
 ]
 const extraSearchColumns = [
-  { key: 'ean', label: 'EAN', mono: true },
-  { key: 'manufacturer.name', label: 'Hersteller' },
-  { key: 'created_at', label: 'Erstellt', sortable: true },
+  { key: 'ean', label: t('EAN'), mono: true },
+  { key: 'manufacturer.name', label: t('Hersteller') },
+  { key: 'created_at', label: t('Erstellt'), sortable: true },
 ]
 
 // Dynamic attribute columns (populated after searchableAttributes are loaded)
 const attributeColumns = computed(() =>
   searchableAttributes.value.map(attr => ({
     key: `attributes.${attr.id}`,
-    label: attr.name_de || attr.technical_name,
+    label: localizedName(attr) || attr.technical_name,
     hint: attr.technical_name,
-    group: 'Attribute',
+    group: t('Attribute'),
     exportKey: `attr:${attr.id}`,
   }))
 )
@@ -268,37 +273,37 @@ async function exportSearchExcel() {
     const resp = await productsApi.exportExcel(params)
     triggerDownload(resp.data, `suchergebnisse-${new Date().toISOString().slice(0, 10)}.xlsx`)
   } catch (e) {
-    error.value = 'Excel-Export fehlgeschlagen'
+    error.value = t('Excel-Export fehlgeschlagen')
     console.error('Excel export failed:', e)
   } finally { excelExporting.value = false }
 }
 
 const categoryColumns = {
   attributes: [
-    { key: 'technical_name', label: 'Techn. Name', mono: true, sortable: true },
-    { key: 'name_de', label: 'Name', sortable: true },
-    { key: 'data_type', label: 'Datentyp', sortable: true },
-    { key: 'attribute_type.name_de', label: 'Gruppe' },
-    { key: 'status', label: 'Status' },
+    { key: 'technical_name', label: t('Techn. Name'), mono: true, sortable: true },
+    { key: 'name_de', label: t('Name'), sortable: true, render: (row) => localizedName(row) || row.technical_name },
+    { key: 'data_type', label: t('Datentyp'), sortable: true },
+    { key: 'attribute_type.name_de', label: t('Gruppe'), render: (row) => row.attribute_type ? (localizedName(row.attribute_type) || row.attribute_type.technical_name) : '—' },
+    { key: 'status', label: t('Status') },
   ],
   nodes: [
-    { key: 'name_de', label: 'Name', sortable: true },
-    { key: 'path', label: 'Pfad' },
-    { key: 'depth', label: 'Tiefe', sortable: true },
-    { key: 'is_active', label: 'Aktiv' },
+    { key: 'name_de', label: t('Name'), sortable: true, render: (row) => localizedName(row) || row.technical_name },
+    { key: 'path', label: t('Pfad') },
+    { key: 'depth', label: t('Tiefe'), sortable: true },
+    { key: 'is_active', label: t('Aktiv') },
   ],
   media: [
-    { key: 'file_name', label: 'Datei', mono: true, sortable: true },
-    { key: 'title_de', label: 'Titel', sortable: true },
-    { key: 'mime_type', label: 'Typ' },
-    { key: 'media_type', label: 'Medientyp' },
+    { key: 'file_name', label: t('Datei'), mono: true, sortable: true },
+    { key: 'title_de', label: t('Titel'), sortable: true, render: (row) => localizedName(row, 'title') || row.file_name },
+    { key: 'mime_type', label: t('Typ') },
+    { key: 'media_type', label: t('Medientyp') },
   ],
   content: [
-    { key: 'title', label: 'Titel', sortable: true },
-    { key: 'content_type', label: 'Seitentyp' },
-    { key: 'status', label: 'Status' },
-    { key: 'snippet', label: 'Fundstelle' },
-    { key: 'updated_at', label: 'Geändert', sortable: true },
+    { key: 'title', label: t('Titel'), sortable: true },
+    { key: 'content_type', label: t('Seitentyp') },
+    { key: 'status', label: t('Status') },
+    { key: 'snippet', label: t('Fundstelle') },
+    { key: 'updated_at', label: t('Geändert'), sortable: true },
   ],
 }
 
@@ -409,15 +414,15 @@ const columns = computed(() => {
 })
 
 // --- Quick Lookup ---
-const statusOptions = [
-  { value: 'active', label: 'Aktiv' },
-  { value: 'draft', label: 'Entwurf' },
-  { value: 'inactive', label: 'Inaktiv' },
-  { value: 'discontinued', label: 'Auslaufend' },
-]
+const statusOptions = computed(() => [
+  { value: 'active', label: t('Aktiv') },
+  { value: 'draft', label: t('Entwurf') },
+  { value: 'inactive', label: t('Inaktiv') },
+  { value: 'discontinued', label: t('Auslaufend') },
+])
 
 const productTypeOptions = computed(() =>
-  attrStore.prodTypes.map(pt => ({ value: pt.id, label: pt.name_de || pt.technical_name }))
+  attrStore.prodTypes.map(pt => ({ value: pt.id, label: localizedName(pt) || pt.technical_name }))
 )
 
 const manufacturerQuickOptions = computed(() =>
@@ -426,12 +431,12 @@ const manufacturerQuickOptions = computed(() =>
 
 const quickLookupConfig = computed(() => {
   const config = {
-    sku: { type: 'text', placeholder: 'SKU...' },
-    name: { type: 'text', placeholder: 'Name...' },
+    sku: { type: 'text', placeholder: t('SKU...') },
+    name: { type: 'text', placeholder: t('Name...') },
     'product_type.name_de': { type: 'select', options: productTypeOptions.value },
     'manufacturer.name': { type: 'select', options: manufacturerQuickOptions.value },
-    status: { type: 'select', options: statusOptions },
-    ean: { type: 'text', placeholder: 'EAN...' },
+    status: { type: 'select', options: statusOptions.value },
+    ean: { type: 'text', placeholder: t('EAN...') },
   }
   // Add dynamic attribute columns
   for (const attr of searchableAttributes.value) {
@@ -443,7 +448,7 @@ const quickLookupConfig = computed(() => {
         // gegen value_selection_id) greift — siehe ProductSearchFilters::applyAttributeFilter().
         options: (attr.value_list?.entries || []).map(e => ({
           value: e.id,
-          label: e.display_value_de || e.code,
+          label: localizedName(e, 'display_value') || e.code,
         })),
       }
     } else if (attr.data_type !== 'Date') {
@@ -535,7 +540,7 @@ const flatCategoryNodes = computed(() => {
   const result = []
   function flatten(nodes, prefix = '') {
     for (const node of nodes) {
-      const name = node.name_de || node.name_en || node.id
+      const name = localizedName(node) || node.id
       result.push({
         id: node.id,
         label: prefix + name,
@@ -643,13 +648,27 @@ function resetGuided() {
   searchMode.value = 'like'
 }
 
-const guidedStatusWord = computed(() => ({
-  '': '', active: 'aktiven ', draft: 'Entwurfs-', inactive: 'inaktiven ', discontinued: 'auslaufenden ',
-}[statusFilter.value] || ''))
+// Ganze Phrase pro Status uebersetzt statt Wort-fuer-Wort komponiert -- die
+// deutsche Adjektivbeugung ("aktiven", "Entwurfs-") hat im Englischen keine
+// Entsprechung, daher pro Kombination ein eigener, natuerlich klingender Key.
+const guidedStatusPhrase = computed(() => {
+  const phrases = {
+    '': t('Alle Produkte'),
+    active: t('Alle aktiven Produkte'),
+    draft: t('Alle Entwurfs-Produkte'),
+    inactive: t('Alle inaktiven Produkte'),
+    discontinued: t('Alle auslaufenden Produkte'),
+  }
+  return phrases[statusFilter.value] || phrases['']
+})
 
 const guidedOpLabels = {
   like: 'enthält', eq: 'ist', neq: 'ist nicht', gt: '>', gte: '≥', lt: '<', lte: '≤',
   starts_with: 'beginnt mit', ends_with: 'endet mit', regex: 'Regex', soundex: 'klingt wie', between: 'zwischen',
+}
+function guidedOpLabel(op) {
+  const raw = guidedOpLabels[op]
+  return raw ? t(raw) : op
 }
 
 // Klartext-Suchsatz aus dem tatsächlichen Filterzustand (immer wahrheitsgetreu).
@@ -658,32 +677,32 @@ const guidedClauses = computed(() => {
   for (const r of (attributeFilterGroups.value.rules || [])) {
     if (r.type === 'rule' && r.attribute_id) {
       const a = searchableAttributes.value.find(x => x.id === r.attribute_id)
-      const name = a?.name_de || a?.technical_name || 'Merkmal'
+      const name = localizedName(a) || a?.technical_name || t('Merkmal')
       const val = (r.value !== '' && r.value != null) ? r.value : '…'
-      c.push(`mit ${name} ${guidedOpLabels[r.operator] || r.operator} ${val}`)
+      c.push(t('mit {name} {op} {val}', { name, op: guidedOpLabel(r.operator), val }))
     }
   }
   if (selectedCategories.value.length) {
     const names = selectedCategories.value.map(id => flatCategoryNodes.value.find(n => n.id === id)?.name).filter(Boolean)
-    if (names.length) c.push(`aus Kategorie „${names.join('“, „')}“`)
+    if (names.length) c.push(t('aus Kategorie {list}', { list: names.map(n => `"${n}"`).join(', ') }))
   }
   if (selectedManufacturers.value.length) {
     const names = selectedManufacturers.value.map(id => manufacturerList.value.find(m => m.id === id)?.name).filter(Boolean)
-    if (names.length) c.push(`von ${names.join(', ')}`)
+    if (names.length) c.push(t('von {names}', { names: names.join(', ') }))
   }
   if (selectedProductTypes.value.length) {
-    const names = selectedProductTypes.value.map(id => attrStore.prodTypes.find(p => p.id === id)).map(p => p?.name_de || p?.technical_name).filter(Boolean)
-    if (names.length) c.push(`vom Typ ${names.join(', ')}`)
+    const names = selectedProductTypes.value.map(id => attrStore.prodTypes.find(p => p.id === id)).map(p => localizedName(p) || p?.technical_name).filter(Boolean)
+    if (names.length) c.push(t('vom Typ {names}', { names: names.join(', ') }))
   }
   if (missingTranslationFilter.value.attribute_id && missingTranslationFilter.value.target_language) {
     const lang = translationLanguages.find(l => l.code === missingTranslationFilter.value.target_language)
-    c.push(`ohne ${lang?.label || missingTranslationFilter.value.target_language}-Übersetzung`)
+    c.push(t('ohne {lang}-Übersetzung', { lang: lang ? t(lang.label) : missingTranslationFilter.value.target_language }))
   }
   const q = searchInput.value.trim()
   if (q) {
-    if (searchMode.value === 'regex') c.push(`mit Muster /${q}/`)
-    else if (searchMode.value === 'soundex') c.push(`ähnlich klingend zu „${q}“`)
-    else c.push(`mit „${q}“ im Namen/SKU`)
+    if (searchMode.value === 'regex') c.push(t('mit Muster /{q}/', { q }))
+    else if (searchMode.value === 'soundex') c.push(t('ähnlich klingend zu "{q}"', { q }))
+    else c.push(t('mit "{q}" im Namen/SKU', { q }))
   }
   return c
 })
@@ -816,7 +835,7 @@ async function doSearch(page = 1) {
       await doEntitySearch(page)
     }
   } catch (e) {
-    error.value = e.response?.data?.message || e.response?.data?.detail || 'Suchfehler'
+    error.value = e.response?.data?.message || e.response?.data?.detail || t('Suchfehler')
     results.value = []
   } finally {
     loading.value = false
@@ -1270,7 +1289,7 @@ const apiCallDisplay = computed(() => {
         <span class="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)]">Status</span>
         <div class="inline-flex rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-0.5">
           <button
-            v-for="opt in [{ v: '', l: 'Alle' }, { v: 'active', l: 'Aktiv' }, { v: 'draft', l: 'Entwurf' }]"
+            v-for="opt in [{ v: '', l: t('Alle') }, { v: 'active', l: t('Aktiv') }, { v: 'draft', l: t('Entwurf') }]"
             :key="opt.v"
             class="px-3 py-1 text-xs font-medium rounded-md transition-colors"
             :class="statusFilter === opt.v ? 'bg-[var(--color-surface)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'"
@@ -1296,8 +1315,8 @@ const apiCallDisplay = computed(() => {
             <component :is="it.icon" class="w-4 h-4" :stroke-width="1.75" />
           </span>
           <span class="flex-1 min-w-0">
-            <span class="block text-[13px] font-semibold text-[var(--color-text-primary)] leading-tight">… {{ it.title }}</span>
-            <span class="block text-[11px] text-[var(--color-text-tertiary)] mt-0.5">{{ it.sub }}</span>
+            <span class="block text-[13px] font-semibold text-[var(--color-text-primary)] leading-tight">… {{ t(it.title) }}</span>
+            <span class="block text-[11px] text-[var(--color-text-tertiary)] mt-0.5">{{ t(it.sub) }}</span>
           </span>
           <CheckCheck v-if="isIntentOpen(it.key)" class="w-4 h-4 text-[var(--color-accent)] shrink-0" :stroke-width="2" />
           <Plus v-else class="w-4 h-4 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
@@ -1310,16 +1329,16 @@ const apiCallDisplay = computed(() => {
           <span class="w-2 h-2 rounded-full bg-[var(--color-accent)]"></span>
           <span class="text-sm font-semibold text-[var(--color-text-primary)]">Ihre Suche</span>
           <span class="ml-auto text-xs text-[var(--color-text-secondary)]">
-            <span v-if="liveCount !== null"><strong class="text-[var(--color-text-primary)]">{{ liveCount.toLocaleString('de-DE') }}</strong> Treffer (Vorschau)</span>
-            <span v-else-if="activeFilterCount > 0">{{ activeFilterCount }} Filter aktiv</span>
+            <span v-if="liveCount !== null"><strong class="text-[var(--color-text-primary)]">{{ liveCount.toLocaleString(numberLocale) }}</strong> Treffer (Vorschau)</span>
+            <span v-else-if="activeFilterCount > 0">{{ t('{count} Filter aktiv', { count: activeFilterCount }) }}</span>
           </span>
         </div>
 
         <!-- Klartext-Suchsatz -->
         <div class="px-4 pt-3 text-[15px] leading-relaxed">
-          <span class="text-[var(--color-text-tertiary)]">Alle {{ guidedStatusWord }}Produkte</span><template
+          <span class="text-[var(--color-text-tertiary)]">{{ guidedStatusPhrase }}</span><template
             v-for="(cl, i) in guidedClauses" :key="i"
-          ><span class="text-[var(--color-text-tertiary)]">{{ i === 0 ? ' ' : (i === guidedClauses.length - 1 ? ' und ' : ', ') }}</span><span
+          ><span class="text-[var(--color-text-tertiary)]">{{ i === 0 ? ' ' : (i === guidedClauses.length - 1 ? ` ${t('und')} ` : ', ') }}</span><span
             class="font-semibold text-[var(--color-accent-dark)] bg-[color-mix(in_srgb,var(--color-accent)_12%,transparent)] rounded px-1.5 py-0.5"
           >{{ cl }}</span></template><span v-if="!guidedClauses.length" class="text-[var(--color-text-tertiary)]"> …</span><span class="text-[var(--color-text-tertiary)]">.</span>
         </div>
@@ -1344,7 +1363,7 @@ const apiCallDisplay = computed(() => {
             <div v-if="hierarchies.length > 1" class="flex items-center gap-2 mb-2">
               <label class="text-[11px] font-medium text-[var(--color-text-tertiary)]">Hierarchie:</label>
               <select class="pim-input text-xs flex-1" :value="selectedHierarchyId" @change="selectedHierarchyId = $event.target.value">
-                <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.name_en || h.technical_name }}</option>
+                <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ localizedName(h) || h.technical_name }}</option>
               </select>
             </div>
             <div class="max-h-44 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5 bg-[var(--color-surface)]">
@@ -1381,7 +1400,7 @@ const apiCallDisplay = computed(() => {
             <div v-else class="max-h-44 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5 bg-[var(--color-surface)]">
               <label v-for="pt in attrStore.prodTypes" :key="pt.id" class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs">
                 <input type="checkbox" :checked="isProductTypeSelected(pt.id)" @change="toggleProductType(pt.id)" class="rounded border-[var(--color-border)]" />
-                <span class="text-[var(--color-text-primary)]">{{ pt.name_de || pt.technical_name }}</span>
+                <span class="text-[var(--color-text-primary)]">{{ localizedName(pt) || pt.technical_name }}</span>
               </label>
             </div>
           </div>
@@ -1397,14 +1416,14 @@ const apiCallDisplay = computed(() => {
                 <label class="block text-[11px] font-medium text-[var(--color-text-tertiary)] mb-1">Attribut</label>
                 <select class="pim-input text-xs w-full" :value="missingTranslationFilter.attribute_id || ''" @change="missingTranslationFilter.attribute_id = $event.target.value || null">
                   <option value="">— Keins —</option>
-                  <option v-for="attr in translatableSearchAttributes" :key="attr.id" :value="attr.id">{{ attr.name_de || attr.technical_name }}</option>
+                  <option v-for="attr in translatableSearchAttributes" :key="attr.id" :value="attr.id">{{ localizedName(attr) || attr.technical_name }}</option>
                 </select>
               </div>
               <div>
                 <label class="block text-[11px] font-medium text-[var(--color-text-tertiary)] mb-1">Zielsprache</label>
                 <select class="pim-input text-xs w-full" :value="missingTranslationFilter.target_language || ''" @change="missingTranslationFilter.target_language = $event.target.value || null">
                   <option value="">— Wählen —</option>
-                  <option v-for="lang in translationLanguages" :key="lang.code" :value="lang.code">{{ lang.label }} ({{ lang.code }})</option>
+                  <option v-for="lang in translationLanguages" :key="lang.code" :value="lang.code">{{ t(lang.label) }} ({{ lang.code }})</option>
                 </select>
               </div>
             </div>
@@ -1454,11 +1473,11 @@ const apiCallDisplay = computed(() => {
           v-model="searchInput"
           type="text"
           :placeholder="searchCategory === 'products'
-            ? (searchMode === 'regex' ? 'Regulärer Ausdruck eingeben...' : searchMode === 'soundex' ? 'Ähnlich klingend suchen...' : 'Produkte, Attribute, SKUs durchsuchen...')
-            : searchCategory === 'attributes' ? 'Attribute durchsuchen...'
-            : searchCategory === 'nodes' ? 'Kategorieknoten durchsuchen (inkl. Unterkategorien)...'
-            : searchCategory === 'content' ? 'Content-Seiten durchsuchen (Titel & Seiteninhalt)...'
-            : 'Medien durchsuchen...'"
+            ? (searchMode === 'regex' ? t('Regulärer Ausdruck eingeben...') : searchMode === 'soundex' ? t('Ähnlich klingend suchen...') : t('Produkte, Attribute, SKUs durchsuchen...'))
+            : searchCategory === 'attributes' ? t('Attribute durchsuchen...')
+            : searchCategory === 'nodes' ? t('Kategorieknoten durchsuchen (inkl. Unterkategorien)...')
+            : searchCategory === 'content' ? t('Content-Seiten durchsuchen (Titel & Seiteninhalt)...')
+            : t('Medien durchsuchen...')"
           class="pim-input pl-4 pr-4 py-2.5 sm:py-3 text-sm sm:text-base w-full"
           @keydown.enter="doSearch(1)"
           autofocus
@@ -1564,7 +1583,7 @@ const apiCallDisplay = computed(() => {
             @click="exportSearchExcel(); showExportMenu = false"
           >
             <FileSpreadsheet class="w-4 h-4 shrink-0 text-[var(--color-text-secondary)]" :stroke-width="1.75" />
-            {{ excelExporting ? 'Exportiere…' : 'Excel' }}
+            {{ excelExporting ? t('Exportiere…') : 'Excel' }}
           </button>
           <button
             class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--color-bg)] text-left transition-colors"
@@ -1613,7 +1632,7 @@ const apiCallDisplay = computed(() => {
         </template>
       </button>
       <span class="text-[10px] text-[var(--color-text-tertiary)] ml-2 hidden sm:inline">
-        {{ searchMode === 'like' ? 'Teiltext-Suche (enthält)' : searchMode === 'soundex' ? 'Ähnlich klingende Begriffe finden (Tippfehler-tolerant)' : 'Reguläre Ausdrücke für präzise Muster' }}
+        {{ searchMode === 'like' ? t('Teiltext-Suche (enthält)') : searchMode === 'soundex' ? t('Ähnlich klingende Begriffe finden (Tippfehler-tolerant)') : t('Reguläre Ausdrücke für präzise Muster') }}
       </span>
     </div>
 
@@ -1668,7 +1687,7 @@ const apiCallDisplay = computed(() => {
                 @change="toggleProductType(pt.id)"
                 class="rounded border-[var(--color-border)]"
               />
-              <span class="text-[var(--color-text-primary)]">{{ pt.name_de || pt.technical_name }}</span>
+              <span class="text-[var(--color-text-primary)]">{{ localizedName(pt) || pt.technical_name }}</span>
             </label>
           </div>
         </div>
@@ -1723,7 +1742,7 @@ const apiCallDisplay = computed(() => {
                 @change="selectedHierarchyId = $event.target.value"
               >
                 <option v-for="h in hierarchies" :key="h.id" :value="h.id">
-                  {{ h.name_de || h.name_en || h.technical_name }}
+                  {{ localizedName(h) || h.technical_name }}
                 </option>
               </select>
             </div>
@@ -1762,7 +1781,7 @@ const apiCallDisplay = computed(() => {
               >
                 <option value="">— Keins —</option>
                 <option v-for="attr in translatableSearchAttributes" :key="attr.id" :value="attr.id">
-                  {{ attr.name_de || attr.technical_name }}
+                  {{ localizedName(attr) || attr.technical_name }}
                 </option>
               </select>
             </div>
@@ -1774,7 +1793,7 @@ const apiCallDisplay = computed(() => {
                 @change="missingTranslationFilter.target_language = $event.target.value || null"
               >
                 <option value="">— Wählen —</option>
-                <option v-for="lang in translationLanguages" :key="lang.code" :value="lang.code">{{ lang.label }} ({{ lang.code }})</option>
+                <option v-for="lang in translationLanguages" :key="lang.code" :value="lang.code">{{ t(lang.label) }} ({{ lang.code }})</option>
               </select>
             </div>
           </div>
@@ -1786,7 +1805,7 @@ const apiCallDisplay = computed(() => {
           <div class="flex items-center justify-between mb-2">
             <p class="text-[12px] font-medium text-[var(--color-text-secondary)]">Attributfilter</p>
             <span v-if="liveCount !== null" class="text-[11px] text-[var(--color-text-tertiary)]">
-              {{ liveCount.toLocaleString() }} Treffer
+              {{ liveCount.toLocaleString(numberLocale) }} Treffer
             </span>
           </div>
           <QueryBuilderGroup
@@ -1805,7 +1824,7 @@ const apiCallDisplay = computed(() => {
 
     <!-- Result count -->
     <div v-if="hasSearched && !loading && !error && results.length > 0" class="text-xs text-[var(--color-text-tertiary)]" data-testid="search-results">
-      {{ resultMeta.total }} Ergebnis{{ resultMeta.total !== 1 ? 'se' : '' }}
+      {{ resultMeta.total === 1 ? t('{count} Ergebnis', { count: resultMeta.total }) : t('{count} Ergebnisse', { count: resultMeta.total }) }}
       <span v-if="searchMode === 'soundex'" class="ml-1 text-[var(--color-accent)]">(SOUNDEX)</span>
       <span v-if="searchMode === 'regex'" class="ml-1 text-[var(--color-accent)]">(REGEXP)</span>
     </div>
@@ -1814,7 +1833,7 @@ const apiCallDisplay = computed(() => {
     <div v-if="searchCategory === 'products' && selectedProductIds.length > 0" class="space-y-2">
       <div class="flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-2 bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] border border-[var(--color-accent)]/20 rounded-lg">
         <span class="text-xs text-[var(--color-text-secondary)]">
-          {{ selectedProductIds.length }} {{ allPagesSelected ? 'Produkte' : '' }} ausgewählt
+          {{ t('{count} ausgewählt', { count: selectedProductIds.length }) }}{{ allPagesSelected ? ' ' + t('Produkte') : '' }}
         </span>
 
         <!-- Select all pages hint -->
@@ -1825,7 +1844,7 @@ const apiCallDisplay = computed(() => {
             @click="selectAllPages"
           >
             <CheckCheck class="w-3.5 h-3.5" :stroke-width="1.75" />
-            {{ selectingAll ? 'Lade...' : `Alle ${resultMeta.total.toLocaleString()} Produkte auswählen` }}
+            {{ selectingAll ? t('Lade...') : t('Alle {count} Produkte auswählen', { count: resultMeta.total.toLocaleString(numberLocale) }) }}
           </button>
         </template>
 
@@ -1889,7 +1908,7 @@ const apiCallDisplay = computed(() => {
           @click="showConfirmBulkDelete = true"
         >
           <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" />
-          <span class="hidden sm:inline">{{ bulkDeleting ? 'Lösche...' : 'Löschen' }}</span>
+          <span class="hidden sm:inline">{{ bulkDeleting ? t('Lösche...') : t('Löschen') }}</span>
         </button>
 
         <button class="pim-btn pim-btn-ghost text-xs ml-auto" @click="clearAllSelection">
@@ -1901,7 +1920,7 @@ const apiCallDisplay = computed(() => {
       <!-- Bulk delete confirm -->
       <div v-if="showConfirmBulkDelete" class="flex items-center gap-3 px-3 py-2 bg-[var(--color-error-light)] border border-[var(--color-error)]/20 rounded-lg">
         <span class="text-xs text-[var(--color-error)] font-medium">
-          {{ selectedProductIds.length.toLocaleString() }} Produkte unwiderruflich löschen?
+          {{ selectedProductIds.length.toLocaleString(numberLocale) }} Produkte unwiderruflich löschen?
         </span>
         <button
           class="pim-btn text-xs bg-[var(--color-error)] text-white hover:opacity-90"
@@ -1949,7 +1968,7 @@ const apiCallDisplay = computed(() => {
           @click="exportXliff"
         >
           <Download class="w-3.5 h-3.5" :stroke-width="1.75" />
-          {{ xliffExporting ? 'Export…' : 'Export' }}
+          {{ xliffExporting ? t('Export…') : t('Export') }}
         </button>
       </div>
     </div>
@@ -1971,7 +1990,7 @@ const apiCallDisplay = computed(() => {
             <div class="flex items-center gap-1.5">
               <button
                 class="p-0.5 rounded hover:bg-[var(--color-bg)] shrink-0"
-                :title="isOnWatchlist(row.id) ? 'Von Merkliste entfernen' : 'Zur Merkliste'"
+                :title="isOnWatchlist(row.id) ? t('Von Merkliste entfernen') : t('Zur Merkliste')"
                 @click.stop="toggleWatchlist(row.id)"
               >
                 <Star class="w-3.5 h-3.5" :class="isOnWatchlist(row.id) ? 'text-amber-500 fill-amber-500' : 'text-[var(--color-text-tertiary)]'" :stroke-width="2" />
@@ -1981,11 +2000,11 @@ const apiCallDisplay = computed(() => {
                 class="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium"
                 :class="row.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : row.status === 'draft' ? 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]' : 'bg-[var(--color-error-light)] text-[var(--color-error)]'"
               >
-                {{ row.status === 'active' ? 'Aktiv' : row.status === 'draft' ? 'Entwurf' : row.status === 'inactive' ? 'Inaktiv' : 'Auslaufend' }}
+                {{ row.status === 'active' ? t('Aktiv') : row.status === 'draft' ? t('Entwurf') : row.status === 'inactive' ? t('Inaktiv') : t('Auslaufend') }}
               </span>
             </div>
             <p class="text-xs text-[var(--color-text-primary)] truncate font-medium">{{ row.name || '—' }}</p>
-            <p class="text-[10px] text-[var(--color-text-tertiary)] truncate">{{ row.product_type?.name_de || '' }}</p>
+            <p class="text-[10px] text-[var(--color-text-tertiary)] truncate">{{ localizedName(row.product_type) }}</p>
           </div>
         </div>
       </div>
@@ -2023,7 +2042,7 @@ const apiCallDisplay = computed(() => {
         <div class="flex items-center gap-2">
           <button
             class="p-0.5 rounded hover:bg-[var(--color-bg)] shrink-0"
-            :title="isOnWatchlist(row.id) ? 'Von Merkliste entfernen' : 'Zur Merkliste hinzufügen'"
+            :title="isOnWatchlist(row.id) ? t('Von Merkliste entfernen') : t('Zur Merkliste hinzufügen')"
             @click.stop="toggleWatchlist(row.id)"
           >
             <Star
@@ -2035,9 +2054,9 @@ const apiCallDisplay = computed(() => {
           <span class="font-mono text-xs">{{ value }}</span>
         </div>
       </template>
-      <template v-if="searchCategory === 'products'" #cell-product_type.name_de="{ value }">
+      <template v-if="searchCategory === 'products'" v-slot:[`cell-product_type.name_de`]="{ value }">
         <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-tertiary)] text-[10px]">
-          {{ value || 'Produkt' }}
+          {{ value || t('Produkt') }}
         </span>
       </template>
       <template #cell-status="{ value }">
@@ -2049,7 +2068,7 @@ const apiCallDisplay = computed(() => {
             'bg-[var(--color-error-light)] text-[var(--color-error)]'
           ]"
         >
-          {{ value === 'active' ? 'Aktiv' : value === 'draft' ? 'Entwurf' : value === 'inactive' ? 'Inaktiv' : value === 'archived' ? 'Archiviert' : 'Auslaufend' }}
+          {{ value === 'active' ? t('Aktiv') : value === 'draft' ? t('Entwurf') : value === 'inactive' ? t('Inaktiv') : value === 'archived' ? t('Archiviert') : t('Auslaufend') }}
         </span>
       </template>
 
@@ -2059,7 +2078,7 @@ const apiCallDisplay = computed(() => {
           {{ value || '—' }}
         </span>
       </template>
-      <template v-if="searchCategory === 'attributes'" #cell-attribute_type.name_de="{ value }">
+      <template v-if="searchCategory === 'attributes'" v-slot:[`cell-attribute_type.name_de`]="{ value }">
         <span class="text-xs text-[var(--color-text-secondary)]">{{ value || '—' }}</span>
       </template>
 
@@ -2076,14 +2095,14 @@ const apiCallDisplay = computed(() => {
             value ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]',
           ]"
         >
-          {{ value ? 'Aktiv' : 'Inaktiv' }}
+          {{ value ? t('Aktiv') : t('Inaktiv') }}
         </span>
       </template>
       <template v-if="searchCategory === 'nodes'" #cell-name_de="{ row, value }">
         <div>
           <span class="text-sm">{{ value }}</span>
-          <span v-if="row.hierarchy?.name_de" class="ml-1.5 text-[10px] text-[var(--color-text-tertiary)]">
-            ({{ row.hierarchy.name_de }})
+          <span v-if="row.hierarchy" class="ml-1.5 text-[10px] text-[var(--color-text-tertiary)]">
+            ({{ localizedName(row.hierarchy) }})
           </span>
         </div>
       </template>
@@ -2114,7 +2133,7 @@ const apiCallDisplay = computed(() => {
         <div v-if="row.snippet" class="max-w-[360px]">
           <span class="text-xs text-[var(--color-text-secondary)]" v-html="highlightSnippet(row.snippet, searchInput)" />
           <span v-if="row.matched_section_type" class="block text-[10px] text-[var(--color-text-tertiary)] mt-0.5">
-            in „{{ row.matched_section_type }}“
+            {{ t('in „{type}“', { type: row.matched_section_type }) }}
           </span>
         </div>
         <span v-else-if="row.match_in === 'title'" class="text-[11px] text-[var(--color-text-tertiary)]">Treffer im Titel</span>
@@ -2163,11 +2182,11 @@ const apiCallDisplay = computed(() => {
     <div v-else-if="!hasSearched && !isProductGuided" class="text-center py-16">
       <component :is="searchCategoryDefs.find(c => c.key === searchCategory)?.icon || Search" class="w-10 h-10 mx-auto mb-3 text-[var(--color-border-strong)]" :stroke-width="1.5" />
       <p class="text-sm text-[var(--color-text-tertiary)]">
-        {{ searchCategory === 'products' ? 'Filter konfigurieren und Suche starten' :
-           searchCategory === 'attributes' ? 'Durchsuchbare Attribute finden' :
-           searchCategory === 'nodes' ? 'Kategorieknoten durchsuchen (inkl. Unterkategorien)' :
-           searchCategory === 'content' ? 'Content-Seiten nach Titel oder Seiteninhalt durchsuchen' :
-           'Medien durchsuchen' }}
+        {{ searchCategory === 'products' ? t('Filter konfigurieren und Suche starten') :
+           searchCategory === 'attributes' ? t('Durchsuchbare Attribute finden') :
+           searchCategory === 'nodes' ? t('Kategorieknoten durchsuchen (inkl. Unterkategorien)') :
+           searchCategory === 'content' ? t('Content-Seiten nach Titel oder Seiteninhalt durchsuchen') :
+           t('Medien durchsuchen') }}
       </p>
       <p v-if="searchCategory === 'products'" class="text-xs text-[var(--color-text-tertiary)] mt-1">
         Suche mit LIKE, SOUNDEX oder REGEXP
@@ -2264,7 +2283,7 @@ const apiCallDisplay = computed(() => {
                   </tr>
                   <tr v-if="compareRows.length === 0">
                     <td colspan="3" class="px-4 py-8 text-center text-sm text-[var(--color-text-tertiary)]">
-                      {{ showDiffsOnly ? 'Keine Unterschiede gefunden — Produkte sind identisch' : 'Keine Daten zum Vergleichen' }}
+                      {{ showDiffsOnly ? t('Keine Unterschiede gefunden — Produkte sind identisch') : t('Keine Daten zum Vergleichen') }}
                     </td>
                   </tr>
                 </tbody>

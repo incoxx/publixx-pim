@@ -1,8 +1,10 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useQuickSearchStore } from '@/stores/quickSearch'
 import { useTabStore } from '@/stores/tabs'
+import { useLocalizedName } from '@/composables/useLocalizedName'
 import {
   Search, Package, Image, GitBranch, Sliders, X, ChevronRight,
   FolderTree, ArrowRight, Sparkles, Link2, Zap, Filter, Tag,
@@ -10,6 +12,8 @@ import {
 
 const router = useRouter()
 const route = useRoute()
+const { t, locale } = useI18n()
+const { localizedName } = useLocalizedName()
 const store = useQuickSearchStore()
 const tabStore = useTabStore()
 const inputRef = ref(null)
@@ -27,6 +31,8 @@ const semanticTab = { key: 'semantic', label: 'Semantisch', icon: Sparkles }
 const tabs = computed(() =>
   store.semanticEnabled ? [...staticTabs, semanticTab] : staticTabs
 )
+
+const numberLocale = computed(() => (locale.value === 'de' ? 'de-DE' : 'en-US'))
 
 // ─── Infinite Scroll via IntersectionObserver ────────
 let observer = null
@@ -225,7 +231,7 @@ function typeIcon(type) {
       </button>
       <ChevronRight class="w-3 h-3 opacity-40" :stroke-width="1.75" />
       <span class="text-[var(--color-text-tertiary)] text-xs">
-        {{ store.activeTab === 'products' ? 'Produkte' : store.activeTab === 'media' ? 'Medien' : store.activeTab === 'hierarchies' ? 'Hierarchien' : 'Attribute' }}
+        {{ store.activeTab === 'products' ? t('Produkte') : store.activeTab === 'media' ? t('Medien') : store.activeTab === 'hierarchies' ? t('Hierarchien') : t('Attribute') }}
         <span
           v-if="store.hasActiveFilter"
           class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[color-mix(in_srgb,var(--color-warning,#f59e0b)_20%,transparent)] text-[var(--color-warning,#d97706)] ml-1"
@@ -246,7 +252,7 @@ function typeIcon(type) {
         @click="store.switchTab(tab.key); tab.key === 'semantic' && store.semanticSearch()"
       >
         <component :is="tab.icon" class="w-3.5 h-3.5" :stroke-width="1.75" />
-        {{ tab.label }}
+        {{ t(tab.label) }}
         <span
           v-if="tab.key !== 'semantic' && store.counts[tab.key] > 0"
           class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold"
@@ -346,7 +352,7 @@ function typeIcon(type) {
               :key="`${item.id}-${badge.type}-${badge.id}`"
               class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[color-mix(in_srgb,var(--color-accent)_12%,transparent)] text-[var(--color-accent)] hover:bg-[color-mix(in_srgb,var(--color-accent)_20%,transparent)] transition-colors cursor-pointer"
               @click.stop="onBadgeClick(item, badge)"
-              :title="'Drill-Down: ' + badge.label"
+              :title="t('Drill-Down: {label}', { label: badge.label })"
             >
               <ArrowRight class="w-3 h-3" :stroke-width="2" />
               {{ badge.label }}
@@ -370,7 +376,7 @@ function typeIcon(type) {
             :title="(rel.type || '') + ': ' + (rel.name || rel.sku || '')"
           >
             <span v-if="rel.type" class="text-[var(--color-text-tertiary)]">{{ rel.type }}:</span>
-            {{ rel.name || rel.sku || '(ohne Name)' }}
+            {{ rel.name || rel.sku || t('(ohne Name)') }}
           </button>
         </div>
       </div>
@@ -410,7 +416,7 @@ function typeIcon(type) {
             v-for="(u, i) in store.semanticUnresolved"
             :key="'u' + i"
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[color-mix(in_srgb,var(--color-warning,#f59e0b)_15%,transparent)] text-[color-mix(in_srgb,var(--color-warning,#d97706)_90%,black)]"
-            :title="'Nicht aufgelöst: ' + u.unit"
+            :title="t('Nicht aufgelöst: {unit}', { unit: u.unit })"
           >
             <Tag class="w-3 h-3" :stroke-width="2" />
             {{ u.text }}
@@ -451,7 +457,7 @@ function typeIcon(type) {
               <!-- Text -->
               <div class="flex-1 min-w-0">
                 <div class="font-medium text-sm text-[var(--color-text-primary)] truncate">
-                  {{ hit.product_name || hit.name_de || hit.name_en || hit.sku }}
+                  {{ hit.product_name || localizedName(hit) || hit.sku }}
                 </div>
                 <div class="text-xs text-[var(--color-text-tertiary)] truncate">
                   {{ hit.sku }}{{ hit.hierarchy_path ? ' · ' + hit.hierarchy_path : '' }}
@@ -464,12 +470,12 @@ function typeIcon(type) {
                   v-if="hit.list_price != null"
                   class="text-xs font-semibold text-[var(--color-text-primary)]"
                 >
-                  {{ hit.list_price.toLocaleString('de-DE', { minimumFractionDigits: 2 }) }} €
+                  {{ hit.list_price.toLocaleString(numberLocale, { minimumFractionDigits: 2 }) }} €
                 </span>
                 <span
                   v-if="hit.score != null"
                   class="text-[10px] text-[var(--color-text-tertiary)] tabular-nums"
-                  :title="'Relevanz-Score: ' + hit.score"
+                  :title="t('Relevanz-Score: {score}', { score: hit.score })"
                 >
                   {{ Math.round(hit.score * 100) }}%
                 </span>
@@ -503,7 +509,7 @@ function typeIcon(type) {
             class="px-3 py-1 rounded-full text-xs bg-[var(--color-bg)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
             @click="store.semanticSearch(example); nextTick(() => inputRef?.value && (inputRef.value.value = example))"
           >
-            {{ example }}
+            {{ t(example) }}
           </span>
         </div>
       </div>
@@ -548,7 +554,7 @@ function typeIcon(type) {
           @click="selectCategory(tab.key)"
         >
           <component :is="tab.icon" class="w-3.5 h-3.5" :stroke-width="1.75" />
-          {{ tab.label }}
+          {{ t(tab.label) }}
         </button>
       </div>
 

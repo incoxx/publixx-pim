@@ -17,6 +17,9 @@ const SCOPE_PATTERNS = [
   /[/\\]components[/\\]products[/\\]/,
   /[/\\]views[/\\]dashboard[/\\]/,
   /[/\\]components[/\\]dashboard[/\\]/,
+  /[/\\]views[/\\]search[/\\]SearchWizardView\.vue$/,
+  /[/\\]views[/\\]search[/\\]QuickSearchView\.vue$/,
+  /[/\\]components[/\\]search[/\\]/,
 ];
 
 // Statische Attribute, die als sichtbarer UI-Text gelten (nicht z.B. "class", "id", "type").

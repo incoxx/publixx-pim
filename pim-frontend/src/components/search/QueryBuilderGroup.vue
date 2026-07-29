@@ -1,6 +1,9 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { Plus, FolderPlus, X } from 'lucide-vue-next'
 import QueryBuilderRule from './QueryBuilderRule.vue'
+
+const { t } = useI18n()
 
 const props = defineProps({
   group: { type: Object, required: true },
@@ -70,7 +73,7 @@ const operatorBtnColors = {
           :class="group.operator === op ? operatorBtnColors[op].active : operatorBtnColors[op].inactive"
           @click="updateOperator(op)"
         >
-          {{ op === 'AND' ? 'UND' : op === 'OR' ? 'ODER' : 'NICHT' }}
+          {{ op === 'AND' ? t('UND') : op === 'OR' ? t('ODER') : t('NICHT') }}
         </button>
       </div>
 
@@ -100,7 +103,7 @@ const operatorBtnColors = {
             'text-amber-400': group.operator === 'OR',
             'text-red-400': group.operator === 'NOT',
           }">
-            {{ group.operator === 'AND' ? 'UND' : group.operator === 'OR' ? 'ODER' : 'NICHT' }}
+            {{ group.operator === 'AND' ? t('UND') : group.operator === 'OR' ? t('ODER') : t('NICHT') }}
           </span>
           <div class="flex-1 h-px bg-[var(--color-border)]" />
         </div>
