@@ -147,7 +147,6 @@ const messages = {
     settings: {
       title: 'Einstellungen',
       language: 'Sprache',
-      uiLanguage: 'UI-Sprache',
       dataLanguages: 'Aktive Datensprachen',
       appearance: 'Darstellung',
       appearancePlaceholder: 'Weitere Einstellungen werden hier konfiguriert.',
@@ -470,7 +469,6 @@ const messages = {
     settings: {
       title: 'Settings',
       language: 'Language',
-      uiLanguage: 'UI Language',
       dataLanguages: 'Active Data Languages',
       appearance: 'Appearance',
       appearancePlaceholder: 'Additional settings will be configured here.',
