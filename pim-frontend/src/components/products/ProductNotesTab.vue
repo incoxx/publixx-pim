@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   StickyNote, Plus, Pin, PinOff, Trash2, Users, Lock,
   CheckCircle2, RotateCcw, MessageSquare, ChevronDown, ChevronUp,
@@ -7,6 +8,8 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import notesApi from '@/api/notes'
+
+const { t } = useI18n()
 
 const props = defineProps({
   productId: { type: String, required: true },
@@ -27,10 +30,10 @@ const reopeningId = ref(null)
 const deletingId = ref(null)
 
 const NOTE_TYPES = [
-  { key: 'task',    label: 'Aufgabe',  icon: ClipboardList,   bg: '#dbeafe', border: '#60a5fa', text: '#1e3a5f' },
-  { key: 'hint',    label: 'Hinweis',  icon: Lightbulb,       bg: '#fef9c3', border: '#facc15', text: '#713f12' },
-  { key: 'warning', label: 'Warnung',  icon: AlertTriangle,   bg: '#ffedd5', border: '#fb923c', text: '#7c2d12' },
-  { key: 'error',   label: 'Fehler',   icon: XCircle,         bg: '#fee2e2', border: '#f87171', text: '#7f1d1d' },
+  { key: 'task',    label: t('Aufgabe'),  icon: ClipboardList,   bg: '#dbeafe', border: '#60a5fa', text: '#1e3a5f' },
+  { key: 'hint',    label: t('Hinweis'),  icon: Lightbulb,       bg: '#fef9c3', border: '#facc15', text: '#713f12' },
+  { key: 'warning', label: t('Warnung'),  icon: AlertTriangle,   bg: '#ffedd5', border: '#fb923c', text: '#7c2d12' },
+  { key: 'error',   label: t('Fehler'),   icon: XCircle,         bg: '#fee2e2', border: '#f87171', text: '#7f1d1d' },
 ]
 
 const form = ref({ title: '', body: '', type: 'task', is_shared: false })
