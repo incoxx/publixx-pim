@@ -1,12 +1,14 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useReportDesignerStore } from '@/stores/reportDesigner'
+import { useToastStore } from '@/stores/toast'
 import {
   Type, Hash, Calendar, Tag, Image, Minus, SeparatorHorizontal, BarChart3,
   GripVertical, Search, DollarSign, Link2, Paperclip, FolderTree,
 } from 'lucide-vue-next'
 
 const store = useReportDesignerStore()
+const toast = useToastStore()
 const searchQuery = ref('')
 const expandedGroups = ref({ base: true, layout: true, prices: true })
 
@@ -59,12 +61,22 @@ function toggleGroup(key) {
 }
 
 function onDoubleClick(item) {
-  const { groupId, section } = store.focusedSection
-  if (!groupId || !section) return
+  let { groupId, section } = store.focusedSection
+
+  // Keine Sektion fokussiert: Fallback auf die Detail-Sektion der ausgewählten Gruppe
+  if (!groupId || !section) {
+    if (!store.selectedGroupId) {
+      toast.showToast('Bitte zuerst eine Gruppe bzw. Sektion auswählen', 'error')
+      return
+    }
+    groupId = store.selectedGroupId
+    section = 'detail'
+  }
+
   store.addElement(groupId, section, item)
 }
 
-const hasFocus = computed(() => !!store.focusedSection.groupId)
+const hasFocus = computed(() => !!(store.focusedSection.groupId || store.selectedGroupId))
 </script>
 
 <template>
