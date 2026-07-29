@@ -1,10 +1,30 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useReportDesignerStore } from '@/stores/reportDesigner'
 import { Settings } from 'lucide-vue-next'
 import GroupFieldPicker from './GroupFieldPicker.vue'
+import client from '@/api/client'
 
 const store = useReportDesignerStore()
+
+const relationTypes = ref([])
+const mediaUsageTypes = ref([])
+const hierarchies = ref([])
+
+onMounted(async () => {
+  try {
+    const [rtRes, mutRes, hRes] = await Promise.allSettled([
+      client.get('/relation-types', { params: { per_page: 100 } }),
+      client.get('/media-usage-types', { params: { per_page: 100 } }),
+      client.get('/hierarchies', { params: { per_page: 100 } }),
+    ])
+    if (rtRes.status === 'fulfilled') relationTypes.value = rtRes.value.data.data || rtRes.value.data || []
+    if (mutRes.status === 'fulfilled') mediaUsageTypes.value = mutRes.value.data.data || mutRes.value.data || []
+    if (hRes.status === 'fulfilled') hierarchies.value = hRes.value.data.data || hRes.value.data || []
+  } catch (e) {
+    console.warn('Failed to load relation/media/hierarchy options:', e.message)
+  }
+})
 
 const sel = computed(() => store.selectedElement)
 const group = computed(() => store.selectedGroup)
@@ -44,7 +64,7 @@ function updateColumnWidth(elementId, value) {
 
 const detailElements = computed(() => {
   if (!group.value) return []
-  return group.value.detail?.elements?.filter(e => ['field', 'attribute'].includes(e.type)) || []
+  return group.value.detail?.elements?.filter(e => ['field', 'attribute', 'price', 'relation', 'categories'].includes(e.type)) || []
 })
 
 const groupFields = computed(() => store.availableFields?.group_fields || [])
@@ -216,7 +236,7 @@ const groupFields = computed(() => store.availableFields?.group_fields || [])
     <!-- Element Properties -->
     <div v-if="sel" class="space-y-3">
       <div class="text-[11px] font-semibold text-[var(--color-accent)]">
-        {{ { text: 'Text', field: 'Feld', attribute: 'Attribut', image: 'Bild', counter: 'Zähler', separator: 'Trennlinie', pageBreak: 'Seitenumbruch' }[sel.element.type] || sel.element.type }}
+        {{ { text: 'Text', field: 'Feld', attribute: 'Attribut', image: 'Bild', counter: 'Zähler', separator: 'Trennlinie', pageBreak: 'Seitenumbruch', price: 'Preis', relation: 'Beziehung', media: 'Medien-Verweis', categories: 'Zugeordnete Kategorien' }[sel.element.type] || sel.element.type }}
       </div>
 
       <!-- TEXT -->
@@ -297,6 +317,84 @@ const groupFields = computed(() => store.availableFields?.group_fields || [])
         </div>
       </template>
 
+      <!-- PRICE -->
+      <template v-if="sel.element.type === 'price'">
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Preistyp</label>
+          <select :value="sel.element.priceTypeId" class="pim-input text-xs w-full" @change="updateElement('priceTypeId', $event.target.value)">
+            <option v-for="pt in (store.availableFields?.price_types || [])" :key="pt.priceTypeId" :value="pt.priceTypeId">{{ pt.label_de }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Label-Überschreibung</label>
+          <input :value="sel.element.label" class="pim-input text-xs w-full" @input="updateElement('label', $event.target.value)" />
+        </div>
+        <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+          <input type="checkbox" :checked="sel.element.showLabel" class="rounded" @change="updateElement('showLabel', $event.target.checked)" />
+          Label anzeigen
+        </label>
+      </template>
+
+      <!-- RELATION -->
+      <template v-if="sel.element.type === 'relation'">
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Beziehungsart</label>
+          <select :value="sel.element.relationTypeId" class="pim-input text-xs w-full" @change="updateElement('relationTypeId', $event.target.value || null)">
+            <option :value="null">– auswählen –</option>
+            <option v-for="rt in relationTypes" :key="rt.id" :value="rt.id">{{ rt.name_de || rt.technical_name }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Label-Überschreibung</label>
+          <input :value="sel.element.label" class="pim-input text-xs w-full" @input="updateElement('label', $event.target.value)" />
+        </div>
+        <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+          <input type="checkbox" :checked="sel.element.showLabel" class="rounded" @change="updateElement('showLabel', $event.target.checked)" />
+          Label anzeigen
+        </label>
+        <p class="text-[9px] text-[var(--color-text-tertiary)]">Zeigt die Namen der verknüpften Produkte, kommagetrennt.</p>
+      </template>
+
+      <!-- MEDIA -->
+      <template v-if="sel.element.type === 'media'">
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Verwendungstyp</label>
+          <select :value="sel.element.usageTypeId" class="pim-input text-xs w-full" @change="updateElement('usageTypeId', $event.target.value || null)">
+            <option :value="null">– auswählen –</option>
+            <option v-for="mut in mediaUsageTypes" :key="mut.id" :value="mut.id">{{ mut.name_de || mut.technical_name }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Link-Text</label>
+          <input :value="sel.element.label" class="pim-input text-xs w-full" placeholder="z.B. Datenblatt (PDF)" @input="updateElement('label', $event.target.value)" />
+        </div>
+        <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+          <input type="checkbox" :checked="sel.element.showLabel" class="rounded" @change="updateElement('showLabel', $event.target.checked)" />
+          Label anzeigen
+        </label>
+        <p class="text-[9px] text-[var(--color-text-tertiary)]">Zeigt einen klickbaren Verweis auf das erste Medium dieses Verwendungstyps (z.B. Datenblatt-PDF).</p>
+      </template>
+
+      <!-- CATEGORIES -->
+      <template v-if="sel.element.type === 'categories'">
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Klassifikation</label>
+          <select :value="sel.element.hierarchyId" class="pim-input text-xs w-full" @change="updateElement('hierarchyId', $event.target.value || null)">
+            <option :value="null">Alle Klassifikationen</option>
+            <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Label-Überschreibung</label>
+          <input :value="sel.element.label" class="pim-input text-xs w-full" @input="updateElement('label', $event.target.value)" />
+        </div>
+        <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+          <input type="checkbox" :checked="sel.element.showLabel" class="rounded" @change="updateElement('showLabel', $event.target.checked)" />
+          Label anzeigen
+        </label>
+        <p class="text-[9px] text-[var(--color-text-tertiary)]">Zeigt alle diesem Produkt zugeordneten Kategorien (Mehrfachzuordnung), kommagetrennt.</p>
+      </template>
+
       <!-- IMAGE -->
       <template v-if="sel.element.type === 'image'">
         <div>
@@ -331,8 +429,8 @@ const groupFields = computed(() => store.availableFields?.group_fields || [])
         </div>
       </template>
 
-      <!-- Style (for text, field, attribute) -->
-      <template v-if="['text', 'field', 'attribute'].includes(sel.element.type)">
+      <!-- Style (for text, field, attribute, price, relation, categories) -->
+      <template v-if="['text', 'field', 'attribute', 'price', 'relation', 'categories'].includes(sel.element.type)">
         <div class="border-t border-[var(--color-border)] pt-3 mt-3">
           <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">Stil</div>
           <div class="grid grid-cols-2 gap-2">

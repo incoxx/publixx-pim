@@ -62,13 +62,25 @@ class ReportDataCollector
 
         $hasAttributes = false;
         $hasImages = false;
+        $hasPrices = false;
+        $hasProductRelations = false;
+        $hasCategories = false;
 
-        $this->walkElements($templateJson, function (array $element) use (&$hasAttributes, &$hasImages) {
+        $this->walkElements($templateJson, function (array $element) use (&$hasAttributes, &$hasImages, &$hasPrices, &$hasProductRelations, &$hasCategories) {
             if ($element['type'] === 'attribute') {
                 $hasAttributes = true;
             }
-            if ($element['type'] === 'image') {
+            if ($element['type'] === 'image' || $element['type'] === 'media') {
                 $hasImages = true;
+            }
+            if ($element['type'] === 'price') {
+                $hasPrices = true;
+            }
+            if ($element['type'] === 'relation') {
+                $hasProductRelations = true;
+            }
+            if ($element['type'] === 'categories') {
+                $hasCategories = true;
             }
         });
 
@@ -89,6 +101,19 @@ class ReportDataCollector
         if ($hasImages) {
             $relations[] = 'mediaAssignments.media';
             $relations[] = 'mediaAssignments.usageType';
+        }
+
+        if ($hasPrices) {
+            $relations[] = 'prices';
+        }
+
+        if ($hasProductRelations) {
+            $relations[] = 'outgoingRelations.relationType';
+            $relations[] = 'outgoingRelations.targetProduct';
+        }
+
+        if ($hasCategories) {
+            $relations[] = 'outputHierarchyAssignments.hierarchyNode';
         }
 
         return $relations;

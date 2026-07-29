@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Jobs\ExecuteReportJob;
 use App\Models\Attribute;
+use App\Models\PriceType;
 use App\Models\ReportJob;
 use App\Models\ReportTemplate;
 use App\Models\SearchProfile;
@@ -141,7 +142,22 @@ class ReportTemplateController extends Controller
             ['type' => 'pageBreak', 'label_de' => 'Seitenumbruch', 'label_en' => 'Page Break', 'category' => 'layout'],
             ['type' => 'image', 'label_de' => 'Produktbild', 'label_en' => 'Product Image', 'category' => 'layout'],
             ['type' => 'counter', 'label_de' => 'Zähler', 'label_en' => 'Counter', 'category' => 'layout'],
+            ['type' => 'relation', 'label_de' => 'Beziehung', 'label_en' => 'Relation', 'category' => 'layout'],
+            ['type' => 'media', 'label_de' => 'Medien-Verweis', 'label_en' => 'Media Reference', 'category' => 'layout'],
+            ['type' => 'categories', 'label_de' => 'Zugeordnete Kategorien', 'label_en' => 'Assigned Categories', 'category' => 'layout'],
         ];
+
+        // Price types
+        $priceTypes = PriceType::query()
+            ->orderBy('name_de')
+            ->get()
+            ->map(fn ($pt) => [
+                'priceTypeId' => $pt->id,
+                'technical_name' => $pt->technical_name,
+                'label_de' => $pt->name_de,
+                'label_en' => $pt->name_en,
+                'category' => 'price',
+            ]);
 
         // Group field options
         $groupFields = [
@@ -156,6 +172,7 @@ class ReportTemplateController extends Controller
                 'base_fields' => $baseFields,
                 'attributes' => $attributes,
                 'layout_elements' => $layoutElements,
+                'price_types' => $priceTypes,
                 'group_fields' => $groupFields,
             ],
         ]);

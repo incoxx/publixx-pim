@@ -3,12 +3,12 @@ import { ref, computed } from 'vue'
 import { useReportDesignerStore } from '@/stores/reportDesigner'
 import {
   Type, Hash, Calendar, Tag, Image, Minus, SeparatorHorizontal, BarChart3,
-  GripVertical, Search,
+  GripVertical, Search, DollarSign, Link2, Paperclip, FolderTree,
 } from 'lucide-vue-next'
 
 const store = useReportDesignerStore()
 const searchQuery = ref('')
-const expandedGroups = ref({ base: true, layout: true })
+const expandedGroups = ref({ base: true, layout: true, prices: true })
 
 const filteredAttributes = computed(() => {
   if (!store.availableFields?.attributes) return []
@@ -32,8 +32,21 @@ const attributesByGroup = computed(() => {
 })
 
 function getIcon(type) {
-  const icons = { text: Type, separator: Minus, pageBreak: SeparatorHorizontal, image: Image, counter: BarChart3 }
+  const icons = {
+    text: Type, separator: Minus, pageBreak: SeparatorHorizontal, image: Image, counter: BarChart3,
+    relation: Link2, media: Paperclip, categories: FolderTree,
+  }
   return icons[type] || Tag
+}
+
+function layoutElementPayload(type) {
+  if (type === 'text') return { content: 'Text hier eingeben' }
+  if (type === 'counter') return { label: 'Anzahl', format: '{count} Produkte' }
+  if (type === 'image') return { source: 'primary', width: 80, height: 80 }
+  if (type === 'relation') return { relationTypeId: null, label: 'Beziehung', showLabel: true }
+  if (type === 'media') return { usageTypeId: null, label: 'Medien-Verweis', showLabel: true }
+  if (type === 'categories') return { hierarchyId: null, label: 'Zugeordnete Kategorien', showLabel: true }
+  return {}
 }
 
 function onDragStart(event, item) {
@@ -108,12 +121,38 @@ const hasFocus = computed(() => !!store.focusedSection.groupId)
           class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
           :class="hasFocus ? 'cursor-pointer' : 'cursor-grab'"
           draggable="true"
-          @dragstart="onDragStart($event, { type: el.type, ...(el.type === 'text' ? { content: 'Text hier eingeben' } : {}), ...(el.type === 'counter' ? { label: 'Anzahl', format: '{count} Produkte' } : {}), ...(el.type === 'image' ? { source: 'primary', width: 80, height: 80 } : {}) })"
-          @dblclick="onDoubleClick({ type: el.type, ...(el.type === 'text' ? { content: 'Text hier eingeben' } : {}), ...(el.type === 'counter' ? { label: 'Anzahl', format: '{count} Produkte' } : {}), ...(el.type === 'image' ? { source: 'primary', width: 80, height: 80 } : {}) })"
+          @dragstart="onDragStart($event, { type: el.type, ...layoutElementPayload(el.type) })"
+          @dblclick="onDoubleClick({ type: el.type, ...layoutElementPayload(el.type) })"
         >
           <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           <component :is="getIcon(el.type)" class="w-3 h-3 text-[var(--color-accent)]" :stroke-width="2" />
           <span>{{ el.label_de }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Price Types -->
+    <div v-if="store.availableFields?.price_types?.length">
+      <button
+        class="text-[11px] font-semibold text-[var(--color-text-secondary)] w-full text-left py-1 hover:text-[var(--color-text-primary)]"
+        @click="toggleGroup('prices')"
+      >
+        {{ expandedGroups.prices ? '▾' : '▸' }} Preise
+      </button>
+      <div v-if="expandedGroups.prices" class="space-y-0.5">
+        <div
+          v-for="pt in store.availableFields.price_types"
+          :key="pt.priceTypeId"
+          class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
+          :class="hasFocus ? 'cursor-pointer' : 'cursor-grab'"
+          draggable="true"
+          @dragstart="onDragStart($event, { type: 'price', priceTypeId: pt.priceTypeId, label: pt.label_de, showLabel: true })"
+          @dblclick="onDoubleClick({ type: 'price', priceTypeId: pt.priceTypeId, label: pt.label_de, showLabel: true })"
+          :title="pt.technical_name"
+        >
+          <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
+          <DollarSign class="w-3 h-3 text-amber-500" :stroke-width="2" />
+          <span class="truncate">{{ pt.label_de }}</span>
         </div>
       </div>
     </div>

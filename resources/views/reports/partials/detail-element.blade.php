@@ -49,6 +49,19 @@
         </div>
     @endif
 
+@elseif (in_array($type, ['price', 'relation', 'categories']))
+    @php
+        $value = $renderer->resolveColumnValue($product, $element, $lang);
+        $showLabel = $element['showLabel'] ?? true;
+        $label = $element['label'] ?? '';
+    @endphp
+    <div class="element-text">
+        @if ($showLabel && $label)
+            <strong>{{ $label }}:</strong>
+        @endif
+        {{ $value ?: '-' }}
+    </div>
+
 @elseif ($type === 'separator')
     <div class="separator"></div>
 
@@ -71,5 +84,21 @@
         @if (file_exists($imgPath))
             <img src="{{ $imgPath }}" style="width: {{ $width }}px; height: {{ $height }}px; object-fit: contain; margin: 4px 0;" />
         @endif
+    @endif
+
+@elseif ($type === 'media')
+    @php
+        $mediaItems = $renderer->resolveMediaValue($product, $element['usageTypeId'] ?? '', 'array', $lang);
+        $mediaItem = $mediaItems[0] ?? null;
+        $showLabel = $element['showLabel'] ?? true;
+        $linkLabel = $element['label'] ?? ($mediaItem['alt'] ?? 'Datei öffnen');
+    @endphp
+    @if ($mediaItem && $mediaItem['url'])
+        <div class="element-text">
+            @if ($showLabel && !empty($element['label']))
+                <strong>{{ $element['label'] }}:</strong>
+            @endif
+            <a href="{{ $mediaItem['url'] }}" style="color: #2563eb; text-decoration: underline;">{{ $linkLabel }}</a>
+        </div>
     @endif
 @endif

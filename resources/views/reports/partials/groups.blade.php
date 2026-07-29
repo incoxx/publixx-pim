@@ -26,7 +26,8 @@
         @if (!empty($group['products']))
             @php
                 $detailElements = $definition['detail']['elements'] ?? [];
-                $fieldElements = array_values(array_filter($detailElements, fn($e) => in_array($e['type'], ['field', 'attribute'])));
+                $columnTypes = ['field', 'attribute', 'price', 'relation', 'categories'];
+                $fieldElements = array_values(array_filter($detailElements, fn($e) => in_array($e['type'], $columnTypes)));
                 $detailLayout = $definition['detailLayout'] ?? 'table';
                 $tStyle = $definition['tableStyle'] ?? [];
                 $showBorders = $tStyle['showBorders'] ?? true;
@@ -50,15 +51,7 @@
                             @php
                                 $rowBg = ($alternateRowBg && $rowIdx % 2 === 1) ? "background: {$alternateRowColor};" : '';
                                 $label = $col['label'] ?? $col['field'] ?? '';
-                                if ($col['type'] === 'field') {
-                                    $val = $renderer->resolveFieldValue($product, $col['field'] ?? '', $lang);
-                                } else {
-                                    $resolved = $renderer->resolveAttributeValue($product, $col['attributeId'] ?? '', $lang);
-                                    $parts = [];
-                                    if (($col['showValue'] ?? true) && $resolved['value']) $parts[] = $resolved['value'];
-                                    if (($col['showUnit'] ?? true) && $resolved['unit']) $parts[] = $resolved['unit'];
-                                    $val = implode(' ', $parts);
-                                }
+                                $val = $renderer->resolveColumnValue($product, $col, $lang);
                             @endphp
                             <tr style="{{ $rowBg }}">
                                 <td style="padding: {{ $cellPad }}; border-bottom: {{ $borderCss }}; font-weight: bold; width: 35%; font-size: 9px; color: #6b7280;">{{ $label }}</td>
@@ -86,17 +79,7 @@
                             <tr style="{{ $rowBg }}">
                                 @foreach ($fieldElements as $col)
                                     <td style="padding: {{ $cellPad }}; border-bottom: {{ $borderCss }}; font-size: 10px;">
-                                        @if ($col['type'] === 'field')
-                                            {{ $renderer->resolveFieldValue($product, $col['field'] ?? '', $lang) }}
-                                        @elseif ($col['type'] === 'attribute')
-                                            @php
-                                                $resolved = $renderer->resolveAttributeValue($product, $col['attributeId'] ?? '', $lang);
-                                                $parts = [];
-                                                if (($col['showValue'] ?? true) && $resolved['value']) $parts[] = $resolved['value'];
-                                                if (($col['showUnit'] ?? true) && $resolved['unit']) $parts[] = $resolved['unit'];
-                                            @endphp
-                                            {{ implode(' ', $parts) }}
-                                        @endif
+                                        {{ $renderer->resolveColumnValue($product, $col, $lang) }}
                                     </td>
                                 @endforeach
                             </tr>
