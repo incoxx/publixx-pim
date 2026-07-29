@@ -1,11 +1,9 @@
 <script setup>
 import { useAuthStore } from '@/stores/auth'
 import { useTabStore } from '@/stores/tabs'
-import { useLocaleStore } from '@/stores/locale'
-import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { computed, ref, onMounted, onUnmounted } from 'vue'
-import { Compass, Eye, Globe, LogOut, Menu, MessageCircle, PanelsTopLeft, Pin, PinOff, Sparkles, User } from 'lucide-vue-next'
+import { Compass, Eye, LogOut, Menu, MessageCircle, PanelsTopLeft, Pin, PinOff, Sparkles, User } from 'lucide-vue-next'
 import { useCopilotStore } from '@/stores/copilot'
 import { useMessengerStore } from '@/stores/messenger'
 import SemanticSearchBox from '@/components/layout/SemanticSearchBox.vue'
@@ -14,8 +12,6 @@ const authStore = useAuthStore()
 const copilotStore = useCopilotStore()
 const messengerStore = useMessengerStore()
 const tabStore = useTabStore()
-const localeStore = useLocaleStore()
-const { t, locale: i18nLocale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
@@ -23,19 +19,11 @@ const pageTitle = computed(() => route.meta.title || '')
 const isPinned = computed(() => tabStore.isRoutePinned(route))
 const canPin = computed(() => route.name && route.name !== 'login' && route.name !== 'dashboard')
 
-const localeOpen = ref(false)
 const userOpen = ref(false)
 
-function switchLocale(code) {
-  localeStore.setUiLocale(code)
-  i18nLocale.value = code
-  localeOpen.value = false
-}
-
 function closeDropdowns(e) {
-  // Dropdowns schließen wenn außerhalb geklickt/getippt
+  // Dropdown schließen wenn außerhalb geklickt/getippt
   if (!e.target.closest('[data-dropdown]')) {
-    localeOpen.value = false
     userOpen.value = false
   }
 }
@@ -177,45 +165,13 @@ function openCatalogPreview() {
         </span>
       </button>
 
-      <!-- Locale switcher -->
-      <div class="relative" data-dropdown>
-        <button
-          class="flex items-center gap-1 px-2 py-1.5 text-xs rounded-md transition-colors hover:bg-white/10 touch-manipulation"
-          :style="{ color: 'inherit', minHeight: '44px', minWidth: '44px' }"
-          :aria-expanded="localeOpen"
-          @click.stop="localeOpen = !localeOpen; userOpen = false"
-        >
-          <Globe class="w-3.5 h-3.5" :stroke-width="1.75" />
-          <span class="uppercase">{{ localeStore.currentLocale }}</span>
-        </button>
-        <div
-          v-if="localeOpen"
-          class="absolute right-0 top-full mt-1 w-32 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg py-1 z-50"
-        >
-          <button
-            v-for="loc in localeStore.availableLocales"
-            :key="loc.code"
-            :class="[
-              'w-full px-3 py-2.5 text-left text-xs transition-colors touch-manipulation',
-              localeStore.currentLocale === loc.code
-                ? 'bg-[var(--color-bg)] text-[var(--color-accent)] font-medium'
-                : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'
-            ]"
-            style="min-height: 44px"
-            @click="switchLocale(loc.code)"
-          >
-            {{ loc.flag }} {{ loc.label }}
-          </button>
-        </div>
-      </div>
-
       <!-- User menu -->
       <div class="relative" data-dropdown>
         <button
           class="flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-md transition-colors hover:bg-white/10 touch-manipulation"
           :style="{ color: 'inherit', minHeight: '44px' }"
           :aria-expanded="userOpen"
-          @click.stop="userOpen = !userOpen; localeOpen = false"
+          @click.stop="userOpen = !userOpen"
         >
           <User class="w-3.5 h-3.5" :stroke-width="1.75" />
           <span class="hidden lg:inline max-w-[8rem] truncate">{{ authStore.userName }}</span>
