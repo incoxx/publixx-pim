@@ -12,6 +12,12 @@ use PhpOffice\PhpWord\Style\Font;
 
 class DocxReportWriter
 {
+    /**
+     * Elementtypen, die als einfache Spalten-/Zeilenwerte in Tabellen- und Listen-Layout
+     * dargestellt werden können (im Gegensatz zu Block-Elementen wie image/media).
+     */
+    private const COLUMN_TYPES = ['field', 'attribute', 'price', 'relation', 'categories'];
+
     public function __construct(
         private readonly ElementRenderer $elementRenderer,
     ) {}
@@ -173,7 +179,7 @@ class DocxReportWriter
         if ($layout === 'list') {
             $this->renderProductsAsList($section, $products, $detailElements, $language, $tStyle);
         } else {
-            $fieldElements = array_filter($detailElements, fn ($e) => in_array($e['type'], ['field', 'attribute']));
+            $fieldElements = array_filter($detailElements, fn ($e) => in_array($e['type'], self::COLUMN_TYPES));
             if (count($fieldElements) >= 2) {
                 $this->renderProductsAsTable($section, $products, $detailElements, $language, $tStyle);
             } else {
@@ -201,8 +207,8 @@ class DocxReportWriter
             'cellMargin' => $compact ? 40 : 60,
         ];
 
-        // Filter to renderable field/attribute elements
-        $columns = array_filter($elements, fn ($e) => in_array($e['type'], ['field', 'attribute']));
+        // Filter to renderable column-type elements
+        $columns = array_filter($elements, fn ($e) => in_array($e['type'], self::COLUMN_TYPES));
         $columns = array_values($columns);
 
         if (empty($columns)) {
@@ -253,7 +259,7 @@ class DocxReportWriter
         $alternateRowBg = $tStyle['alternateRowBg'] ?? true;
         $alternateRowColor = ltrim($tStyle['alternateRowColor'] ?? '#f9fafb', '#');
 
-        $fieldElements = array_filter($elements, fn ($e) => in_array($e['type'], ['field', 'attribute']));
+        $fieldElements = array_filter($elements, fn ($e) => in_array($e['type'], self::COLUMN_TYPES));
         $fieldElements = array_values($fieldElements);
 
         foreach ($products as $productIndex => $product) {
@@ -294,11 +300,12 @@ class DocxReportWriter
                 );
             }
 
-            // Also render non-field elements (images, separators, etc.)
+            // Also render non-column elements (images, media references, separators, etc.)
             foreach ($elements as $element) {
-                if (!in_array($element['type'], ['field', 'attribute'])) {
+                if (!in_array($element['type'], self::COLUMN_TYPES)) {
                     match ($element['type']) {
                         'image' => $this->renderImageElement($section, $product, $element),
+                        'media' => $this->renderMediaElement($section, $product, $element, $language),
                         'separator' => $section->addText(str_repeat('─', 60), ['size' => 6, 'color' => 'CCCCCC']),
                         'text' => $this->renderTextElement($section, $element, ['language' => $language]),
                         default => null,
@@ -347,7 +354,9 @@ class DocxReportWriter
             match ($element['type']) {
                 'field' => $this->renderFieldElement($section, $product, $element, $language),
                 'attribute' => $this->renderAttributeElement($section, $product, $element, $language),
+                'price', 'relation', 'categories' => $this->renderColumnElement($section, $product, $element, $language),
                 'image' => $this->renderImageElement($section, $product, $element),
+                'media' => $this->renderMediaElement($section, $product, $element, $language),
                 'separator' => $section->addText(str_repeat('─', 60), ['size' => 6, 'color' => 'CCCCCC']),
                 'pageBreak' => $section->addPageBreak(),
                 'text' => $this->renderTextElement($section, $element, ['language' => $language]),
@@ -355,6 +364,50 @@ class DocxReportWriter
             };
         }
         $section->addTextBreak();
+    }
+
+    /**
+     * Rendert price/relation/categories als "Label: Wert" — analog zu renderFieldElement().
+     */
+    private function renderColumnElement($section, $product, array $element, string $language): void
+    {
+        $value = $this->elementRenderer->resolveColumnValue($product, $element, $language);
+        $showLabel = $element['showLabel'] ?? true;
+        $label = $element['label'] ?? '';
+        $style = $this->buildFontStyle($element['style'] ?? []);
+
+        if ($showLabel && $label) {
+            $textRun = $section->addTextRun();
+            $textRun->addText("{$label}: ", array_merge($style, ['bold' => true]));
+            $textRun->addText($value, $style);
+        } else {
+            $section->addText($value, $style);
+        }
+    }
+
+    /**
+     * Rendert einen Medien-Verweis (z.B. Datenblatt-PDF) als klickbaren Link.
+     */
+    private function renderMediaElement($section, $product, array $element, string $language): void
+    {
+        $usageTypeId = $element['usageTypeId'] ?? '';
+        $items = $this->elementRenderer->resolveMediaValue($product, $usageTypeId, 'array', $language);
+        $media = $items[0] ?? null;
+
+        if (!$media || !$media['url']) {
+            return;
+        }
+
+        $label = $element['label'] ?? ($media['alt'] ?? 'Datei öffnen');
+        $showLabel = $element['showLabel'] ?? true;
+        $style = $this->buildFontStyle($element['style'] ?? []);
+
+        $textRun = $section->addTextRun();
+        if ($showLabel && !empty($element['label'])) {
+            $textRun->addText("{$element['label']}: ", array_merge($style, ['bold' => true]));
+        }
+        $linkStyle = array_merge(['color' => '2563EB', 'underline' => 'single'], $style);
+        $textRun->addLink($media['url'], $label, $linkStyle);
     }
 
     private function renderFieldElement($section, $product, array $element, string $language): void
@@ -462,23 +515,7 @@ class DocxReportWriter
 
     private function resolveElementValue($product, array $element, string $language): string
     {
-        if ($element['type'] === 'field') {
-            return $this->elementRenderer->resolveFieldValue($product, $element['field'] ?? '', $language);
-        }
-
-        if ($element['type'] === 'attribute') {
-            $resolved = $this->elementRenderer->resolveAttributeValue($product, $element['attributeId'] ?? '', $language);
-            $parts = [];
-            if (($element['showValue'] ?? true) && $resolved['value']) {
-                $parts[] = $resolved['value'];
-            }
-            if (($element['showUnit'] ?? true) && $resolved['unit']) {
-                $parts[] = $resolved['unit'];
-            }
-            return implode(' ', $parts);
-        }
-
-        return '';
+        return $this->elementRenderer->resolveColumnValue($product, $element, $language);
     }
 
     private function buildFontStyle(array $style): array

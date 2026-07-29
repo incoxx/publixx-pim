@@ -1,5 +1,5 @@
 <script setup>
-import { X, GripVertical, Type, Hash, Tag, Image, Minus, SeparatorHorizontal, BarChart3 } from 'lucide-vue-next'
+import { X, GripVertical, Type, Hash, Tag, Image, Minus, SeparatorHorizontal, BarChart3, DollarSign, Link2, Paperclip, FolderTree } from 'lucide-vue-next'
 
 const props = defineProps({
   element: { type: Object, required: true },
@@ -8,8 +8,14 @@ const props = defineProps({
 
 const emit = defineEmits(['click', 'remove'])
 
-const typeIcons = { text: Type, field: Hash, attribute: Tag, image: Image, separator: Minus, pageBreak: SeparatorHorizontal, counter: BarChart3 }
-const typeLabels = { text: 'Text', field: 'Feld', attribute: 'Attribut', image: 'Bild', separator: 'Linie', pageBreak: 'Seitenumbruch', counter: 'Zähler' }
+const typeIcons = {
+  text: Type, field: Hash, attribute: Tag, image: Image, separator: Minus, pageBreak: SeparatorHorizontal, counter: BarChart3,
+  price: DollarSign, relation: Link2, media: Paperclip, categories: FolderTree,
+}
+const typeLabels = {
+  text: 'Text', field: 'Feld', attribute: 'Attribut', image: 'Bild', separator: 'Linie', pageBreak: 'Seitenumbruch', counter: 'Zähler',
+  price: 'Preis', relation: 'Beziehung', media: 'Medien-Verweis', categories: 'Kategorien',
+}
 
 function getLabel() {
   const el = props.element
@@ -17,6 +23,7 @@ function getLabel() {
   if (el.type === 'attribute') return el.label || 'Attribut'
   if (el.type === 'text') return el.content?.slice(0, 30) || 'Text'
   if (el.type === 'counter') return el.label || 'Zähler'
+  if (['price', 'relation', 'media', 'categories'].includes(el.type)) return el.label || typeLabels[el.type]
   return typeLabels[el.type] || el.type
 }
 </script>
