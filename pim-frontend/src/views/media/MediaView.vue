@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Upload, Image, ImageOff, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw, ExternalLink, Package, FolderTree, Eye, Filter, Archive, ToggleLeft, ToggleRight, Table, Layers, Images, ArrowUp, ArrowDown, Video, Music } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
@@ -9,6 +10,7 @@ import { mediaCountries as mediaCountriesApi } from '@/api/mediaCountries'
 import hierarchiesApi from '@/api/hierarchies'
 import { useAuthStore } from '@/stores/auth'
 import { formatFileSize } from '@/utils/formatting'
+import { useLocalizedName } from '@/composables/useLocalizedName'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import PimTree from '@/components/shared/PimTree.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
@@ -18,6 +20,9 @@ import AudioPlayer from '@/components/media/AudioPlayer.vue'
 import MediaUploadQueue from '@/components/media/MediaUploadQueue.vue'
 import MediaProcessingStatus from '@/components/media/MediaProcessingStatus.vue'
 
+const { t, locale } = useI18n()
+const numberLocale = computed(() => (locale.value === 'de' ? 'de-DE' : 'en-US'))
+const { localizedName } = useLocalizedName()
 const authStore = useAuthStore()
 
 const items = ref([])
@@ -88,7 +93,7 @@ async function downloadSelectedAsZip() {
     URL.revokeObjectURL(url)
   } catch (err) {
     if (err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED') {
-      uploadError.value = err.response?.data?.message || err.message || 'ZIP-Download fehlgeschlagen'
+      uploadError.value = err.response?.data?.message || err.message || t('ZIP-Download fehlgeschlagen')
     }
   } finally {
     zipDownloading.value = false
@@ -151,10 +156,10 @@ async function fetchUsage(mediaId, page = 1) {
 const sortField = ref('created_at')
 const sortOrder = ref('desc')
 const sortFieldOptions = [
-  { value: 'created_at', label: 'Hochgeladen' },
-  { value: 'title_de', label: 'Titel' },
-  { value: 'file_name', label: 'Dateiname' },
-  { value: 'file_size', label: 'Dateigröße' },
+  { value: 'created_at', label: t('Hochgeladen') },
+  { value: 'title_de', label: t('Titel') },
+  { value: 'file_name', label: t('Dateiname') },
+  { value: 'file_size', label: t('Dateigröße') },
 ]
 
 function toggleSortOrder() {
@@ -233,6 +238,15 @@ const bulkDeleting = ref(false)
 const bulkDeleteResult = ref(null)
 const bulkDeleteForce = ref(false)
 
+const bulkDeleteCount = computed(() =>
+  selectedIds.value.size > 0 ? selectedIds.value.size : (bulkDeleteResult.value?.deleted ?? 0) + (bulkDeleteResult.value?.skipped ?? 0)
+)
+const bulkDeleteConfirmMessage = computed(() =>
+  bulkDeleteCount.value === 1
+    ? t('{count} Medium endgültig löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.', { count: bulkDeleteCount.value })
+    : t('{count} Medien endgültig löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.', { count: bulkDeleteCount.value })
+)
+
 // Missing-Only Filter
 const missingOnlyFilter = ref(false)
 
@@ -242,6 +256,11 @@ const recoverBaseUrl = ref('')
 const recovering = ref(false)
 const recoverResult = ref(null)
 const recoverError = ref(null)
+const recoverConfirmMessage = computed(() =>
+  selectedIds.value.size === 1
+    ? t('{count} Asset wiederherstellen.', { count: selectedIds.value.size })
+    : t('{count} Assets wiederherstellen.', { count: selectedIds.value.size })
+)
 
 // Revisions im Detail-Panel
 const detailRevisions = ref([])
@@ -287,7 +306,7 @@ async function bulkDeleteSelected() {
       bulkDeleteResult.value = null
     }
   } catch (err) {
-    uploadError.value = err.response?.data?.message || err.message || 'Löschen fehlgeschlagen'
+    uploadError.value = err.response?.data?.message || err.message || t('Löschen fehlgeschlagen')
     showBulkDeleteConfirm.value = false
   } finally {
     bulkDeleting.value = false
@@ -307,7 +326,7 @@ async function recoverFromUrl() {
       await fetchMedia()
     }
   } catch (err) {
-    recoverError.value = err.response?.data?.message || err.message || 'Wiederherstellung fehlgeschlagen'
+    recoverError.value = err.response?.data?.message || err.message || t('Wiederherstellung fehlgeschlagen')
   } finally {
     recovering.value = false
   }
@@ -348,7 +367,7 @@ async function relinkSelected() {
       uploadError.value = ''
     }
   } catch (err) {
-    uploadError.value = err.response?.data?.message || 'Re-Link fehlgeschlagen'
+    uploadError.value = err.response?.data?.message || t('Re-Link fehlgeschlagen')
   } finally {
     relinking.value = false
   }
@@ -361,7 +380,7 @@ async function relinkSingle(mediaId) {
     const { data } = await mediaApi.relink([mediaId])
     relinkResult.value = data
   } catch (err) {
-    uploadError.value = err.response?.data?.message || 'Re-Link fehlgeschlagen'
+    uploadError.value = err.response?.data?.message || t('Re-Link fehlgeschlagen')
   } finally {
     relinking.value = false
   }
@@ -369,7 +388,7 @@ async function relinkSingle(mediaId) {
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return new Date(dateStr).toLocaleString(numberLocale.value, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 function getImageUrl(item) {
@@ -449,7 +468,7 @@ async function confirmDeleteFolder({ force } = {}) {
     await fetchMedia()
   } catch (e) {
     console.error('Failed to delete folder:', e)
-    uploadError.value = e.response?.data?.title || e.response?.data?.message || 'Ordner konnte nicht gelöscht werden'
+    uploadError.value = e.response?.data?.title || e.response?.data?.message || t('Ordner konnte nicht gelöscht werden')
   } finally {
     deletingFolder.value = false
   }
@@ -675,7 +694,7 @@ async function saveDetail() {
     closeDetail()
     await fetchMedia()
   } catch (err) {
-    saveError.value = err.response?.data?.message || err.message || 'Speichern fehlgeschlagen'
+    saveError.value = err.response?.data?.message || err.message || t('Speichern fehlgeschlagen')
   }
 }
 
@@ -689,7 +708,7 @@ async function confirmDelete({ force } = {}) {
     deleteTarget.value = null
     await fetchMedia()
   } catch (err) {
-    deleteError.value = err.response?.data?.message || err.message || 'Löschen fehlgeschlagen'
+    deleteError.value = err.response?.data?.message || err.message || t('Löschen fehlgeschlagen')
   } finally { deleting.value = false }
 }
 
@@ -706,7 +725,7 @@ async function createFolder() {
     await fetchFolders()
   } catch (e) {
     console.error('Failed to create folder:', e)
-    uploadError.value = e.response?.data?.message || 'Ordner konnte nicht erstellt werden'
+    uploadError.value = e.response?.data?.message || t('Ordner konnte nicht erstellt werden')
   }
 }
 
@@ -773,7 +792,7 @@ async function exportExcel() {
     URL.revokeObjectURL(url)
   } catch (e) {
     console.error('Excel export failed:', e)
-    uploadError.value = e.response?.data?.message || 'Excel-Export fehlgeschlagen'
+    uploadError.value = e.response?.data?.message || t('Excel-Export fehlgeschlagen')
   } finally {
     excelExporting.value = false
   }
@@ -782,7 +801,7 @@ async function exportExcel() {
 function flattenFolders(nodes, depth = 0) {
   const result = []
   for (const node of nodes) {
-    result.push({ id: node.id, name_de: node.name_de, depth })
+    result.push({ id: node.id, name_de: node.name_de, name_en: node.name_en, depth })
     if (node.children?.length) {
       result.push(...flattenFolders(node.children, depth + 1))
     }
@@ -1120,7 +1139,7 @@ onMounted(() => {
             <select v-model="sortField" class="pim-select text-xs max-sm:hidden">
               <option v-for="o in sortFieldOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
             </select>
-            <button class="pim-btn pim-btn-ghost p-1.5 max-sm:hidden" @click="toggleSortOrder" :title="sortOrder === 'asc' ? 'Aufsteigend' : 'Absteigend'">
+            <button class="pim-btn pim-btn-ghost p-1.5 max-sm:hidden" @click="toggleSortOrder" :title="sortOrder === 'asc' ? t('Aufsteigend') : t('Absteigend')">
               <ArrowUp v-if="sortOrder === 'asc'" class="w-4 h-4" :stroke-width="1.75" />
               <ArrowDown v-else class="w-4 h-4" :stroke-width="1.75" />
             </button>
@@ -1138,7 +1157,7 @@ onMounted(() => {
           <button
             :class="['pim-btn pim-btn-ghost p-1.5 flex items-center gap-1 text-xs max-sm:hidden', missingOnlyFilter ? 'bg-[var(--color-error,#ef4444)]/10 text-[var(--color-error,#ef4444)]' : 'text-[var(--color-text-tertiary)]']"
             @click="missingOnlyFilter = !missingOnlyFilter"
-            :title="missingOnlyFilter ? 'Filter: Nur fehlende Assets (aktiv)' : 'Nur fehlende Assets anzeigen'"
+            :title="missingOnlyFilter ? t('Filter: Nur fehlende Assets (aktiv)') : t('Nur fehlende Assets anzeigen')"
           >
             <ImageOff class="w-4 h-4" :stroke-width="1.75" />
             <span class="max-lg:hidden">Nicht vorhanden</span>
@@ -1148,7 +1167,7 @@ onMounted(() => {
           <button
             :class="['pim-btn pim-btn-ghost p-1.5 flex items-center gap-1 text-xs max-sm:hidden', showRenditions ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]' : 'text-[var(--color-text-tertiary)]']"
             @click="showRenditions = !showRenditions"
-            :title="showRenditions ? 'Generierte Motiv-Renditions werden angezeigt' : 'Generierte Motiv-Renditions sind ausgeblendet'"
+            :title="showRenditions ? t('Generierte Motiv-Renditions werden angezeigt') : t('Generierte Motiv-Renditions sind ausgeblendet')"
           >
             <Layers class="w-4 h-4" :stroke-width="1.75" />
             <span class="max-lg:hidden">Renditions</span>
@@ -1160,10 +1179,10 @@ onMounted(() => {
             class="pim-btn pim-btn-ghost p-1.5 flex items-center gap-1 text-xs max-sm:hidden"
             :class="includeDescendants ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-tertiary)]'"
             @click="includeDescendants = !includeDescendants"
-            :title="includeDescendants ? 'Inkl. Unterordner (aktiv)' : 'Nur dieser Ordner'"
+            :title="includeDescendants ? t('Inkl. Unterordner (aktiv)') : t('Nur dieser Ordner')"
           >
             <component :is="includeDescendants ? ToggleRight : ToggleLeft" class="w-4 h-4" :stroke-width="1.75" />
-            <span class="max-lg:hidden">{{ includeDescendants ? 'Inkl. Unterordner' : 'Nur dieser Ordner' }}</span>
+            <span class="max-lg:hidden">{{ includeDescendants ? t('Inkl. Unterordner') : t('Nur dieser Ordner') }}</span>
           </button>
 
           <button :class="['pim-btn pim-btn-ghost p-1.5', showQuickLookup ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]' : '']"
@@ -1192,7 +1211,7 @@ onMounted(() => {
             <label for="media-upload" class="pim-btn pim-btn-primary text-sm cursor-pointer" :class="{ 'opacity-50 pointer-events-none': uploading }">
               <Loader2 v-if="uploading" class="w-4 h-4 animate-spin" :stroke-width="2" />
               <Upload v-else class="w-4 h-4" :stroke-width="2" />
-              <span class="max-sm:hidden">{{ uploading ? 'Wird hochgeladen...' : 'Hochladen' }}</span>
+              <span class="max-sm:hidden">{{ uploading ? t('Wird hochgeladen...') : t('Hochladen') }}</span>
             </label>
           </template>
         </div>
@@ -1320,7 +1339,7 @@ onMounted(() => {
           :disabled="selectingAllPages"
           @click="selectAllAcrossPages"
         >
-          {{ selectingAllPages ? 'Lade…' : `Alle ${totalItems} Medien auswählen` }}
+          {{ selectingAllPages ? t('Lade…') : t('Alle {total} Medien auswählen', { total: totalItems }) }}
         </button>
       </div>
       <div
@@ -1425,7 +1444,7 @@ onMounted(() => {
 
           <!-- Card footer -->
           <div class="p-2.5 space-y-0.5">
-            <p class="text-[11px] font-medium text-[var(--color-text-primary)] truncate">{{ item.title_de || item.file_name || '—' }}</p>
+            <p class="text-[11px] font-medium text-[var(--color-text-primary)] truncate">{{ localizedName(item, 'title') || item.file_name || '—' }}</p>
             <p class="text-[10px] font-mono text-[var(--color-text-tertiary)] truncate">{{ item.file_name }}</p>
             <div class="flex items-center justify-between pt-0.5">
               <span class="pim-badge text-[9px] bg-[var(--color-bg)] text-[var(--color-text-tertiary)]">{{ item.media_type }}</span>
@@ -1518,7 +1537,7 @@ onMounted(() => {
             <Music v-else-if="isItemAudio(item)" class="w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
             <Image v-else class="w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           </div>
-          <p class="text-xs text-[var(--color-text-primary)] truncate">{{ item.title_de || '—' }}</p>
+          <p class="text-xs text-[var(--color-text-primary)] truncate">{{ localizedName(item, 'title') || '—' }}</p>
           <p class="text-xs font-mono text-[var(--color-text-tertiary)] truncate">{{ item.file_name }}</p>
           <span class="pim-badge text-[9px] bg-[var(--color-bg)] text-[var(--color-text-tertiary)] justify-self-start">{{ item.media_type }}</span>
           <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ item.usage_purpose || '—' }}</span>
@@ -1611,7 +1630,7 @@ onMounted(() => {
             <Download class="w-3.5 h-3.5" :stroke-width="2" /> Download
           </a>
           <button class="pim-btn pim-btn-ghost text-xs flex-1 justify-center" @click="copyAssetUrl(detailItem)">
-            <Copy v-if="!copiedUrl" class="w-3.5 h-3.5" :stroke-width="2" /> {{ copiedUrl ? 'Kopiert!' : 'URL kopieren' }}
+            <Copy v-if="!copiedUrl" class="w-3.5 h-3.5" :stroke-width="2" /> {{ copiedUrl ? t('Kopiert!') : t('URL kopieren') }}
           </button>
         </div>
 
@@ -1710,14 +1729,14 @@ onMounted(() => {
               <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Sprache</label>
               <select v-model="detailItem.media_language_id" class="pim-select text-xs w-full">
                 <option :value="null">—</option>
-                <option v-for="lang in mediaLanguageOptions" :key="lang.id" :value="lang.id">{{ lang.name_de || lang.technical_name }}</option>
+                <option v-for="lang in mediaLanguageOptions" :key="lang.id" :value="lang.id">{{ localizedName(lang) || lang.technical_name }}</option>
               </select>
             </div>
             <div>
               <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Land</label>
               <select v-model="detailItem.media_country_id" class="pim-select text-xs w-full">
                 <option :value="null">—</option>
-                <option v-for="country in mediaCountryOptions" :key="country.id" :value="country.id">{{ country.name_de || country.technical_name }}</option>
+                <option v-for="country in mediaCountryOptions" :key="country.id" :value="country.id">{{ localizedName(country) || country.technical_name }}</option>
               </select>
             </div>
           </template>
@@ -1827,12 +1846,12 @@ onMounted(() => {
             :data-testid="'field-' + (assignment.attribute?.technical_name || assignment.attribute_id)"
           >
             <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">
-              {{ assignment.attribute?.name_de || assignment.attribute?.technical_name }}
+              {{ localizedName(assignment.attribute) || assignment.attribute?.technical_name }}
             </label>
             <PimAttributeInput
               :type="mapDataTypeToInput(assignment.attribute?.data_type)"
               :modelValue="assetAttributeValues[assignment.attribute?.id || assignment.attribute_id]"
-              :options="(assignment.attribute?.value_list?.entries || []).map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code }))"
+              :options="(assignment.attribute?.value_list?.entries || []).map(e => ({ value: e.id, label: localizedName(e, 'display_value') || e.code }))"
               @update:modelValue="assetAttributeValues[assignment.attribute?.id || assignment.attribute_id] = $event"
             />
           </div>
@@ -1879,7 +1898,7 @@ onMounted(() => {
                   Rev. {{ rev.revision_number }} — {{ formatDate(rev.replaced_at) }}
                 </p>
                 <p class="text-[var(--color-text-tertiary)] truncate">
-                  {{ rev.replaced_by || 'System' }}
+                  {{ rev.replaced_by || t('System') }}
                   <template v-if="rev.file_size"> · {{ (rev.file_size / 1024).toFixed(0) }} KB</template>
                 </p>
               </div>
@@ -1913,14 +1932,14 @@ onMounted(() => {
         <div v-if="showMoveDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showMoveDialog = false">
           <div class="bg-[var(--color-surface)] rounded-xl shadow-xl w-full max-w-sm p-5 space-y-4">
             <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
-              {{ selectedIds.size }} {{ selectedIds.size === 1 ? 'Medium' : 'Medien' }} verschieben
+              {{ selectedIds.size === 1 ? t('{count} Medium verschieben', { count: selectedIds.size }) : t('{count} Medien verschieben', { count: selectedIds.size }) }}
             </h3>
             <div>
               <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Zielordner</label>
               <select v-model="moveFolderId" class="pim-select text-xs w-full">
                 <option :value="null">— Kein Ordner (Stammverzeichnis) —</option>
                 <option v-for="f in flatFolderList" :key="f.id" :value="f.id">
-                  {{ '  '.repeat(f.depth) }}{{ f.depth > 0 ? '└ ' : '' }}{{ f.name_de }}
+                  {{ '  '.repeat(f.depth) }}{{ f.depth > 0 ? '└ ' : '' }}{{ localizedName(f) }}
                 </option>
               </select>
             </div>
@@ -1928,7 +1947,7 @@ onMounted(() => {
               <button class="pim-btn pim-btn-ghost text-xs" @click="showMoveDialog = false">Abbrechen</button>
               <button class="pim-btn pim-btn-primary text-xs flex items-center gap-1.5" :disabled="moving" @click="moveSelectedToFolder">
                 <MoveRight v-if="!moving" class="w-3.5 h-3.5" :stroke-width="2" />
-                {{ moving ? 'Verschiebe…' : 'Verschieben' }}
+                {{ moving ? t('Verschiebe…') : t('Verschieben') }}
               </button>
             </div>
           </div>
@@ -1958,7 +1977,7 @@ onMounted(() => {
                   <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Bildtyp</label>
                   <select v-model="urlImportForm.usage_type_id" class="pim-select text-xs w-full">
                     <option :value="null">— Kein Typ —</option>
-                    <option v-for="ut in usageTypes" :key="ut.id" :value="ut.id">{{ ut.name_de || ut.technical_name }}</option>
+                    <option v-for="ut in usageTypes" :key="ut.id" :value="ut.id">{{ localizedName(ut) || ut.technical_name }}</option>
                   </select>
                 </div>
                 <div>
@@ -1977,7 +1996,7 @@ onMounted(() => {
               <button class="pim-btn pim-btn-primary text-xs flex items-center gap-1.5" :disabled="urlImporting || !urlImportForm.url" @click="importFromUrl">
                 <Loader2 v-if="urlImporting" class="w-3.5 h-3.5 animate-spin" />
                 <Link v-else class="w-3.5 h-3.5" :stroke-width="2" />
-                {{ urlImporting ? 'Importiere…' : 'Importieren' }}
+                {{ urlImporting ? t('Importiere…') : t('Importieren') }}
               </button>
             </div>
           </div>
@@ -1995,7 +2014,7 @@ onMounted(() => {
               Bulk-Import über Excel
             </h3>
             <p class="text-[11px] text-[var(--color-text-tertiary)]">
-              Excel-Datei (.xlsx) mit einer Spalte <strong>"url"</strong> hochladen. Alle Bilder werden heruntergeladen und importiert.
+              {{ t('Excel-Datei (.xlsx) mit einer Spalte namens') }} <strong>"url"</strong> {{ t('hochladen. Alle Bilder werden heruntergeladen und importiert.') }}
             </p>
             <div class="space-y-3">
               <div>
@@ -2007,7 +2026,7 @@ onMounted(() => {
                   <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Bildtyp</label>
                   <select v-model="bulkImportForm.usage_type_id" class="pim-select text-xs w-full">
                     <option :value="null">— Kein Typ —</option>
-                    <option v-for="ut in usageTypes" :key="ut.id" :value="ut.id">{{ ut.name_de || ut.technical_name }}</option>
+                    <option v-for="ut in usageTypes" :key="ut.id" :value="ut.id">{{ localizedName(ut) || ut.technical_name }}</option>
                   </select>
                 </div>
                 <div>
@@ -2033,7 +2052,7 @@ onMounted(() => {
               <button class="pim-btn pim-btn-primary text-xs flex items-center gap-1.5" :disabled="bulkImporting || !bulkImportFile" @click="executeBulkImport">
                 <Loader2 v-if="bulkImporting" class="w-3.5 h-3.5 animate-spin" />
                 <FileSpreadsheet v-else class="w-3.5 h-3.5" :stroke-width="2" />
-                {{ bulkImporting ? 'Importiere…' : 'Importieren' }}
+                {{ bulkImporting ? t('Importiere…') : t('Importieren') }}
               </button>
             </div>
           </div>
@@ -2051,21 +2070,21 @@ onMounted(() => {
               Auto-Match: Dateinamen → SKU
             </h3>
             <p class="text-[11px] text-[var(--color-text-tertiary)]">
-              Ordnet Medien automatisch Produkten zu, wenn der Dateiname per Regex zur SKU passt.
-              Die erste Capture-Group <code>(…)</code> wird als SKU verwendet.
+              {{ t('Ordnet Medien automatisch Produkten zu, wenn der Dateiname per Regex zur SKU passt.') }}
+              {{ t('Die erste Capture-Group') }} <code>(…)</code> {{ t('wird als SKU verwendet.') }}
             </p>
             <div class="space-y-3">
               <div>
                 <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Regex-Muster</label>
                 <input v-model="autoMatchForm.pattern" class="pim-input text-xs w-full font-mono" placeholder="/^(.+?)(?:_\d+)?$/" />
-                <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">Beispiel: <code>/^(.+?)(?:_\d+)?$/</code> extrahiert "ABC123" aus "ABC123_1.jpg"</p>
+                <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">{{ t('Beispiel:') }} <code>/^(.+?)(?:_\d+)?$/</code> {{ t('extrahiert "ABC123" aus "ABC123_1.jpg"') }}</p>
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Bildtyp</label>
                   <select v-model="autoMatchForm.usage_type_id" class="pim-select text-xs w-full">
                     <option :value="null">— Kein Typ —</option>
-                    <option v-for="ut in usageTypes" :key="ut.id" :value="ut.id">{{ ut.name_de || ut.technical_name }}</option>
+                    <option v-for="ut in usageTypes" :key="ut.id" :value="ut.id">{{ localizedName(ut) || ut.technical_name }}</option>
                   </select>
                 </div>
                 <div class="flex items-end">
@@ -2082,8 +2101,8 @@ onMounted(() => {
                 <span class="text-green-600">{{ autoMatchResult.matched }} Treffer</span>
                 <span class="text-yellow-600">{{ autoMatchResult.no_match }} ohne SKU</span>
                 <span class="text-[var(--color-text-tertiary)]">{{ autoMatchResult.total_media }} Medien gesamt</span>
-                <span v-if="autoMatchResult.dry_run" class="text-blue-500 ml-auto">Vorschau</span>
-                <span v-else class="text-green-600 ml-auto">Ausgeführt</span>
+                <span v-if="autoMatchResult.dry_run" class="text-blue-500 ml-auto">{{ t('Vorschau') }}</span>
+                <span v-else class="text-green-600 ml-auto">{{ t('Ausgeführt') }}</span>
               </div>
               <div v-if="autoMatchResult.matches?.length" class="space-y-0.5 mt-2">
                 <p class="font-medium text-[var(--color-text-secondary)]">Zuordnungen:</p>
@@ -2107,7 +2126,7 @@ onMounted(() => {
               <button class="pim-btn pim-btn-primary text-xs flex items-center gap-1.5" :disabled="autoMatching || !autoMatchForm.pattern" @click="executeAutoMatch">
                 <Loader2 v-if="autoMatching" class="w-3.5 h-3.5 animate-spin" />
                 <Wand2 v-else class="w-3.5 h-3.5" :stroke-width="2" />
-                {{ autoMatching ? 'Matching…' : (autoMatchForm.dry_run ? 'Vorschau' : 'Ausführen') }}
+                {{ autoMatching ? t('Matching…') : (autoMatchForm.dry_run ? t('Vorschau') : t('Ausführen')) }}
               </button>
             </div>
           </div>
@@ -2118,7 +2137,7 @@ onMounted(() => {
     <PimDeleteConfirmDialog
       :open="!!deleteTarget"
       title="Medium löschen?"
-      :message="`Die Datei '${deleteTarget?.file_name || ''}' wird unwiderruflich gelöscht.`"
+      :message="t('Die Datei \'{name}\' wird unwiderruflich gelöscht.', { name: deleteTarget?.file_name || '' })"
       :loading="deleting"
       entityType="media"
       :entityId="deleteTarget?.id"
@@ -2128,7 +2147,7 @@ onMounted(() => {
     <PimDeleteConfirmDialog
       :open="!!deleteFolderTarget"
       title="Ordner löschen?"
-      :message="`Der Ordner '${deleteFolderTarget?.name_de || ''}' und alle Unterordner werden gelöscht. Medien bleiben erhalten.`"
+      :message="t('Der Ordner \'{name}\' und alle Unterordner werden gelöscht. Medien bleiben erhalten.', { name: localizedName(deleteFolderTarget) || '' })"
       :loading="deletingFolder"
       entityType="hierarchy-nodes"
       :entityId="deleteFolderTarget?.id"
@@ -2149,11 +2168,9 @@ onMounted(() => {
         <div v-if="showBulkDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div class="absolute inset-0 bg-black/50" @click="!bulkDeleting && (showBulkDeleteConfirm = false)" />
           <div class="relative bg-[var(--color-surface)] rounded-xl shadow-2xl p-6 max-w-sm w-full space-y-4">
-            <h3 class="text-lg font-semibold text-[var(--color-text-primary)]">Medien löschen</h3>
+            <h3 class="text-lg font-semibold text-[var(--color-text-primary)]">{{ t('Medien löschen') }}</h3>
             <p class="text-sm text-[var(--color-text-secondary)]">
-              {{ selectedIds.size > 0 ? selectedIds.size : (bulkDeleteResult?.deleted ?? 0) + (bulkDeleteResult?.skipped ?? 0) }}
-              {{ (selectedIds.size === 1 || (!selectedIds.size && (bulkDeleteResult?.deleted ?? 0) + (bulkDeleteResult?.skipped ?? 0) === 1)) ? 'Medium' : 'Medien' }}
-              endgültig löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.
+              {{ bulkDeleteConfirmMessage }}
             </p>
             <!-- Force-Option -->
             <label v-if="!bulkDeleteResult" class="flex items-start gap-2 cursor-pointer">
@@ -2173,7 +2190,7 @@ onMounted(() => {
             </div>
             <div class="flex justify-end gap-2">
               <button class="pim-btn pim-btn-ghost pim-btn-sm" @click="showBulkDeleteConfirm = false; bulkDeleteResult = null" :disabled="bulkDeleting">
-                {{ bulkDeleteResult ? 'Schließen' : 'Abbrechen' }}
+                {{ bulkDeleteResult ? t('Schließen') : t('Abbrechen') }}
               </button>
               <!-- Trotzdem löschen: nach erstem Versuch mit übersprungenen Items -->
               <button
@@ -2208,10 +2225,10 @@ onMounted(() => {
         <div v-if="showRecoverDialog" class="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div class="absolute inset-0 bg-black/50" @click="!recovering && closeRecoverDialog()" />
           <div class="relative bg-[var(--color-surface)] rounded-xl shadow-2xl p-6 max-w-md w-full space-y-4">
-            <h3 class="text-lg font-semibold text-[var(--color-text-primary)]">Recover from URL</h3>
+            <h3 class="text-lg font-semibold text-[var(--color-text-primary)]">{{ t('Recover from URL') }}</h3>
             <p class="text-sm text-[var(--color-text-secondary)]">
-              {{ selectedIds.size }} {{ selectedIds.size === 1 ? 'Asset' : 'Assets' }} wiederherstellen.
-              Die Datei wird als <strong>Base-URL + Dateiname</strong> abgerufen und unter dem bestehenden Pfad gespeichert.
+              {{ recoverConfirmMessage }}
+              {{ t('Die Datei wird als') }} <strong>{{ t('Base-URL + Dateiname') }}</strong> {{ t('abgerufen und unter dem bestehenden Pfad gespeichert.') }}
             </p>
             <div class="space-y-1.5">
               <label class="text-xs font-medium text-[var(--color-text-secondary)]">Base URL</label>
@@ -2222,7 +2239,7 @@ onMounted(() => {
                 type="url"
                 :disabled="recovering || !!recoverResult"
               />
-              <p class="text-xs text-[var(--color-text-tertiary)]">Beispiel: {{ recoverBaseUrl || 'https://cdn.example.com/assets/' }}/dateiname.jpg</p>
+              <p class="text-xs text-[var(--color-text-tertiary)]">{{ t('Beispiel:') }} {{ recoverBaseUrl || 'https://cdn.example.com/assets/' }}{{ t('/dateiname.jpg') }}</p>
             </div>
             <div v-if="recoverError" class="text-xs text-[var(--color-error,#ef4444)] p-2 rounded bg-[var(--color-error,#ef4444)]/10">
               {{ recoverError }}
@@ -2240,7 +2257,7 @@ onMounted(() => {
             </div>
             <div class="flex justify-end gap-2">
               <button class="pim-btn pim-btn-ghost pim-btn-sm" @click="closeRecoverDialog" :disabled="recovering">
-                {{ recoverResult ? 'Schließen' : 'Abbrechen' }}
+                {{ recoverResult ? t('Schließen') : t('Abbrechen') }}
               </button>
               <button
                 v-if="!recoverResult"

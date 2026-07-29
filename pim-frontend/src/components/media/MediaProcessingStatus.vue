@@ -1,7 +1,10 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Loader2, CheckCircle, AlertCircle, FileText, Video, X } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
+
+const { t } = useI18n()
 
 const status = ref(null)
 const visible = ref(false)
@@ -92,7 +95,7 @@ defineExpose({ refresh })
       <template v-else-if="status.pdf?.recently_ready > 0 || status.pdf?.recent_errors > 0">
         <CheckCircle class="w-4 h-4 text-[var(--color-success)]" :stroke-width="2" />
         <span class="text-[var(--color-text-primary)] flex-1">
-          {{ status.pdf.recently_ready }} PDF{{ status.pdf.recently_ready !== 1 ? 's' : '' }} verarbeitet
+          {{ status.pdf.recently_ready === 1 ? t('{count} PDF verarbeitet', { count: status.pdf.recently_ready }) : t('{count} PDFs verarbeitet', { count: status.pdf.recently_ready }) }}
           <template v-if="status.pdf.recent_errors > 0">
             , {{ status.pdf.recent_errors }} Fehler
           </template>
@@ -125,7 +128,7 @@ defineExpose({ refresh })
       <template v-else-if="status.av?.recently_ready > 0 || status.av?.recent_errors > 0">
         <CheckCircle class="w-4 h-4 text-[var(--color-success)]" :stroke-width="2" />
         <span class="text-[var(--color-text-primary)] flex-1">
-          {{ status.av.recently_ready }} Audio/Video-Datei{{ status.av.recently_ready !== 1 ? 'en' : '' }} verarbeitet
+          {{ status.av.recently_ready === 1 ? t('{count} Audio/Video-Datei verarbeitet', { count: status.av.recently_ready }) : t('{count} Audio/Video-Dateien verarbeitet', { count: status.av.recently_ready }) }}
           <template v-if="status.av.recent_errors > 0">
             , {{ status.av.recent_errors }} Fehler
           </template>
