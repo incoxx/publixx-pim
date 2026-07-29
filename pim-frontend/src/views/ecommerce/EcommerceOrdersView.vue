@@ -246,23 +246,25 @@ onMounted(load)
             </div>
           </div>
 
-          <!-- Adressen -->
-          <div v-if="current.billing_address">
+          <!-- Adressen: immer volle Breite (wie Notizen/Positionen/Log) -- Werte wie E-Mail
+               oder Straße sind zu lang fuer eine feste Halbspalte und liefen dort in die
+               Nachbarspalte ueber (ueberlagerte Darstellung auf schmalen Screens). -->
+          <div v-if="current.billing_address" class="col-span-2">
             <label class="label label-text text-xs mb-1">Rechnungsadresse</label>
             <div class="bg-base-200 rounded-lg p-3 text-xs space-y-0.5">
               <div v-for="(val, key) in current.billing_address" :key="key" class="flex gap-2">
                 <span class="opacity-50 w-24 shrink-0">{{ key }}</span>
-                <span>{{ val }}</span>
+                <span class="min-w-0 break-words">{{ val }}</span>
               </div>
             </div>
           </div>
 
-          <div v-if="current.shipping_address">
+          <div v-if="current.shipping_address" class="col-span-2">
             <label class="label label-text text-xs mb-1">Lieferadresse</label>
             <div class="bg-base-200 rounded-lg p-3 text-xs space-y-0.5">
               <div v-for="(val, key) in current.shipping_address" :key="key" class="flex gap-2">
                 <span class="opacity-50 w-24 shrink-0">{{ key }}</span>
-                <span>{{ val }}</span>
+                <span class="min-w-0 break-words">{{ val }}</span>
               </div>
             </div>
           </div>
