@@ -62,7 +62,7 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
 
   // --- Wishlist (localStorage-backed) ---
   const WISHLIST_KEY = 'pim_asset_wishlist'
-  let savedWishlist = []
+  let savedWishlist
   try {
     savedWishlist = JSON.parse(localStorage.getItem(WISHLIST_KEY) || '[]')
     if (!Array.isArray(savedWishlist)) savedWishlist = []
