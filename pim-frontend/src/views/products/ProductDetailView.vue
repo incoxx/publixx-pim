@@ -22,6 +22,7 @@ import { useLocaleStore } from '@/stores/locale'
 import { useToastStore } from '@/stores/toast'
 import { useRecordNavigatorStore } from '@/stores/recordNavigator'
 import { useI18n } from 'vue-i18n'
+import { useLocalizedName } from '@/composables/useLocalizedName'
 import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, Filter, Upload, ClipboardList, Lightbulb, AlertTriangle, XCircle, Wand2, Images, Lock, FolderTree } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import projectsApi from '@/api/projects'
@@ -71,6 +72,7 @@ const localeStore = useLocaleStore()
 const toastStore = useToastStore()
 const recordNavigatorStore = useRecordNavigatorStore()
 const { t } = useI18n()
+const { localizedName } = useLocalizedName()
 
 // Zurück zum Ursprung navigieren (z.B. Schnellsuche, Merkliste) statt immer
 // zur Produktliste. Fallback auf /products, wenn kein In-App-Verlauf existiert
@@ -197,7 +199,7 @@ const attributeViewTabs = computed(() =>
     .filter(v => v.show_as_tab)
     .slice()
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-    .map(v => ({ key: v.tab_key, label: v.name_de || v.technical_name }))
+    .map(v => ({ key: v.tab_key, label: localizedName(v) || v.technical_name }))
 )
 
 // Ist der aktive Tab einer der dynamischen Attribut-Sicht-Tabs? Über die tab_key-Liste aus der
@@ -530,14 +532,14 @@ async function cancelWorkflow() {
 const masterNodePath = computed(() => {
   const node = product.value?.master_hierarchy_node
   if (!node) return null
-  const hierarchyName = node.hierarchy?.name_de || node.hierarchy?.name_en || ''
-  const nodeName = node.name_de || node.name_en || node.id
+  const hierarchyName = localizedName(node.hierarchy) || ''
+  const nodeName = localizedName(node) || node.id
   return hierarchyName ? `${hierarchyName} › ${nodeName}` : nodeName
 })
 
 const masterNodeName = computed(() => {
   const node = product.value?.master_hierarchy_node
-  return node ? (node.name_de || node.name_en || node.id) : null
+  return node ? (localizedName(node) || node.id) : null
 })
 
 function openMasterNodePicker() {
@@ -859,7 +861,7 @@ const virtualAttributeCatalogOptions = computed(() => {
   const usedIds = new Set(schemaAttributes.value.map(a => a.id))
   return virtualAttributeCatalog.value
     .filter(a => !usedIds.has(a.id))
-    .map(a => ({ value: a.id, label: a.name_de || a.technical_name }))
+    .map(a => ({ value: a.id, label: localizedName(a) || a.technical_name }))
 })
 
 function addVirtualAttribute() {
@@ -919,7 +921,7 @@ const attributeGroups = computed(() => {
 
   const groups = {}
   for (const attr of attrs) {
-    const groupName = attr.attribute_type?.name_de || attr.group || 'Weitere Attribute'
+    const groupName = localizedName(attr.attribute_type) || attr.group || t('Weitere Attribute')
     if (!groups[groupName]) groups[groupName] = []
     groups[groupName].push(attr)
   }
@@ -935,7 +937,7 @@ const variantAttributeGroups = computed(() => {
   if (attrs.length === 0) return []
   const groups = {}
   for (const attr of attrs) {
-    const groupName = attr.attribute_type?.name_de || attr.group || 'Varianten-Attribute'
+    const groupName = localizedName(attr.attribute_type) || attr.group || t('Varianten-Attribute')
     if (!groups[groupName]) groups[groupName] = []
     groups[groupName].push(attr)
   }
@@ -1183,7 +1185,7 @@ const variantColumns = computed(() => {
     { key: 'status', label: t('Status') },
   ]
   for (const attr of variantAttributeDefs.value) {
-    base.push({ key: `_va_${attr.id}`, label: attr.name_de || attr.technical_name })
+    base.push({ key: `_va_${attr.id}`, label: localizedName(attr) || attr.technical_name })
   }
   return base
 })
@@ -1328,7 +1330,7 @@ const generatorPreview = computed(() => {
     const next = []
     for (const combo of combos) {
       for (const val of dim.values) {
-        next.push([...combo, { attribute_id: dim.attribute_id, label: dim.attribute.name_de || dim.attribute.technical_name, value: val }])
+        next.push([...combo, { attribute_id: dim.attribute_id, label: localizedName(dim.attribute) || dim.attribute.technical_name, value: val }])
       }
     }
     combos = next
@@ -1734,7 +1736,7 @@ function flattenFolderTree(nodes, depth = 0) {
   for (const node of nodes) {
     const indent = '\u00A0\u00A0'.repeat(depth)
     const prefix = depth > 0 ? indent + '└ ' : ''
-    result.push({ id: node.id, name: prefix + (node.name_de || node.name || node.technical_name || node.id) })
+    result.push({ id: node.id, name: prefix + (localizedName(node) || node.name || node.technical_name || node.id) })
     if (node.children?.length) {
       result.push(...flattenFolderTree(node.children, depth + 1))
     }
@@ -1963,7 +1965,7 @@ const priceDeleteTarget = ref(null)
 const priceDeleting = ref(false)
 
 const priceColumns = [
-  { key: 'price_type.name_de', label: t('Preistyp') },
+  { key: 'price_type.name_de', label: t('Preistyp'), render: (row) => row.price_type ? (localizedName(row.price_type) || row.price_type.technical_name) : '—' },
   { key: 'amount', label: t('Betrag'), align: 'right' },
   { key: 'currency', label: t('Währung') },
   { key: 'valid_from', label: t('Gültig ab') },
@@ -1973,7 +1975,7 @@ const priceColumns = [
 
 const priceQuickLookup = ref({})
 const priceQuickLookupConfig = computed(() => ({
-  'price_type.name_de': { type: 'select', options: priceTypesList.value.map(t => ({ value: t.name_de || t.technical_name, label: t.name_de || t.technical_name })) },
+  'price_type.name_de': { type: 'select', options: priceTypesList.value.map(pt => ({ value: pt.name_de || pt.technical_name, label: localizedName(pt) || pt.technical_name })) },
   'currency': { type: 'select', options: [{ value: 'EUR', label: t('EUR') }, { value: 'USD', label: t('USD') }, { value: 'CHF', label: t('CHF') }, { value: 'GBP', label: t('GBP') }] },
   'price_region.name': { type: 'text', placeholder: 'Region…' },
 }))
@@ -2138,7 +2140,7 @@ function toggleRelationSort(field) {
 const relationQuickLookupConfig = computed(() => ({
   'relation_type': {
     type: 'select',
-    options: relationTypesList.value.map(t => ({ value: t.name_de || t.technical_name, label: t.name_de || t.technical_name })),
+    options: relationTypesList.value.map(rt => ({ value: rt.name_de || rt.technical_name, label: localizedName(rt) || rt.technical_name })),
   },
   'target_sku': { type: 'text', placeholder: 'SKU…' },
   'target_name': { type: 'text', placeholder: 'Name…' },
@@ -2189,8 +2191,8 @@ const relationMetadataColumns = computed(() => {
     if (!attr?.id || map.has(attr.id)) return
     map.set(attr.id, {
       key: 'attributes.' + attr.id,
-      label: attr.name_de || attr.technical_name || 'Attribut',
-      group: 'Beziehungsattribute',
+      label: localizedName(attr) || attr.technical_name || t('Attribut'),
+      group: t('Beziehungsattribute'),
       attribute_id: attr.id,
       metaSort: sortOrder ?? 9999,
     })
@@ -2477,7 +2479,7 @@ async function loadVirtualInheritanceData() {
       if (!row.attribute_id || byId.has(row.attribute_id)) continue
       byId.set(row.attribute_id, {
         attribute_id: row.attribute_id,
-        name: row.attribute?.name_de || row.attribute?.technical_name || row.attribute_id,
+        name: localizedName(row.attribute) || row.attribute?.technical_name || row.attribute_id,
       })
     }
     virtualOwnAttributes.value = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'de'))
@@ -3668,7 +3670,7 @@ onUnmounted(() => {
     >
       <GitBranch class="w-4 h-4 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
       <span class="text-xs text-[var(--color-text-secondary)]">
-        Der Produkttyp <strong>{{ product.product_type?.name_de || product.product_type?.technical_name }}</strong> hat einen zugeordneten Workflow.
+        Der Produkttyp <strong>{{ localizedName(product.product_type) || product.product_type?.technical_name }}</strong> hat einen zugeordneten Workflow.
       </span>
       <button
         class="pim-btn pim-btn-sm text-xs font-medium px-3 py-1.5 rounded-md bg-[var(--color-accent)] text-white ml-auto"
@@ -3921,7 +3923,7 @@ onUnmounted(() => {
             <label class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block">Produkttyp</label>
             <div class="md:flex-1 md:min-w-0">
               <select class="pim-input text-xs" :value="product.product_type_id || ''" @change="product.product_type_id = $event.target.value || null">
-                <option v-for="pt in productTypesList" :key="pt.id" :value="pt.id">{{ pt.name_de || pt.technical_name }}</option>
+                <option v-for="pt in productTypesList" :key="pt.id" :value="pt.id">{{ localizedName(pt) || pt.technical_name }}</option>
               </select>
             </div>
           </div>
@@ -3964,9 +3966,9 @@ onUnmounted(() => {
             <label
               class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block truncate"
               :class="{ 'md:mt-2': ['RichText', 'Textarea'].includes(attr.data_type) }"
-              :title="attr.name_de || attr.technical_name"
+              :title="localizedName(attr) || attr.technical_name"
             >
-              {{ attr.name_de || attr.technical_name }}
+              {{ localizedName(attr) || attr.technical_name }}
               <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
               <span v-if="attr.is_translatable" class="ml-1 text-[10px] text-[var(--color-accent)] font-normal">
                 <Languages class="inline w-3 h-3 -mt-0.5" :stroke-width="1.75" /> {{ activeDataLang.toUpperCase() }}
@@ -4082,7 +4084,7 @@ onUnmounted(() => {
           ]"
           @click="activeAttrSubTab = h.hierarchy_id"
         >
-          {{ h.hierarchy_name_de || h.hierarchy_technical_name }}
+          {{ localizedName(h, 'hierarchy_name') || h.hierarchy_technical_name }}
         </button>
       </div>
 
@@ -4098,13 +4100,13 @@ onUnmounted(() => {
           <select v-if="!activeAttributeViewId" v-model="attrFilterView" class="pim-select text-xs">
             <option :value="null">Alle Sichten</option>
             <option v-for="view in productTypeAttrViews" :key="view.id" :value="view.id">
-              {{ view.name_de || view.technical_name }}
+              {{ localizedName(view) || view.technical_name }}
             </option>
           </select>
           <select v-model="attrFilterGroup" class="pim-select text-xs">
             <option :value="null">Alle Gruppen</option>
             <option v-for="group in availableAttrGroups" :key="group.id" :value="group.id">
-              {{ group.name_de || group.technical_name }}
+              {{ localizedName(group) || group.technical_name }}
             </option>
           </select>
           <label class="flex items-center gap-1.5 cursor-pointer select-none">
@@ -4183,9 +4185,9 @@ onUnmounted(() => {
               'text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block truncate',
               (attr.is_multipliable || ['Composite', 'RichText', 'Textarea'].includes(attr.data_type)) ? 'md:pt-1.5' : '',
             ]"
-            :title="attr.name_de || attr.technical_name"
+            :title="localizedName(attr) || attr.technical_name"
           >
-            {{ attr.name_de || attr.technical_name }}
+            {{ localizedName(attr) || attr.technical_name }}
             <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
             <span v-if="attr.is_translatable" class="ml-1 text-[10px] text-[var(--color-accent)] font-normal">
               <Languages class="inline w-3 h-3 -mt-0.5" :stroke-width="1.75" /> {{ activeDataLang.toUpperCase() }}
@@ -4370,9 +4372,9 @@ onUnmounted(() => {
             >
               <label
                 class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block truncate"
-                :title="attr.attribute_name_de || attr.attribute_technical_name"
+                :title="localizedName(attr, 'attribute_name') || attr.attribute_technical_name"
               >
-                {{ attr.attribute_name_de || attr.attribute_technical_name }}
+                {{ localizedName(attr, 'attribute_name') || attr.attribute_technical_name }}
                 <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
                 <span v-if="attr.is_translatable" class="ml-1 text-[10px] text-[var(--color-accent)] font-normal">
                   <Languages class="inline w-3 h-3 -mt-0.5" :stroke-width="1.75" /> {{ activeDataLang.toUpperCase() }}
@@ -4455,7 +4457,7 @@ onUnmounted(() => {
           <div class="space-y-3 pt-3">
             <div v-for="attr in group.attributes" :key="attr.id">
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
-                {{ attr.name_de || attr.technical_name }}
+                {{ localizedName(attr) || attr.technical_name }}
                 <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
                 <span v-if="attr._is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(vererbt)</span>
                 <span v-if="isAttributeInherited(attr.id)" class="ml-1 text-[10px] text-purple-500 font-normal">(vererbt vom Elternprodukt)</span>
@@ -4514,13 +4516,13 @@ onUnmounted(() => {
               : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]'"
           >
             <input type="checkbox" class="pim-checkbox w-3 h-3" :checked="variantAxisAttributeIds.includes(attr.id)" @change="toggleVariantAxis(attr.id)" />
-            {{ attr.name_de || attr.technical_name }}
+            {{ localizedName(attr) || attr.technical_name }}
           </label>
         </div>
         <div v-if="variantAxisAttributeIds.length > 0" class="space-y-1">
           <p class="text-[11px] font-medium text-[var(--color-text-secondary)]">Reihenfolge (= Spaltenreihenfolge in der Matrix):</p>
           <div v-for="(attrId, idx) in variantAxisAttributeIds" :key="attrId" class="flex items-center gap-2 text-xs">
-            <span class="flex-1">{{ variantAxisEligibleAttributes.find(a => a.id === attrId)?.name_de || attrId }}</span>
+            <span class="flex-1">{{ localizedName(variantAxisEligibleAttributes.find(a => a.id === attrId)) || attrId }}</span>
             <button class="pim-btn pim-btn-ghost p-1" :disabled="idx === 0" @click="moveVariantAxis(idx, -1)">↑</button>
             <button class="pim-btn pim-btn-ghost p-1" :disabled="idx === variantAxisAttributeIds.length - 1" @click="moveVariantAxis(idx, 1)">↓</button>
           </div>
@@ -4556,7 +4558,7 @@ onUnmounted(() => {
             <PimAttributeInput type="select" v-model="variantForm.status" :options="[{ value: 'draft', label: t('Entwurf') }, { value: 'active', label: t('Aktiv') }]" />
           </div>
           <div v-for="attr in variantAttributeDefs" :key="attr.id">
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">{{ attr.name_de || attr.technical_name }}</label>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">{{ localizedName(attr) || attr.technical_name }}</label>
             <PimAttributeInput
               :type="mapDataTypeToInput(attr.data_type)"
               :modelValue="variantForm.axis_values[attr.id]"
@@ -4595,7 +4597,7 @@ onUnmounted(() => {
             <div v-for="dim in generatorDimensions" :key="dim.attribute_id" class="border border-[var(--color-border)] rounded-lg p-3">
               <label class="flex items-center gap-2 text-sm font-medium cursor-pointer">
                 <input type="checkbox" v-model="dim.selected" class="pim-checkbox" />
-                {{ dim.attribute.name_de || dim.attribute.technical_name }}
+                {{ localizedName(dim.attribute) || dim.attribute.technical_name }}
               </label>
               <div v-if="dim.selected" class="mt-2 space-y-2">
                 <!-- Value list entries (Selection/Dictionary) -->
@@ -4691,7 +4693,7 @@ onUnmounted(() => {
                       :key="dim.attribute_id"
                       class="px-3 py-2 text-left font-medium text-[var(--color-text-secondary)]"
                     >
-                      {{ dim.attribute.name_de || dim.attribute.technical_name }}
+                      {{ localizedName(dim.attribute) || dim.attribute.technical_name }}
                     </th>
                   </tr>
                 </thead>
@@ -4812,7 +4814,7 @@ onUnmounted(() => {
               class="flex items-center justify-between py-2"
             >
               <span class="text-xs text-[var(--color-text-primary)]">
-                {{ attr.name_de || attr.technical_name }}
+                {{ localizedName(attr) || attr.technical_name }}
                 <span v-if="attr.is_variant_attribute" class="ml-1 text-[10px] text-purple-500">(Varianten-Attribut)</span>
               </span>
               <button
@@ -4934,7 +4936,7 @@ onUnmounted(() => {
           <div class="space-y-1">
             <label class="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Bildtyp</label>
             <select v-model="uploadUsageTypeId" class="pim-input text-xs w-48">
-              <option v-for="ut in productTypeUsageTypes" :key="ut.id" :value="ut.id">{{ ut.name_de || ut.technical_name }}</option>
+              <option v-for="ut in productTypeUsageTypes" :key="ut.id" :value="ut.id">{{ localizedName(ut) || ut.technical_name }}</option>
             </select>
           </div>
           <!-- Zielordner -->
@@ -5002,7 +5004,7 @@ onUnmounted(() => {
                 <X class="w-3.5 h-3.5" :stroke-width="2" />
               </button>
             </div>
-            <span v-if="m.usage_type" class="text-[10px] text-[var(--color-text-tertiary)]">{{ m.usage_type?.name_de || m.usage_type?.technical_name || '' }}</span>
+            <span v-if="m.usage_type" class="text-[10px] text-[var(--color-text-tertiary)]">{{ localizedName(m.usage_type) || m.usage_type?.technical_name || '' }}</span>
           </div>
         </div>
       </div>
@@ -5099,7 +5101,7 @@ onUnmounted(() => {
                 </template>
                 <!-- Bildtyp (Usage Type) -->
                 <template v-else-if="col.key === 'usage_type'">
-                  <span class="text-[var(--color-text-tertiary)]">{{ m.usage_type?.name_de || m.usage_type?.technical_name || '—' }}</span>
+                  <span class="text-[var(--color-text-tertiary)]">{{ localizedName(m.usage_type) || m.usage_type?.technical_name || '—' }}</span>
                 </template>
                 <!-- MIME -->
                 <template v-else-if="col.key === 'mime_type'">
@@ -5193,7 +5195,7 @@ onUnmounted(() => {
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Preistyp <span class="text-[var(--color-error)]">*</span></label>
-            <PimAttributeInput type="select" v-model="priceForm.price_type_id" :options="priceTypesList.map(t => ({ value: t.id, label: t.name_de || t.technical_name }))" />
+            <PimAttributeInput type="select" v-model="priceForm.price_type_id" :options="priceTypesList.map(t => ({ value: t.id, label: localizedName(t) || t.technical_name }))" />
             <p v-if="priceErrors.price_type_id" class="text-[11px] text-[var(--color-error)] mt-0.5">{{ priceErrors.price_type_id }}</p>
           </div>
           <div>
@@ -5328,7 +5330,7 @@ onUnmounted(() => {
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Beziehungstyp <span class="text-[var(--color-error)]">*</span></label>
-            <PimAttributeInput type="select" v-model="relationForm.relation_type_id" :options="availableRelationTypesForProduct.map(t => ({ value: t.id, label: t.name_de || t.technical_name }))" />
+            <PimAttributeInput type="select" v-model="relationForm.relation_type_id" :options="availableRelationTypesForProduct.map(t => ({ value: t.id, label: localizedName(t) || t.technical_name }))" />
             <p v-if="relationErrors.relation_type_id" class="text-[11px] text-[var(--color-error)] mt-0.5">{{ relationErrors.relation_type_id }}</p>
           </div>
           <div>
@@ -5382,7 +5384,7 @@ onUnmounted(() => {
           <div class="p-2 space-y-0.5">
             <div class="flex items-center gap-1">
               <span class="text-[11px] font-mono text-[var(--color-text-secondary)]">{{ rel.target_product?.sku || '—' }}</span>
-              <span class="text-[10px] text-[var(--color-text-tertiary)] ml-auto">{{ rel.relation_type?.name_de || '' }}</span>
+              <span class="text-[10px] text-[var(--color-text-tertiary)] ml-auto">{{ localizedName(rel.relation_type) }}</span>
             </div>
             <span class="text-xs text-[var(--color-text-primary)] truncate block">{{ rel.target_product?.name || '—' }}</span>
             <span v-if="rel.attribute_values?.length" class="flex items-center gap-0.5 text-[10px] text-[var(--color-text-tertiary)]">
@@ -5442,7 +5444,7 @@ onUnmounted(() => {
               <td v-for="col in visibleRelationColumns" :key="col.key" class="px-2 py-1.5">
                 <select v-if="col.key === 'relation_type'" class="pim-input text-xs w-full py-1 px-2" :value="relationQuickLookup['relation_type'] || ''" @change="relationQuickLookup = { ...relationQuickLookup, relation_type: $event.target.value }">
                   <option value="">— Alle —</option>
-                  <option v-for="t in relationTypesList" :key="t.id" :value="t.name_de || t.technical_name">{{ t.name_de || t.technical_name }}</option>
+                  <option v-for="rt in relationTypesList" :key="rt.id" :value="rt.name_de || rt.technical_name">{{ localizedName(rt) || rt.technical_name }}</option>
                 </select>
                 <input v-else-if="col.key === 'target_sku'" type="text" class="pim-input text-xs w-full py-1 px-2" placeholder="SKU…" :value="relationQuickLookup['target_sku'] || ''" @input="relationQuickLookup = { ...relationQuickLookup, target_sku: $event.target.value }" />
                 <input v-else-if="col.key === 'target_name'" type="text" class="pim-input text-xs w-full py-1 px-2" placeholder="Name…" :value="relationQuickLookup['target_name'] || ''" @input="relationQuickLookup = { ...relationQuickLookup, target_name: $event.target.value }" />
@@ -5457,7 +5459,7 @@ onUnmounted(() => {
                 @click="toggleRelationExpand(rel)"
               >
                 <td v-for="col in visibleRelationColumns" :key="col.key" class="px-3 py-2.5">
-                  <span v-if="col.key === 'relation_type'" class="text-[var(--color-text-secondary)]">{{ rel.relation_type?.name_de || '—' }}</span>
+                  <span v-if="col.key === 'relation_type'" class="text-[var(--color-text-secondary)]">{{ localizedName(rel.relation_type) || '—' }}</span>
                   <span v-else-if="col.key === 'target_sku'" class="font-mono text-[var(--color-text-secondary)]">{{ rel.target_product?.sku || '—' }}</span>
                   <span v-else-if="col.key === 'target_name'">{{ rel.target_product?.name || '—' }}</span>
                   <span v-else-if="col.key === 'sort_order'" class="flex items-center gap-1 text-[var(--color-text-tertiary)]">
@@ -5508,7 +5510,7 @@ onUnmounted(() => {
                         <div v-for="(attrVal, idx) in relationAttrValues" :key="attrVal.id || (attrVal.attribute_id + '|' + (attrVal.language || '') + '|' + (attrVal.multiplied_index || 0))" class="flex items-end gap-2">
                           <div class="flex-1">
                             <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">
-                              {{ attrVal.attribute?.name_de || attrVal.attribute?.technical_name || 'Attribut' }}
+                              {{ localizedName(attrVal.attribute) || attrVal.attribute?.technical_name || 'Attribut' }}
                             </label>
                             <PimAttributeInput
                               :type="mapDataTypeToInput(attrVal.attribute?.data_type || 'String')"
@@ -5542,7 +5544,7 @@ onUnmounted(() => {
                           <PimAttributeInput
                             type="dictionary"
                             v-model="newRelationAttr.attribute_id"
-                            :options="relationAttrList.filter(a => !relationAttrValues.some(v => v.attribute_id === a.id)).map(a => ({ value: a.id, label: (a.name_de || a.technical_name) + ' — ' + a.technical_name }))"
+                            :options="relationAttrList.filter(a => !relationAttrValues.some(v => v.attribute_id === a.id)).map(a => ({ value: a.id, label: (localizedName(a) || a.technical_name) + ' — ' + a.technical_name }))"
                             placeholder="Attribut suchen…"
                           />
                         </div>
@@ -5683,7 +5685,7 @@ onUnmounted(() => {
               <PimAttributeInput
                 type="select"
                 v-model="virtualForm.relation_type_id"
-                :options="relationTypesList.map(t => ({ value: t.id, label: t.name_de || t.technical_name }))"
+                :options="relationTypesList.map(t => ({ value: t.id, label: localizedName(t) || t.technical_name }))"
               />
             </div>
             <div>
@@ -5827,7 +5829,7 @@ onUnmounted(() => {
                   <td class="px-3 py-2">
                     <input type="checkbox" v-model="virtualMediaRules[ut.id].enabled" />
                   </td>
-                  <td class="px-3 py-2 text-[var(--color-text-primary)]">{{ ut.name_de || ut.technical_name }}</td>
+                  <td class="px-3 py-2 text-[var(--color-text-primary)]">{{ localizedName(ut) || ut.technical_name }}</td>
                   <td class="px-3 py-2">
                     <select
                       class="pim-input text-xs py-1"
@@ -5910,7 +5912,7 @@ onUnmounted(() => {
           <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Ausgabehierarchie</label>
           <select class="pim-input text-xs w-full max-w-sm" :value="selectedOutputHierarchyId || ''" @change="onOutputHierarchyChange($event.target.value)">
             <option value="">— Hierarchie wählen —</option>
-            <option v-for="h in outputHierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
+            <option v-for="h in outputHierarchies" :key="h.id" :value="h.id">{{ localizedName(h) || h.technical_name }}</option>
           </select>
         </div>
 
@@ -5949,7 +5951,7 @@ onUnmounted(() => {
       <div v-else-if="outputHierarchyAssignments.length > 0" class="flex items-center gap-2">
         <select v-model="outputHierarchyFilterHierarchyId" class="pim-input text-xs max-w-[220px]">
           <option value="">Alle Hierarchien</option>
-          <option v-for="h in outputHierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
+          <option v-for="h in outputHierarchies" :key="h.id" :value="h.id">{{ localizedName(h) || h.technical_name }}</option>
         </select>
         <input v-model="outputHierarchyFilterNodeText" type="text" placeholder="Knoten filtern…" class="pim-input text-xs max-w-[220px]">
         <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ filteredOutputHierarchyAssignments.length }} von {{ outputHierarchyAssignments.length }}</span>
@@ -5976,8 +5978,8 @@ onUnmounted(() => {
                 <td class="px-2 py-2 text-[var(--color-text-tertiary)]">
                   <component :is="expandedAssignmentId === assignment.id ? ChevronDown : ChevronRight" class="w-3.5 h-3.5" :stroke-width="2" />
                 </td>
-                <td class="px-3 py-2 text-[var(--color-text-secondary)]">{{ assignment.hierarchy_node?.hierarchy?.name_de || '—' }}</td>
-                <td class="px-3 py-2 font-medium text-[var(--color-text-primary)]">{{ assignment.hierarchy_node?.name_de || '—' }}</td>
+                <td class="px-3 py-2 text-[var(--color-text-secondary)]">{{ localizedName(assignment.hierarchy_node?.hierarchy) || '—' }}</td>
+                <td class="px-3 py-2 font-medium text-[var(--color-text-primary)]">{{ localizedName(assignment.hierarchy_node) || '—' }}</td>
                 <td class="px-3 py-2 text-right font-mono text-[var(--color-text-tertiary)]">{{ assignment.sort_order ?? 0 }}</td>
                 <td class="px-3 py-2 text-right">
                   <button class="p-1 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]" @click.stop="outputHierarchyDeleteTarget = assignment" title="Entfernen">
@@ -5996,8 +5998,8 @@ onUnmounted(() => {
                   </div>
                   <div v-else class="space-y-2">
                     <div v-for="attr in relationshipAttrs" :key="attr.attribute_id" class="flex items-center gap-3">
-                      <label class="text-xs text-[var(--color-text-secondary)] w-36 shrink-0 truncate" :title="attr.attribute_name_de">
-                        {{ attr.attribute_name_de || attr.attribute_technical_name }}
+                      <label class="text-xs text-[var(--color-text-secondary)] w-36 shrink-0 truncate" :title="localizedName(attr, 'attribute_name')">
+                        {{ localizedName(attr, 'attribute_name') || attr.attribute_technical_name }}
                       </label>
                       <template v-if="attr.data_type === 'Flag'">
                         <input
@@ -6427,7 +6429,7 @@ onUnmounted(() => {
                 <span class="text-[11px] text-[var(--color-text-primary)] truncate block">{{ m.file_name || '—' }}</span>
                 <div class="flex items-center gap-1 mt-0.5">
                   <span v-if="m.is_primary" class="text-[10px] text-[var(--color-accent)] font-medium">Primär</span>
-                  <span v-if="m.usage_type" class="text-[10px] text-[var(--color-text-tertiary)]">{{ m.usage_type?.name_de || m.usage_type?.technical_name || '' }}</span>
+                  <span v-if="m.usage_type" class="text-[10px] text-[var(--color-text-tertiary)]">{{ localizedName(m.usage_type) || m.usage_type?.technical_name || '' }}</span>
                 </div>
               </div>
             </div>

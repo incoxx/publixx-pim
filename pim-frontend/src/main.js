@@ -7,6 +7,7 @@ import './assets/main.css'
 import { productEditorRawText } from './locales/productEditorRawText.js'
 import { chromeRawText } from './locales/chromeRawText.js'
 import { routeTitlesRawText } from './locales/routeTitlesRawText.js'
+import { productListRawText } from './locales/productListRawText.js'
 import { rawTextMessageResolver } from './i18n/rawTextMessageResolver.js'
 
 // i18n messages
@@ -694,8 +695,8 @@ const messages = {
 // Rohtext-Uebersetzungen (Compiler-Transform-PoC, siehe vite-plugins/rawTextI18nTransform.js)
 // flach in die bestehenden Sprachbloecke einmischen -- Keys sind komplette
 // deutsche Phrasen, keine Kollision mit den strukturierten nav.*/common.*-Keys zu erwarten.
-Object.assign(messages.de, productEditorRawText.de, chromeRawText.de, routeTitlesRawText.de);
-Object.assign(messages.en, productEditorRawText.en, chromeRawText.en, routeTitlesRawText.en);
+Object.assign(messages.de, productEditorRawText.de, chromeRawText.de, routeTitlesRawText.de, productListRawText.de);
+Object.assign(messages.en, productEditorRawText.en, chromeRawText.en, routeTitlesRawText.en, productListRawText.en);
 
 const i18n = createI18n({
   legacy: false,

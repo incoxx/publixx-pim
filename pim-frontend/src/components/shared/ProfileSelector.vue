@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Save, Trash2, FolderOpen, Share2, Pencil, Plus } from 'lucide-vue-next'
+
+const { t } = useI18n()
 
 const props = defineProps({
   profiles: { type: Array, default: () => [] },
@@ -68,13 +71,13 @@ function deleteProfile() {
         :value="modelValue"
         @change="onSelect"
       >
-        <option value="">— {{ label }} wählen —</option>
+        <option value="">{{ t('— {label} wählen —', { label: t(label) }) }}</option>
         <option
           v-for="p in profiles"
           :key="p.id"
           :value="p.id"
         >
-          {{ p.name }}{{ p.is_shared ? ' (geteilt)' : '' }}
+          {{ p.name }}{{ p.is_shared ? ` ${t('(geteilt)')}` : '' }}
         </option>
       </select>
     </div>
@@ -83,7 +86,7 @@ function deleteProfile() {
     <button
       v-if="canSave && modelValue"
       class="pim-btn pim-btn-secondary text-xs px-2 py-1.5"
-      title="Profil aktualisieren"
+      :title="t('{label} aktualisieren', { label: t(label) })"
       @click="openUpdateDialog"
     >
       <Save class="w-3.5 h-3.5" :stroke-width="1.75" />
@@ -93,7 +96,7 @@ function deleteProfile() {
     <button
       v-if="canSave"
       class="pim-btn pim-btn-secondary text-xs px-2 py-1.5"
-      title="Als neues Profil speichern"
+      :title="t('Als neues {label} speichern', { label: t(label) })"
       @click="openSaveAsNew"
     >
       <Plus class="w-3.5 h-3.5" :stroke-width="1.75" />
@@ -102,7 +105,7 @@ function deleteProfile() {
     <button
       v-if="canDelete && modelValue"
       class="pim-btn pim-btn-secondary text-xs px-2 py-1.5 text-[var(--color-error)]"
-      title="Profil löschen"
+      :title="t('{label} löschen', { label: t(label) })"
       @click="deleteProfile"
     >
       <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" />
@@ -115,14 +118,14 @@ function deleteProfile() {
           <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="showSaveDialog = false" />
           <div class="relative z-10 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl p-5 w-80 space-y-4">
             <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
-              {{ saveMode === 'update' ? `${label} aktualisieren` : `${label} speichern` }}
+              {{ saveMode === 'update' ? t('{label} aktualisieren', { label: t(label) }) : t('{label} speichern', { label: t(label) }) }}
             </h3>
             <div>
-              <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Name</label>
+              <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">{{ t('Name') }}</label>
               <input
                 v-model="saveName"
                 class="pim-input text-xs w-full"
-                :placeholder="saveMode === 'update' ? 'Profilname ändern...' : 'Profilname eingeben...'"
+                :placeholder="saveMode === 'update' ? t('Profilname ändern...') : t('Profilname eingeben...')"
                 @keydown.enter="confirmSave"
                 autofocus
               />
@@ -130,12 +133,12 @@ function deleteProfile() {
             <label class="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" v-model="saveShared" class="rounded border-[var(--color-border-strong)]" />
               <Share2 class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
-              <span class="text-xs text-[var(--color-text-secondary)]">Für alle Benutzer freigeben</span>
+              <span class="text-xs text-[var(--color-text-secondary)]">{{ t('Für alle Benutzer freigeben') }}</span>
             </label>
             <div class="flex justify-end gap-2">
-              <button class="pim-btn pim-btn-secondary text-xs" @click="showSaveDialog = false">Abbrechen</button>
+              <button class="pim-btn pim-btn-secondary text-xs" @click="showSaveDialog = false">{{ t('Abbrechen') }}</button>
               <button class="pim-btn pim-btn-primary text-xs" :disabled="!saveName.trim()" @click="confirmSave">
-                {{ saveMode === 'update' ? 'Aktualisieren' : 'Speichern' }}
+                {{ saveMode === 'update' ? t('{label} aktualisieren', { label: t(label) }) : t('Speichern') }}
               </button>
             </div>
           </div>

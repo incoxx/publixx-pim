@@ -6,6 +6,7 @@ import { useProductStore } from '@/stores/products'
 import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useFilters } from '@/composables/useFilters'
+import { useLocalizedName } from '@/composables/useLocalizedName'
 import { useLocaleStore } from '@/stores/locale'
 import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter, Settings, Package, FolderTree, Trash2, CheckCheck, ArrowRightLeft, LayoutGrid, List, ChevronDown } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
@@ -29,6 +30,7 @@ import MasterHierarchyNodePickerDialog from '@/components/products/MasterHierarc
 import attributeMappingsApi from '@/api/attributeMappings'
 
 const { t } = useI18n()
+const { localizedName } = useLocalizedName()
 const router = useRouter()
 const store = useProductStore()
 const attrStore = useAttributeStore()
@@ -81,20 +83,20 @@ const { search, activeFilters, setSearch, removeFilter, clearFilters } = useFilt
 })
 
 const defaultColumns = [
-  { key: 'sku', label: 'SKU', sortable: true, mono: true },
-  { key: 'name', label: 'Name', sortable: true },
-  { key: 'product_type.name_de', label: 'Typ' },
-  { key: 'status', label: 'Status', sortable: true },
-  { key: 'updated_at', label: 'Geändert', sortable: true },
+  { key: 'sku', label: t('SKU'), sortable: true, mono: true },
+  { key: 'name', label: t('Name'), sortable: true },
+  { key: 'product_type.name_de', label: t('Typ'), render: (row) => row.product_type ? (localizedName(row.product_type) || row.product_type.technical_name) : '—' },
+  { key: 'status', label: t('Status'), sortable: true },
+  { key: 'updated_at', label: t('Geändert'), sortable: true },
 ]
 
 const extraColumns = [
-  { key: 'thumbnail', label: 'Bild', width: '52px' },
-  { key: 'ean', label: 'EAN', mono: true },
-  { key: 'workflow_status', label: 'Workflow' },
-  { key: 'manufacturer.name', label: 'Hersteller' },
-  { key: 'master_hierarchy_node.name_de', label: 'Hierarchie-Knoten', sortable: true },
-  { key: 'created_at', label: 'Erstellt', sortable: true },
+  { key: 'thumbnail', label: t('Bild'), width: '52px' },
+  { key: 'ean', label: t('EAN'), mono: true },
+  { key: 'workflow_status', label: t('Workflow') },
+  { key: 'manufacturer.name', label: t('Hersteller') },
+  { key: 'master_hierarchy_node.name_de', label: t('Hierarchie-Knoten'), sortable: true, render: (row) => row.master_hierarchy_node ? (localizedName(row.master_hierarchy_node) || row.master_hierarchy_node.technical_name) : '—' },
+  { key: 'created_at', label: t('Erstellt'), sortable: true },
 ]
 
 // Dynamic attribute columns
@@ -103,7 +105,7 @@ const searchableAttributes = ref([])
 const attributeColumns = computed(() =>
   searchableAttributes.value.map(attr => ({
     key: `attributes.${attr.id}`,
-    label: attr.name_de || attr.technical_name,
+    label: localizedName(attr) || attr.technical_name,
     hint: attr.technical_name,
     group: 'Attribute',
   }))
@@ -132,14 +134,14 @@ const QUICK_LOOKUP_FIELD_MAP = {
 }
 
 const statusOptions = [
-  { value: 'active', label: 'Aktiv' },
-  { value: 'draft', label: 'Entwurf' },
-  { value: 'inactive', label: 'Inaktiv' },
-  { value: 'discontinued', label: 'Auslaufend' },
+  { value: 'active', label: t('Aktiv') },
+  { value: 'draft', label: t('Entwurf') },
+  { value: 'inactive', label: t('Inaktiv') },
+  { value: 'discontinued', label: t('Auslaufend') },
 ]
 
 const productTypeOptions = computed(() =>
-  attrStore.prodTypes.map(pt => ({ value: pt.id, label: pt.name_de || pt.technical_name }))
+  attrStore.prodTypes.map(pt => ({ value: pt.id, label: localizedName(pt) || pt.technical_name }))
 )
 
 const manufacturerList = ref([])
@@ -162,9 +164,9 @@ const quickLookupConfig = computed(() => ({
   'master_hierarchy_node.name_de': { type: 'hierarchy-node' },
   status: { type: 'select', options: statusOptions },
   workflow_status: { type: 'select', options: [
-    { value: 'editing', label: 'In Bearbeitung' },
-    { value: 'review', label: 'Zur Prüfung' },
-    { value: 'approved', label: 'Freigegeben' },
+    { value: 'editing', label: t('In Bearbeitung') },
+    { value: 'review', label: t('Zur Prüfung') },
+    { value: 'approved', label: t('Freigegeben') },
   ] },
   ean: { type: 'text', placeholder: 'EAN...' },
 }))
@@ -181,7 +183,7 @@ function openHierarchyQuickLookupPicker(setValue) {
 }
 
 function onHierarchyQuickLookupSelected(node) {
-  quickLookupHierarchyLabel.value = [node.hierarchy?.name_de, node.name_de].filter(Boolean).join(' / ')
+  quickLookupHierarchyLabel.value = [localizedName(node.hierarchy), localizedName(node)].filter(Boolean).join(' / ')
   hierarchyQuickLookupSetValue?.(node.id)
 }
 
@@ -821,11 +823,11 @@ onBeforeUnmount(() => {
                 class="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium"
                 :class="row.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : row.status === 'draft' ? 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]' : 'bg-[var(--color-error-light)] text-[var(--color-error)]'"
               >
-                {{ row.status === 'active' ? 'Aktiv' : row.status === 'draft' ? 'Entwurf' : row.status === 'inactive' ? 'Inaktiv' : 'Auslaufend' }}
+                {{ row.status === 'active' ? t('Aktiv') : row.status === 'draft' ? t('Entwurf') : row.status === 'inactive' ? t('Inaktiv') : t('Auslaufend') }}
               </span>
             </div>
             <p class="text-xs text-[var(--color-text-primary)] truncate font-medium">{{ row.name || '—' }}</p>
-            <p class="text-[10px] text-[var(--color-text-tertiary)] truncate">{{ row.product_type?.name_de || '' }}</p>
+            <p class="text-[10px] text-[var(--color-text-tertiary)] truncate">{{ localizedName(row.product_type) }}</p>
           </div>
         </div>
       </div>
@@ -917,7 +919,7 @@ onBeforeUnmount(() => {
             'bg-[var(--color-error-light)] text-[var(--color-error)]'
           ]"
         >
-          {{ value === 'active' ? 'Aktiv' : value === 'draft' ? 'Entwurf' : value === 'inactive' ? 'Inaktiv' : 'Auslaufend' }}
+          {{ value === 'active' ? t('Aktiv') : value === 'draft' ? t('Entwurf') : value === 'inactive' ? t('Inaktiv') : t('Auslaufend') }}
         </span>
       </template>
 
