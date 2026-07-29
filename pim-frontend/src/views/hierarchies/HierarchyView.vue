@@ -11,6 +11,7 @@ import {
 } from 'lucide-vue-next'
 import hierarchiesApi from '@/api/hierarchies'
 import attributesApi from '@/api/attributes'
+import mediaApi from '@/api/media'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import PimTree from '@/components/shared/PimTree.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
@@ -60,11 +61,34 @@ const nodeProductCount = ref(0)
 const editingSortIdx = ref(null)
 const editingSortValue = ref('')
 
-// Node media assignments
+// Node media assignments (explizite Zuordnung ueber hierarchy_node_media_assignments)
 const nodeMediaItems = ref([])
 const nodeMediaLoading = ref(false)
 const showMediaPicker = ref(false)
 const availableUsageTypes = ref([])
+
+// Ordner-Inhalt (nur Asset-Hierarchien): Medien mit media.asset_folder_id = dieser
+// Knoten. Das ist eine von der expliziten Zuordnung oben komplett unabhaengige
+// Beziehung (siehe MediaView.vue) — Dateien, die im Media-Modul in diesen Ordner
+// hochgeladen wurden, tauchen sonst hier nie auf, obwohl es "derselbe Knoten" ist.
+const folderMediaItems = ref([])
+const folderMediaLoading = ref(false)
+
+async function loadFolderMedia(nodeId) {
+  if (!nodeId || store.currentHierarchy?.hierarchy_type !== 'asset') {
+    folderMediaItems.value = []
+    return
+  }
+  folderMediaLoading.value = true
+  try {
+    const { data } = await mediaApi.list({ filters: { asset_folder_id: nodeId }, perPage: 100 })
+    folderMediaItems.value = data.data || data
+  } catch {
+    folderMediaItems.value = []
+  } finally {
+    folderMediaLoading.value = false
+  }
+}
 
 async function loadNodeMedia(nodeId) {
   nodeMediaLoading.value = true
@@ -863,6 +887,7 @@ watch(() => store.selectedNode, async (node) => {
     loadNodeAttributes(node.id)
     loadNodeAttrValues(node.id)
     loadNodeMedia(node.id)
+    loadFolderMedia(node.id)
     await loadHierarchyLevelAttrs(selectedHierarchyId.value)
     loadHierarchyAttrValues(node.id)
   } else {
@@ -870,6 +895,7 @@ watch(() => store.selectedNode, async (node) => {
     hierarchyAttrValues.value = {}
     nodeAttrValues.value = {}
     nodeMediaItems.value = []
+    folderMediaItems.value = []
   }
   showAttrPicker.value = false
   showMediaPicker.value = false
@@ -1110,9 +1136,35 @@ onMounted(async () => {
 
           <!-- Tab: Medien -->
           <div v-if="activeNodeTab === 'media'">
+            <!-- Ordner-Inhalt (nur Asset-Hierarchien): Medien mit asset_folder_id = dieser Knoten,
+                 unabhaengig von expliziten Zuordnungen weiter unten -->
+            <template v-if="store.currentHierarchy?.hierarchy_type === 'asset'">
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="text-sm font-medium text-[var(--color-text-secondary)]">
+                  {{ t('Medien in diesem Ordner') }}
+                  <span v-if="folderMediaItems.length > 0" class="text-[11px] text-[var(--color-text-tertiary)] ml-1">({{ folderMediaItems.length }})</span>
+                </h4>
+              </div>
+
+              <div v-if="folderMediaLoading" class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+                <div v-for="i in 3" :key="i" class="pim-skeleton aspect-square rounded-lg" />
+              </div>
+              <div v-else-if="folderMediaItems.length > 0" class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+                <div v-for="m in folderMediaItems" :key="m.id" class="pim-card overflow-hidden group relative">
+                  <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
+                    <img :src="m.thumb_url || m.file_url" class="w-full h-full object-cover" loading="lazy" alt="" />
+                  </div>
+                  <div class="p-1.5">
+                    <span class="text-[10px] text-[var(--color-text-primary)] truncate block">{{ m.file_name || '—' }}</span>
+                  </div>
+                </div>
+              </div>
+              <p v-else class="text-xs text-[var(--color-text-tertiary)] mb-4">{{ t('Keine Medien in diesem Ordner') }}</p>
+            </template>
+
             <div class="flex items-center justify-between mb-3">
             <h4 class="text-sm font-medium text-[var(--color-text-secondary)]">
-              Medien
+              {{ t('Zugeordnete Medien') }}
               <span v-if="nodeMediaItems.length > 0" class="text-[11px] text-[var(--color-text-tertiary)] ml-1">({{ nodeMediaItems.length }})</span>
             </h4>
             <button v-if="authStore.hasPermission('hierarchies.edit')" class="pim-btn pim-btn-secondary text-xs" @click="openMediaPicker">
@@ -1146,7 +1198,7 @@ onMounted(async () => {
             </div>
           </div>
 
-            <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Medien zugeordnet</p>
+            <p v-else class="text-xs text-[var(--color-text-tertiary)]">{{ t('Keine Medien zugeordnet') }}</p>
 
             <!-- Hierarchy-level Attribute Values -->
             <div v-if="hierarchyLevelAttrs.length > 0" class="border-t border-[var(--color-border)] pt-4 mt-4">
