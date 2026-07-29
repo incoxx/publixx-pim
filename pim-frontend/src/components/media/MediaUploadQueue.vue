@@ -1,7 +1,10 @@
 <script setup>
 import { ref, computed, watch, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Upload, Check, AlertCircle, RefreshCw, X, ChevronDown, ChevronUp, ArrowUpDown, Wrench } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
+
+const { t } = useI18n()
 
 const props = defineProps({
   metadata: { type: Object, default: () => ({}) },
@@ -97,7 +100,7 @@ async function uploadFile(item) {
     emit('file-uploaded', item.result)
   } catch (err) {
     item.status = 'error'
-    item.error = err.response?.data?.message || err.message || 'Upload fehlgeschlagen'
+    item.error = err.response?.data?.message || err.message || t('Upload fehlgeschlagen')
   }
   processQueue()
 }

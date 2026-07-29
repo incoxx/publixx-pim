@@ -28,6 +28,8 @@ const SCOPE_PATTERNS = [
   /[/\\]components[/\\]dialogs[/\\]BulkAssignHierarchyNodeDialog\.vue$/,
   /[/\\]components[/\\]dialogs[/\\]MoveProductsToNodeDialog\.vue$/,
   /[/\\]components[/\\]shared[/\\]PimHierarchyReferenceInput\.vue$/,
+  /[/\\]views[/\\]media[/\\]MediaView\.vue$/,
+  /[/\\]components[/\\]media[/\\]/,
 ];
 
 // Statische Attribute, die als sichtbarer UI-Text gelten (nicht z.B. "class", "id", "type").

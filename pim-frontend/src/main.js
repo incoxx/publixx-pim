@@ -11,6 +11,7 @@ import { productListRawText } from './locales/productListRawText.js'
 import { dashboardRawText } from './locales/dashboardRawText.js'
 import { searchRawText } from './locales/searchRawText.js'
 import { watchlistHierarchyRawText } from './locales/watchlistHierarchyRawText.js'
+import { mediaRawText } from './locales/mediaRawText.js'
 import { rawTextMessageResolver } from './i18n/rawTextMessageResolver.js'
 
 // i18n messages
@@ -698,8 +699,8 @@ const messages = {
 // Rohtext-Uebersetzungen (Compiler-Transform-PoC, siehe vite-plugins/rawTextI18nTransform.js)
 // flach in die bestehenden Sprachbloecke einmischen -- Keys sind komplette
 // deutsche Phrasen, keine Kollision mit den strukturierten nav.*/common.*-Keys zu erwarten.
-Object.assign(messages.de, productEditorRawText.de, chromeRawText.de, routeTitlesRawText.de, productListRawText.de, dashboardRawText.de, searchRawText.de, watchlistHierarchyRawText.de);
-Object.assign(messages.en, productEditorRawText.en, chromeRawText.en, routeTitlesRawText.en, productListRawText.en, dashboardRawText.en, searchRawText.en, watchlistHierarchyRawText.en);
+Object.assign(messages.de, productEditorRawText.de, chromeRawText.de, routeTitlesRawText.de, productListRawText.de, dashboardRawText.de, searchRawText.de, watchlistHierarchyRawText.de, mediaRawText.de);
+Object.assign(messages.en, productEditorRawText.en, chromeRawText.en, routeTitlesRawText.en, productListRawText.en, dashboardRawText.en, searchRawText.en, watchlistHierarchyRawText.en, mediaRawText.en);
 
 const i18n = createI18n({
   legacy: false,
