@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ecommerceCartTypes } from '@/api/ecommerce'
-import { ShoppingCart, Plus, Trash2, Save, X, ChevronDown, ChevronRight } from 'lucide-vue-next'
+import { ShoppingCart, Plus, Trash2, Save, X, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-vue-next'
 
 function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)) }
 
@@ -113,9 +113,15 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="flex h-full overflow-hidden">
-    <!-- Linke Liste -->
-    <aside class="w-72 shrink-0 border-r border-base-300 flex flex-col bg-base-100">
+  <div class="flex flex-col lg:flex-row h-full overflow-hidden">
+    <!-- Linke Liste — auf Mobil ausgeblendet, sobald ein Warenkorbtyp offen ist
+         (die Detailansicht hat einen Zurück-Button); ab lg zweispaltiges Master-Detail. -->
+    <aside
+      :class="[
+        'w-full lg:w-72 lg:shrink-0 lg:flex-none border-b lg:border-b-0 lg:border-r border-base-300 flex-col bg-base-100 min-h-0',
+        current ? 'hidden lg:flex' : 'flex flex-1',
+      ]"
+    >
       <div class="flex items-center justify-between px-4 py-3 border-b border-base-300">
         <span class="font-semibold text-sm">Warenkorbarten</span>
         <button class="btn btn-xs btn-primary text-white" @click="createNew">
@@ -147,18 +153,23 @@ onMounted(load)
     </aside>
 
     <!-- Rechte Detailansicht -->
-    <main class="flex-1 overflow-y-auto p-6">
+    <main :class="['flex-1 overflow-y-auto p-4 lg:p-6 min-h-0', current ? '' : 'hidden lg:block']">
       <div v-if="!current" class="flex flex-col items-center justify-center h-full opacity-40 gap-2">
         <ShoppingCart class="w-12 h-12" />
         <p class="text-sm">Warenkorbtyp auswählen oder neu erstellen</p>
       </div>
 
       <template v-else>
-        <div class="flex items-center justify-between mb-6">
-          <h2 class="text-lg font-semibold">
-            {{ current.id ? current.name_de : 'Neuer Warenkorbtyp' }}
-          </h2>
-          <div class="flex gap-2">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-6">
+          <div class="flex items-center gap-2 min-w-0">
+            <button class="btn btn-sm btn-ghost btn-circle lg:hidden shrink-0" title="Zurück" @click="discard">
+              <ChevronLeft class="w-4 h-4" />
+            </button>
+            <h2 class="text-lg font-semibold truncate">
+              {{ current.id ? current.name_de : 'Neuer Warenkorbtyp' }}
+            </h2>
+          </div>
+          <div class="flex flex-wrap gap-2">
             <button class="btn btn-sm btn-ghost" @click="discard">
               <X class="w-4 h-4" /> Abbrechen
             </button>
@@ -174,7 +185,7 @@ onMounted(load)
 
         <div v-if="errors._general" class="alert alert-error mb-4 text-sm">{{ errors._general }}</div>
 
-        <div class="grid grid-cols-2 gap-4 max-w-2xl">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
           <!-- Basisfelder -->
           <div class="form-control col-span-2">
             <label class="label label-text text-xs">Bezeichnung (DE) *</label>
