@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
+import { useLocalizedName } from '@/composables/useLocalizedName'
 import {
   Star, Trash2, Download, FileSpreadsheet, FileText,
   Languages, Archive, X, GitCompareArrows, Pencil, Settings, ListFilter,
@@ -28,6 +30,9 @@ import BulkAddToCollectionDialog from '@/components/dialogs/BulkAddToCollectionD
 import { useRecordNavigatorStore } from '@/stores/recordNavigator'
 
 const router = useRouter()
+const { t, locale } = useI18n()
+const numberLocale = computed(() => (locale.value === 'de' ? 'de-DE' : 'en-US'))
+const { localizedName } = useLocalizedName()
 const localeStore = useLocaleStore()
 const attrStore = useAttributeStore()
 const licenseStore = useLicenseStore()
@@ -85,11 +90,11 @@ const compareRows = computed(() => {
 })
 
 const defaultWatchlistColumns = [
-  { key: 'product.sku', label: 'SKU', mono: true, exportKey: 'sku', sortable: true },
-  { key: 'product.name', label: 'Name', exportKey: 'name', sortable: true },
-  { key: 'product.status', label: 'Status', exportKey: 'status', sortable: true },
-  { key: 'product.product_type.name_de', label: 'Typ', exportKey: 'product_type' },
-  { key: 'created_at', label: 'Hinzugefügt', exportKey: 'created_at', sortable: true },
+  { key: 'product.sku', label: t('SKU'), mono: true, exportKey: 'sku', sortable: true },
+  { key: 'product.name', label: t('Name'), exportKey: 'name', sortable: true },
+  { key: 'product.status', label: t('Status'), exportKey: 'status', sortable: true },
+  { key: 'product.product_type.name_de', label: t('Typ'), exportKey: 'product_type', render: (row) => row.product?.product_type ? (localizedName(row.product.product_type) || row.product.product_type.technical_name) : '—' },
+  { key: 'created_at', label: t('Hinzugefügt'), exportKey: 'created_at', sortable: true },
 ]
 
 // Spalten-Key → Backend-Sortierfeld (siehe WatchlistController::SORT_COLUMN_MAP).
@@ -101,7 +106,7 @@ const SORT_FIELD_MAP = {
 }
 
 const extraWatchlistColumns = [
-  { key: 'product.ean', label: 'EAN', mono: true, exportKey: 'ean' },
+  { key: 'product.ean', label: t('EAN'), mono: true, exportKey: 'ean' },
 ]
 
 // Dynamic attribute columns
@@ -110,9 +115,9 @@ const searchableAttributes = ref([])
 const attributeColumns = computed(() =>
   searchableAttributes.value.map(attr => ({
     key: `product.attributes.${attr.id}`,
-    label: attr.name_de || attr.technical_name,
+    label: localizedName(attr) || attr.technical_name,
     hint: attr.technical_name,
-    group: 'Attribute',
+    group: t('Attribute'),
     exportKey: `attr:${attr.id}`,
   }))
 )
@@ -124,26 +129,26 @@ const { columnProfiles, selectedColumnProfileId, loadColumnProfiles, loadColumnP
 // Quick Lookup — filtert serverseitig über die komplette Treffermenge, nicht nur
 // die aktuell angezeigte Seite.
 const statusOptions = [
-  { value: 'active', label: 'Aktiv' },
-  { value: 'draft', label: 'Entwurf' },
-  { value: 'inactive', label: 'Inaktiv' },
-  { value: 'discontinued', label: 'Auslaufend' },
+  { value: 'active', label: t('Aktiv') },
+  { value: 'draft', label: t('Entwurf') },
+  { value: 'inactive', label: t('Inaktiv') },
+  { value: 'discontinued', label: t('Auslaufend') },
 ]
 
 const productTypeOptions = computed(() =>
-  attrStore.prodTypes.map(pt => ({ value: pt.id, label: pt.name_de || pt.technical_name }))
+  attrStore.prodTypes.map(pt => ({ value: pt.id, label: localizedName(pt) || pt.technical_name }))
 )
 
 const quickLookupConfig = computed(() => {
   const config = {
-    'product.sku': { type: 'text', placeholder: 'SKU...' },
-    'product.name': { type: 'text', placeholder: 'Name...' },
+    'product.sku': { type: 'text', placeholder: t('SKU...') },
+    'product.name': { type: 'text', placeholder: t('Name...') },
     'product.status': { type: 'select', options: statusOptions },
     'product.product_type.name_de': { type: 'select', options: productTypeOptions.value },
-    'product.ean': { type: 'text', placeholder: 'EAN...' },
+    'product.ean': { type: 'text', placeholder: t('EAN...') },
   }
   searchableAttributes.value.forEach(attr => {
-    config[`product.attributes.${attr.id}`] = { type: 'text', placeholder: `${attr.name_de || attr.technical_name}...` }
+    config[`product.attributes.${attr.id}`] = { type: 'text', placeholder: `${localizedName(attr) || attr.technical_name}...` }
   })
   return config
 })
@@ -218,7 +223,7 @@ async function loadWatchlist() {
     items.value = data.data || data
     if (data.meta) meta.value = data.meta
   } catch (e) {
-    error.value = 'Fehler beim Laden der Merkliste'
+    error.value = t('Fehler beim Laden der Merkliste')
   } finally {
     loading.value = false
   }
@@ -414,7 +419,7 @@ onMounted(async () => {
         </div>
         <div>
           <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Merkliste</h2>
-          <p class="text-xs text-[var(--color-text-tertiary)]">{{ meta.total }} Produkt{{ meta.total !== 1 ? 'e' : '' }} gespeichert</p>
+          <p class="text-xs text-[var(--color-text-tertiary)]">{{ meta.total === 1 ? t('{count} Produkt gespeichert', { count: meta.total }) : t('{count} Produkte gespeichert', { count: meta.total }) }}</p>
         </div>
       </div>
       <div class="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
@@ -486,7 +491,7 @@ onMounted(async () => {
           @click="exportExcel"
         >
           <FileSpreadsheet class="w-3.5 h-3.5" :stroke-width="1.75" />
-          {{ exporting === 'excel' ? 'Export…' : 'Excel' }}
+          {{ exporting === 'excel' ? t('Export…') : t('Excel') }}
         </button>
 
         <!-- PDF: All in one -->
@@ -496,7 +501,7 @@ onMounted(async () => {
           @click="exportPdf"
         >
           <FileText class="w-3.5 h-3.5" :stroke-width="1.75" />
-          {{ exporting === 'pdf' ? 'Export…' : 'PDF (Gesamt)' }}
+          {{ exporting === 'pdf' ? t('Export…') : t('PDF (Gesamt)') }}
         </button>
 
         <!-- PDF: Per SKU as ZIP -->
@@ -506,7 +511,7 @@ onMounted(async () => {
           @click="exportPdfZip"
         >
           <Archive class="w-3.5 h-3.5" :stroke-width="1.75" />
-          {{ exporting === 'pdf-zip' ? 'Export…' : 'PDF pro SKU (ZIP)' }}
+          {{ exporting === 'pdf-zip' ? t('Export…') : t('PDF pro SKU (ZIP)') }}
         </button>
 
         <div class="border-l border-[var(--color-border)] h-8 hidden sm:block" />
@@ -554,7 +559,7 @@ onMounted(async () => {
             @click="exportXliff"
           >
             <Languages class="w-3.5 h-3.5" :stroke-width="1.75" />
-            {{ exporting === 'xliff' ? 'Export…' : 'XLIFF' }}
+            {{ exporting === 'xliff' ? t('Export…') : t('XLIFF') }}
           </button>
         </div>
       </div>
@@ -616,7 +621,7 @@ onMounted(async () => {
         @click="bulkRemoveSelected"
       >
         <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">{{ bulkRemoving ? 'Entferne…' : 'Von Merkliste entfernen' }}</span>
+        <span class="hidden sm:inline">{{ bulkRemoving ? t('Entferne…') : t('Von Merkliste entfernen') }}</span>
       </button>
       <span v-if="selectedIds.length === 1" class="text-[11px] text-[var(--color-text-tertiary)] hidden sm:inline">
         Noch 1 Produkt auswählen zum Vergleichen
@@ -641,7 +646,7 @@ onMounted(async () => {
       :sortOrder="sortOrder"
       selectable
       showActions
-      emptyText="Keine Produkte auf der Merkliste"
+      :empty-text="t('Keine Produkte auf der Merkliste')"
       :quickLookup="showQuickLookup"
       :quickLookupConfig="quickLookupConfig"
       @sort="handleSort"
@@ -650,13 +655,13 @@ onMounted(async () => {
       @select="handleSelect"
       @quick-lookup-change="onQuickLookupChange"
     >
-      <template #cell-product.sku="{ row, value }">
+      <template v-slot:[`cell-product.sku`]="{ value }">
         <div class="flex items-center gap-2">
           <Star class="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" :stroke-width="2" />
           <span class="font-mono text-xs">{{ value || '—' }}</span>
         </div>
       </template>
-      <template #cell-product.status="{ value }">
+      <template v-slot:[`cell-product.status`]="{ value }">
         <span
           :class="[
             'pim-badge',
@@ -665,23 +670,23 @@ onMounted(async () => {
             'bg-[var(--color-error-light)] text-[var(--color-error)]'
           ]"
         >
-          {{ value === 'active' ? 'Aktiv' : value === 'draft' ? 'Entwurf' : value === 'inactive' ? 'Inaktiv' : 'Auslaufend' }}
+          {{ value === 'active' ? t('Aktiv') : value === 'draft' ? t('Entwurf') : value === 'inactive' ? t('Inaktiv') : t('Auslaufend') }}
         </span>
       </template>
       <template #cell-created_at="{ value }">
         <span class="text-[var(--color-text-tertiary)] text-xs">
-          {{ value ? new Date(value).toLocaleDateString('de-DE') : '—' }}
+          {{ value ? new Date(value).toLocaleDateString(numberLocale) : '—' }}
         </span>
       </template>
 
       <!-- Pagination -->
       <template #pagination>
         <div class="flex items-center justify-between px-4 py-3 border-t border-[var(--color-border)]">
-          <span class="text-xs text-[var(--color-text-tertiary)]">{{ meta.total }} Produkte</span>
+          <span class="text-xs text-[var(--color-text-tertiary)]">{{ t('{count} Produkte', { count: meta.total }) }}</span>
           <div class="flex items-center gap-1">
-            <button class="pim-btn pim-btn-ghost text-xs" :disabled="meta.current_page <= 1" @click="goToPage(meta.current_page - 1)">Zurück</button>
+            <button class="pim-btn pim-btn-ghost text-xs" :disabled="meta.current_page <= 1" @click="goToPage(meta.current_page - 1)">{{ t('Zurück') }}</button>
             <span class="text-xs text-[var(--color-text-secondary)] px-2">{{ meta.current_page }} / {{ meta.last_page }}</span>
-            <button class="pim-btn pim-btn-ghost text-xs" :disabled="meta.current_page >= meta.last_page" @click="goToPage(meta.current_page + 1)">Weiter</button>
+            <button class="pim-btn pim-btn-ghost text-xs" :disabled="meta.current_page >= meta.last_page" @click="goToPage(meta.current_page + 1)">{{ t('Weiter') }}</button>
           </div>
         </div>
       </template>
@@ -724,8 +729,8 @@ onMounted(async () => {
     <PimConfirmDialog
       :open="!!deleteTarget"
       title="Von Merkliste entfernen?"
-      :message="`'${deleteTarget?.product?.name || deleteTarget?.product?.sku || ''}' wird von der Merkliste entfernt.`"
-      confirm-label="Entfernen"
+      :message="t('\'{name}\' wird von der Merkliste entfernt.', { name: deleteTarget?.product?.name || deleteTarget?.product?.sku || '' })"
+      :confirm-label="t('Entfernen')"
       :danger="true"
       :loading="deleting"
       @confirm="confirmDelete"
@@ -735,8 +740,8 @@ onMounted(async () => {
     <PimConfirmDialog
       :open="showRemoveAllConfirm"
       title="Alle Einträge entfernen?"
-      :message="`Alle ${meta.total} Produkte werden von der Merkliste entfernt. Diese Aktion kann nicht rückgängig gemacht werden.`"
-      confirm-label="Alle entfernen"
+      :message="t('Alle {count} Produkte werden von der Merkliste entfernt. Diese Aktion kann nicht rückgängig gemacht werden.', { count: meta.total })"
+      :confirm-label="t('Alle entfernen')"
       :danger="true"
       :loading="bulkRemoving"
       @confirm="removeAllItems"
@@ -804,7 +809,7 @@ onMounted(async () => {
                   </tr>
                   <tr v-if="compareRows.length === 0">
                     <td colspan="3" class="px-4 py-8 text-center text-sm text-[var(--color-text-tertiary)]">
-                      {{ showDiffsOnly ? 'Keine Unterschiede gefunden — Produkte sind identisch' : 'Keine Daten zum Vergleichen' }}
+                      {{ showDiffsOnly ? t('Keine Unterschiede gefunden — Produkte sind identisch') : t('Keine Daten zum Vergleichen') }}
                     </td>
                   </tr>
                 </tbody>

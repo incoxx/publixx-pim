@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useHierarchyStore } from '@/stores/hierarchies'
 import { useAuthStore } from '@/stores/auth'
 import PimForm from '@/components/shared/PimForm.vue'
@@ -11,6 +12,7 @@ const props = defineProps({
   onSaved: { type: Function, default: null },
 })
 
+const { t } = useI18n()
 const store = useHierarchyStore()
 const authStore = useAuthStore()
 const loading = ref(false)
@@ -35,10 +37,10 @@ const formData = ref(
 )
 
 const fields = computed(() => [
-  { key: 'name_de', label: 'Name (DE)', type: 'text', required: true },
-  { key: 'name_en', label: 'Name (EN)', type: 'text' },
-  { key: 'sort_order', label: 'Reihenfolge', type: 'number' },
-  { key: 'is_active', label: 'Aktiv', type: 'boolean' },
+  { key: 'name_de', label: t('Name (DE)'), type: 'text', required: true },
+  { key: 'name_en', label: t('Name (EN)'), type: 'text' },
+  { key: 'sort_order', label: t('Reihenfolge'), type: 'number' },
+  { key: 'is_active', label: t('Aktiv'), type: 'boolean' },
 ])
 
 async function handleSubmit(data) {
@@ -67,9 +69,9 @@ async function handleSubmit(data) {
         errors.value._general = e.response.data.title
       }
     } else if (e.response?.status === 403) {
-      errors.value._general = 'Keine Berechtigung für diese Aktion.'
+      errors.value._general = t('Keine Berechtigung für diese Aktion.')
     } else {
-      errors.value._general = e.response?.data?.title || 'Ein Fehler ist aufgetreten.'
+      errors.value._general = e.response?.data?.title || t('Ein Fehler ist aufgetreten.')
     }
   } finally {
     loading.value = false
@@ -80,7 +82,7 @@ async function handleSubmit(data) {
 <template>
   <div class="p-4" data-testid="node-form-panel">
     <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-4">
-      {{ isEdit ? 'Knoten bearbeiten' : 'Neuer Knoten' }}
+      {{ isEdit ? t('Knoten bearbeiten') : t('Neuer Knoten') }}
     </h3>
     <p v-if="errors._general" class="mb-3 text-[12px] text-[var(--color-error)] bg-[var(--color-error-light)] px-3 py-2 rounded-lg">
       {{ errors._general }}

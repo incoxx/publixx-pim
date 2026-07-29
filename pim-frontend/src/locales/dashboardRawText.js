@@ -207,7 +207,6 @@ const en = {
   'Guten Morgen': 'Good morning',
   'Guten Tag': 'Good afternoon',
   'Guten Abend': 'Good evening',
-  '{count} offene Aufgaben': '{count} open tasks',
   '{count} Produkte bearbeitet diese Woche': '{count} products edited this week',
   'Produkt anlegen': 'Create Product',
   'Import starten': 'Start Import',

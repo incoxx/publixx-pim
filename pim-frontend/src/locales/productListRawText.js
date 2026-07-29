@@ -63,6 +63,7 @@ const en = {
   'Profilname ändern...': 'Change profile name...',
   'Profilname eingeben...': 'Enter profile name...',
   'Für alle Benutzer freigeben': 'Share with all users',
+  'Knoten wählen…': 'Select node…',
 };
 
 const de = Object.fromEntries(Object.keys(en).map((key) => [key, key]));

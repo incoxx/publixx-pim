@@ -1,8 +1,13 @@
 <script setup>
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { FolderTree, X } from 'lucide-vue-next'
 import hierarchiesApi from '@/api/hierarchies'
 import MasterHierarchyNodePickerDialog from '@/components/products/MasterHierarchyNodePickerDialog.vue'
+import { useLocalizedName } from '@/composables/useLocalizedName'
+
+const { t } = useI18n()
+const { localizedName } = useLocalizedName()
 
 // Attributwert-Picker für Querverweise auf einen Hierarchie-Knoten.
 // Der Wert (modelValue) ist die Knoten-UUID (value_string im Backend).
@@ -25,7 +30,7 @@ async function resolveLabel(id) {
   try {
     const { data } = await hierarchiesApi.getNode(id)
     const n = data.data || data
-    nodeLabel.value = n.name_de || n.name_en || n.path || id
+    nodeLabel.value = localizedName(n) || n.path || id
     nodeHierarchyId.value = n.hierarchy_id || n.hierarchy?.id || null
   } catch {
     // Referenz evtl. gelöscht: rohe UUID anzeigen statt Fehler
@@ -37,7 +42,7 @@ watch(() => props.modelValue, (v) => resolveLabel(v), { immediate: true })
 
 function onSelect(node) {
   emit('update:modelValue', node.id)
-  nodeLabel.value = node.name_de || node.name_en || node.id
+  nodeLabel.value = localizedName(node) || node.id
   nodeHierarchyId.value = node.hierarchy_id || node.hierarchy?.id || null
   showPicker.value = false
 }
@@ -65,7 +70,7 @@ function clear() {
       :disabled="disabled"
       @click="showPicker = true"
     >
-      {{ modelValue ? 'Ändern' : 'Auswählen' }}
+      {{ modelValue ? t('Ändern') : t('Auswählen') }}
     </button>
     <button
       v-if="modelValue"

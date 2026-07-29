@@ -198,7 +198,6 @@ const en = {
   // --- Tabelle / Spalten ---
   'Techn. Name': 'Tech. Name',
   'Datentyp': 'Data Type',
-  'Gruppe': 'Group',
   'Titel': 'Title',
   'Datei': 'File',
   'Fundstelle': 'Match',

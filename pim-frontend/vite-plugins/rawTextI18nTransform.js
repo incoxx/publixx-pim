@@ -20,6 +20,14 @@ const SCOPE_PATTERNS = [
   /[/\\]views[/\\]search[/\\]SearchWizardView\.vue$/,
   /[/\\]views[/\\]search[/\\]QuickSearchView\.vue$/,
   /[/\\]components[/\\]search[/\\]/,
+  /[/\\]views[/\\]watchlist[/\\]/,
+  /[/\\]views[/\\]hierarchies[/\\]/,
+  /[/\\]components[/\\]hierarchies[/\\]/,
+  /[/\\]components[/\\]panels[/\\]Hierarchy(Form|NodeForm)Panel\.vue$/,
+  /[/\\]components[/\\]dialogs[/\\]AddFromWatchlistDialog\.vue$/,
+  /[/\\]components[/\\]dialogs[/\\]BulkAssignHierarchyNodeDialog\.vue$/,
+  /[/\\]components[/\\]dialogs[/\\]MoveProductsToNodeDialog\.vue$/,
+  /[/\\]components[/\\]shared[/\\]PimHierarchyReferenceInput\.vue$/,
 ];
 
 // Statische Attribute, die als sichtbarer UI-Text gelten (nicht z.B. "class", "id", "type").

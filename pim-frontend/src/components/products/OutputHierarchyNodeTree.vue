@@ -2,6 +2,9 @@
 import { ref, computed } from 'vue'
 import { Search } from 'lucide-vue-next'
 import OutputHierarchyTreeRow from './OutputHierarchyTreeRow.vue'
+import { useLocalizedName } from '@/composables/useLocalizedName'
+
+const { localizedName } = useLocalizedName()
 
 const props = defineProps({
   nodes: { type: Array, default: () => [] },
@@ -61,7 +64,7 @@ function toggleExpand(nodeId) {
 }
 
 function nodeLabel(node) {
-  return node.name_de || node.name_en || node.id
+  return localizedName(node) || node.id
 }
 
 // Bei aktivem Filter: nur Knoten zeigen, deren Name matcht — oder die einen

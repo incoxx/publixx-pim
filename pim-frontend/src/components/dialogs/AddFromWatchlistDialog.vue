@@ -1,8 +1,11 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { X, Star, Loader2, Check } from 'lucide-vue-next'
 import watchlistApi from '@/api/watchlist'
 import { collectionItems as collectionItemsApi } from '@/api/collections'
+
+const { t } = useI18n()
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -49,7 +52,7 @@ async function loadWatchlist() {
     } while (page <= lastPage)
     items.value = all
   } catch {
-    error.value = 'Merkliste konnte nicht geladen werden'
+    error.value = t('Merkliste konnte nicht geladen werden')
   } finally {
     loading.value = false
   }
@@ -79,7 +82,7 @@ async function submit() {
     emit('added', data)
     close()
   } catch (e) {
-    error.value = e.response?.data?.message || 'Übertragung fehlgeschlagen'
+    error.value = e.response?.data?.message || t('Übertragung fehlgeschlagen')
   } finally {
     submitting.value = false
   }
@@ -118,10 +121,10 @@ function close() {
             </div>
             <template v-else>
               <button class="pim-btn pim-btn-ghost text-xs mb-2" @click="toggleAll" :disabled="!selectableItems.length">
-                {{ selected.size === selectableItems.length && selectableItems.length ? 'Auswahl aufheben' : 'Alle auswählen' }}
+                {{ selected.size === selectableItems.length && selectableItems.length ? t('Auswahl aufheben') : t('Alle auswählen') }}
               </button>
               <p v-if="alreadyAddedCount" class="text-[11px] text-[var(--color-text-tertiary)] mb-2">
-                {{ alreadyAddedCount }} Produkt{{ alreadyAddedCount !== 1 ? 'e' : '' }} bereits in dieser Collection — nicht wählbar.
+                {{ alreadyAddedCount === 1 ? t('{count} Produkt bereits in dieser Collection — nicht wählbar.', { count: alreadyAddedCount }) : t('{count} Produkte bereits in dieser Collection — nicht wählbar.', { count: alreadyAddedCount }) }}
               </p>
               <div class="space-y-1">
                 <button
@@ -156,7 +159,7 @@ function close() {
             >
               <Loader2 v-if="submitting" class="w-3.5 h-3.5 animate-spin" />
               <Star v-else class="w-3.5 h-3.5" :stroke-width="1.75" />
-              {{ submitting ? 'Übernehme...' : 'Übernehmen' }}
+              {{ submitting ? t('Übernehme...') : t('Übernehmen') }}
             </button>
           </div>
         </div>
