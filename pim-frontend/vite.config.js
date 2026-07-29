@@ -2,11 +2,20 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'path'
+import { rawTextI18nTransform } from './vite-plugins/rawTextI18nTransform.js'
 
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || '/',
   plugins: [
-    vue(),
+    vue({
+      template: {
+        compilerOptions: {
+          // PoC: hartkodierte Texte im Produkteditor automatisch uebersetzbar machen,
+          // ohne die .vue-Dateien anzufassen. Siehe vite-plugins/rawTextI18nTransform.js.
+          nodeTransforms: [rawTextI18nTransform],
+        },
+      },
+    }),
     tailwindcss(),
   ],
   resolve: {
