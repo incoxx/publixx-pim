@@ -1,9 +1,11 @@
 <script setup>
 import { ref, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useTabStore } from '@/stores/tabs'
 import { X, ListX } from 'lucide-vue-next'
 
+const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const tabStore = useTabStore()
@@ -75,7 +77,7 @@ function contextCloseAll() {
     <!-- Close all tabs button -->
     <button
       class="p-1.5 rounded text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text-primary)] transition-colors shrink-0"
-      title="Alle Tabs schließen"
+      :title="t('Alle Tabs schließen')"
       @click="tabStore.closeAllTabs()"
     >
       <ListX class="w-4 h-4" />
@@ -92,13 +94,13 @@ function contextCloseAll() {
           class="w-full px-3 py-1.5 text-xs text-left text-[var(--color-text-primary)] hover:bg-[var(--color-bg)] transition-colors"
           @click="contextCloseOthers"
         >
-          Andere schließen
+          {{ t('Andere schließen') }}
         </button>
         <button
           class="w-full px-3 py-1.5 text-xs text-left text-[var(--color-text-primary)] hover:bg-[var(--color-bg)] transition-colors"
           @click="contextCloseAll"
         >
-          Alle schließen
+          {{ t('Alle schließen') }}
         </button>
       </div>
     </Teleport>

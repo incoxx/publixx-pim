@@ -3,11 +3,13 @@ import { useAuthStore } from '@/stores/auth'
 import { useTabStore } from '@/stores/tabs'
 import { useRoute, useRouter } from 'vue-router'
 import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Compass, Eye, LogOut, Menu, MessageCircle, PanelsTopLeft, Pin, PinOff, Sparkles, User } from 'lucide-vue-next'
 import { useCopilotStore } from '@/stores/copilot'
 import { useMessengerStore } from '@/stores/messenger'
 import SemanticSearchBox from '@/components/layout/SemanticSearchBox.vue'
 
+const { t } = useI18n()
 const authStore = useAuthStore()
 const copilotStore = useCopilotStore()
 const messengerStore = useMessengerStore()
@@ -86,21 +88,21 @@ function openCatalogPreview() {
           class="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md transition-colors"
           :class="authStore.effectiveViewMode === 'cockpit' ? 'bg-white/15 font-medium' : 'hover:bg-white/10 opacity-70'"
           style="color: inherit"
-          title="Cockpit / Fokus-Modus"
+          :title="t('Cockpit / Fokus-Modus')"
           @click="setMode('cockpit')"
         >
           <PanelsTopLeft class="w-3.5 h-3.5" :stroke-width="1.75" />
-          <span class="hidden sm:inline">Cockpit</span>
+          <span class="hidden sm:inline">{{ t('Cockpit') }}</span>
         </button>
         <button
           class="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md transition-colors"
           :class="authStore.effectiveViewMode === 'gui' ? 'bg-white/15 font-medium' : 'hover:bg-white/10 opacity-70'"
           style="color: inherit"
-          title="Klassisches Menü"
+          :title="t('Klassisches Menü')"
           @click="setMode('gui')"
         >
           <Menu class="w-3.5 h-3.5" :stroke-width="1.75" />
-          <span class="hidden sm:inline">Menü</span>
+          <span class="hidden sm:inline">{{ t('Menü') }}</span>
         </button>
       </div>
 
@@ -109,11 +111,11 @@ function openCatalogPreview() {
         v-if="authStore.hasPermission('preview.view')"
         class="hidden lg:flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border transition-colors hover:bg-white/10 shrink-0"
         :style="{ borderColor: 'var(--pim-toolbar-border)', color: 'inherit' }"
-        title="Katalog-Vorschau öffnen"
+        :title="t('Katalog-Vorschau öffnen')"
         @click="openCatalogPreview"
       >
         <Eye class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span>Preview</span>
+        <span>{{ t('Preview') }}</span>
       </button>
     </div>
 
@@ -129,18 +131,18 @@ function openCatalogPreview() {
         class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors hover:bg-white/10 touch-manipulation"
         :style="{ color: 'inherit', borderColor: 'var(--pim-toolbar-border)', minHeight: '44px' }"
         :class="{ 'bg-white/10': copilotStore.open }"
-        title="anyPIM Copilot"
+        :title="t('anyPIM Copilot')"
         @click="copilotStore.toggle()"
       >
         <Sparkles class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden lg:inline">Copilot</span>
+        <span class="hidden lg:inline">{{ t('Copilot') }}</span>
       </button>
 
       <!-- Befehls-/Navigationspalette ("Wo ist was?") -->
       <button
         class="hidden lg:flex items-center px-2 py-1.5 text-xs rounded-md border transition-colors hover:bg-white/10"
         :style="{ color: 'inherit', borderColor: 'var(--pim-toolbar-border)' }"
-        title="Wo ist was? — Menüpunkte und Aktionen finden (⌘K)"
+        :title="t('Wo ist was? — Menüpunkte und Aktionen finden (⌘K)')"
         @click="authStore.toggleCommandPalette()"
       >
         <Compass class="w-3.5 h-3.5" :stroke-width="1.75" />
@@ -152,7 +154,7 @@ function openCatalogPreview() {
         class="btn btn-ghost btn-sm btn-circle indicator touch-manipulation"
         :class="{ 'animate-pulse': messengerStore.unreadCount > 0 }"
         :style="{ color: messengerStore.unreadCount > 0 ? 'var(--color-warning)' : 'inherit' }"
-        title="Nachrichten"
+        :title="t('Nachrichten')"
         @click="router.push({ name: 'messenger' })"
       >
         <MessageCircle class="w-4 h-4" :stroke-width="1.75" />
@@ -190,7 +192,7 @@ function openCatalogPreview() {
             @click="authStore.logout()"
           >
             <LogOut class="w-3.5 h-3.5" :stroke-width="1.75" />
-            Abmelden
+            {{ t('Abmelden') }}
           </button>
         </div>
       </div>
