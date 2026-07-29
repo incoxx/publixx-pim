@@ -302,6 +302,83 @@ class ElementRenderer
     }
 
     /**
+     * Löst zugeordnete Kategorien (Mehrfach-Klassifikation über OutputHierarchyProductAssignment) auf.
+     *
+     * Optional auf eine bestimmte Hierarchie (Klassifikation) eingeschränkt; ohne Angabe
+     * werden alle Zuordnungen über alle Hierarchien zurückgegeben.
+     *
+     * @return list<array{id: string, name: string}>
+     */
+    public function resolveCategoriesValue(Product $product, ?string $hierarchyId = null, string $language = 'de'): array
+    {
+        return $product->outputHierarchyAssignments
+            ->filter(fn ($a) => $a->hierarchyNode && (!$hierarchyId || $a->hierarchyNode->hierarchy_id === $hierarchyId))
+            ->sortBy('sort_order')
+            ->map(fn ($a) => [
+                'id' => $a->hierarchyNode->id,
+                'name' => $a->hierarchyNode->{"name_{$language}"} ?? $a->hierarchyNode->name_de ?? '',
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Zentraler Anzeigewert-Formatter für "spaltenfähige" Elemente (field, attribute,
+     * price, relation, categories) — wird von allen Report-Writern (DOCX/PDF) für
+     * Tabellen-, Listen- und Blockspalten genutzt, damit beide Ausgabeformate identisch
+     * formatieren.
+     */
+    public function resolveColumnValue(Product $product, array $element, string $language = 'de'): string
+    {
+        return match ($element['type'] ?? '') {
+            'field' => $this->resolveFieldValue($product, $element['field'] ?? '', $language),
+            'attribute' => $this->formatAttributeColumn($product, $element, $language),
+            'price' => $this->formatPriceColumn($product, $element),
+            'relation' => $this->formatRelationColumn($product, $element, $language),
+            'categories' => $this->formatCategoriesColumn($product, $element, $language),
+            default => '',
+        };
+    }
+
+    private function formatAttributeColumn(Product $product, array $element, string $language): string
+    {
+        $resolved = $this->resolveAttributeValue($product, $element['attributeId'] ?? '', $language);
+        $parts = [];
+        if (($element['showValue'] ?? true) && $resolved['value']) {
+            $parts[] = $resolved['value'];
+        }
+        if (($element['showUnit'] ?? true) && $resolved['unit']) {
+            $parts[] = $resolved['unit'];
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function formatPriceColumn(Product $product, array $element): string
+    {
+        $resolved = $this->resolvePriceValue($product, $element['priceTypeId'] ?? '');
+        if ($resolved['amount'] === null) {
+            return '';
+        }
+
+        return number_format($resolved['amount'], 2, ',', '.') . ' ' . ($resolved['currency'] ?? 'EUR');
+    }
+
+    private function formatRelationColumn(Product $product, array $element, string $language): string
+    {
+        $items = $this->resolveRelationValue($product, $element['relationTypeId'] ?? '', $language);
+
+        return implode(', ', array_filter(array_map(fn ($i) => $i['name'] ?: $i['sku'], $items)));
+    }
+
+    private function formatCategoriesColumn(Product $product, array $element, string $language): string
+    {
+        $items = $this->resolveCategoriesValue($product, $element['hierarchyId'] ?? null, $language);
+
+        return implode(', ', array_filter(array_map(fn ($i) => $i['name'], $items)));
+    }
+
+    /**
      * Get the grouping value for a product.
      */
     public function resolveGroupValue(Product $product, string $groupField, string $language = 'de'): string
