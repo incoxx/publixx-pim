@@ -4,6 +4,8 @@ import { createI18n } from 'vue-i18n'
 import App from './App.vue'
 import router from './router'
 import './assets/main.css'
+import { productEditorRawText } from './locales/productEditorRawText.js'
+import { rawTextMessageResolver } from './i18n/rawTextMessageResolver.js'
 
 // i18n messages
 const messages = {
@@ -653,12 +655,27 @@ const messages = {
   },
 }
 
+// Rohtext-Uebersetzungen (Compiler-Transform-PoC, siehe vite-plugins/rawTextI18nTransform.js)
+// flach in die bestehenden Sprachbloecke einmischen -- Keys sind komplette
+// deutsche Phrasen, keine Kollision mit den strukturierten nav.*/common.*-Keys zu erwarten.
+Object.assign(messages.de, productEditorRawText.de);
+Object.assign(messages.en, productEditorRawText.en);
+
 const i18n = createI18n({
   legacy: false,
   locale: import.meta.env.VITE_DEFAULT_LOCALE || 'de',
   fallbackLocale: 'en',
+  messageResolver: rawTextMessageResolver,
   messages,
 })
+
+// PoC: ?lang=en zum Testen der Rohtext-Uebersetzung, ohne die gespeicherte
+// Spracheinstellung des Nutzers zu veraendern (bewusst nicht in localStorage
+// persistiert -- reiner Session-Override fuer diesen Aufruf).
+const testLocale = new URLSearchParams(window.location.search).get('lang');
+if (testLocale && Object.prototype.hasOwnProperty.call(messages, testLocale)) {
+  i18n.global.locale.value = testLocale;
+}
 
 const app = createApp(App)
 const pinia = createPinia()
