@@ -14,6 +14,7 @@
 const en = {
   // --- ProductListView.vue ---
   'Geändert': 'Changed',
+  'Weitere Attribute': 'Other Attributes',
   'Erstellt': 'Created',
   'Zur Prüfung': 'In Review',
   'Freigegeben': 'Approved',

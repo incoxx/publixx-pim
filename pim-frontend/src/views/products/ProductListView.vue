@@ -6,6 +6,7 @@ import { useProductStore } from '@/stores/products'
 import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useFilters } from '@/composables/useFilters'
+import { useLocalizedName } from '@/composables/useLocalizedName'
 import { useLocaleStore } from '@/stores/locale'
 import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter, Settings, Package, FolderTree, Trash2, CheckCheck, ArrowRightLeft, LayoutGrid, List, ChevronDown } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
@@ -29,6 +30,7 @@ import MasterHierarchyNodePickerDialog from '@/components/products/MasterHierarc
 import attributeMappingsApi from '@/api/attributeMappings'
 
 const { t } = useI18n()
+const { localizedName } = useLocalizedName()
 const router = useRouter()
 const store = useProductStore()
 const attrStore = useAttributeStore()
@@ -83,7 +85,7 @@ const { search, activeFilters, setSearch, removeFilter, clearFilters } = useFilt
 const defaultColumns = [
   { key: 'sku', label: t('SKU'), sortable: true, mono: true },
   { key: 'name', label: t('Name'), sortable: true },
-  { key: 'product_type.name_de', label: t('Typ') },
+  { key: 'product_type.name_de', label: t('Typ'), render: (row) => row.product_type ? (localizedName(row.product_type) || row.product_type.technical_name) : '—' },
   { key: 'status', label: t('Status'), sortable: true },
   { key: 'updated_at', label: t('Geändert'), sortable: true },
 ]
@@ -93,7 +95,7 @@ const extraColumns = [
   { key: 'ean', label: t('EAN'), mono: true },
   { key: 'workflow_status', label: t('Workflow') },
   { key: 'manufacturer.name', label: t('Hersteller') },
-  { key: 'master_hierarchy_node.name_de', label: t('Hierarchie-Knoten'), sortable: true },
+  { key: 'master_hierarchy_node.name_de', label: t('Hierarchie-Knoten'), sortable: true, render: (row) => row.master_hierarchy_node ? (localizedName(row.master_hierarchy_node) || row.master_hierarchy_node.technical_name) : '—' },
   { key: 'created_at', label: t('Erstellt'), sortable: true },
 ]
 
@@ -103,7 +105,7 @@ const searchableAttributes = ref([])
 const attributeColumns = computed(() =>
   searchableAttributes.value.map(attr => ({
     key: `attributes.${attr.id}`,
-    label: attr.name_de || attr.technical_name,
+    label: localizedName(attr) || attr.technical_name,
     hint: attr.technical_name,
     group: 'Attribute',
   }))
@@ -139,7 +141,7 @@ const statusOptions = [
 ]
 
 const productTypeOptions = computed(() =>
-  attrStore.prodTypes.map(pt => ({ value: pt.id, label: pt.name_de || pt.technical_name }))
+  attrStore.prodTypes.map(pt => ({ value: pt.id, label: localizedName(pt) || pt.technical_name }))
 )
 
 const manufacturerList = ref([])
@@ -181,7 +183,7 @@ function openHierarchyQuickLookupPicker(setValue) {
 }
 
 function onHierarchyQuickLookupSelected(node) {
-  quickLookupHierarchyLabel.value = [node.hierarchy?.name_de, node.name_de].filter(Boolean).join(' / ')
+  quickLookupHierarchyLabel.value = [localizedName(node.hierarchy), localizedName(node)].filter(Boolean).join(' / ')
   hierarchyQuickLookupSetValue?.(node.id)
 }
 
@@ -825,7 +827,7 @@ onBeforeUnmount(() => {
               </span>
             </div>
             <p class="text-xs text-[var(--color-text-primary)] truncate font-medium">{{ row.name || '—' }}</p>
-            <p class="text-[10px] text-[var(--color-text-tertiary)] truncate">{{ row.product_type?.name_de || '' }}</p>
+            <p class="text-[10px] text-[var(--color-text-tertiary)] truncate">{{ localizedName(row.product_type) }}</p>
           </div>
         </div>
       </div>
