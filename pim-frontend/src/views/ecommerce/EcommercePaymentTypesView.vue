@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ecommercePaymentTypes } from '@/api/ecommerce'
-import { CreditCard, Plus, Trash2, Save, X } from 'lucide-vue-next'
+import { CreditCard, Plus, Trash2, Save, X, ChevronLeft } from 'lucide-vue-next'
 
 function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)) }
 
@@ -66,8 +66,13 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="flex h-full overflow-hidden">
-    <aside class="w-64 shrink-0 border-r border-base-300 flex flex-col bg-base-100">
+  <div class="flex flex-col lg:flex-row h-full overflow-hidden">
+    <aside
+      :class="[
+        'w-full lg:w-64 lg:shrink-0 lg:flex-none border-b lg:border-b-0 lg:border-r border-base-300 flex-col bg-base-100 min-h-0',
+        current ? 'hidden lg:flex' : 'flex flex-1',
+      ]"
+    >
       <div class="flex items-center justify-between px-4 py-3 border-b border-base-300">
         <span class="font-semibold text-sm">Zahlungsarten</span>
         <button class="btn btn-xs btn-primary text-white" @click="createNew"><Plus class="w-3.5 h-3.5" /> Neu</button>
@@ -84,15 +89,20 @@ onMounted(load)
       </ul>
     </aside>
 
-    <main class="flex-1 overflow-y-auto p-6">
+    <main :class="['flex-1 overflow-y-auto p-4 lg:p-6 min-h-0', current ? '' : 'hidden lg:block']">
       <div v-if="!current" class="flex flex-col items-center justify-center h-full opacity-40 gap-2">
         <CreditCard class="w-12 h-12" />
         <p class="text-sm">Zahlungsart auswählen oder neu erstellen</p>
       </div>
       <template v-else>
-        <div class="flex items-center justify-between mb-6">
-          <h2 class="text-lg font-semibold">{{ current.id ? current.name_de : 'Neue Zahlungsart' }}</h2>
-          <div class="flex gap-2">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-6">
+          <div class="flex items-center gap-2 min-w-0">
+            <button class="btn btn-sm btn-ghost btn-circle lg:hidden shrink-0" title="Zurück" @click="discard">
+              <ChevronLeft class="w-4 h-4" />
+            </button>
+            <h2 class="text-lg font-semibold truncate">{{ current.id ? current.name_de : 'Neue Zahlungsart' }}</h2>
+          </div>
+          <div class="flex flex-wrap gap-2">
             <button class="btn btn-sm btn-ghost" @click="discard"><X class="w-4 h-4" /></button>
             <button v-if="current.id" class="btn btn-sm btn-error btn-outline" @click="remove"><Trash2 class="w-4 h-4" /></button>
             <button class="btn btn-sm btn-primary text-white" :disabled="saving" @click="save">
@@ -101,7 +111,7 @@ onMounted(load)
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-4 max-w-xl">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
           <div class="form-control col-span-2">
             <label class="label label-text text-xs">Bezeichnung (DE) *</label>
             <input v-model="current.name_de" class="input input-bordered input-sm" :class="{ 'input-error': errors.name_de }" />

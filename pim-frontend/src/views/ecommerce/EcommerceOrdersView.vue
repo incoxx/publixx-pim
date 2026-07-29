@@ -111,9 +111,15 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="flex h-full overflow-hidden">
-    <!-- Linke Liste -->
-    <aside class="w-80 shrink-0 border-r border-base-300 flex flex-col bg-base-100">
+  <div class="flex flex-col lg:flex-row h-full overflow-hidden">
+    <!-- Linke Liste — auf Mobil ausgeblendet, sobald eine Bestellung offen ist
+         (die Detailansicht hat einen Zurück-Button); ab lg zweispaltiges Master-Detail. -->
+    <aside
+      :class="[
+        'w-full lg:w-80 lg:shrink-0 lg:flex-none border-b lg:border-b-0 lg:border-r border-base-300 flex-col bg-base-100 min-h-0',
+        current ? 'hidden lg:flex' : 'flex flex-1',
+      ]"
+    >
       <div class="px-4 py-3 border-b border-base-300">
         <span class="font-semibold text-sm">Bestellungen</span>
         <div class="flex gap-2 mt-2">
@@ -158,19 +164,24 @@ onMounted(load)
     </aside>
 
     <!-- Detailansicht -->
-    <main class="flex-1 overflow-y-auto p-6">
+    <main :class="['flex-1 overflow-y-auto p-4 lg:p-6 min-h-0', current ? '' : 'hidden lg:block']">
       <div v-if="!current" class="flex flex-col items-center justify-center h-full opacity-40 gap-2">
         <Package class="w-12 h-12" />
         <p class="text-sm">Bestellung auswählen</p>
       </div>
 
       <template v-else>
-        <div class="flex items-center justify-between mb-6">
-          <div>
-            <h2 class="text-lg font-semibold font-mono">{{ current.order_number }}</h2>
-            <p class="text-xs opacity-50">{{ formatDate(current.submitted_at) }}</p>
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-6">
+          <div class="flex items-center gap-2 min-w-0">
+            <button class="btn btn-sm btn-ghost btn-circle lg:hidden shrink-0" title="Zurück" @click="close">
+              <ChevronLeft class="w-4 h-4" />
+            </button>
+            <div class="min-w-0">
+              <h2 class="text-lg font-semibold font-mono truncate">{{ current.order_number }}</h2>
+              <p class="text-xs opacity-50">{{ formatDate(current.submitted_at) }}</p>
+            </div>
           </div>
-          <div class="flex gap-2">
+          <div class="flex flex-wrap gap-2">
             <button
               v-if="current.status === 'failed'"
               class="btn btn-sm btn-warning btn-outline"
@@ -183,11 +194,11 @@ onMounted(load)
             <button class="btn btn-sm btn-primary text-white" :disabled="saving" @click="saveStatus">
               {{ saving ? 'Speichert…' : 'Speichern' }}
             </button>
-            <button class="btn btn-sm btn-ghost btn-circle" @click="close"><X class="w-4 h-4" /></button>
+            <button class="btn btn-sm btn-ghost btn-circle hidden lg:inline-flex" @click="close"><X class="w-4 h-4" /></button>
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-6 max-w-3xl">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-3xl">
           <!-- Status & Notizen -->
           <div class="form-control">
             <label class="label label-text text-xs">Status</label>
