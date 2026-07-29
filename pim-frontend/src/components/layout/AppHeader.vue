@@ -17,7 +17,7 @@ const tabStore = useTabStore()
 const route = useRoute()
 const router = useRouter()
 
-const pageTitle = computed(() => route.meta.title || '')
+const pageTitle = computed(() => route.meta.title ? t(route.meta.title) : '')
 const isPinned = computed(() => tabStore.isRoutePinned(route))
 const canPin = computed(() => route.name && route.name !== 'login' && route.name !== 'dashboard')
 

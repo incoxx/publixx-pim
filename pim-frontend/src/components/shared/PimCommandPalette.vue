@@ -46,7 +46,7 @@ const allItems = computed(() => {
     // ── Navigation: Täglich ──
     {
       id: 'nav-dashboard', icon: LayoutDashboard,
-      label: 'Dashboard',
+      label: t('Dashboard'),
       description: t('cmd.desc.dashboard'),
       keywords: ['dashboard', 'startseite', 'übersicht', 'home', 'start', 'statistik', 'overview'],
       section: 'navigation', action: () => router.push('/dashboard'),
@@ -54,24 +54,24 @@ const allItems = computed(() => {
     },
     {
       id: 'nav-cockpit', icon: LayoutDashboard,
-      label: 'Cockpit',
-      description: 'Fokussierter Arbeitsplatz (Single-Page)',
+      label: t('Cockpit'),
+      description: t('cmd.desc.cockpit'),
       keywords: ['cockpit', 'fokus', 'fokus-modus', 'arbeitsplatz', 'startseite', 'übersicht', 'workspace'],
       section: 'navigation', action: () => router.push('/cockpit'),
       permission: 'dashboard.view',
     },
     {
       id: 'nav-cockpit-editor', icon: Settings,
-      label: 'Cockpit-Layouts',
-      description: 'Cockpit-Konfiguration je Rolle',
+      label: t('Cockpit-Layouts'),
+      description: t('cmd.desc.cockpitLayouts'),
       keywords: ['cockpit', 'cockpit konfiguration', 'cockpit-konfiguration', 'layout', 'layouts', 'kacheln', 'widgets', 'rollen', 'konfigurieren', 'einstellungen', 'editor', 'anpassen'],
       section: 'navigation', action: () => router.push('/cockpit-editor'),
       permission: 'cockpit-layouts.view',
     },
     {
       id: 'nav-preview', icon: LayoutGrid,
-      label: 'Katalog-Vorschau',
-      description: 'Öffentliche Katalog-Vorschau',
+      label: t('Katalog-Vorschau'),
+      description: t('cmd.desc.catalogPreview'),
       keywords: ['preview', 'vorschau', 'katalog', 'katalog-vorschau', 'catalog', 'ansehen', 'demo'],
       section: 'navigation', action: () => router.push('/preview'),
       permission: 'preview.view',
@@ -102,7 +102,7 @@ const allItems = computed(() => {
     },
     {
       id: 'nav-watchlist', icon: Star,
-      label: 'Merkliste',
+      label: t('Merkliste'),
       description: t('cmd.desc.watchlist'),
       keywords: ['merkliste', 'watchlist', 'favorit', 'bookmark', 'gemerkt', 'vorgemerkt'],
       section: 'navigation', action: () => router.push('/watchlist'),
@@ -110,7 +110,7 @@ const allItems = computed(() => {
     },
     {
       id: 'nav-workflow', icon: ClipboardList,
-      label: 'Workflow',
+      label: t('Workflow'),
       description: t('cmd.desc.workflow'),
       keywords: ['workflow', 'aufgabe', 'task', 'freigabe', 'approval', 'todo', 'genehmigung'],
       section: 'navigation', action: () => router.push('/workflow'),
@@ -142,7 +142,7 @@ const allItems = computed(() => {
     },
     {
       id: 'nav-reports', icon: FileBarChart,
-      label: 'Berichte',
+      label: t('Berichte'),
       description: t('cmd.desc.reports'),
       keywords: ['bericht', 'report', 'auswertung', 'analyse', 'analysis', 'statistik', 'chart'],
       section: 'navigation', action: () => router.push('/reports'),
@@ -150,7 +150,7 @@ const allItems = computed(() => {
     },
     {
       id: 'nav-pdf-templates', icon: FileText,
-      label: 'PDF-Vorlagen',
+      label: t('PDF-Vorlagen'),
       description: t('cmd.desc.pdfTemplates'),
       keywords: ['pdf', 'vorlage', 'template', 'datenblatt', 'datasheet', 'drucken', 'print'],
       section: 'navigation', action: () => router.push('/pdf-templates'),
@@ -158,14 +158,14 @@ const allItems = computed(() => {
     },
     {
       id: 'nav-catalog-templates', icon: LayoutTemplate,
-      label: 'Katalog-Vorlagen',
+      label: t('Katalog-Vorlagen'),
       description: t('cmd.desc.catalogTemplates'),
       keywords: ['katalog', 'catalog', 'vorlage', 'template', 'layout', 'design'],
       section: 'navigation', action: () => router.push('/catalog-templates'),
     },
     {
       id: 'nav-api-designer', icon: Code,
-      label: 'API-Designer',
+      label: t('API-Designer'),
       description: t('cmd.desc.apiDesigner'),
       keywords: ['api', 'designer', 'endpoint', 'schnittstelle', 'rest', 'json'],
       section: 'navigation', action: () => router.push('/api-designer'),
@@ -173,7 +173,7 @@ const allItems = computed(() => {
     },
     {
       id: 'nav-calendar', icon: CalendarDays,
-      label: 'Planungskalender',
+      label: t('Planungskalender'),
       description: t('cmd.desc.calendar'),
       keywords: ['kalender', 'calendar', 'planung', 'schedule', 'termin', 'datum', 'zeitplan'],
       section: 'navigation', action: () => router.push('/calendar'),
@@ -183,7 +183,7 @@ const allItems = computed(() => {
     // ── Navigation: Projektmanagement ──
     {
       id: 'nav-project-dashboard', icon: LayoutDashboard,
-      label: 'Projekt-Dashboard',
+      label: t('Projekt-Dashboard'),
       description: t('cmd.desc.projectDashboard'),
       keywords: ['projekt', 'project', 'dashboard', 'übersicht', 'fortschritt', 'progress'],
       section: 'navigation', action: () => router.push('/project-dashboard'),
@@ -191,7 +191,7 @@ const allItems = computed(() => {
     },
     {
       id: 'nav-workflows', icon: GitBranch,
-      label: 'Workflows',
+      label: t('Workflows'),
       description: t('cmd.desc.workflows'),
       keywords: ['workflow', 'prozess', 'process', 'regel', 'rule', 'automatisierung', 'automation'],
       section: 'navigation', action: () => router.push('/workflows'),
@@ -199,7 +199,7 @@ const allItems = computed(() => {
     },
     {
       id: 'nav-workflow-statuses', icon: Zap,
-      label: 'Workflow-Status',
+      label: t('Workflow-Status'),
       description: t('cmd.desc.workflowStatuses'),
       keywords: ['workflow', 'status', 'zustand', 'state', 'phase'],
       section: 'navigation', action: () => router.push('/workflow-statuses'),
@@ -207,7 +207,7 @@ const allItems = computed(() => {
     },
     {
       id: 'nav-teams', icon: Users,
-      label: 'Teams',
+      label: t('Teams'),
       description: t('cmd.desc.teams'),
       keywords: ['team', 'gruppe', 'group', 'mitarbeiter', 'member'],
       section: 'navigation', action: () => router.push('/teams'),
@@ -215,7 +215,7 @@ const allItems = computed(() => {
     },
     {
       id: 'nav-projects', icon: FolderTree,
-      label: 'Projekte',
+      label: t('Projekte'),
       description: t('cmd.desc.projects'),
       keywords: ['projekt', 'project', 'vorhaben', 'aufgabe'],
       section: 'navigation', action: () => router.push('/projects'),
@@ -225,48 +225,48 @@ const allItems = computed(() => {
     // ── Plugins & Connectoren ──
     {
       id: 'nav-plugin-settings', icon: Settings,
-      label: 'Plugin-Einstellungen',
-      description: 'Plugins verwalten und konfigurieren',
+      label: t('Plugin-Einstellungen'),
+      description: t('cmd.desc.pluginSettings'),
       keywords: ['plugin', 'einstellung', 'setting', 'erweiterung', 'extension', 'addon'],
       section: 'config', action: () => router.push('/plugin-settings'),
       permission: 'users.view',
     },
     {
       id: 'nav-connector-canva', icon: Send,
-      label: 'Canva',
-      description: 'Canva-Connector für Design-Integration',
+      label: t('Canva'),
+      description: t('cmd.desc.connectorCanva'),
       keywords: ['canva', 'design', 'connector', 'grafik', 'bild'],
       section: 'config', action: () => router.push('/connectors/canva'),
       module: 'connectors',
     },
     {
       id: 'nav-connector-shopware', icon: Package,
-      label: 'Shopware',
-      description: 'Shopware-Connector für Shop-Anbindung',
+      label: t('Shopware'),
+      description: t('cmd.desc.connectorShopware'),
       keywords: ['shopware', 'shop', 'connector', 'ecommerce', 'onlineshop'],
       section: 'config', action: () => router.push('/connectors/shopware'),
       module: 'connectors',
     },
     {
       id: 'nav-connector-cloudinary', icon: Image,
-      label: 'Cloudinary',
-      description: 'Cloudinary-Connector für Medien-CDN',
+      label: t('Cloudinary'),
+      description: t('cmd.desc.connectorCloudinary'),
       keywords: ['cloudinary', 'cdn', 'cloud', 'medien', 'connector', 'bild'],
       section: 'config', action: () => router.push('/connectors/cloudinary'),
       module: 'connectors',
     },
     {
       id: 'nav-connector-claude-ai', icon: Zap,
-      label: 'Claude AI',
-      description: 'Claude AI-Connector für KI-gestützte Textgenerierung',
+      label: t('Claude AI'),
+      description: t('cmd.desc.connectorClaudeAi'),
       keywords: ['claude', 'ai', 'ki', 'anthropic', 'connector', 'text', 'generierung', 'künstliche intelligenz'],
       section: 'config', action: () => router.push('/connectors/claude-ai'),
       module: 'connectors',
     },
     {
       id: 'nav-connector-deepl', icon: Languages,
-      label: 'DeepL Einstellungen',
-      description: 'DeepL-Connector für automatische Übersetzungen',
+      label: t('DeepL Einstellungen'),
+      description: t('cmd.desc.connectorDeepl'),
       keywords: ['deepl', 'übersetzen', 'translate', 'connector', 'sprache', 'automatisch'],
       section: 'config', action: () => router.push('/connectors/deepl'),
       module: 'connectors',
@@ -347,7 +347,7 @@ const allItems = computed(() => {
     },
     {
       id: 'cfg-units', icon: Ruler,
-      label: 'Einheiten',
+      label: t('Einheiten'),
       description: t('cmd.desc.units'),
       keywords: ['einheit', 'unit', 'maß', 'measurement', 'kg', 'mm', 'cm', 'liter', 'meter', 'stück'],
       section: 'config', action: () => router.push('/units'),
@@ -355,8 +355,8 @@ const allItems = computed(() => {
     },
     {
       id: 'cfg-comparison-operators', icon: ArrowRightLeft,
-      label: 'Vergleichsoperatoren',
-      description: 'Vergleichsoperatoren und -gruppen für Produktvergleiche',
+      label: t('Vergleichsoperatoren'),
+      description: t('cmd.desc.comparisonOperators'),
       keywords: ['vergleich', 'comparison', 'operator', 'größer', 'kleiner', 'gleich', 'filter'],
       section: 'config', action: () => router.push('/comparison-operators'),
       permission: 'units.view',
@@ -379,7 +379,7 @@ const allItems = computed(() => {
     },
     {
       id: 'cfg-translations', icon: Languages,
-      label: 'Translation Memory',
+      label: t('Translation Memory'),
       description: t('cmd.desc.translations'),
       keywords: ['übersetzung', 'translation', 'sprache', 'language', 'i18n', 'mehrsprachig', 'multilingual', 'lokalisierung', 'tms', 'memory'],
       section: 'config', action: () => router.push('/translations'),
@@ -387,8 +387,8 @@ const allItems = computed(() => {
     },
     {
       id: 'cfg-translation-jobs', icon: Languages,
-      label: 'Übersetzungsjobs',
-      description: 'Übersetzungsjobs erstellen, verwalten und freigeben',
+      label: t('Übersetzungsjobs'),
+      description: t('cmd.desc.translationJobs'),
       keywords: ['übersetzungsjob', 'translation job', 'deepl', 'übersetzen', 'translate', 'batch'],
       section: 'config', action: () => router.push('/translation-jobs'),
       permission: 'translations.view',
@@ -413,7 +413,7 @@ const allItems = computed(() => {
     },
     {
       id: 'adm-json-export-import', icon: FileJson,
-      label: 'JSON Export/Import',
+      label: t('JSON Export/Import'),
       description: t('cmd.desc.jsonExportImport'),
       keywords: ['json', 'backup', 'sicherung', 'restore', 'wiederherstellen', 'konfiguration', 'config'],
       section: 'admin', action: () => router.push('/json-export-import'),
@@ -421,7 +421,7 @@ const allItems = computed(() => {
     },
     {
       id: 'adm-bmecat', icon: FileCode,
-      label: 'BMEcat Import/Export',
+      label: t('BMEcat Import/Export'),
       description: t('cmd.desc.bmecatExportImport'),
       keywords: ['bmecat', 'bme', 'standard', 'etim', 'eclass', 'klassifikation'],
       section: 'admin', action: () => router.push('/bmecat-import-export'),
@@ -429,15 +429,15 @@ const allItems = computed(() => {
     },
     {
       id: 'adm-excel-designer', icon: FileSpreadsheet,
-      label: 'Sheet Designer',
-      description: 'Excel-Vorlagen und Spaltenzuordnungen gestalten',
+      label: t('Sheet Designer'),
+      description: t('cmd.desc.excelDesigner'),
       keywords: ['excel', 'sheet', 'designer', 'vorlage', 'template', 'spalte', 'column', 'xlsx', 'tabelle'],
       section: 'admin', action: () => router.push('/excel-designer'),
       module: 'excel_designer', permission: 'export.view',
     },
     {
       id: 'adm-export-jobs', icon: PlayCircle,
-      label: 'Export-Jobs',
+      label: t('Export-Jobs'),
       description: t('cmd.desc.exportJobs'),
       keywords: ['export-job', 'export job', 'automatisch', 'automatic', 'zeitgesteuert', 'scheduled', 'cron'],
       section: 'admin', action: () => router.push('/export-jobs'),
@@ -445,15 +445,15 @@ const allItems = computed(() => {
     },
     {
       id: 'adm-attribute-mappings', icon: ArrowRightLeft,
-      label: 'Attribut-Mapping',
-      description: 'Attribut-Zuordnungen zwischen Quell- und Zielschema verwalten',
+      label: t('Attribut-Mapping'),
+      description: t('cmd.desc.attributeMappings'),
       keywords: ['attribut-mapping', 'mapping', 'zuordnung', 'quelle', 'ziel', 'etim', 'eclass', 'transformation'],
       section: 'admin', action: () => router.push('/attribute-mappings'),
       permission: 'attribute-mappings.view',
     },
     {
       id: 'adm-catalog-demo', icon: ExternalLink,
-      label: 'Katalog-Demo',
+      label: t('Katalog-Demo'),
       description: t('cmd.desc.catalogDemo'),
       keywords: ['katalog', 'catalog', 'demo', 'vorschau', 'preview', 'öffentlich', 'public', 'shop'],
       section: 'admin', action: () => { window.open('/catalog-embed', '_blank') },
@@ -476,7 +476,7 @@ const allItems = computed(() => {
     },
     {
       id: 'adm-user-audit', icon: ScrollText,
-      label: 'Benutzer-Audit',
+      label: t('Benutzer-Audit'),
       description: t('cmd.desc.userAudit'),
       keywords: ['audit', 'aktivität', 'activity', 'login', 'protokoll', 'log', 'sicherheit', 'security'],
       section: 'admin', action: () => router.push('/users/audit'),
@@ -484,7 +484,7 @@ const allItems = computed(() => {
     },
     {
       id: 'adm-roles', icon: Shield,
-      label: 'Rollen',
+      label: t('Rollen'),
       description: t('cmd.desc.roles'),
       keywords: ['rolle', 'role', 'berechtigung', 'permission', 'recht', 'right', 'zugriff', 'access'],
       section: 'admin', action: () => router.push('/roles'),
@@ -492,7 +492,7 @@ const allItems = computed(() => {
     },
     {
       id: 'adm-access-links', icon: Link2,
-      label: 'Zugangslinks',
+      label: t('Zugangslinks'),
       description: t('cmd.desc.accessLinks'),
       keywords: ['zugangslink', 'access link', 'einladung', 'invitation', 'extern', 'external', 'teilen', 'share'],
       section: 'admin', action: () => router.push('/access-links'),
@@ -500,7 +500,7 @@ const allItems = computed(() => {
     },
     {
       id: 'adm-api-tester', icon: Zap,
-      label: 'API Tester',
+      label: t('API Tester'),
       description: t('cmd.desc.apiTester'),
       keywords: ['api', 'tester', 'test', 'endpoint', 'request', 'debug'],
       section: 'admin', action: () => router.push('/api-tester'),
@@ -508,15 +508,15 @@ const allItems = computed(() => {
     },
     {
       id: 'adm-test-runner', icon: FlaskConical,
-      label: 'Test anyPIM',
-      description: 'Systemtests und Integrationstests ausführen',
+      label: t('Test anyPIM'),
+      description: t('cmd.desc.testRunner'),
       keywords: ['test', 'testen', 'prüfen', 'check', 'validierung', 'integration', 'unit'],
       section: 'admin', action: () => router.push('/test-runner'),
       permission: 'users.view',
     },
     {
       id: 'adm-database', icon: Database,
-      label: 'Datenbank',
+      label: t('Datenbank'),
       description: t('cmd.desc.database'),
       keywords: ['datenbank', 'database', 'db', 'tabelle', 'table', 'sql', 'schema'],
       section: 'admin', action: () => router.push('/db'),
@@ -524,23 +524,23 @@ const allItems = computed(() => {
     },
     {
       id: 'adm-db-consistency', icon: Shield,
-      label: 'Datenkonsistenz',
-      description: 'Datenbank-Konsistenzprüfungen und Reparaturen',
+      label: t('Datenkonsistenz'),
+      description: t('cmd.desc.dbConsistency'),
       keywords: ['konsistenz', 'consistency', 'prüfung', 'check', 'reparatur', 'repair', 'integrität', 'integrity', 'orphan'],
       section: 'admin', action: () => router.push('/db-consistency'),
       permission: 'users.view',
     },
     {
       id: 'adm-logs', icon: FileText,
-      label: 'Log Viewer',
-      description: 'Anwendungs-Logs und Fehlerprotokolle einsehen',
+      label: t('Log Viewer'),
+      description: t('cmd.desc.logs'),
       keywords: ['log', 'logs', 'fehler', 'error', 'protokoll', 'debug', 'viewer', 'laravel'],
       section: 'admin', action: () => router.push('/logs'),
       permission: 'users.view',
     },
     {
       id: 'adm-journal', icon: ScrollText,
-      label: 'Journal',
+      label: t('Journal'),
       description: t('cmd.desc.journal'),
       keywords: ['journal', 'änderung', 'change', 'protokoll', 'log', 'history', 'historie', 'verlauf'],
       section: 'admin', action: () => router.push('/journal'),
@@ -823,13 +823,13 @@ function escapeHtml(str) {
           <!-- Footer hint -->
           <div class="px-4 py-2 border-t border-[var(--color-border)] flex items-center gap-4 text-[10px] text-[var(--color-text-tertiary)]">
             <span class="flex items-center gap-1">
-              <span class="pim-kbd text-[9px]">↑↓</span> navigieren
+              <span class="pim-kbd text-[9px]">↑↓</span> {{ t('navigieren') }}
             </span>
             <span class="flex items-center gap-1">
-              <span class="pim-kbd text-[9px]">↵</span> öffnen
+              <span class="pim-kbd text-[9px]">↵</span> {{ t('öffnen') }}
             </span>
             <span class="flex items-center gap-1">
-              <span class="pim-kbd text-[9px]">ESC</span> schließen
+              <span class="pim-kbd text-[9px]">ESC</span> {{ t('schließen') }}
             </span>
           </div>
         </div>

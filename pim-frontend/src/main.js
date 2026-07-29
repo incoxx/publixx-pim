@@ -6,6 +6,7 @@ import router from './router'
 import './assets/main.css'
 import { productEditorRawText } from './locales/productEditorRawText.js'
 import { chromeRawText } from './locales/chromeRawText.js'
+import { routeTitlesRawText } from './locales/routeTitlesRawText.js'
 import { rawTextMessageResolver } from './i18n/rawTextMessageResolver.js'
 
 // i18n messages
@@ -177,6 +178,22 @@ const messages = {
       },
       desc: {
         dashboard: 'Übersicht, Statistiken und Schnellzugriff',
+        cockpit: 'Fokussierter Arbeitsplatz (Single-Page)',
+        cockpitLayouts: 'Cockpit-Konfiguration je Rolle',
+        catalogPreview: 'Öffentliche Katalog-Vorschau',
+        pluginSettings: 'Plugins verwalten und konfigurieren',
+        connectorCanva: 'Canva-Connector für Design-Integration',
+        connectorShopware: 'Shopware-Connector für Shop-Anbindung',
+        connectorCloudinary: 'Cloudinary-Connector für Medien-CDN',
+        connectorClaudeAi: 'Claude AI-Connector für KI-gestützte Textgenerierung',
+        connectorDeepl: 'DeepL-Connector für automatische Übersetzungen',
+        comparisonOperators: 'Vergleichsoperatoren und -gruppen für Produktvergleiche',
+        translationJobs: 'Übersetzungsjobs erstellen, verwalten und freigeben',
+        excelDesigner: 'Excel-Vorlagen und Spaltenzuordnungen gestalten',
+        attributeMappings: 'Attribut-Zuordnungen zwischen Quell- und Zielschema verwalten',
+        testRunner: 'Systemtests und Integrationstests ausführen',
+        dbConsistency: 'Datenbank-Konsistenzprüfungen und Reparaturen',
+        logs: 'Anwendungs-Logs und Fehlerprotokolle einsehen',
         quickSearch: 'Schnelle Suche über Produkte, Medien, Hierarchien und Attribute',
         search: 'Erweiterte Produktsuche mit Filtern, Attributen und PQL',
         products: 'Alle Produkte anzeigen, bearbeiten und verwalten',
@@ -500,6 +517,23 @@ const messages = {
       },
       desc: {
         dashboard: 'Overview, statistics and quick access',
+        cockpit: 'Focused single-page workspace',
+        cockpitLayouts: 'Cockpit configuration per role',
+        catalogPreview: 'Public catalog preview',
+        pluginSettings: 'Manage and configure plugins',
+        connectorCanva: 'Canva connector for design integration',
+        connectorShopware: 'Shopware connector for shop integration',
+        connectorCloudinary: 'Cloudinary connector for media CDN',
+        connectorClaudeAi: 'Claude AI connector for AI-powered text generation',
+        connectorDeepl: 'DeepL connector for automatic translation',
+        comparisonOperators: 'Comparison operators and groups for product comparisons',
+        translationJobs: 'Create, manage and approve translation jobs',
+        excelDesigner: 'Design Excel templates and column mappings',
+        attributeMappings: 'Manage attribute mappings between source and target schema',
+        testRunner: 'Run system tests and integration tests',
+        dbConsistency: 'Database consistency checks and repairs',
+        logs: 'View application logs and error protocols',
+        quickSearch: 'Quick search across products, media, hierarchies and attributes',
         search: 'Advanced product search with filters and PQL',
         products: 'View, edit and manage all products',
         watchlist: 'Bookmarked products and personal selection',
@@ -660,8 +694,8 @@ const messages = {
 // Rohtext-Uebersetzungen (Compiler-Transform-PoC, siehe vite-plugins/rawTextI18nTransform.js)
 // flach in die bestehenden Sprachbloecke einmischen -- Keys sind komplette
 // deutsche Phrasen, keine Kollision mit den strukturierten nav.*/common.*-Keys zu erwarten.
-Object.assign(messages.de, productEditorRawText.de, chromeRawText.de);
-Object.assign(messages.en, productEditorRawText.en, chromeRawText.en);
+Object.assign(messages.de, productEditorRawText.de, chromeRawText.de, routeTitlesRawText.de);
+Object.assign(messages.en, productEditorRawText.en, chromeRawText.en, routeTitlesRawText.en);
 
 const i18n = createI18n({
   legacy: false,

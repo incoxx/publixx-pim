@@ -181,11 +181,11 @@ function slotLabel(label) {
           :class="route.fullPath === preset.path
             ? 'bg-white/20 opacity-100'
             : 'bg-white/5 hover:bg-white/15 opacity-80 hover:opacity-100'"
-          :title="preset.label + '\n' + t('(Klick: öffnen · Edit-Icon: ändern)')"
+          :title="t(preset.label) + '\n' + t('(Klick: öffnen · Edit-Icon: ändern)')"
           @click="navigateTo(preset)"
         >
           <span class="text-[9px] opacity-50 shrink-0 font-mono">P{{ idx + 1 }}</span>
-          <span class="truncate">{{ slotLabel(preset.label) }}</span>
+          <span class="truncate">{{ slotLabel(t(preset.label)) }}</span>
         </button>
 
         <!-- Leerer Slot -->
@@ -226,7 +226,7 @@ function slotLabel(label) {
           >
             <Plus class="w-3 h-3 shrink-0" :stroke-width="2" />
             {{ t('Aktuelle Seite zuweisen') }}
-            <span class="ml-auto text-[10px] text-[var(--color-text-tertiary)] truncate max-w-[6rem]">{{ slotLabel(route.meta?.title || route.path) }}</span>
+            <span class="ml-auto text-[10px] text-[var(--color-text-tertiary)] truncate max-w-[6rem]">{{ slotLabel(route.meta?.title ? t(route.meta.title) : route.path) }}</span>
           </button>
           <button
             v-if="preset"

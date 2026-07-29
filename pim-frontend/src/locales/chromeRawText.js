@@ -104,6 +104,12 @@ const en = {
 
   'Alle Menüs schließen': 'Close all menus',
 
+  // --- PimCommandPalette.vue ("Wo ist was?", Toolbar) ---
+  'Katalog-Vorschau': 'Catalog Preview',
+  'navigieren': 'navigate',
+  'öffnen': 'open',
+  'schließen': 'close',
+
   // --- AppHeader.vue (Toolbar) ---
   'Cockpit / Fokus-Modus': 'Cockpit / focus mode',
   'Cockpit': 'Cockpit',
