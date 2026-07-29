@@ -1,10 +1,12 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import hierarchiesApi from '@/api/hierarchies'
 import attributesApi from '@/api/attributes'
 import PimForm from '@/components/shared/PimForm.vue'
+import { useLocalizedName } from '@/composables/useLocalizedName'
 import { Plus, Trash2, Search, ChevronUp, ChevronDown, Tag } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -12,6 +14,8 @@ const props = defineProps({
   onSaved: { type: Function, default: null },
 })
 
+const { t } = useI18n()
+const { localizedName } = useLocalizedName()
 const authStore = useAuthStore()
 const loading = ref(false)
 const errors = ref({})
@@ -31,11 +35,11 @@ const formData = ref(
 )
 
 const fields = computed(() => [
-  { key: 'technical_name', label: 'Technischer Name', type: 'text', required: true, disabled: isEdit.value },
-  { key: 'name_de', label: 'Name (DE)', type: 'text', required: true },
-  { key: 'name_en', label: 'Name (EN)', type: 'text' },
+  { key: 'technical_name', label: t('Technischer Name'), type: 'text', required: true, disabled: isEdit.value },
+  { key: 'name_de', label: t('Name (DE)'), type: 'text', required: true },
+  { key: 'name_en', label: t('Name (EN)'), type: 'text' },
   {
-    key: 'hierarchy_type', label: 'Typ', type: 'select', required: true,
+    key: 'hierarchy_type', label: t('Typ'), type: 'select', required: true,
     disabled: isEdit.value,
     options: [
       { value: 'master', label: 'Master' },
@@ -43,7 +47,7 @@ const fields = computed(() => [
       { value: 'asset', label: 'Asset' },
     ],
   },
-  { key: 'description', label: 'Beschreibung', type: 'textarea' },
+  { key: 'description', label: t('Beschreibung'), type: 'textarea' },
 ])
 
 async function handleSubmit(data) {
@@ -70,9 +74,9 @@ async function handleSubmit(data) {
         errors.value._general = e.response.data.title
       }
     } else if (e.response?.status === 403) {
-      errors.value._general = 'Keine Berechtigung für diese Aktion.'
+      errors.value._general = t('Keine Berechtigung für diese Aktion.')
     } else {
-      errors.value._general = e.response?.data?.title || 'Ein Fehler ist aufgetreten.'
+      errors.value._general = e.response?.data?.title || t('Ein Fehler ist aufgetreten.')
     }
   } finally {
     loading.value = false
@@ -140,6 +144,9 @@ async function removeAttribute(assignment) {
 }
 
 const scopeLabels = { node: 'Knoten', relationship: 'Beziehung', both: 'Beide' }
+function scopeLabel(scope) {
+  return t(scopeLabels[scope || 'node'])
+}
 
 async function toggleScope(assignment) {
   const order = ['node', 'relationship', 'both']
@@ -199,7 +206,7 @@ onMounted(() => {
 <template>
   <div class="p-4">
     <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-4">
-      {{ isEdit ? 'Hierarchie bearbeiten' : 'Neue Hierarchie' }}
+      {{ isEdit ? t('Hierarchie bearbeiten') : t('Neue Hierarchie') }}
     </h3>
     <p v-if="errors._general" class="mb-3 text-[12px] text-[var(--color-error)] bg-[var(--color-error-light)] px-3 py-2 rounded-lg">
       {{ errors._general }}
@@ -247,7 +254,7 @@ onMounted(() => {
               @click="assignAttribute(attr)"
             >
               <div class="flex items-center gap-2 min-w-0">
-                <span class="text-xs font-medium truncate">{{ attr.name_de || attr.technical_name }}</span>
+                <span class="text-xs font-medium truncate">{{ localizedName(attr) || attr.technical_name }}</span>
                 <span v-if="attr.name_de && attr.technical_name" class="text-[10px] text-[var(--color-text-tertiary)] font-mono truncate">{{ attr.technical_name }}</span>
               </div>
               <span class="text-[10px] text-[var(--color-text-tertiary)] shrink-0 ml-2">{{ attr.data_type }}</span>
@@ -309,7 +316,7 @@ onMounted(() => {
                 </button>
               </div>
               <div class="flex items-center gap-2 min-w-0 flex-1 ml-1">
-                <span class="text-xs font-medium truncate">{{ assignment.attribute?.name_de || assignment.attribute?.technical_name || '—' }}</span>
+                <span class="text-xs font-medium truncate">{{ localizedName(assignment.attribute) || assignment.attribute?.technical_name || '—' }}</span>
                 <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ assignment.attribute?.data_type }}</span>
               </div>
               <div class="flex items-center gap-1.5 shrink-0">
@@ -332,9 +339,9 @@ onMounted(() => {
                     'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300': assignment.scope === 'both',
                   }"
                   @click="toggleScope(assignment)"
-                  :title="'Scope: ' + scopeLabels[assignment.scope || 'node'] + ' (klicken zum Wechseln)'"
+                  :title="t('Scope: {scope} (klicken zum Wechseln)', { scope: scopeLabel(assignment.scope) })"
                 >
-                  {{ scopeLabels[assignment.scope || 'node'] }}
+                  {{ scopeLabel(assignment.scope) }}
                 </button>
                 <button
                   class="p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all"
@@ -346,7 +353,7 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          <p class="text-[11px] text-[var(--color-text-tertiary)] mt-1">{{ assignedAttrs.length }} Attribute zugeordnet</p>
+          <p class="text-[11px] text-[var(--color-text-tertiary)] mt-1">{{ t('{count} Attribute zugeordnet', { count: assignedAttrs.length }) }}</p>
         </template>
         <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Attribute zugeordnet.</p>
       </div>

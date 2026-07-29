@@ -853,7 +853,7 @@ onBeforeUnmount(() => {
       :sortOrder="store.sort.order"
       selectable
       :showActions="authStore.hasPermission('products.delete')"
-      emptyText="Keine Produkte gefunden"
+      :empty-text="t('Keine Produkte gefunden')"
       :quickLookup="showQuickLookup"
       :quickLookupConfig="quickLookupConfig"
       @sort="handleSort"
@@ -862,14 +862,14 @@ onBeforeUnmount(() => {
       @select="handleSelect"
       @quick-lookup-change="onQuickLookupChange"
     >
-      <template #quicklookup-master_hierarchy_node.name_de="{ value, setValue }">
+      <template v-slot:[`quicklookup-master_hierarchy_node.name_de`]="{ value, setValue }">
         <div class="flex items-center gap-1">
           <button
             type="button"
             class="pim-input text-xs flex-1 py-1 px-2 text-left truncate"
             @click="openHierarchyQuickLookupPicker(setValue)"
           >
-            {{ quickLookupHierarchyLabel || 'Knoten wählen…' }}
+            {{ quickLookupHierarchyLabel || t('Knoten wählen…') }}
           </button>
           <button
             v-if="value"

@@ -384,6 +384,16 @@ const en = {
   'Team:': 'Team:',
   'Geschlossen:': 'Closed:',
   'Pflichtfelder nicht ausgefüllt': 'Required fields not filled',
+
+  // --- emptyText/empty-text-Bug: camelCase-Attribute wurden vom Compiler-
+  // Transform nicht erfasst (nur 'empty-text' in TRANSLATABLE_ATTRIBUTES),
+  // daher als :empty-text-Bindings nachtraeglich uebersetzt.
+  'Keine Varianten vorhanden': 'No variants available',
+  'Keine Preise vorhanden': 'No prices available',
+  'Keine Beziehungen': 'No relations',
+  'Keine Preise': 'No prices',
+  'Keine Varianten': 'No variants',
+  '{label}: Produkt {index} von {total}': '{label}: Product {index} of {total}',
 };
 
 // de = Identitaet (Originaltext = Key = Anzeige). Kein Uebersetzungsaufwand

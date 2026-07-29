@@ -1,7 +1,12 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { X, Search, ArrowRightLeft, Loader2, Check, AlertTriangle } from 'lucide-vue-next'
 import hierarchiesApi from '@/api/hierarchies'
+import { useLocalizedName } from '@/composables/useLocalizedName'
+
+const { t } = useI18n()
+const { localizedName } = useLocalizedName()
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -46,7 +51,7 @@ async function loadTree() {
     const tree = data.data || data
     flatNodes.value = flattenTree(tree)
   } catch (e) {
-    error.value = 'Hierarchie konnte nicht geladen werden'
+    error.value = t('Hierarchie konnte nicht geladen werden')
   } finally {
     loadingTree.value = false
   }
@@ -75,7 +80,7 @@ const filteredNodes = computed(() => {
 async function selectNode(node) {
   if (node.id === props.sourceNodeId) return
   selectedNodeId.value = node.id
-  selectedNodeLabel.value = node.name_de || node.name_en || node.id
+  selectedNodeLabel.value = localizedName(node) || node.id
   attributeWarning.value = ''
 
   // Attribut-Check nur bei Master-Hierarchie
@@ -92,7 +97,7 @@ async function selectNode(node) {
       // Attribute die am Quellknoten sind, aber nicht am Zielknoten
       const missingAtTarget = [...sourceIds].filter(id => !targetIds.has(id))
       if (missingAtTarget.length > 0) {
-        attributeWarning.value = `Der Zielknoten hat ${missingAtTarget.length} Attribut(e) weniger zugeordnet. Einige Attributwerte könnten nach dem Verschieben nicht mehr sichtbar sein.`
+        attributeWarning.value = t('Der Zielknoten hat {count} Attribut(e) weniger zugeordnet. Einige Attributwerte könnten nach dem Verschieben nicht mehr sichtbar sein.', { count: missingAtTarget.length })
       }
     } catch (e) { console.warn('Attribut-Check fehlgeschlagen:', e.message) }
     finally { checkingAttributes.value = false }
@@ -102,7 +107,7 @@ async function selectNode(node) {
 async function move() {
   if (!selectedNodeId.value || props.productIds.length === 0) return
   if (!props.isMasterHierarchy && props.sourceAssignmentIds.length === 0) {
-    error.value = 'Keine Zuordnungen zum Verschieben gefunden.'
+    error.value = t('Keine Zuordnungen zum Verschieben gefunden.')
     return
   }
   moving.value = true
@@ -126,11 +131,11 @@ async function move() {
         console.warn(`${deleteErrors.length} alte Zuordnungen konnten nicht entfernt werden`)
       }
     }
-    success.value = `${props.productIds.length} Produkt(e) verschoben.`
+    success.value = t('{count} Produkt(e) verschoben.', { count: props.productIds.length })
     emit('moved')
     setTimeout(() => close(), 1200)
   } catch (e) {
-    error.value = e.response?.data?.message || 'Verschieben fehlgeschlagen'
+    error.value = e.response?.data?.message || t('Verschieben fehlgeschlagen')
   } finally {
     moving.value = false
   }
@@ -152,7 +157,7 @@ function close() {
           <div class="flex items-center justify-between px-5 py-3.5 border-b border-[var(--color-border)]">
             <div>
               <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Produkte verschieben</h3>
-              <p class="text-xs text-[var(--color-text-tertiary)] mt-0.5">{{ productIds.length }} Produkt{{ productIds.length !== 1 ? 'e' : '' }} in anderen Knoten verschieben</p>
+              <p class="text-xs text-[var(--color-text-tertiary)] mt-0.5">{{ productIds.length === 1 ? t('{count} Produkt in anderen Knoten verschieben', { count: productIds.length }) : t('{count} Produkte in anderen Knoten verschieben', { count: productIds.length }) }}</p>
             </div>
             <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)]" @click="close">
               <X class="w-4 h-4" :stroke-width="2" />
@@ -195,7 +200,7 @@ function close() {
                 :style="{ paddingLeft: (node._depth * 16 + 8) + 'px' }"
                 @click="selectNode(node)"
               >
-                <span class="truncate">{{ node.name_de || node.name_en || node.id }}</span>
+                <span class="truncate">{{ localizedName(node) || node.id }}</span>
                 <span v-if="node.id === sourceNodeId" class="text-[10px] text-[var(--color-text-tertiary)]">(aktuell)</span>
                 <span v-if="node.product_count" class="text-[10px] text-[var(--color-text-tertiary)] ml-auto shrink-0">{{ node.product_count }}</span>
               </div>
@@ -218,7 +223,7 @@ function close() {
               >
                 <Loader2 v-if="moving" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
                 <ArrowRightLeft v-else class="w-3.5 h-3.5" :stroke-width="2" />
-                {{ moving ? 'Verschiebe...' : 'Verschieben' }}
+                {{ moving ? t('Verschiebe...') : t('Verschieben') }}
               </button>
             </div>
           </div>

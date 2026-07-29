@@ -1,13 +1,17 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { X, Search, FolderTree, Loader2, Check } from 'lucide-vue-next'
 import hierarchiesApi from '@/api/hierarchies'
+import { useLocalizedName } from '@/composables/useLocalizedName'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
   productIds: { type: Array, default: () => [] },
 })
 
+const { t } = useI18n()
+const { localizedName } = useLocalizedName()
 const emit = defineEmits(['update:open', 'assigned'])
 
 const hierarchies = ref([])
@@ -54,7 +58,7 @@ async function loadHierarchies() {
     const { data } = await hierarchiesApi.list({ perPage: 100 })
     hierarchies.value = data.data || data || []
   } catch {
-    error.value = 'Hierarchien konnten nicht geladen werden'
+    error.value = t('Hierarchien konnten nicht geladen werden')
   } finally {
     loading.value = false
   }
@@ -81,7 +85,7 @@ async function loadTree(hierarchyId) {
     expandedNodes.value = new Set(raw.map(n => n.id))
     flatNodes.value = flattenTree(raw)
   } catch {
-    error.value = 'Baum konnte nicht geladen werden'
+    error.value = t('Baum konnte nicht geladen werden')
   } finally {
     loadingTree.value = false
   }
@@ -139,7 +143,7 @@ const visibleNodes = computed(() => {
 
 function selectNode(node) {
   selectedNodeId.value = node.id
-  selectedNodeLabel.value = node.name_de || node.name_en || node.technical_name || node.id
+  selectedNodeLabel.value = localizedName(node) || node.technical_name || node.id
 }
 
 function hasChildren(node) {
@@ -160,11 +164,11 @@ async function assign() {
       const res = await hierarchiesApi.bulkAssignOutputProducts(selectedNodeId.value, props.productIds)
       data = res.data
     }
-    success.value = data.message || `${props.productIds.length} Produkt(e) zugeordnet.`
+    success.value = data.message || t('{count} Produkt(e) zugeordnet.', { count: props.productIds.length })
     emit('assigned')
     setTimeout(() => close(), 1500)
   } catch (e) {
-    error.value = e.response?.data?.message || 'Zuordnung fehlgeschlagen'
+    error.value = e.response?.data?.message || t('Zuordnung fehlgeschlagen')
   } finally {
     assigning.value = false
   }
@@ -192,7 +196,7 @@ function close() {
           <div class="flex items-center justify-between px-5 py-3.5 border-b border-[var(--color-border)]">
             <div>
               <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Hierarchie-Knoten zuordnen</h3>
-              <p class="text-xs text-[var(--color-text-tertiary)] mt-0.5">{{ productIds.length }} Produkt{{ productIds.length !== 1 ? 'e' : '' }} ausgewählt</p>
+              <p class="text-xs text-[var(--color-text-tertiary)] mt-0.5">{{ productIds.length === 1 ? t('{count} Produkt ausgewählt', { count: productIds.length }) : t('{count} Produkte ausgewählt', { count: productIds.length }) }}</p>
             </div>
             <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)]" @click="close">
               <X class="w-4 h-4" :stroke-width="2" />
@@ -213,8 +217,8 @@ function close() {
               <select v-model="selectedHierarchyId" class="pim-input text-sm w-full">
                 <option value="">— Hierarchie wählen —</option>
                 <option v-for="h in hierarchies" :key="h.id" :value="h.id">
-                  {{ h.name_de || h.technical_name }}
-                  ({{ h.hierarchy_type === 'master' ? 'Master' : 'Ausgabe' }})
+                  {{ localizedName(h) || h.technical_name }}
+                  ({{ h.hierarchy_type === 'master' ? t('Master') : t('Ausgabe') }})
                 </option>
               </select>
             </div>
@@ -261,7 +265,7 @@ function close() {
                     </span>
                     <span v-else class="w-4 shrink-0" />
                     <FolderTree class="w-3.5 h-3.5 shrink-0 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
-                    <span class="truncate">{{ node.name_de || node.name_en || node.technical_name }}</span>
+                    <span class="truncate">{{ localizedName(node) || node.technical_name }}</span>
                     <span v-if="node.products_count != null" class="text-[10px] text-[var(--color-text-tertiary)] ml-auto shrink-0">
                       {{ node.products_count }}
                     </span>
@@ -273,7 +277,7 @@ function close() {
               <div v-if="selectedNodeLabel" class="text-xs text-[var(--color-text-secondary)] flex items-center gap-1">
                 <Check class="w-3.5 h-3.5 text-[var(--color-accent)]" />
                 <strong>{{ selectedNodeLabel }}</strong>
-                <span class="text-[var(--color-text-tertiary)]">({{ isMaster ? 'Master' : 'Ausgabe' }})</span>
+                <span class="text-[var(--color-text-tertiary)]">({{ isMaster ? t('Master') : t('Ausgabe') }})</span>
               </div>
             </template>
           </div>
@@ -288,7 +292,7 @@ function close() {
             >
               <Loader2 v-if="assigning" class="w-3.5 h-3.5 animate-spin" />
               <FolderTree v-else class="w-3.5 h-3.5" :stroke-width="1.75" />
-              {{ assigning ? 'Zuordnen...' : 'Zuordnen' }}
+              {{ assigning ? t('Zuordnen...') : t('Zuordnen') }}
             </button>
           </div>
         </div>

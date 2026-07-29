@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Plus, Search, Trash2, ArrowRightLeft, FolderTree, X, ListFilter, Package } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
@@ -8,6 +9,8 @@ import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierar
 import MoveProductsToNodeDialog from '@/components/dialogs/MoveProductsToNodeDialog.vue'
 import productsApi from '@/api/products'
 import hierarchiesApi from '@/api/hierarchies'
+
+const { t } = useI18n()
 
 const props = defineProps({
   nodeId: { type: String, required: true },
@@ -68,9 +71,9 @@ watch(() => props.nodeId, (id) => {
 const pimTableRef = ref(null)
 
 const columns = [
-  { key: 'sku', label: 'SKU', sortable: true, mono: true },
-  { key: 'name', label: 'Name', sortable: true },
-  { key: 'status', label: 'Status', sortable: true },
+  { key: 'sku', label: t('SKU'), sortable: true, mono: true },
+  { key: 'name', label: t('Name'), sortable: true },
+  { key: 'status', label: t('Status'), sortable: true },
 ]
 
 // ─── Quick Lookup ───────────────────────────────────
@@ -78,15 +81,15 @@ const showQuickLookup = ref(false)
 const quickLookupFilters = ref({})
 
 const quickLookupConfig = computed(() => ({
-  sku: { type: 'text', placeholder: 'SKU...' },
-  name: { type: 'text', placeholder: 'Name...' },
+  sku: { type: 'text', placeholder: t('SKU...') },
+  name: { type: 'text', placeholder: t('Name...') },
   status: {
     type: 'select',
     options: [
-      { value: 'active', label: 'Aktiv' },
-      { value: 'draft', label: 'Entwurf' },
-      { value: 'inactive', label: 'Inaktiv' },
-      { value: 'discontinued', label: 'Ausgelaufen' },
+      { value: 'active', label: t('Aktiv') },
+      { value: 'draft', label: t('Entwurf') },
+      { value: 'inactive', label: t('Inaktiv') },
+      { value: 'discontinued', label: t('Ausgelaufen') },
     ],
   },
 }))
@@ -156,9 +159,9 @@ async function assignProductToNode(product) {
     productSearchQuery.value = ''
     productSearchResults.value = []
     await loadNodeProducts(props.nodeId)
-    emit('feedback', 'Produkt zugeordnet')
+    emit('feedback', t('Produkt zugeordnet'))
   } catch (e) {
-    emit('feedback', e.response?.data?.message || 'Fehler beim Zuordnen', 'error')
+    emit('feedback', e.response?.data?.message || t('Fehler beim Zuordnen'), 'error')
   }
 }
 
@@ -173,9 +176,9 @@ async function executeDelete() {
     await hierarchiesApi.removeOutputProductAssignment(deleteTarget.value._assignmentId)
     deleteTarget.value = null
     await loadNodeProducts(props.nodeId)
-    emit('feedback', 'Zuordnung entfernt')
+    emit('feedback', t('Zuordnung entfernt'))
   } catch (e) {
-    emit('feedback', e.response?.data?.message || 'Fehler beim Entfernen', 'error')
+    emit('feedback', e.response?.data?.message || t('Fehler beim Entfernen'), 'error')
   } finally {
     deleting.value = false
   }
@@ -198,7 +201,7 @@ async function onProductsMoved() {
   selectedProductIds.value = []
   if (pimTableRef.value?.clearSelection) pimTableRef.value.clearSelection()
   await loadNodeProducts(props.nodeId)
-  emit('feedback', 'Produkte verschoben')
+  emit('feedback', t('Produkte verschoben'))
 }
 
 // ─── Output Hierarchie zuordnen ─────────────────────
@@ -208,7 +211,7 @@ async function onBulkAssigned() {
   showAssignOutputHierarchy.value = false
   selectedProductIds.value = []
   if (pimTableRef.value?.clearSelection) pimTableRef.value.clearSelection()
-  emit('feedback', 'Produkte zugeordnet')
+  emit('feedback', t('Produkte zugeordnet'))
 }
 
 // Initialer Ladeaufruf — erst hier, NACH allen const-Deklarationen (TDZ vermeiden)
@@ -294,7 +297,7 @@ onMounted(() => loadNodeProducts(props.nodeId))
       :showActions="hasEditPermission && !isMasterHierarchy"
       :quickLookup="showQuickLookup"
       :quickLookupConfig="quickLookupConfig"
-      emptyText="Keine Produkte zugeordnet"
+      :empty-text="t('Keine Produkte zugeordnet')"
       @select="onProductsSelected"
       @row-click="(row) => router.push(`/products/${row.id}`)"
       @quick-lookup-change="onQuickLookupChange"
@@ -322,7 +325,7 @@ onMounted(() => loadNodeProducts(props.nodeId))
     <PimDeleteConfirmDialog
       :open="!!deleteTarget"
       title="Zuordnung entfernen?"
-      :message="`Produkt '${deleteTarget?.sku || ''}' (${deleteTarget?.name || ''}) wird aus diesem Knoten entfernt.`"
+      :message="t('Produkt \'{sku}\' ({name}) wird aus diesem Knoten entfernt.', { sku: deleteTarget?.sku || '', name: deleteTarget?.name || '' })"
       :loading="deleting"
       entityType="output-hierarchy-product-assignments"
       :entityId="deleteTarget?._assignmentId"

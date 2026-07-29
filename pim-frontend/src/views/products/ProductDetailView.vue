@@ -3585,7 +3585,7 @@ onUnmounted(() => {
       <div
         v-if="hasRecordNav"
         class="flex items-center gap-0.5 px-1 py-1 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] shrink-0"
-        :title="`${recordNavigatorStore.label}: Produkt ${recordNavIndex + 1} von ${recordNavTotal}`"
+        :title="t('{label}: Produkt {index} von {total}', { label: t(recordNavigatorStore.label), index: recordNavIndex + 1, total: recordNavTotal })"
       >
         <button
           class="pim-btn pim-btn-ghost p-1 disabled:opacity-30"
@@ -4758,7 +4758,7 @@ onUnmounted(() => {
         :columns="variantColumns"
         :rows="variantRows"
         :loading="variantsLoading"
-        emptyText="Keine Varianten vorhanden"
+        :empty-text="t('Keine Varianten vorhanden')"
         @row-click="(row) => router.push(`/products/${row.id}`)"
         @row-action="(row) => variantDeleteTarget = row"
       >
@@ -5246,7 +5246,7 @@ onUnmounted(() => {
         :loading="pricesLoading"
         :quick-lookup="prices.length > 5"
         :quick-lookup-config="priceQuickLookupConfig"
-        emptyText="Keine Preise vorhanden"
+        :empty-text="t('Keine Preise vorhanden')"
         @row-click="openPriceForm"
         @row-action="(row) => priceDeleteTarget = row"
         @quick-lookup-change="priceQuickLookup = $event"
@@ -6373,7 +6373,7 @@ onUnmounted(() => {
                 { key: 'sort_order', label: t('Reihenfolge') },
               ]"
               :rows="previewData.relations"
-              emptyText="Keine Beziehungen"
+              :empty-text="t('Keine Beziehungen')"
             />
           </div>
         </PimCollectionGroup>
@@ -6397,7 +6397,7 @@ onUnmounted(() => {
                 { key: 'country', label: t('Land') },
               ]"
               :rows="previewData.prices"
-              emptyText="Keine Preise"
+              :empty-text="t('Keine Preise')"
             >
               <template #cell-amount="{ value }">
                 <span class="font-mono">{{ value ? Number(value).toFixed(2) : '—' }}</span>
@@ -6448,7 +6448,7 @@ onUnmounted(() => {
             <PimTable
               :columns="previewVariantColumns"
               :rows="previewVariantRows"
-              emptyText="Keine Varianten"
+              :empty-text="t('Keine Varianten')"
             >
               <template #cell-status="{ value }">
                 <span :class="['pim-badge', value === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]']">

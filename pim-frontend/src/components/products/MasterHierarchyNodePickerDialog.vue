@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { X, Search, FolderTree, Loader2, Check } from 'lucide-vue-next'
 import hierarchiesApi from '@/api/hierarchies'
+import { useLocalizedName } from '@/composables/useLocalizedName'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -9,6 +11,8 @@ const props = defineProps({
   currentHierarchyId: { type: String, default: null },
 })
 
+const { t } = useI18n()
+const { localizedName } = useLocalizedName()
 const emit = defineEmits(['update:open', 'select'])
 
 const hierarchies = ref([])
@@ -51,7 +55,7 @@ async function loadHierarchies() {
     const { data } = await hierarchiesApi.list({ perPage: 100 })
     hierarchies.value = data.data || data || []
   } catch {
-    error.value = 'Hierarchien konnten nicht geladen werden'
+    error.value = t('Hierarchien konnten nicht geladen werden')
   } finally {
     loading.value = false
   }
@@ -92,7 +96,7 @@ async function loadTree(hierarchyId) {
     }
     flatNodes.value = flattenTree(raw)
   } catch {
-    error.value = 'Baum konnte nicht geladen werden'
+    error.value = t('Baum konnte nicht geladen werden')
   } finally {
     loadingTree.value = false
   }
@@ -179,7 +183,7 @@ function close() {
               <select v-model="selectedHierarchyId" class="pim-input text-sm w-full">
                 <option value="">— Hierarchie wählen —</option>
                 <option v-for="h in hierarchies" :key="h.id" :value="h.id">
-                  {{ h.name_de || h.technical_name }}
+                  {{ localizedName(h) || h.technical_name }}
                 </option>
               </select>
             </div>
@@ -227,14 +231,14 @@ function close() {
                     </span>
                     <span v-else class="w-4 shrink-0" />
                     <FolderTree class="w-3.5 h-3.5 shrink-0 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
-                    <span class="truncate">{{ node.name_de || node.name_en || node.technical_name }}</span>
+                    <span class="truncate">{{ localizedName(node) || node.technical_name }}</span>
                   </button>
                 </div>
               </div>
 
               <div v-if="selectedNode" class="text-xs text-[var(--color-text-secondary)] flex items-center gap-1">
                 <Check class="w-3.5 h-3.5 text-[var(--color-accent)]" />
-                <strong>{{ selectedNode.name_de || selectedNode.name_en || selectedNode.id }}</strong>
+                <strong>{{ localizedName(selectedNode) || selectedNode.id }}</strong>
               </div>
             </template>
           </div>

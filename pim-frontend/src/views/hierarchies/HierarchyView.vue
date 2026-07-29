@@ -14,6 +14,7 @@ import attributesApi from '@/api/attributes'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import PimTree from '@/components/shared/PimTree.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
+import { useLocalizedName } from '@/composables/useLocalizedName'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import HierarchyFormPanel from '@/components/panels/HierarchyFormPanel.vue'
 import HierarchyNodeFormPanel from '@/components/panels/HierarchyNodeFormPanel.vue'
@@ -26,6 +27,7 @@ const VueDraggable = defineAsyncComponent(() =>
 )
 
 const { t } = useI18n()
+const { localizedName } = useLocalizedName()
 const router = useRouter()
 const _route = useRoute()
 const store = useHierarchyStore()
@@ -110,9 +112,9 @@ async function onMediaSelected(media, usageTypeId) {
     })
     showMediaPicker.value = false
     await loadNodeMedia(store.selectedNode.id)
-    showFeedback('Medium zugeordnet')
+    showFeedback(t('Medium zugeordnet'))
   } catch (e) {
-    showFeedback(e.response?.data?.message || 'Fehler beim Zuordnen', 'error')
+    showFeedback(e.response?.data?.message || t('Fehler beim Zuordnen'), 'error')
   }
 }
 
@@ -127,9 +129,9 @@ async function onMediaSelectedBulk(mediaItems) {
     }
     showMediaPicker.value = false
     await loadNodeMedia(store.selectedNode.id)
-    showFeedback(`${mediaItems.length} Medien zugeordnet`)
+    showFeedback(t('{count} Medien zugeordnet', { count: mediaItems.length }))
   } catch (e) {
-    showFeedback(e.response?.data?.message || 'Fehler beim Zuordnen', 'error')
+    showFeedback(e.response?.data?.message || t('Fehler beim Zuordnen'), 'error')
     await loadNodeMedia(store.selectedNode.id)
   }
 }
@@ -139,9 +141,9 @@ async function detachNodeMedia(item) {
   try {
     await hierarchiesApi.removeNodeMedia(item.id)
     nodeMediaItems.value = nodeMediaItems.value.filter(m => m.id !== item.id)
-    showFeedback('Zuordnung entfernt')
+    showFeedback(t('Zuordnung entfernt'))
   } catch (e) {
-    showFeedback(e.response?.data?.message || 'Fehler beim Entfernen', 'error')
+    showFeedback(e.response?.data?.message || t('Fehler beim Entfernen'), 'error')
   }
 }
 
@@ -226,7 +228,7 @@ function searchNodes() {
           const ancestorIds = ids.slice(0, -1)
           const labels = ancestorIds.map(id => {
             const n = findNodeInTree(store.tree, id)
-            return n ? (n.name_de || n.name || '') : ''
+            return n ? (localizedName(n) || n.name || '') : ''
           }).filter(Boolean)
           result.breadcrumb = labels.length > 0 ? labels.join(' › ') : null
         }
@@ -331,9 +333,9 @@ async function handleMove(sourceId, targetId) {
     if (selectedHierarchyId.value) {
       await store.fetchTree(selectedHierarchyId.value)
     }
-    showFeedback('Knoten verschoben')
+    showFeedback(t('Knoten verschoben'))
   } catch (e) {
-    showFeedback(e.response?.data?.title || 'Fehler beim Verschieben', 'error')
+    showFeedback(e.response?.data?.title || t('Fehler beim Verschieben'), 'error')
   }
 }
 
@@ -371,7 +373,7 @@ function openCreateHierarchy() {
     onSaved: async (newHierarchy) => {
       await store.fetchHierarchies()
       if (newHierarchy?.id) await selectHierarchy(newHierarchy.id)
-      showFeedback('Hierarchie erstellt')
+      showFeedback(t('Hierarchie erstellt'))
     },
   })
 }
@@ -383,7 +385,7 @@ function openEditHierarchy() {
     onSaved: async () => {
       await store.fetchHierarchies()
       if (selectedHierarchyId.value) await store.fetchTree(selectedHierarchyId.value)
-      showFeedback('Hierarchie aktualisiert')
+      showFeedback(t('Hierarchie aktualisiert'))
     },
   })
 }
@@ -391,7 +393,7 @@ function openEditHierarchy() {
 function requestDeleteHierarchy() {
   if (!store.currentHierarchy) return
   if (store.currentHierarchy.hierarchy_type === 'master') {
-    showFeedback('Die Master-Hierarchie kann nicht gelöscht werden.', 'error')
+    showFeedback(t('Die Master-Hierarchie kann nicht gelöscht werden.'), 'error')
     return
   }
   deleteHierarchyTarget.value = store.currentHierarchy
@@ -410,9 +412,9 @@ async function confirmDeleteHierarchy({ force } = {}) {
       selectedHierarchyId.value = null
       store.tree.splice(0)
     }
-    showFeedback('Hierarchie gelöscht')
+    showFeedback(t('Hierarchie gelöscht'))
   } catch (e) {
-    showFeedback(e.response?.data?.title || 'Fehler beim Löschen der Hierarchie', 'error')
+    showFeedback(e.response?.data?.title || t('Fehler beim Löschen der Hierarchie'), 'error')
   } finally {
     hierarchyDeleting.value = false
   }
@@ -452,9 +454,9 @@ async function confirmDeleteNode({ force } = {}) {
     }
     deleteNodeTarget.value = null
     await store.fetchTree(selectedHierarchyId.value)
-    showFeedback('Knoten gelöscht')
+    showFeedback(t('Knoten gelöscht'))
   } catch (e) {
-    showFeedback(e.response?.data?.title || 'Fehler beim Löschen', 'error')
+    showFeedback(e.response?.data?.title || t('Fehler beim Löschen'), 'error')
   } finally {
     nodeDeleting.value = false
   }
@@ -466,9 +468,9 @@ async function duplicateNode(node) {
   try {
     await store.duplicateNode(node.id)
     await store.fetchTree(selectedHierarchyId.value)
-    showFeedback('Knoten dupliziert')
+    showFeedback(t('Knoten dupliziert'))
   } catch (e) {
-    showFeedback(e.response?.data?.title || 'Fehler beim Duplizieren', 'error')
+    showFeedback(e.response?.data?.title || t('Fehler beim Duplizieren'), 'error')
   }
 }
 
@@ -494,9 +496,9 @@ async function moveNodeUp(node) {
   try {
     await store.updateNode(node.id, { sort_order: (siblings[idx - 1].sort_order ?? idx - 1) - 1 })
     await store.fetchTree(selectedHierarchyId.value)
-    showFeedback('Knoten nach oben verschoben')
+    showFeedback(t('Knoten nach oben verschoben'))
   } catch (e) {
-    showFeedback('Fehler beim Verschieben', 'error')
+    showFeedback(t('Fehler beim Verschieben'), 'error')
   }
 }
 
@@ -508,9 +510,9 @@ async function moveNodeDown(node) {
   try {
     await store.updateNode(node.id, { sort_order: (siblings[idx + 1].sort_order ?? idx + 1) + 1 })
     await store.fetchTree(selectedHierarchyId.value)
-    showFeedback('Knoten nach unten verschoben')
+    showFeedback(t('Knoten nach unten verschoben'))
   } catch (e) {
-    showFeedback('Fehler beim Verschieben', 'error')
+    showFeedback(t('Fehler beim Verschieben'), 'error')
   }
 }
 
@@ -537,9 +539,9 @@ async function assignAttribute(attr) {
     await loadNodeAttributes(store.selectedNode.id)
     // Refresh picker to exclude newly assigned attribute
     await fetchPickerAttributes(attrPickerMeta.value.current_page)
-    showFeedback('Attribut zugeordnet')
+    showFeedback(t('Attribut zugeordnet'))
   } catch (e) {
-    showFeedback(e.response?.data?.title || 'Fehler beim Zuordnen', 'error')
+    showFeedback(e.response?.data?.title || t('Fehler beim Zuordnen'), 'error')
   }
 }
 
@@ -548,7 +550,7 @@ async function removeNodeAttribute(assignment) {
     await hierarchiesApi.removeNodeAttributeAssignment(assignment.id)
     await loadNodeAttributes(store.selectedNode.id)
   } catch (e) {
-    showFeedback(e.response?.data?.title || 'Fehler beim Entfernen', 'error')
+    showFeedback(e.response?.data?.title || t('Fehler beim Entfernen'), 'error')
   }
 }
 
@@ -560,7 +562,7 @@ async function toggleNodeFacet(assignment) {
     await hierarchiesApi.updateNodeAttributeAssignment(assignment.id, { is_facet: nextValue })
     assignment.is_facet = nextValue
   } catch (e) {
-    showFeedback(e.response?.data?.title || 'Fehler beim Umschalten der Facette', 'error')
+    showFeedback(e.response?.data?.title || t('Fehler beim Umschalten der Facette'), 'error')
   }
 }
 
@@ -589,7 +591,7 @@ async function persistAttributeOrder() {
     }))
     await hierarchiesApi.bulkSortAssignments({ items })
   } catch (e) {
-    showFeedback('Fehler beim Speichern der Reihenfolge', 'error')
+    showFeedback(t('Fehler beim Speichern der Reihenfolge'), 'error')
     if (store.selectedNode) await loadNodeAttributes(store.selectedNode.id)
   }
 }
@@ -600,7 +602,7 @@ async function toggleRequired(assignment) {
     await hierarchiesApi.updateNodeAttributeAssignment(assignment.id, { is_required: newValue })
     assignment.is_required = newValue
   } catch (e) {
-    showFeedback('Fehler beim Aktualisieren', 'error')
+    showFeedback(t('Fehler beim Aktualisieren'), 'error')
   }
 }
 
@@ -653,13 +655,13 @@ async function saveNodeAttrValues() {
       values.push(entry)
     }
     if (values.length === 0) {
-      showFeedback('Keine Werte zum Speichern')
+      showFeedback(t('Keine Werte zum Speichern'))
       return
     }
     await hierarchiesApi.updateNodeAttributeValues(store.selectedNode.id, values)
-    showFeedback('Attributwerte gespeichert')
+    showFeedback(t('Attributwerte gespeichert'))
   } catch (e) {
-    showFeedback(e.response?.data?.title || 'Fehler beim Speichern', 'error')
+    showFeedback(e.response?.data?.title || t('Fehler beim Speichern'), 'error')
   } finally {
     nodeAttrValuesSaving.value = false
   }
@@ -832,14 +834,14 @@ async function saveHierarchyAttrValues() {
       values.push(entry)
     }
     if (values.length === 0) {
-      showFeedback('Keine Werte zum Speichern')
+      showFeedback(t('Keine Werte zum Speichern'))
       hierarchyAttrSaving.value = false
       return
     }
     await hierarchiesApi.updateNodeAttributeValues(store.selectedNode.id, values)
-    showFeedback('Hierarchie-Attributwerte gespeichert')
+    showFeedback(t('Hierarchie-Attributwerte gespeichert'))
   } catch (e) {
-    showFeedback(e.response?.data?.title || 'Fehler beim Speichern', 'error')
+    showFeedback(e.response?.data?.title || t('Fehler beim Speichern'), 'error')
   } finally {
     hierarchyAttrSaving.value = false
   }
@@ -908,7 +910,7 @@ onMounted(async () => {
           @change="selectHierarchy($event.target.value)"
         >
           <option v-for="h in store.hierarchies" :key="h.id" :value="h.id">
-            {{ h.name_de || h.name }} ({{ h.hierarchy_type }})
+            {{ localizedName(h) || h.name }} ({{ h.hierarchy_type }})
           </option>
         </select>
         <button v-if="authStore.hasPermission('hierarchies.edit')" class="pim-btn pim-btn-ghost p-1 shrink-0" title="Hierarchie bearbeiten" @click="openEditHierarchy">
@@ -918,7 +920,7 @@ onMounted(async () => {
           v-if="authStore.hasPermission('hierarchies.delete')"
           class="pim-btn pim-btn-ghost p-1 shrink-0"
           :class="store.currentHierarchy?.hierarchy_type === 'master' ? 'opacity-30 cursor-not-allowed' : 'text-[var(--color-error)]'"
-          :title="store.currentHierarchy?.hierarchy_type === 'master' ? 'Master-Hierarchie kann nicht gelöscht werden' : 'Hierarchie löschen'"
+          :title="store.currentHierarchy?.hierarchy_type === 'master' ? t('Master-Hierarchie kann nicht gelöscht werden') : t('Hierarchie löschen')"
           @click="requestDeleteHierarchy"
         >
           <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" />
@@ -953,7 +955,7 @@ onMounted(async () => {
             class="px-3 py-2 text-xs cursor-pointer hover:bg-[var(--color-bg)] border-b border-[var(--color-border)] last:border-b-0"
             @click="navigateToNode(result)"
           >
-            <div class="font-medium text-[var(--color-text-primary)]">{{ result.name_de || result.name }}</div>
+            <div class="font-medium text-[var(--color-text-primary)]">{{ localizedName(result) || result.name }}</div>
             <div v-if="result.breadcrumb" class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5 truncate">{{ result.breadcrumb }}</div>
           </div>
         </div>
@@ -1034,7 +1036,7 @@ onMounted(async () => {
       <div v-if="store.selectedNode" class="p-6 space-y-4">
         <div class="flex items-center justify-between">
           <h3 class="text-base font-semibold text-[var(--color-text-primary)]">
-            {{ store.selectedNode.name_de || store.selectedNode.name }}
+            {{ localizedName(store.selectedNode) || store.selectedNode.name }}
           </h3>
           <div v-if="authStore.hasPermission('hierarchy-nodes.edit')" class="flex items-center gap-1">
             <button v-if="authStore.hasPermission('hierarchy-nodes.create')" class="pim-btn pim-btn-ghost p-1.5" title="Unterknoten erstellen" @click="createChildNode(store.selectedNode)">
@@ -1139,7 +1141,7 @@ onMounted(async () => {
                     <X class="w-3 h-3" :stroke-width="2" />
                   </button>
                 </div>
-                <span v-if="m.usage_type" class="text-[9px] text-[var(--color-text-tertiary)]">{{ m.usage_type?.name_de || '' }}</span>
+                <span v-if="m.usage_type" class="text-[9px] text-[var(--color-text-tertiary)]">{{ localizedName(m.usage_type) || '' }}</span>
               </div>
             </div>
           </div>
@@ -1156,13 +1158,13 @@ onMounted(async () => {
               @click="saveHierarchyAttrValues"
             >
               <Save class="w-3 h-3" :stroke-width="2" />
-              {{ hierarchyAttrSaving ? 'Speichern…' : 'Speichern' }}
+              {{ hierarchyAttrSaving ? t('Speichern…') : t('Speichern') }}
             </button>
           </div>
           <div class="space-y-3">
             <div v-for="attr in hierarchyLevelAttrs" :key="attr.id">
               <label class="block text-[12px] text-[var(--color-text-secondary)] mb-1">
-                {{ attr.name_de || attr.technical_name }}
+                {{ localizedName(attr) || attr.technical_name }}
                 <span class="text-[10px] text-[var(--color-text-tertiary)] ml-1">{{ attr.data_type }}</span>
               </label>
               <PimAttributeInput
@@ -1209,7 +1211,7 @@ onMounted(async () => {
                 @click="assignAttribute(attr)"
               >
                 <div class="flex items-center gap-2 min-w-0">
-                  <span class="text-xs font-medium truncate">{{ attr.name_de || attr.technical_name }}</span>
+                  <span class="text-xs font-medium truncate">{{ localizedName(attr) || attr.technical_name }}</span>
                   <span v-if="attr.name_de && attr.technical_name" class="text-[10px] text-[var(--color-text-tertiary)] font-mono truncate">{{ attr.technical_name }}</span>
                 </div>
                 <span class="text-[10px] text-[var(--color-text-tertiary)] shrink-0 ml-2">{{ attr.data_type }}</span>
@@ -1286,14 +1288,14 @@ onMounted(async () => {
                     v-else
                     class="text-[10px] text-[var(--color-text-tertiary)] font-mono w-5 text-center rounded px-0.5"
                     :class="!assignment.is_inherited ? 'cursor-pointer hover:bg-[var(--color-surface)]' : ''"
-                    :title="!assignment.is_inherited ? 'Klick = Nummer ändern' : ''"
+                    :title="!assignment.is_inherited ? t('Klick = Nummer ändern') : ''"
                     @click="!assignment.is_inherited && startEditSort(assignment, idx)"
                   >{{ idx + 1 }}</span>
-                  <span class="text-xs font-medium">{{ assignment.attribute?.name_de || assignment.attribute?.technical_name || '—' }}</span>
+                  <span class="text-xs font-medium">{{ localizedName(assignment.attribute) || assignment.attribute?.technical_name || '—' }}</span>
                   <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ assignment.attribute?.data_type }}</span>
                   <span v-if="assignment.collection_name" class="text-[10px] bg-[var(--color-surface)] text-[var(--color-text-secondary)] px-1.5 py-0.5 rounded">{{ assignment.collection_name }}</span>
-                  <span v-if="assignment.is_inherited" class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium" :title="assignment.inherited_from_node_name ? ('Vererbt von: ' + assignment.inherited_from_node_name) : 'Vererbt vom übergeordneten Knoten'">
-                    vererbt{{ assignment.inherited_from_node_name ? (' von ' + assignment.inherited_from_node_name) : '' }}
+                  <span v-if="assignment.is_inherited" class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium" :title="assignment.inherited_from_node_name ? t('Vererbt von: {name}', { name: assignment.inherited_from_node_name }) : t('Vererbt vom übergeordneten Knoten')">
+                    {{ assignment.inherited_from_node_name ? t('vererbt von {name}', { name: assignment.inherited_from_node_name }) : t('vererbt') }}
                   </span>
                   <span v-if="assignment.attribute?.data_type === 'Composite'" class="text-[10px] text-[var(--color-accent)]">
                     ({{ nodeAttributes.filter(a => a.attribute?.parent_attribute_id === (assignment.attribute?.id || assignment.attribute_id)).length }} Felder)
@@ -1372,21 +1374,21 @@ onMounted(async () => {
               @click="saveNodeAttrValues"
             >
               <Save class="w-3 h-3" :stroke-width="2" />
-              {{ nodeAttrValuesSaving ? 'Speichern…' : 'Speichern' }}
+              {{ nodeAttrValuesSaving ? t('Speichern…') : t('Speichern') }}
             </button>
           </div>
           <div class="space-y-3">
             <template v-for="assignment in filteredNodeAttributes" :key="'val-' + assignment.id">
               <div v-if="assignment.attribute?.data_type !== 'Composite' && assignment.access_hierarchy === 'editable'">
                 <label class="block text-[12px] text-[var(--color-text-secondary)] mb-1">
-                  {{ assignment.attribute?.name_de || assignment.attribute?.technical_name }}
+                  {{ localizedName(assignment.attribute) || assignment.attribute?.technical_name }}
                   <span class="text-[10px] text-[var(--color-text-tertiary)] ml-1">{{ assignment.attribute?.data_type }}</span>
                 </label>
                 <PimAttributeInput
                   :type="mapDataTypeToInput(assignment.attribute?.data_type)"
                   :modelValue="nodeAttrValues[assignment.attribute?.id] ?? null"
                   @update:modelValue="nodeAttrValues[assignment.attribute?.id] = $event"
-                  :options="(assignment.attribute?.value_list?.entries || []).map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code }))"
+                  :options="(assignment.attribute?.value_list?.entries || []).map(e => ({ value: e.id, label: localizedName(e, 'display_value') || e.code }))"
                   :disabled="!authStore.hasPermission('hierarchies.edit')"
                   size="sm"
                 />
@@ -1406,7 +1408,7 @@ onMounted(async () => {
     <PimDeleteConfirmDialog
       :open="!!deleteNodeTarget"
       title="Knoten löschen?"
-      :message="`Der Knoten '${deleteNodeTarget?.name_de || ''}' und alle Unterknoten werden unwiderruflich gelöscht.`"
+      :message="t('Der Knoten \'{name}\' und alle Unterknoten werden unwiderruflich gelöscht.', { name: localizedName(deleteNodeTarget) || '' })"
       :loading="nodeDeleting"
       entityType="hierarchy-nodes"
       :entityId="deleteNodeTarget?.id"
@@ -1418,7 +1420,7 @@ onMounted(async () => {
     <PimDeleteConfirmDialog
       :open="!!deleteHierarchyTarget"
       title="Hierarchie löschen?"
-      :message="`Die Hierarchie '${deleteHierarchyTarget?.name_de || ''}' und alle zugehörigen Knoten werden unwiderruflich gelöscht.`"
+      :message="t('Die Hierarchie \'{name}\' und alle zugehörigen Knoten werden unwiderruflich gelöscht.', { name: localizedName(deleteHierarchyTarget) || '' })"
       :loading="hierarchyDeleting"
       entityType="hierarchies"
       :entityId="deleteHierarchyTarget?.id"
