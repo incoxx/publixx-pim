@@ -1,6 +1,9 @@
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Package, GitBranch, Sliders, Image, TrendingUp, TrendingDown } from 'lucide-vue-next'
+
+const { t } = useI18n()
 
 const props = defineProps({
   stats: { type: Object, default: null },
@@ -44,9 +47,9 @@ function getTrend(trendKey) {
       </div>
       <div class="flex-1 min-w-0">
         <p class="text-2xl font-semibold">{{ stats?.[card.key] ?? '--' }}</p>
-        <p class="text-xs text-[var(--color-text-tertiary)]">{{ card.label }}</p>
+        <p class="text-xs text-[var(--color-text-tertiary)]">{{ t(card.label) }}</p>
         <p v-if="card.sub && stats" class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">
-          {{ stats[card.sub] ?? 0 }} {{ card.subLabel }}
+          {{ stats[card.sub] ?? 0 }} {{ t(card.subLabel) }}
         </p>
         <!-- Trend-Zeile -->
         <div v-if="getTrend(card.trendKey)" class="flex items-center gap-2 mt-1.5">

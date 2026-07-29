@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Plus, Upload, FileBarChart, Globe } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 
@@ -8,14 +9,15 @@ const props = defineProps({
   welcome: { type: Object, default: null },
 })
 
+const { t } = useI18n()
 const router = useRouter()
 const authStore = useAuthStore()
 
 const greeting = computed(() => {
   const hour = new Date().getHours()
-  if (hour < 12) return 'Guten Morgen'
-  if (hour < 18) return 'Guten Tag'
-  return 'Guten Abend'
+  if (hour < 12) return t('Guten Morgen')
+  if (hour < 18) return t('Guten Tag')
+  return t('Guten Abend')
 })
 
 const userName = computed(() => {
@@ -30,10 +32,10 @@ const contextLine = computed(() => {
   if (!props.welcome) return ''
   const parts = []
   if (props.welcome.open_tasks_count > 0) {
-    parts.push(`${props.welcome.open_tasks_count} offene Aufgaben`)
+    parts.push(t('{count} offene Aufgaben', { count: props.welcome.open_tasks_count }))
   }
   if (props.welcome.weekly_edits > 0) {
-    parts.push(`${props.welcome.weekly_edits} Produkte bearbeitet diese Woche`)
+    parts.push(t('{count} Produkte bearbeitet diese Woche', { count: props.welcome.weekly_edits }))
   }
   return parts.join(' \u00b7 ')
 })
@@ -65,7 +67,7 @@ const quickActions = [
           @click="router.push(action.route)"
         >
           <component :is="action.icon" class="w-3.5 h-3.5" :style="{ color: action.color }" :stroke-width="2" />
-          <span>{{ action.label }}</span>
+          <span>{{ t(action.label) }}</span>
         </button>
       </div>
     </div>

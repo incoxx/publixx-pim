@@ -1,7 +1,11 @@
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { CalendarDays } from 'lucide-vue-next'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
+
+const { t, locale } = useI18n()
+const numberLocale = computed(() => (locale.value === 'de' ? 'de-DE' : 'en-US'))
 
 const props = defineProps({
   projects: { type: Array, default: () => [] },
@@ -76,13 +80,13 @@ const monthMarkers = computed(() => {
   current.setDate(1)
   current.setMonth(current.getMonth() + 1)
 
-  const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
+  const monthFormatter = new Intl.DateTimeFormat(numberLocale.value, { month: 'short' })
 
   while (current <= range.max) {
     const leftPct = ((current - range.min) / (range.max - range.min)) * 100
     if (leftPct >= 0 && leftPct <= 100) {
       markers.push({
-        label: monthNames[current.getMonth()] + ' ' + current.getFullYear(),
+        label: monthFormatter.format(current) + ' ' + current.getFullYear(),
         left: leftPct + '%',
       })
     }
@@ -108,7 +112,7 @@ function daysRemaining(endDate) {
         <div class="flex items-center gap-4 mb-4">
           <div v-for="(label, key) in statusLabels" :key="key" class="flex items-center gap-1.5">
             <span class="w-2.5 h-2.5 rounded-sm" :style="{ backgroundColor: statusColors[key] }" />
-            <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ label }}</span>
+            <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ t(label) }}</span>
           </div>
         </div>
 
@@ -140,7 +144,7 @@ function daysRemaining(endDate) {
               <div
                 class="absolute top-1 bottom-1 rounded-sm transition-all opacity-85 hover:opacity-100 cursor-default"
                 :style="barStyle(project)"
-                :title="`${project.name}: ${project.start_date} – ${project.end_date} (${project.products_count} Produkte)`"
+                :title="`${project.name}: ${project.start_date} – ${project.end_date} ` + t('({count} Produkte)', { count: project.products_count })"
               />
             </div>
             <!-- Days remaining -->
@@ -154,7 +158,7 @@ function daysRemaining(endDate) {
                   'text-[var(--color-text-tertiary)]'
                 ]"
               >
-                {{ daysRemaining(project.end_date) > 0 ? daysRemaining(project.end_date) + 'd' : 'Überfällig' }}
+                {{ daysRemaining(project.end_date) > 0 ? t('{count}d', { count: daysRemaining(project.end_date) }) : t('Überfällig') }}
               </span>
             </div>
           </div>

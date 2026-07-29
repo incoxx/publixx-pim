@@ -1,6 +1,9 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { Activity } from 'lucide-vue-next'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
+
+const { t } = useI18n()
 
 defineProps({
   items: { type: Array, default: () => [] },
@@ -36,11 +39,11 @@ function relativeTime(timestamp) {
   const date = new Date(timestamp)
   const diff = Math.floor((now - date) / 1000)
 
-  if (diff < 60) return 'gerade eben'
-  if (diff < 3600) return `vor ${Math.floor(diff / 60)} Min.`
-  if (diff < 86400) return `vor ${Math.floor(diff / 3600)} Std.`
-  if (diff < 172800) return 'gestern'
-  return `vor ${Math.floor(diff / 86400)} Tagen`
+  if (diff < 60) return t('gerade eben')
+  if (diff < 3600) return t('vor {count} Min.', { count: Math.floor(diff / 60) })
+  if (diff < 86400) return t('vor {count} Std.', { count: Math.floor(diff / 3600) })
+  if (diff < 172800) return t('gestern')
+  return t('vor {count} Tagen', { count: Math.floor(diff / 86400) })
 }
 </script>
 

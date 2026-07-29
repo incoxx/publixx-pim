@@ -1,9 +1,12 @@
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Doughnut } from 'vue-chartjs'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import { GitBranch } from 'lucide-vue-next'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
+
+const { t } = useI18n()
 
 ChartJS.register(ArcElement, Tooltip, Legend)
 
@@ -23,9 +26,9 @@ const items = computed(() => {
   }
   // Legacy fallback
   return [
-    { label: 'Bearbeitung', count: props.summary.editing || 0, color: '#3b82f6' },
+    { label: t('Bearbeitung'), count: props.summary.editing || 0, color: '#3b82f6' },
     { label: 'Review', count: props.summary.review || 0, color: '#f59e0b' },
-    { label: 'Freigegeben', count: props.summary.approved || 0, color: '#22c55e' },
+    { label: t('Freigegeben'), count: props.summary.approved || 0, color: '#22c55e' },
   ]
 })
 

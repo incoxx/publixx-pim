@@ -1,11 +1,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Star, ExternalLink, Download, FileSpreadsheet, FileText, FileArchive } from 'lucide-vue-next'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
 import watchlistApi from '@/api/watchlist'
 import { triggerDownload } from '@/utils/download'
 
+const { t } = useI18n()
 const router = useRouter()
 const items = ref([])
 const loading = ref(false)
@@ -57,11 +59,11 @@ function relativeTime(timestamp) {
   const now = new Date()
   const date = new Date(timestamp)
   const diff = Math.floor((now - date) / 1000)
-  if (diff < 60) return 'gerade'
-  if (diff < 3600) return `vor ${Math.floor(diff / 60)} Min.`
-  if (diff < 86400) return `vor ${Math.floor(diff / 3600)} Std.`
-  if (diff < 172800) return 'gestern'
-  return `vor ${Math.floor(diff / 86400)} T.`
+  if (diff < 60) return t('gerade')
+  if (diff < 3600) return t('vor {count} Min.', { count: Math.floor(diff / 60) })
+  if (diff < 86400) return t('vor {count} Std.', { count: Math.floor(diff / 3600) })
+  if (diff < 172800) return t('gestern')
+  return t('vor {count} T.', { count: Math.floor(diff / 86400) })
 }
 </script>
 
@@ -89,7 +91,7 @@ function relativeTime(timestamp) {
           <Star class="w-3.5 h-3.5 text-amber-500 shrink-0 fill-amber-500" :stroke-width="1.5" />
           <div class="flex-1 min-w-0">
             <p class="text-xs text-[var(--color-text-primary)] truncate">
-              {{ item.product?.name || item.product_name || 'Produkt' }}
+              {{ item.product?.name || item.product_name || t('Produkt') }}
             </p>
             <p class="text-[10px] text-[var(--color-text-tertiary)]">
               {{ item.product?.sku || item.product_sku || '' }}
@@ -139,7 +141,7 @@ function relativeTime(timestamp) {
           class="text-xs text-[var(--color-accent)] hover:underline flex items-center gap-1"
           @click="router.push({ name: 'watchlist' })"
         >
-          Alle {{ totalCount }} anzeigen
+          {{ t('Alle {count} anzeigen', { count: totalCount }) }}
           <ExternalLink class="w-3 h-3" :stroke-width="2" />
         </button>
       </div>

@@ -1,7 +1,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { X } from 'lucide-vue-next'
 import searchProfilesApi from '@/api/searchProfiles'
+
+const { t } = useI18n()
 
 const props = defineProps({
   config: { type: Object, default: () => ({}) },
@@ -73,7 +76,7 @@ const isEditing = !!props.config.search_profile_id
       <!-- Header -->
       <div class="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
         <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
-          {{ isEditing ? 'Profilkarte bearbeiten' : 'Neue Profilkarte' }}
+          {{ isEditing ? t('Profilkarte bearbeiten') : t('Neue Profilkarte') }}
         </h3>
         <button @click="emit('cancel')" class="p-1 rounded hover:bg-[var(--color-bg)]">
           <X class="w-4 h-4 text-[var(--color-text-tertiary)]" :stroke-width="2" />
@@ -91,7 +94,7 @@ const isEditing = !!props.config.search_profile_id
           >
             <option value="" disabled>Suchprofil wählen...</option>
             <option v-for="p in profiles" :key="p.id" :value="p.id">
-              {{ p.name }}{{ p.is_shared ? ' (geteilt)' : '' }}
+              {{ p.name }}{{ p.is_shared ? ` ${t('(geteilt)')}` : '' }}
             </option>
           </select>
           <p v-if="loadingProfiles" class="text-[10px] text-[var(--color-text-tertiary)] mt-1">Laden...</p>
@@ -110,7 +113,7 @@ const isEditing = !!props.config.search_profile_id
                 : 'border-[var(--color-border)] text-[var(--color-text-tertiary)] hover:border-[var(--color-accent)]'"
               @click="form.chart_type = ct.value"
             >
-              {{ ct.label }}
+              {{ t(ct.label) }}
             </button>
           </div>
         </div>
@@ -122,7 +125,7 @@ const isEditing = !!props.config.search_profile_id
             v-model="form.metric"
             class="w-full text-sm px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
           >
-            <option v-for="m in metrics" :key="m.value" :value="m.value">{{ m.label }}</option>
+            <option v-for="m in metrics" :key="m.value" :value="m.value">{{ t(m.label) }}</option>
           </select>
         </div>
 
@@ -136,7 +139,7 @@ const isEditing = !!props.config.search_profile_id
               class="w-7 h-7 rounded-full border-2 transition-all"
               :style="{ background: c.value }"
               :class="form.color === c.value ? 'border-[var(--color-text-primary)] scale-110' : 'border-transparent'"
-              :title="c.label"
+              :title="t(c.label)"
               @click="form.color = c.value"
             />
           </div>

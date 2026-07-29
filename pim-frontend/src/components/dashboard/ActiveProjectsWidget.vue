@@ -1,10 +1,12 @@
 <script setup>
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps({
   projects: { type: Array, default: () => [] },
 })
 
+const { t } = useI18n()
 const router = useRouter()
 
 const statusLabels = {
@@ -47,7 +49,7 @@ function daysRemaining(endDate) {
           <div class="flex items-center gap-2">
             <span class="text-xs font-medium text-[var(--color-text-primary)] truncate">{{ project.name }}</span>
             <span :class="['px-1.5 py-0.5 rounded text-[10px] font-medium', statusColors[project.status] || '']">
-              {{ statusLabels[project.status] || project.status }}
+              {{ statusLabels[project.status] ? t(statusLabels[project.status]) : project.status }}
             </span>
           </div>
           <div class="flex items-center gap-3 mt-0.5">
@@ -56,8 +58,8 @@ function daysRemaining(endDate) {
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ project.teams_count }} Teams</span>
-          <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ project.products_count }} Produkte</span>
+          <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ t('{count} Teams', { count: project.teams_count }) }}</span>
+          <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ t('{count} Produkte', { count: project.products_count }) }}</span>
           <span
             v-if="daysRemaining(project.end_date) !== null"
             :class="[
@@ -67,7 +69,7 @@ function daysRemaining(endDate) {
               'text-green-600 bg-green-50'
             ]"
           >
-            {{ daysRemaining(project.end_date) > 0 ? daysRemaining(project.end_date) + ' Tage' : 'Überfällig' }}
+            {{ daysRemaining(project.end_date) > 0 ? t('{count} Tage', { count: daysRemaining(project.end_date) }) : t('Überfällig') }}
           </span>
         </div>
       </div>

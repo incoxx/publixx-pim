@@ -1,9 +1,13 @@
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Doughnut } from 'vue-chartjs'
 import { Chart as ChartJS, ArcElement, Tooltip } from 'chart.js'
 
 ChartJS.register(ArcElement, Tooltip)
+
+const { t, locale } = useI18n()
+const numberLocale = computed(() => (locale.value === 'de' ? 'de-DE' : 'en-US'))
 
 const props = defineProps({
   value: { type: Number, required: true },
@@ -25,7 +29,7 @@ const chartData = computed(() => {
   const val = Math.min(props.value, props.max)
   const remaining = props.max - val
   return {
-    labels: [props.label || 'Wert', 'Verbleibend'],
+    labels: [props.label || t('Wert'), t('Verbleibend')],
     datasets: [{
       data: [val, remaining],
       backgroundColor: [displayColor.value, '#e5e7eb'],
@@ -51,7 +55,7 @@ const chartOptions = {
 
 const displayValue = computed(() => {
   if (props.max === 100) return `${props.value}%`
-  return props.value.toLocaleString('de-DE')
+  return props.value.toLocaleString(numberLocale.value)
 })
 </script>
 
