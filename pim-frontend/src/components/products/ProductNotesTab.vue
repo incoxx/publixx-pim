@@ -139,12 +139,12 @@ function timeAgo(dateStr) {
   if (!dateStr) return ''
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'gerade eben'
-  if (mins < 60) return `vor ${mins}m`
+  if (mins < 1) return t('gerade eben')
+  if (mins < 60) return t('vor {count}m', { count: mins })
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `vor ${hrs}h`
+  if (hrs < 24) return t('vor {count}h', { count: hrs })
   const days = Math.floor(hrs / 24)
-  return `vor ${days}d`
+  return t('vor {count}d', { count: days })
 }
 
 onMounted(fetchNotes)

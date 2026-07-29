@@ -1,9 +1,12 @@
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Bar } from 'vue-chartjs'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip } from 'chart.js'
 import { Users } from 'lucide-vue-next'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
+
+const { t } = useI18n()
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip)
 
@@ -62,7 +65,7 @@ const chartOptions = {
       padding: 8,
       cornerRadius: 6,
       callbacks: {
-        label: (ctx) => `${ctx.raw} offene Aufgaben`,
+        label: (ctx) => t('{count} offene Aufgaben', { count: ctx.raw }),
       },
     },
   },

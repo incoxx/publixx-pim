@@ -1,15 +1,21 @@
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ShieldCheck, ArrowRight, Sparkles } from 'lucide-vue-next'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
 
+const { t } = useI18n()
+
 const props = defineProps({
   quality: { type: Object, default: null },
-  title: { type: String, default: 'Datenqualität' },
-  emptyText: { type: String, default: 'Keine Produkte vorhanden' },
+  title: { type: String, default: null },
+  emptyText: { type: String, default: null },
   // actionable: Lücken (< 100 %) werden klickbar und lösen 'action' aus
   actionable: { type: Boolean, default: false },
 })
+
+const resolvedTitle = computed(() => props.title || t('Datenqualität'))
+const resolvedEmptyText = computed(() => props.emptyText || t('Keine Produkte vorhanden'))
 
 const emit = defineEmits(['action'])
 
@@ -36,13 +42,13 @@ const overallColor = computed(() => barColor(props.quality?.overall ?? 0))
 </script>
 
 <template>
-  <DashboardWidgetWrapper :title="title" :icon="ShieldCheck">
+  <DashboardWidgetWrapper :title="resolvedTitle" :icon="ShieldCheck">
     <div class="p-4">
       <div v-if="!quality" class="text-center text-sm text-[var(--color-text-tertiary)] py-4">
         Keine Daten verfügbar
       </div>
       <div v-else-if="isEmpty" class="text-center text-xs text-[var(--color-text-tertiary)] py-6">
-        {{ emptyText }}
+        {{ resolvedEmptyText }}
       </div>
       <template v-else>
         <!-- Gesamt-Score -->

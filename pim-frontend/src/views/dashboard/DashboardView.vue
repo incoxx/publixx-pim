@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, markRaw } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Settings, Eye, EyeOff, RefreshCw, Plus, GripVertical, LayoutDashboard, Star, Save, Trash2, Check } from 'lucide-vue-next'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useAuthStore } from '@/stores/auth'
@@ -22,6 +23,7 @@ import WatchlistCompletenessWidget from '@/components/dashboard/WatchlistComplet
 import WatchlistDataQualityWidget from '@/components/dashboard/WatchlistDataQualityWidget.vue'
 import MediaSpotlightWidget from '@/components/dashboard/MediaSpotlightWidget.vue'
 
+const { t } = useI18n()
 const store = useDashboardStore()
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.user?.roles?.some(r => r.name === 'Admin'))
@@ -471,7 +473,7 @@ onUnmounted(() => {
                 <Eye v-if="w.visible" class="w-3.5 h-3.5 text-[var(--color-accent)]" :stroke-width="2" />
                 <EyeOff v-else class="w-3.5 h-3.5 opacity-40" :stroke-width="2" />
               </button>
-              <span class="text-xs flex-1" :class="w.visible ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)] line-through'">{{ w.label }}</span>
+              <span class="text-xs flex-1" :class="w.visible ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)] line-through'">{{ t(w.label) }}</span>
             </div>
             <div class="border-t border-[var(--color-border)] mt-1 pt-1">
               <p class="px-3 pb-1 text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">

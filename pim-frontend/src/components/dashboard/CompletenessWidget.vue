@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Doughnut } from 'vue-chartjs'
 import { Chart as ChartJS, ArcElement, Tooltip } from 'chart.js'
 import { BarChart3 } from 'lucide-vue-next'
@@ -7,11 +8,16 @@ import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
 
 ChartJS.register(ArcElement, Tooltip)
 
+const { t } = useI18n()
+
 const props = defineProps({
   summary: { type: Object, default: null },
-  title: { type: String, default: 'Produkt-Füllstand' },
-  emptyText: { type: String, default: 'Keine Produkte vorhanden' },
+  title: { type: String, default: null },
+  emptyText: { type: String, default: null },
 })
+
+const resolvedTitle = computed(() => props.title || t('Produkt-Füllstand'))
+const resolvedEmptyText = computed(() => props.emptyText || t('Keine Produkte vorhanden'))
 
 const chartData = computed(() => {
   if (!props.summary) return null
@@ -52,13 +58,13 @@ const percentageColor = computed(() => {
 </script>
 
 <template>
-  <DashboardWidgetWrapper :title="title" :icon="BarChart3">
+  <DashboardWidgetWrapper :title="resolvedTitle" :icon="BarChart3">
     <div class="p-4">
       <div v-if="!summary" class="text-center text-sm text-[var(--color-text-tertiary)] py-4">
         Keine Daten verfügbar
       </div>
       <div v-else-if="summary.total === 0" class="text-center text-xs text-[var(--color-text-tertiary)] py-6">
-        {{ emptyText }}
+        {{ resolvedEmptyText }}
       </div>
       <template v-else>
         <!-- Chart -->

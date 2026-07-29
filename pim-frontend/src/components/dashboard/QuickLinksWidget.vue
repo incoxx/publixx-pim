@@ -1,11 +1,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Bookmark, Plus, X } from 'lucide-vue-next'
 import * as icons from 'lucide-vue-next'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
 import userPreferencesApi from '@/api/userPreferences'
 
+const { t } = useI18n()
 const router = useRouter()
 
 // Kategorien mit Farben
@@ -130,7 +132,7 @@ const groupedUnselected = computed(() => {
           </div>
           <!-- Label -->
           <span class="text-[10px] leading-tight text-center text-[var(--color-text-secondary)] group-hover:text-[var(--color-text-primary)] transition-colors line-clamp-1 w-full">
-            {{ link.label }}
+            {{ t(link.label) }}
           </span>
           <!-- Entfernen (Hover) -->
           <button
@@ -177,7 +179,7 @@ const groupedUnselected = computed(() => {
         <div class="max-h-56 overflow-y-auto p-2 space-y-2">
           <div v-for="(links, catKey) in groupedUnselected" :key="catKey">
             <p class="text-[9px] font-medium uppercase tracking-wider px-1 mb-1" :style="{ color: CATEGORIES[catKey]?.color }">
-              {{ CATEGORIES[catKey]?.label }}
+              {{ CATEGORIES[catKey] ? t(CATEGORIES[catKey].label) : '' }}
             </p>
             <div class="grid grid-cols-3 gap-1">
               <button
@@ -192,7 +194,7 @@ const groupedUnselected = computed(() => {
                 >
                   <component :is="getIcon(link.icon)" class="w-3 h-3" :style="{ color: CATEGORIES[catKey]?.color }" :stroke-width="2" />
                 </div>
-                <span class="text-[10px] text-[var(--color-text-primary)] truncate">{{ link.label }}</span>
+                <span class="text-[10px] text-[var(--color-text-primary)] truncate">{{ t(link.label) }}</span>
               </button>
             </div>
           </div>

@@ -1,11 +1,15 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Settings2, TrendingUp, TrendingDown } from 'lucide-vue-next'
 import { Doughnut, Line } from 'vue-chartjs'
 import { Chart as ChartJS, ArcElement, LineElement, PointElement, CategoryScale, LinearScale, Filler, Tooltip } from 'chart.js'
 import GaugeChart from './GaugeChart.vue'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
 import dashboardApi from '@/api/dashboard'
+
+const { t, locale } = useI18n()
+const numberLocale = computed(() => (locale.value === 'de' ? 'de-DE' : 'en-US'))
 
 ChartJS.register(ArcElement, LineElement, PointElement, CategoryScale, LinearScale, Filler, Tooltip)
 
@@ -23,7 +27,7 @@ const error = ref(null)
 const chartType = computed(() => props.config.chart_type || 'gauge')
 const metric = computed(() => props.config.metric || 'completeness')
 const color = computed(() => props.config.color || '#2E75B6')
-const title = computed(() => data.value?.search_profile_name || props.config.title || 'Profil')
+const title = computed(() => data.value?.search_profile_name || props.config.title || t('Profil'))
 
 // Metriken basierend auf Chart-Typ anfordern
 const metricsToFetch = computed(() => {
@@ -49,7 +53,7 @@ async function fetchData() {
     )
     data.value = resp.data || resp
   } catch (e) {
-    error.value = e.response?.data?.message || 'Fehler'
+    error.value = e.response?.data?.message || t('Fehler')
   } finally {
     loading.value = false
   }
@@ -65,13 +69,13 @@ const totalCount = computed(() => data.value?.total ?? 0)
 
 const metricLabel = computed(() => {
   const labels = {
-    completeness: 'Vollständigkeit',
-    media_coverage: 'Medien',
-    price_coverage: 'Preise',
-    translation_coverage: 'Übersetzungen',
-    total: 'Gesamt',
-    active: 'Aktiv',
-    draft: 'Entwurf',
+    completeness: t('Vollständigkeit'),
+    media_coverage: t('Medien'),
+    price_coverage: t('Preise'),
+    translation_coverage: t('Übersetzungen'),
+    total: t('Gesamt'),
+    active: t('Aktiv'),
+    draft: t('Entwurf'),
   }
   return labels[metric.value] || metric.value
 })
@@ -108,9 +112,9 @@ const trendChartOptions = {
 const donutChartData = computed(() => {
   if (!data.value) return null
   const items = [
-    { label: 'Vollständigkeit', value: data.value.completeness ?? 0, color: '#059669' },
-    { label: 'Medien', value: data.value.media_coverage ?? 0, color: '#2563EB' },
-    { label: 'Preise', value: data.value.price_coverage ?? 0, color: '#D97706' },
+    { label: t('Vollständigkeit'), value: data.value.completeness ?? 0, color: '#059669' },
+    { label: t('Medien'), value: data.value.media_coverage ?? 0, color: '#2563EB' },
+    { label: t('Preise'), value: data.value.price_coverage ?? 0, color: '#D97706' },
   ]
   return {
     labels: items.map(i => i.label),
@@ -179,7 +183,7 @@ const trendTotal = computed(() => {
       <template v-else-if="chartType === 'gauge'">
         <GaugeChart :value="metricValue" :color="color" :label="metricLabel" />
         <p class="text-center text-xs text-[var(--color-text-tertiary)] mt-2">
-          {{ totalCount.toLocaleString('de-DE') }} Produkte
+          {{ totalCount.toLocaleString(numberLocale) }} Produkte
         </p>
       </template>
 
@@ -187,11 +191,11 @@ const trendTotal = computed(() => {
       <template v-else-if="chartType === 'number'">
         <div class="text-center py-2">
           <p class="text-3xl font-bold" :style="{ color }">
-            {{ (metric.endsWith('coverage') || metric === 'completeness') ? metricValue + '%' : metricValue.toLocaleString('de-DE') }}
+            {{ (metric.endsWith('coverage') || metric === 'completeness') ? metricValue + '%' : metricValue.toLocaleString(numberLocale) }}
           </p>
           <p class="text-xs text-[var(--color-text-tertiary)] mt-1">{{ metricLabel }}</p>
           <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">
-            {{ totalCount.toLocaleString('de-DE') }} Produkte
+            {{ totalCount.toLocaleString(numberLocale) }} Produkte
           </p>
         </div>
       </template>
@@ -218,7 +222,7 @@ const trendTotal = computed(() => {
             :key="status"
             class="flex items-center gap-2"
           >
-            <span class="text-[10px] text-[var(--color-text-secondary)] w-16 shrink-0">{{ statusLabels[status] || status }}</span>
+            <span class="text-[10px] text-[var(--color-text-secondary)] w-16 shrink-0">{{ statusLabels[status] ? t(statusLabels[status]) : status }}</span>
             <div class="flex-1 h-4 rounded bg-gray-100 dark:bg-gray-800 overflow-hidden">
               <div
                 class="h-full rounded transition-all duration-500"

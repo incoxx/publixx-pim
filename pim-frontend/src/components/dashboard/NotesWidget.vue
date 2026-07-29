@@ -1,11 +1,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { StickyNote, Plus, Pin, PinOff, Trash2, X, Package, Link2, Users, Lock } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
 import notesApi from '@/api/notes'
 import searchApi from '@/api/search'
 
+const { t } = useI18n()
 const authStore = useAuthStore()
 
 const notes = ref([])
@@ -127,12 +129,12 @@ function unlinkProduct() {
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'gerade eben'
-  if (mins < 60) return `vor ${mins}m`
+  if (mins < 1) return t('gerade eben')
+  if (mins < 60) return t('vor {count}m', { count: mins })
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `vor ${hrs}h`
+  if (hrs < 24) return t('vor {count}h', { count: hrs })
   const days = Math.floor(hrs / 24)
-  return `vor ${days}d`
+  return t('vor {count}d', { count: days })
 }
 
 onMounted(fetchNotes)
@@ -216,7 +218,7 @@ onUnmounted(() => { if (searchTimeout.value) clearTimeout(searchTimeout.value) }
         <!-- Aktionen -->
         <div class="flex items-center gap-2">
           <button class="pim-btn pim-btn-primary text-xs" @click="saveNote">
-            {{ editingNote ? 'Speichern' : 'Erstellen' }}
+            {{ editingNote ? t('Speichern') : t('Erstellen') }}
           </button>
           <button class="pim-btn pim-btn-ghost text-xs" @click="showForm = false">Abbrechen</button>
         </div>
@@ -281,7 +283,7 @@ onUnmounted(() => { if (searchTimeout.value) clearTimeout(searchTimeout.value) }
           <div v-if="isOwnNote(note)" class="absolute top-1 right-1 flex items-center gap-0.5 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100" @click.stop>
             <button
               class="p-0.5 rounded hover:bg-black/10 transition-colors"
-              :title="note.pinned ? 'Loslösen' : 'Anheften'"
+              :title="note.pinned ? t('Loslösen') : t('Anheften')"
               @click="togglePin(note)"
             >
               <PinOff v-if="note.pinned" class="w-3 h-3" :stroke-width="2" />

@@ -1,26 +1,30 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Image as ImageIcon, ExternalLink, AlertTriangle } from 'lucide-vue-next'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
 import mediaApi from '@/api/media'
 import watchlistApi from '@/api/watchlist'
+import { useLocalizedName } from '@/composables/useLocalizedName'
 
 const props = defineProps({
   // 'all' = neueste Medien insgesamt, 'watchlist' = Medien der Merklisten-Produkte
   scope: { type: String, default: 'all' },
 })
 
+const { t } = useI18n()
+const { localizedName } = useLocalizedName()
 const router = useRouter()
 const items = ref([])
 const loading = ref(false)
 const totalCount = ref(0)
 
 const isWatchlist = computed(() => props.scope === 'watchlist')
-const title = computed(() => isWatchlist.value ? 'Medien meiner Merkliste' : 'Medien-Spotlight')
+const title = computed(() => isWatchlist.value ? t('Medien meiner Merkliste') : t('Medien-Spotlight'))
 const emptyText = computed(() => isWatchlist.value
-  ? 'Produkte auf der Merkliste haben noch keine Medien.'
-  : 'Noch keine Medien vorhanden')
+  ? t('Produkte auf der Merkliste haben noch keine Medien.')
+  : t('Noch keine Medien vorhanden'))
 
 // Assets ohne Alt-Text (innerhalb der geladenen Auswahl) — SEO-/A11y-Hinweis
 const missingAltCount = computed(() =>
@@ -73,13 +77,13 @@ onMounted(async () => {
             v-for="m in items"
             :key="m.id"
             class="relative aspect-square rounded-lg overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg)] hover:border-[var(--color-accent)] transition group"
-            :title="m.title_de || m.file_name"
+            :title="localizedName(m, 'title') || m.file_name"
             @click="openMedia(m)"
           >
             <img
               v-if="m.media_type === 'image'"
               :src="m.thumb_url"
-              :alt="m.alt_text_de || m.title_de || m.file_name"
+              :alt="localizedName(m, 'alt_text') || localizedName(m, 'title') || m.file_name"
               class="w-full h-full object-cover"
               loading="lazy"
             />

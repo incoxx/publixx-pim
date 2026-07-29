@@ -1,10 +1,12 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Languages, ExternalLink, Clock, Loader2, CheckCircle, XCircle } from 'lucide-vue-next'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
 import translationJobsApi from '@/api/translationJobs'
 
+const { t } = useI18n()
 const router = useRouter()
 const jobs = ref([])
 const loading = ref(false)
@@ -63,7 +65,7 @@ onMounted(async () => {
             <component :is="s.icon" class="w-4 h-4 shrink-0" :class="[s.color, { 'animate-spin': s.spin }]" :stroke-width="2" />
             <div class="min-w-0">
               <p class="text-sm font-semibold text-[var(--color-text-primary)] leading-none">{{ counts[s.key] }}</p>
-              <p class="text-[10px] text-[var(--color-text-tertiary)] truncate">{{ s.label }}</p>
+              <p class="text-[10px] text-[var(--color-text-tertiary)] truncate">{{ t(s.label) }}</p>
             </div>
           </div>
         </div>

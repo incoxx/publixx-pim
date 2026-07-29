@@ -1,5 +1,6 @@
 <script setup>
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ArrowRight } from 'lucide-vue-next'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
 import { ClipboardList } from 'lucide-vue-next'
@@ -8,6 +9,7 @@ const props = defineProps({
   tasks: { type: Array, default: () => [] },
 })
 
+const { t, locale } = useI18n()
 const router = useRouter()
 
 const statusLabels = {
@@ -36,13 +38,13 @@ function formatDate(iso) {
   const now = new Date()
   const diffMs = now - d
   const diffMin = Math.floor(diffMs / 60000)
-  if (diffMin < 1) return 'gerade eben'
-  if (diffMin < 60) return `vor ${diffMin} Min.`
+  if (diffMin < 1) return t('gerade eben')
+  if (diffMin < 60) return t('vor {count} Min.', { count: diffMin })
   const diffHours = Math.floor(diffMin / 60)
-  if (diffHours < 24) return `vor ${diffHours} Std.`
+  if (diffHours < 24) return t('vor {count} Std.', { count: diffHours })
   const diffDays = Math.floor(diffHours / 24)
-  if (diffDays < 7) return `vor ${diffDays} Tagen`
-  return d.toLocaleDateString('de-DE', { dateStyle: 'medium' })
+  if (diffDays < 7) return t('vor {count} Tagen', { count: diffDays })
+  return d.toLocaleDateString(locale.value === 'de' ? 'de-DE' : 'en-US', { dateStyle: 'medium' })
 }
 </script>
 
@@ -64,7 +66,7 @@ function formatDate(iso) {
             <span
               class="pim-badge text-[10px] px-1.5 py-0.5 rounded-full font-medium"
               :class="statusColors[task.status]"
-            >{{ statusLabels[task.status] }}</span>
+            >{{ t(statusLabels[task.status]) }}</span>
           </div>
           <p class="text-sm text-[var(--color-text-primary)] truncate mt-0.5">{{ task.title }}</p>
         </div>

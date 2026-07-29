@@ -1,5 +1,6 @@
 <script setup>
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Clock } from 'lucide-vue-next'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
 
@@ -7,6 +8,7 @@ const props = defineProps({
   products: { type: Array, default: () => [] },
 })
 
+const { t, locale } = useI18n()
 const router = useRouter()
 
 function goToProduct(id) {
@@ -19,13 +21,13 @@ function formatRelativeTime(iso) {
   const now = new Date()
   const diffMs = now - d
   const diffMin = Math.floor(diffMs / 60000)
-  if (diffMin < 1) return 'gerade eben'
-  if (diffMin < 60) return `vor ${diffMin} Min.`
+  if (diffMin < 1) return t('gerade eben')
+  if (diffMin < 60) return t('vor {count} Min.', { count: diffMin })
   const diffHours = Math.floor(diffMin / 60)
-  if (diffHours < 24) return `vor ${diffHours} Std.`
+  if (diffHours < 24) return t('vor {count} Std.', { count: diffHours })
   const diffDays = Math.floor(diffHours / 24)
-  if (diffDays < 7) return `vor ${diffDays} Tagen`
-  return d.toLocaleDateString('de-DE', { dateStyle: 'medium' })
+  if (diffDays < 7) return t('vor {count} Tagen', { count: diffDays })
+  return d.toLocaleDateString(locale.value === 'de' ? 'de-DE' : 'en-US', { dateStyle: 'medium' })
 }
 
 const statusColors = {
@@ -54,9 +56,9 @@ const statusColors = {
               v-if="p.status"
               class="pim-badge text-[10px] px-1.5 py-0.5 rounded-full font-medium"
               :class="statusColors[p.status] || 'bg-gray-100 text-gray-600'"
-            >{{ p.status === 'active' ? 'Aktiv' : p.status === 'draft' ? 'Entwurf' : p.status }}</span>
+            >{{ p.status === 'active' ? t('Aktiv') : p.status === 'draft' ? t('Entwurf') : p.status }}</span>
           </div>
-          <p class="text-sm text-[var(--color-text-primary)] truncate mt-0.5">{{ p.name || '(kein Name)' }}</p>
+          <p class="text-sm text-[var(--color-text-primary)] truncate mt-0.5">{{ p.name || t('(kein Name)') }}</p>
         </div>
         <span class="text-[11px] text-[var(--color-text-tertiary)] shrink-0">{{ formatRelativeTime(p.updated_at) }}</span>
       </div>

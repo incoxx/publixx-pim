@@ -15,10 +15,12 @@ const SCOPE_PATTERNS = [
   /[/\\]views[/\\]products[/\\]ProductDetailView\.vue$/,
   /[/\\]views[/\\]products[/\\]ProductListView\.vue$/,
   /[/\\]components[/\\]products[/\\]/,
+  /[/\\]views[/\\]dashboard[/\\]/,
+  /[/\\]components[/\\]dashboard[/\\]/,
 ];
 
 // Statische Attribute, die als sichtbarer UI-Text gelten (nicht z.B. "class", "id", "type").
-const TRANSLATABLE_ATTRIBUTES = new Set(['title', 'placeholder', 'alt', 'aria-label', 'aria-placeholder']);
+const TRANSLATABLE_ATTRIBUTES = new Set(['title', 'placeholder', 'alt', 'aria-label', 'aria-placeholder', 'empty-text']);
 
 function isInScope(filename) {
   if (!filename) return false;

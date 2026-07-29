@@ -1,9 +1,12 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { X, ArrowRight, Package } from 'lucide-vue-next'
 import watchlistApi from '@/api/watchlist'
 import DataQualityWidget from './DataQualityWidget.vue'
+
+const { t } = useI18n()
 
 /**
  * Datenqualität über die eigene Merkliste inkl. "Nächster Schritt":
@@ -76,7 +79,7 @@ onMounted(async () => {
           >
             <Package class="w-4 h-4 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="1.75" />
             <div class="flex-1 min-w-0">
-              <p class="text-xs font-medium text-[var(--color-text-primary)] truncate">{{ p.name || p.sku || 'Produkt' }}</p>
+              <p class="text-xs font-medium text-[var(--color-text-primary)] truncate">{{ p.name || p.sku || t('Produkt') }}</p>
               <p class="text-[10px] text-[var(--color-text-tertiary)] font-mono">{{ p.sku }}</p>
             </div>
             <ArrowRight class="w-4 h-4 text-[var(--color-accent)] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" :stroke-width="2" />
@@ -86,7 +89,7 @@ onMounted(async () => {
             v-if="selectedGap.missing_count > (selectedGap.missing || []).length"
             class="text-center text-[11px] text-[var(--color-text-tertiary)] py-2"
           >
-            … und {{ selectedGap.missing_count - selectedGap.missing.length }} weitere
+            {{ t('… und {count} weitere', { count: selectedGap.missing_count - selectedGap.missing.length }) }}
           </p>
         </div>
       </div>
