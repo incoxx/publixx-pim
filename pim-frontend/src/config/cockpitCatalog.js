@@ -1,7 +1,7 @@
 import { markRaw } from 'vue'
 import {
   Package, Image as ImageIcon, Star, FileBarChart, Upload, Languages,
-  LayoutTemplate, Globe, GitBranch, ClipboardList, Search, LayoutGrid,
+  LayoutTemplate, GitBranch, ClipboardList, Search, LayoutGrid,
 } from 'lucide-vue-next'
 import NotesWidget from '@/components/dashboard/NotesWidget.vue'
 import WatchlistWidget from '@/components/dashboard/WatchlistWidget.vue'
@@ -29,7 +29,6 @@ export const TILE_CATALOG = {
   imports:             { label: 'Import',        to: '/imports',           icon: markRaw(Upload),         permission: 'imports.view' },
   'translation-jobs':  { label: 'Übersetzungen', to: '/translation-jobs',  icon: markRaw(Languages),      permission: 'translations.view' },
   'catalog-templates': { label: 'Kataloge',      to: '/catalog-templates', icon: markRaw(LayoutTemplate), permission: 'catalog-templates.view' },
-  portals:             { label: 'Portale',       to: '/portal-config',     icon: markRaw(Globe),          permission: 'portals.view' },
   search:              { label: 'Profisuche',    to: '/search',            icon: markRaw(Search),         permission: 'search.view' },
   hierarchies:         { label: 'Hierarchien',   to: '/hierarchies',       icon: markRaw(GitBranch),      permission: 'hierarchies.view' },
   workflow:            { label: 'Workflow',      to: '/workflow',          icon: markRaw(ClipboardList),  permission: 'workflow.view' },

@@ -23,7 +23,7 @@ export const SYSTEM_DEFAULT_PROFILE = {
 export const ROLE_PROFILES = {
   // Fokus Marketing: Medien, Content, Übersetzungen, Ausspielung.
   Marketing: {
-    tiles: ['media', 'preview', 'catalog-templates', 'translation-jobs', 'portals', 'watchlist', 'reports'],
+    tiles: ['media', 'preview', 'catalog-templates', 'translation-jobs', 'watchlist', 'reports'],
     workplace: ['watchlist', 'notes', 'recent', 'tasks'],
     content: ['watchlist-media', 'translation-status'],
     kpis: ['watchlist-completeness', 'watchlist-quality', 'completeness', 'quality'],

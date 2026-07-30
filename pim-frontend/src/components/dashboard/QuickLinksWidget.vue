@@ -34,7 +34,6 @@ const availableLinks = [
   { id: 'export-jobs', label: 'Export-Jobs', to: '/export-jobs', icon: 'Clock', cat: 'publish' },
   { id: 'pdf-templates', label: 'PDF-Vorlagen', to: '/pdf-templates', icon: 'FileText', cat: 'publish' },
   { id: 'catalog-templates', label: 'Katalog-Vorlagen', to: '/catalog-templates', icon: 'LayoutTemplate', cat: 'publish' },
-  { id: 'portal-config', label: 'Portale', to: '/portal-config', icon: 'Globe', cat: 'publish' },
   { id: 'translation-jobs', label: 'Übersetzungen', to: '/translation-jobs', icon: 'Languages', cat: 'publish' },
   { id: 'teams', label: 'Teams', to: '/teams', icon: 'Users', cat: 'config' },
   { id: 'projects', label: 'Projekte', to: '/projects', icon: 'FolderTree', cat: 'config' },
