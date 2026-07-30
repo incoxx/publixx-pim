@@ -199,4 +199,70 @@ export default {
   cancelConfigPull(importId) {
     return client.post('/json-import/cancel', { import_id: importId })
   },
+
+  // =====================================================================
+  // anyPIM Fehlende-Medien-Sync
+  // =====================================================================
+
+  /**
+   * Anzahl lokaler Media-Einträge ohne physische Datei ermitteln.
+   */
+  missingMediaCount(connectionId) {
+    return client.get(`/connectors/connections/${connectionId}/missing-media-count`)
+  },
+
+  /**
+   * Fehlende Mediendateien von der Remote-Instanz nachladen,
+   * mit SSE-Progress-Streaming und Abbruch-Möglichkeit (identisch zu pullConfigWithProgress).
+   *
+   * @param {string} connectionId
+   * @param {(event: object) => void} onProgress
+   * @returns {Promise<object>}
+   */
+  pullMissingMediaWithProgress(connectionId, onProgress = null) {
+    const auth = useAuthStore()
+    const token = auth.token
+
+    const xsrfToken = document.cookie
+      .split('; ')
+      .find((c) => c.startsWith('XSRF-TOKEN='))
+      ?.split('=')[1]
+
+    return new Promise((resolve, reject) => {
+      fetch(`${apiBaseURL}/connectors/connections/${connectionId}/pull-missing-media`, {
+        method: 'POST',
+        headers: {
+          Accept: 'text/event-stream',
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : '',
+          ...(xsrfToken ? { 'X-XSRF-TOKEN': decodeURIComponent(xsrfToken) } : {}),
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({}),
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            const text = await response.text()
+            try {
+              const json = JSON.parse(text)
+              reject(new Error(json.error || json.message || `Media-Pull fehlgeschlagen (HTTP ${response.status})`))
+            } catch {
+              const snippet = text.length > 200 ? text.slice(0, 200) + '…' : text
+              reject(new Error(`Media-Pull fehlgeschlagen (HTTP ${response.status}): ${snippet}`))
+            }
+            return
+          }
+
+          this._handleSseResponse(response, onProgress, resolve, reject)
+        })
+        .catch(reject)
+    })
+  },
+
+  /**
+   * Laufenden Media-Pull abbrechen (nutzt denselben Cancel-Kanal wie der JSON-Import).
+   */
+  cancelMissingMediaPull(importId) {
+    return client.post('/json-import/cancel', { import_id: importId })
+  },
 }

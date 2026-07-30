@@ -1422,6 +1422,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::post('/connections/{connection}/test-connection', [ConnectorController::class, 'testAnyPimConnection']);
         Route::post('/connections/{connection}/pull-config', [ConnectorController::class, 'pullConfig']);
         Route::get('/config-sections', [ConnectorController::class, 'configSections']);
+        Route::get('/connections/{connection}/missing-media-count', [ConnectorController::class, 'missingMediaCount']);
+        Route::post('/connections/{connection}/pull-missing-media', [ConnectorController::class, 'pullMissingMedia']);
     });
 
     // =====================================================================

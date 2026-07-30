@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import {
   RefreshCw, Plus, Trash2, CheckCircle, XCircle, ArrowUpRight, Settings,
   ArrowDownUp, ArrowUp, ArrowDown, Zap, TestTube, Loader2, Key, Globe,
-  SlidersHorizontal, StopCircle,
+  SlidersHorizontal, StopCircle, ImageOff,
 } from 'lucide-vue-next'
 import connectorsApi from '@/api/connectors'
 import pimSyncApi from '@/api/pimSync'
@@ -40,6 +40,16 @@ const configProgress = ref({})
 const configProgressLog = ref({})
 const configCancelling = ref({})
 const configResult = ref({})
+
+// Fehlende-Medien-Sync ("Maske" pro Verbindung)
+const openMediaForm = ref(null) // connId oder null
+const missingMediaCounts = ref({})
+const missingMediaCountLoading = ref({})
+const mediaPulling = ref({})
+const mediaProgress = ref({})
+const mediaProgressLog = ref({})
+const mediaCancelling = ref({})
+const mediaResult = ref({})
 
 const canConnect = computed(() =>
   formData.value.name && formData.value.remote_url && formData.value.api_key
@@ -261,6 +271,80 @@ function configSectionLabel(s) {
     hierarchy_level_attribute_assignments: 'Hierarchie-Ebene-Attribute',
     product_reference_profiles: 'Referenz-Profile',
   }[s] || s
+}
+
+// --- Fehlende-Medien-Sync ("Maske" pro Verbindung) ---
+
+async function toggleMediaForm(connId) {
+  if (openMediaForm.value === connId) {
+    openMediaForm.value = null
+    return
+  }
+  openMediaForm.value = connId
+  mediaResult.value = { ...mediaResult.value, [connId]: null }
+  missingMediaCountLoading.value = { ...missingMediaCountLoading.value, [connId]: true }
+  try {
+    const res = await pimSyncApi.missingMediaCount(connId)
+    const data = res.data.data || res.data
+    missingMediaCounts.value = { ...missingMediaCounts.value, [connId]: data.missing }
+  } catch (e) {
+    missingMediaCounts.value = { ...missingMediaCounts.value, [connId]: null }
+  } finally {
+    missingMediaCountLoading.value = { ...missingMediaCountLoading.value, [connId]: false }
+  }
+}
+
+async function runMediaPull(connId) {
+  mediaPulling.value = { ...mediaPulling.value, [connId]: true }
+  mediaCancelling.value = { ...mediaCancelling.value, [connId]: false }
+  mediaResult.value = { ...mediaResult.value, [connId]: null }
+  mediaProgressLog.value = { ...mediaProgressLog.value, [connId]: [] }
+  mediaProgress.value = {
+    ...mediaProgress.value,
+    [connId]: { phase: 'starting', message: 'Fehlende Medien werden ermittelt...', current: 0, total: 0, percent: 0 },
+  }
+  error.value = ''
+  try {
+    const result = await pimSyncApi.pullMissingMediaWithProgress(
+      connId,
+      (progress) => {
+        const entry = {
+          ...progress,
+          percent: progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0,
+          at: new Date(),
+        }
+        mediaProgress.value = { ...mediaProgress.value, [connId]: entry }
+        mediaProgressLog.value = {
+          ...mediaProgressLog.value,
+          [connId]: [...(mediaProgressLog.value[connId] || []), entry],
+        }
+      },
+    )
+    mediaResult.value = { ...mediaResult.value, [connId]: result }
+    missingMediaCounts.value = { ...missingMediaCounts.value, [connId]: result.missing - result.downloaded }
+    mediaProgress.value = { ...mediaProgress.value, [connId]: null }
+  } catch (e) {
+    error.value = e.message || 'Media-Pull fehlgeschlagen'
+    mediaProgress.value = { ...mediaProgress.value, [connId]: null }
+  } finally {
+    mediaPulling.value = { ...mediaPulling.value, [connId]: false }
+    mediaCancelling.value = { ...mediaCancelling.value, [connId]: false }
+  }
+}
+
+async function cancelMediaPull(connId) {
+  const importId = mediaProgress.value[connId]?.import_id
+  if (!importId || mediaCancelling.value[connId]) return
+  mediaCancelling.value = { ...mediaCancelling.value, [connId]: true }
+  try {
+    await pimSyncApi.cancelMissingMediaPull(importId)
+    mediaProgress.value = {
+      ...mediaProgress.value,
+      [connId]: { ...mediaProgress.value[connId], message: 'Wird abgebrochen...' },
+    }
+  } catch (e) {
+    mediaCancelling.value = { ...mediaCancelling.value, [connId]: false }
+  }
 }
 </script>
 
@@ -500,6 +584,13 @@ function configSectionLabel(s) {
               <SlidersHorizontal class="w-3 h-3 mr-1" />
               Konfiguration synchronisieren
             </button>
+            <button
+              class="pim-btn pim-btn-ghost text-xs"
+              @click="toggleMediaForm(conn.id)"
+            >
+              <ImageOff class="w-3 h-3 mr-1" />
+              Fehlende Medien synchronisieren
+            </button>
 
             <!-- Detail-View Link -->
             <button
@@ -602,6 +693,91 @@ function configSectionLabel(s) {
                 <template v-if="configResult[conn.id].stats">
                   {{ Object.values(configResult[conn.id].stats).reduce((s, v) => s + (v.created || 0), 0) }} neu,
                   {{ Object.values(configResult[conn.id].stats).reduce((s, v) => s + (v.updated || 0), 0) }} aktualisiert.
+                </template>
+              </span>
+            </div>
+          </div>
+
+          <!-- Fehlende-Medien-Sync ("Maske") -->
+          <div v-if="openMediaForm === conn.id" class="pt-3 border-t border-[var(--color-border)] space-y-3">
+            <p class="text-xs text-[var(--color-text-tertiary)]">
+              Lädt Dateien für Media-Einträge nach, die hier zwar als Datensatz existieren
+              (z.B. durch einen JSON-Import), deren Datei aber physisch fehlt — Download über
+              den öffentlichen <code>/storage/</code>-Pfad von <strong>{{ conn.settings?.remote_url }}</strong>.
+            </p>
+
+            <div v-if="!mediaPulling[conn.id]" class="flex items-center gap-3">
+              <span v-if="missingMediaCountLoading[conn.id]" class="text-xs text-[var(--color-text-tertiary)] flex items-center gap-1.5">
+                <Loader2 class="w-3.5 h-3.5 animate-spin" /> Prüfe fehlende Dateien...
+              </span>
+              <span v-else-if="missingMediaCounts[conn.id] === 0" class="text-xs text-[var(--color-success)] flex items-center gap-1.5">
+                <CheckCircle class="w-3.5 h-3.5" /> Keine fehlenden Mediendateien.
+              </span>
+              <span v-else-if="missingMediaCounts[conn.id] > 0" class="text-xs text-[var(--color-text-secondary)]">
+                {{ missingMediaCounts[conn.id] }} Mediendatei(en) fehlen lokal.
+              </span>
+              <button
+                v-if="missingMediaCounts[conn.id] > 0"
+                class="pim-btn pim-btn-primary text-xs ml-auto"
+                @click="runMediaPull(conn.id)"
+              >
+                <ArrowDown class="w-3.5 h-3.5 mr-1" />
+                Medien nachladen
+              </button>
+            </div>
+
+            <!-- Progress -->
+            <div v-if="mediaProgress[conn.id]" class="space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-[var(--color-text-secondary)] flex items-center gap-2">
+                  <Loader2 v-if="!mediaCancelling[conn.id]" class="w-3.5 h-3.5 animate-spin text-[var(--color-accent)]" />
+                  <StopCircle v-else class="w-3.5 h-3.5 text-orange-500" />
+                  {{ mediaProgress[conn.id].message }}
+                </span>
+                <span v-if="mediaProgress[conn.id].current > 0" class="text-[var(--color-text-tertiary)]">
+                  {{ mediaProgress[conn.id].current }}<template v-if="mediaProgress[conn.id].total > 0"> / {{ mediaProgress[conn.id].total }}</template>
+                </span>
+              </div>
+              <div class="w-full bg-[var(--color-bg)] rounded-full h-2 overflow-hidden">
+                <div
+                  class="h-full rounded-full transition-all duration-300 ease-out"
+                  :class="[
+                    mediaCancelling[conn.id] ? 'bg-orange-500' : 'bg-[var(--color-accent)]',
+                    mediaProgress[conn.id].total > 0 ? '' : 'animate-pulse',
+                  ]"
+                  :style="{ width: mediaProgress[conn.id].total > 0 ? mediaProgress[conn.id].percent + '%' : '100%' }"
+                />
+              </div>
+              <div v-if="mediaProgress[conn.id].import_id && !mediaCancelling[conn.id]" class="flex justify-end">
+                <button
+                  class="pim-btn pim-btn-secondary text-xs text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+                  @click="cancelMediaPull(conn.id)"
+                >
+                  <StopCircle class="w-3.5 h-3.5 mr-1" />
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+
+            <!-- Progress-Log -->
+            <div v-if="mediaProgressLog[conn.id]?.length" class="max-h-40 overflow-y-auto space-y-1 font-mono text-[11px] rounded-lg bg-[var(--color-bg)] p-2">
+              <div
+                v-for="(entry, i) in mediaProgressLog[conn.id]"
+                :key="i"
+                class="flex items-start gap-2 text-[var(--color-text-secondary)]"
+              >
+                <span class="text-[var(--color-text-tertiary)] shrink-0">{{ entry.at.toLocaleTimeString() }}</span>
+                <span class="truncate">{{ entry.message }}</span>
+              </div>
+            </div>
+
+            <!-- Result -->
+            <div v-if="mediaResult[conn.id]" class="flex items-start gap-2 text-xs" :class="mediaResult[conn.id].failed > 0 ? 'text-orange-600' : 'text-[var(--color-success)]'">
+              <CheckCircle class="w-4 h-4 shrink-0" />
+              <span>
+                {{ mediaResult[conn.id].downloaded }} Datei(en) nachgeladen.
+                <template v-if="mediaResult[conn.id].failed > 0">
+                  {{ mediaResult[conn.id].failed }} fehlgeschlagen.
                 </template>
               </span>
             </div>
