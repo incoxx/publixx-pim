@@ -5,19 +5,30 @@ declare(strict_types=1);
 namespace App\Services\Export;
 
 use App\Models\Attribute;
+use App\Models\AttributeFormattingRule;
 use App\Models\AttributeType;
 use App\Models\AttributeView;
+use App\Models\CollectionType;
+use App\Models\ComparisonOperator;
+use App\Models\ComparisonOperatorGroup;
+use App\Models\DictionaryEntry;
 use App\Services\Attributes\AttributeValuePresenter;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\HierarchyAttributeAssignment;
 use App\Models\HierarchyNodeAttributeAssignment;
+use App\Models\Manufacturer;
+use App\Models\MediaCountry;
+use App\Models\MediaLanguage;
+use App\Models\MediaUsageType;
 use App\Models\OutputHierarchyProductAssignment;
+use App\Models\PriceRegion;
 use App\Models\PriceType;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductMediaAssignment;
 use App\Models\ProductPrice;
+use App\Models\ProductReferenceProfile;
 use App\Models\ProductRelation;
 use App\Models\ProductRelationType;
 use App\Models\ProductType;
@@ -59,11 +70,21 @@ class JsonFormatExporter
         'units',
         'attribute_views',
         'attribute_groups',
+        'attribute_formatting_rules',
+        'comparison_operator_groups',
+        'comparison_operators',
         'value_lists',
         'attributes',
         'product_types',
         'price_types',
+        'price_regions',
         'relation_types',
+        'manufacturers',
+        'media_languages',
+        'media_countries',
+        'media_usage_types',
+        'dictionary_entries',
+        'collection_types',
         'hierarchies',
         'hierarchy_attribute_assignments',
         'hierarchy_level_attribute_assignments',
@@ -74,6 +95,7 @@ class JsonFormatExporter
         'product_relations',
         'prices',
         'media_assignments',
+        'product_reference_profiles',
     ];
 
     /** Sektionen mit potenziell sehr vielen Einträgen — werden beim Streaming direkt geschrieben. */
@@ -549,11 +571,22 @@ class JsonFormatExporter
             'units' => $this->exportUnits(),
             'attribute_views' => $this->exportAttributeViews(),
             'attribute_groups' => $this->exportAttributeGroups(),
+            'attribute_formatting_rules' => $this->exportAttributeFormattingRules(),
+            'comparison_operator_groups' => $this->exportComparisonOperatorGroups(),
+            'comparison_operators' => $this->exportComparisonOperators(),
             'value_lists' => $this->exportValueLists(),
             'attributes' => $this->exportAttributes(),
             'product_types' => $this->exportProductTypes(),
             'price_types' => $this->exportPriceTypes(),
+            'price_regions' => $this->exportPriceRegions(),
             'relation_types' => $this->exportRelationTypes(),
+            'manufacturers' => $this->exportManufacturers(),
+            'media_languages' => $this->exportMediaLanguages(),
+            'media_countries' => $this->exportMediaCountries(),
+            'media_usage_types' => $this->exportMediaUsageTypes(),
+            'dictionary_entries' => $this->exportDictionaryEntries(),
+            'collection_types' => $this->exportCollectionTypes(),
+            'product_reference_profiles' => $this->exportProductReferenceProfiles(),
             'hierarchies' => $this->exportHierarchies(),
             'hierarchy_attribute_assignments' => $this->exportHierarchyAttributeAssignments(),
             'hierarchy_level_attribute_assignments' => $this->exportHierarchyLevelAttributeAssignments(),
@@ -658,7 +691,7 @@ class JsonFormatExporter
     private function exportAttributes(): array
     {
         return Attribute::query()
-            ->with(['attributeType', 'valueList', 'unitGroup', 'defaultUnit', 'parentAttribute', 'attributeViews'])
+            ->with(['attributeType', 'valueList', 'unitGroup', 'defaultUnit', 'parentAttribute', 'attributeViews', 'formattingRule', 'comparisonOperatorGroup'])
             ->orderBy('technical_name')
             ->get()
             ->map(fn (Attribute $a) => array_filter([
@@ -672,6 +705,8 @@ class JsonFormatExporter
                 'value_list' => $a->valueList?->technical_name,
                 'unit_group' => $a->unitGroup?->technical_name,
                 'default_unit' => $a->defaultUnit?->technical_name,
+                'formatting_rule' => $a->formattingRule?->name,
+                'comparison_operator_group' => $a->comparisonOperatorGroup?->technical_name,
                 'is_multipliable' => $a->is_multipliable ?: null,
                 'max_multiplied' => $a->max_multiplied,
                 'is_translatable' => $a->is_translatable ?: null,
@@ -732,6 +767,219 @@ class JsonFormatExporter
                 'name_json' => $r->name_json,
                 'is_bidirectional' => $r->is_bidirectional,
             ])
+            ->toArray();
+    }
+
+    private function exportAttributeFormattingRules(): array
+    {
+        return AttributeFormattingRule::query()
+            ->orderBy('name')
+            ->get()
+            ->map(fn (AttributeFormattingRule $r) => array_filter([
+                'name' => $r->name,
+                'rule_type' => $r->rule_type,
+                'config' => $r->config,
+                'description' => $r->description,
+            ], fn ($v) => $v !== null))
+            ->toArray();
+    }
+
+    private function exportComparisonOperatorGroups(): array
+    {
+        return ComparisonOperatorGroup::query()
+            ->orderBy('technical_name')
+            ->get()
+            ->map(fn (ComparisonOperatorGroup $g) => [
+                'technical_name' => $g->technical_name,
+                'name_de' => $g->name_de,
+                'name_en' => $g->name_en,
+                'name_json' => $g->name_json,
+            ])
+            ->toArray();
+    }
+
+    private function exportComparisonOperators(): array
+    {
+        return ComparisonOperator::query()
+            ->with('group')
+            ->orderBy('group_id')
+            ->orderBy('technical_name')
+            ->get()
+            ->filter(fn (ComparisonOperator $o) => $o->group !== null)
+            ->map(fn (ComparisonOperator $o) => array_filter([
+                'group' => $o->group->technical_name,
+                'technical_name' => $o->technical_name,
+                'symbol' => $o->symbol,
+                'description_de' => $o->description_de,
+            ], fn ($v) => $v !== null))
+            ->values()
+            ->toArray();
+    }
+
+    private function exportPriceRegions(): array
+    {
+        return PriceRegion::query()
+            ->orderBy('code')
+            ->get()
+            ->map(fn (PriceRegion $r) => array_filter([
+                'code' => $r->code,
+                'name' => $r->name,
+                'type' => $r->type,
+                'metadata' => $r->metadata,
+            ], fn ($v) => $v !== null))
+            ->toArray();
+    }
+
+    private function exportManufacturers(): array
+    {
+        return Manufacturer::query()
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Manufacturer $m) => array_filter([
+                'name' => $m->name,
+                'street' => $m->street,
+                'zip' => $m->zip,
+                'city' => $m->city,
+                'country' => $m->country,
+                'email' => $m->email,
+                'website' => $m->website,
+            ], fn ($v) => $v !== null))
+            ->toArray();
+    }
+
+    private function exportMediaLanguages(): array
+    {
+        return MediaLanguage::query()
+            ->orderBy('sort_order')
+            ->orderBy('technical_name')
+            ->get()
+            ->map(fn (MediaLanguage $l) => [
+                'technical_name' => $l->technical_name,
+                'name_de' => $l->name_de,
+                'name_en' => $l->name_en,
+                'sort_order' => $l->sort_order,
+            ])
+            ->toArray();
+    }
+
+    private function exportMediaCountries(): array
+    {
+        return MediaCountry::query()
+            ->orderBy('sort_order')
+            ->orderBy('technical_name')
+            ->get()
+            ->map(fn (MediaCountry $c) => [
+                'technical_name' => $c->technical_name,
+                'name_de' => $c->name_de,
+                'name_en' => $c->name_en,
+                'sort_order' => $c->sort_order,
+            ])
+            ->toArray();
+    }
+
+    private function exportMediaUsageTypes(): array
+    {
+        $productTypeNames = ProductType::query()->pluck('technical_name', 'id');
+
+        return MediaUsageType::query()
+            ->orderBy('sort_order')
+            ->orderBy('technical_name')
+            ->get()
+            ->map(function (MediaUsageType $t) use ($productTypeNames) {
+                $allowedProductTypes = collect($t->allowed_product_type_ids ?? [])
+                    ->map(fn ($id) => $productTypeNames->get($id))
+                    ->filter()
+                    ->values()
+                    ->toArray();
+
+                return array_filter([
+                    'technical_name' => $t->technical_name,
+                    'name_de' => $t->name_de,
+                    'name_en' => $t->name_en,
+                    'name_json' => $t->name_json,
+                    'sort_order' => $t->sort_order,
+                    'allowed_extensions' => $t->allowed_extensions,
+                    'restricted_display_mode' => $t->restricted_display_mode,
+                    'allowed_product_types' => $allowedProductTypes ?: null,
+                ], fn ($v) => $v !== null);
+            })
+            ->toArray();
+    }
+
+    private function exportDictionaryEntries(): array
+    {
+        return DictionaryEntry::query()
+            ->orderBy('category')
+            ->orderBy('short_text_de')
+            ->get()
+            ->map(fn (DictionaryEntry $e) => array_filter([
+                'category' => $e->category,
+                'short_text_de' => $e->short_text_de,
+                'short_text_en' => $e->short_text_en,
+                'long_text_de' => $e->long_text_de,
+                'long_text_en' => $e->long_text_en,
+                'status' => $e->status,
+            ], fn ($v) => $v !== null))
+            ->toArray();
+    }
+
+    private function exportCollectionTypes(): array
+    {
+        return CollectionType::query()
+            ->orderBy('sort_order')
+            ->orderBy('technical_name')
+            ->get()
+            ->map(fn (CollectionType $t) => array_filter([
+                'technical_name' => $t->technical_name,
+                'name_de' => $t->name_de,
+                'name_en' => $t->name_en,
+                'name_json' => $t->name_json,
+                'description' => $t->description,
+                'icon' => $t->icon,
+                'color' => $t->color,
+                // Bereits als Attribut-Sicht-/Attribut-technical_names gespeichert (siehe
+                // CollectionRenderService) — direkt portabel, keine ID-Aufloesung noetig.
+                'default_attribute_groups' => $t->default_attribute_groups,
+                'default_item_attribute_groups' => $t->default_item_attribute_groups,
+                'default_price_type' => $t->default_price_type,
+                'default_discount_attribute' => $t->default_discount_attribute,
+                'requires_organization' => $t->requires_organization ?: null,
+                'requires_snapshot' => $t->requires_snapshot ?: null,
+                'allowed_export_formats' => $t->allowed_export_formats,
+                'sort_order' => $t->sort_order,
+                'is_active' => $t->is_active === false ? false : null,
+            ], fn ($v) => $v !== null))
+            ->toArray();
+    }
+
+    private function exportProductReferenceProfiles(): array
+    {
+        return ProductReferenceProfile::query()
+            ->with(['parentProfile'])
+            ->orderBy('technical_name')
+            ->get()
+            ->map(function (ProductReferenceProfile $p) {
+                $goldenSkus = [];
+                if (!empty($p->golden_product_ids)) {
+                    $goldenSkus = Product::query()
+                        ->whereIn('id', $p->golden_product_ids)
+                        ->orderBy('sku')
+                        ->pluck('sku')
+                        ->toArray();
+                }
+
+                return array_filter([
+                    'technical_name' => $p->technical_name,
+                    'name' => $p->name,
+                    'description' => $p->description,
+                    'parent_profile' => $p->parentProfile?->technical_name,
+                    'is_abstract' => $p->is_abstract ?: null,
+                    'is_active' => $p->is_active === false ? false : null,
+                    'version' => $p->version,
+                    'rules' => $p->rules,
+                    'golden_skus' => $goldenSkus ?: null,
+                ], fn ($v) => $v !== null);
+            })
             ->toArray();
     }
 

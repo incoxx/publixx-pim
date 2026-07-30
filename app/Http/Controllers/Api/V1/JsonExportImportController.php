@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\ImportCancelledException;
+use App\Http\Controllers\Concerns\HandlesSseProgress;
 use App\Jobs\AsyncJsonExportJob;
 use App\Services\Export\JsonFormatExporter;
 use App\Services\Import\JsonFormatImporter;
@@ -24,11 +26,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  *   GET  /api/v1/json-export/sections       — Verfügbare Sektionen auflisten
  *
  * Import:
- *   POST /api/v1/json-import                — JSON-Datei importieren
+ *   POST /api/v1/json-import                — JSON-Datei importieren (mit SSE-Progress bei Accept: text/event-stream)
  *   POST /api/v1/json-import/validate       — JSON-Datei validieren (ohne Import)
+ *   POST /api/v1/json-import/cancel         — Laufenden Import abbrechen
  */
 class JsonExportImportController extends Controller
 {
+    use HandlesSseProgress;
+
     public function __construct(
         private readonly JsonFormatExporter $exporter,
         private readonly JsonFormatImporter $importer,
@@ -216,8 +221,11 @@ class JsonExportImportController extends Controller
 
     /**
      * POST /api/v1/json-import — JSON-Datei importieren.
+     *
+     * Bei Accept: text/event-stream werden Fortschrittsereignisse (SSE) gesendet,
+     * sonst eine normale JSON-Antwort zurückgegeben.
      */
-    public function import(Request $request): JsonResponse
+    public function import(Request $request): JsonResponse|StreamedResponse
     {
         $mode = $request->input('mode', 'update');
         $this->importer->setMode($mode);
@@ -246,6 +254,12 @@ class JsonExportImportController extends Controller
             ], 422);
         }
 
+        $wantsStream = str_contains($request->header('Accept', ''), 'text/event-stream');
+
+        if ($wantsStream) {
+            return $this->importStreamed($data);
+        }
+
         try {
             $result = $this->importer->importData($data);
         } catch (\Throwable $e) {
@@ -263,6 +277,92 @@ class JsonExportImportController extends Controller
         return response()->json([
             'message' => 'Import erfolgreich',
             'data' => $result->toArray(),
+        ]);
+    }
+
+    /**
+     * SSE-Streaming-Import mit Fortschrittsmeldungen pro Sektion.
+     */
+    private function importStreamed(array $data): StreamedResponse
+    {
+        return new StreamedResponse(function () use ($data) {
+            $this->configureForLongRunning('1G');
+            $sendEvent = $this->createSseEventSender();
+            $sendHeartbeat = $this->createSseHeartbeatSender();
+
+            $importId = $this->importer->getImportId();
+
+            $sendEvent('progress', [
+                'phase' => 'starting',
+                'message' => 'Import wird vorbereitet...',
+                'current' => 0,
+                'total' => 0,
+                'import_id' => $importId,
+            ]);
+
+            $this->importer->setProgressCallback(
+                function (string $phase, int $current, int $total, array $stats) use ($sendEvent, $importId) {
+                    $sendEvent('progress', [
+                        'phase' => $phase,
+                        'message' => "Importiere {$phase}...",
+                        'current' => $current,
+                        'total' => $total,
+                        'stats' => $stats,
+                        'import_id' => $importId,
+                    ]);
+                }
+            );
+            $this->importer->setHeartbeatCallback($sendHeartbeat);
+
+            try {
+                $result = $this->importer->importData($data);
+
+                Log::channel('import')->info('JSON-Import via REST abgeschlossen', $result->toArray());
+
+                $sendEvent('complete', [
+                    'message' => 'Import erfolgreich',
+                    'data' => $result->toArray(),
+                ]);
+            } catch (ImportCancelledException $e) {
+                Log::channel('import')->info('JSON-Import abgebrochen', ['import_id' => $importId]);
+                $sendEvent('cancelled', [
+                    'message' => 'Import wurde abgebrochen.',
+                    'import_id' => $importId,
+                ]);
+            } catch (\Throwable $e) {
+                Log::channel('import')->error('JSON-Import via REST fehlgeschlagen', [
+                    'error' => $e->getMessage(),
+                ]);
+
+                $sendEvent('error', [
+                    'error' => 'Import fehlgeschlagen: ' . $e->getMessage(),
+                ]);
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no',
+        ]);
+    }
+
+    /**
+     * POST /api/v1/json-import/cancel — Laufenden Import abbrechen.
+     */
+    public function cancelImport(Request $request): JsonResponse
+    {
+        $request->validate([
+            'import_id' => 'required|string|uuid',
+        ]);
+
+        $importId = $request->input('import_id');
+        JsonFormatImporter::cancelImport($importId);
+
+        Log::channel('import')->info('JSON-Import-Abbruch angefordert', ['import_id' => $importId]);
+
+        return response()->json([
+            'message' => 'Abbruch wurde angefordert. Der Import wird nach dem aktuellen Schritt gestoppt.',
+            'import_id' => $importId,
         ]);
     }
 

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services\Import;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * Importiert PIM-Daten aus einem JSON-Format (erzeugt von JsonFormatExporter).
@@ -39,6 +41,9 @@ class JsonFormatImporter
     /** Fehler während des Imports. */
     private array $errors = [];
 
+    /** Import-ID für Progress/Cancel-Tracking. */
+    private ?string $importId = null;
+
     public function __construct(
         private readonly ImportExecutor $executor,
     ) {}
@@ -46,6 +51,54 @@ class JsonFormatImporter
     public function setMode(string $mode): void
     {
         $this->mode = in_array($mode, ['update', 'delete_insert']) ? $mode : 'update';
+    }
+
+    /**
+     * Setzt die Import-ID für Cancel-Tracking.
+     */
+    public function setImportId(string $importId): void
+    {
+        $this->importId = $importId;
+        $this->executor->setImportId($importId);
+    }
+
+    /**
+     * Gibt die Import-ID zurück (erzeugt eine neue falls nicht gesetzt).
+     */
+    public function getImportId(): string
+    {
+        if ($this->importId === null) {
+            $this->importId = Str::uuid()->toString();
+            $this->executor->setImportId($this->importId);
+        }
+
+        return $this->importId;
+    }
+
+    /**
+     * Setzt eine Callback-Funktion für Fortschrittsmeldungen (pro Sektion/Sheet).
+     */
+    public function setProgressCallback(callable $callback): void
+    {
+        $this->executor->setProgressCallback($callback);
+    }
+
+    /**
+     * Setzt eine Callback-Funktion, die periodisch waehrend langer Sheets
+     * aufgerufen wird (haelt die SSE-Verbindung zwischen Progress-Events am Leben).
+     */
+    public function setHeartbeatCallback(callable $callback): void
+    {
+        $this->executor->setHeartbeatCallback($callback);
+    }
+
+    /**
+     * Bricht einen laufenden Import ab (per Import-ID, gleicher Cancel-Kanal wie
+     * der BMEcat-Import — ImportExecutor::checkCancelled() prueft denselben Key).
+     */
+    public static function cancelImport(string $importId): void
+    {
+        Cache::put("bmecat_import_cancel_{$importId}", true, 300);
     }
 
     /**
@@ -130,11 +183,14 @@ class JsonFormatImporter
 
         $knownSections = [
             'unit_groups', 'units', 'attribute_views', 'attribute_groups',
-            'value_lists', 'attributes', 'product_types', 'price_types',
-            'relation_types', 'hierarchies', 'hierarchy_attribute_assignments',
+            'attribute_formatting_rules', 'comparison_operator_groups', 'comparison_operators',
+            'value_lists', 'attributes', 'product_types', 'price_types', 'price_regions',
+            'relation_types', 'manufacturers', 'media_languages', 'media_countries',
+            'media_usage_types', 'dictionary_entries', 'collection_types',
+            'hierarchies', 'hierarchy_attribute_assignments',
             'products', 'product_attribute_values', 'variants',
             'product_hierarchy_assignments', 'product_relations',
-            'prices', 'media_assignments',
+            'prices', 'media_assignments', 'product_reference_profiles',
         ];
 
         foreach ($knownSections as $section) {
@@ -217,6 +273,139 @@ class JsonFormatImporter
             ], $data['relation_types']);
         }
 
+        // Formatierungsregeln (JSON: attribute_formatting_rules → Sheet: 18_Formatierungsregeln)
+        if (isset($data['attribute_formatting_rules'])) {
+            $sheets['18_Formatierungsregeln'] = array_map(fn ($r) => [
+                'name' => $r['name'],
+                'rule_type' => $r['rule_type'],
+                'config' => $r['config'] ?? null,
+                'description' => $r['description'] ?? null,
+            ], $data['attribute_formatting_rules']);
+        }
+
+        // Vergleichsoperator-Gruppen (JSON: comparison_operator_groups → Sheet: 19_Vergleichsoperator_Gruppen)
+        if (isset($data['comparison_operator_groups'])) {
+            $sheets['19_Vergleichsoperator_Gruppen'] = array_map(fn ($g) => [
+                'technical_name' => $g['technical_name'],
+                'name_de' => $g['name_de'],
+                'name_en' => $g['name_en'] ?? null,
+            ], $data['comparison_operator_groups']);
+        }
+
+        // Vergleichsoperatoren (JSON: comparison_operators → Sheet: 20_Vergleichsoperatoren)
+        if (isset($data['comparison_operators'])) {
+            $sheets['20_Vergleichsoperatoren'] = array_map(fn ($o) => [
+                'group' => $o['group'],
+                'technical_name' => $o['technical_name'],
+                'symbol' => $o['symbol'],
+                'description_de' => $o['description_de'] ?? null,
+            ], $data['comparison_operators']);
+        }
+
+        // Preisregionen (JSON: price_regions → Sheet: 21_Preisregionen)
+        if (isset($data['price_regions'])) {
+            $sheets['21_Preisregionen'] = array_map(fn ($r) => [
+                'code' => $r['code'],
+                'name' => $r['name'] ?? $r['code'],
+                'type' => $r['type'] ?? 'country',
+                'metadata' => $r['metadata'] ?? null,
+            ], $data['price_regions']);
+        }
+
+        // Hersteller (JSON: manufacturers → Sheet: 22_Hersteller)
+        if (isset($data['manufacturers'])) {
+            $sheets['22_Hersteller'] = array_map(fn ($m) => [
+                'name' => $m['name'],
+                'street' => $m['street'] ?? null,
+                'zip' => $m['zip'] ?? null,
+                'city' => $m['city'] ?? null,
+                'country' => $m['country'] ?? null,
+                'email' => $m['email'] ?? null,
+                'website' => $m['website'] ?? null,
+            ], $data['manufacturers']);
+        }
+
+        // Medien-Sprachen (JSON: media_languages → Sheet: 23_Medien_Sprachen)
+        if (isset($data['media_languages'])) {
+            $sheets['23_Medien_Sprachen'] = array_map(fn ($l) => [
+                'technical_name' => $l['technical_name'],
+                'name_de' => $l['name_de'],
+                'name_en' => $l['name_en'] ?? null,
+                'sort_order' => $l['sort_order'] ?? 0,
+            ], $data['media_languages']);
+        }
+
+        // Medien-Länder (JSON: media_countries → Sheet: 24_Medien_Laender)
+        if (isset($data['media_countries'])) {
+            $sheets['24_Medien_Laender'] = array_map(fn ($c) => [
+                'technical_name' => $c['technical_name'],
+                'name_de' => $c['name_de'],
+                'name_en' => $c['name_en'] ?? null,
+                'sort_order' => $c['sort_order'] ?? 0,
+            ], $data['media_countries']);
+        }
+
+        // Medien-Verwendungstypen (JSON: media_usage_types → Sheet: 25_Medien_Verwendungstypen)
+        if (isset($data['media_usage_types'])) {
+            $sheets['25_Medien_Verwendungstypen'] = array_map(fn ($t) => [
+                'technical_name' => $t['technical_name'],
+                'name_de' => $t['name_de'],
+                'name_en' => $t['name_en'] ?? null,
+                'sort_order' => $t['sort_order'] ?? 0,
+                'allowed_extensions' => $t['allowed_extensions'] ?? null,
+                'restricted_display_mode' => $t['restricted_display_mode'] ?? null,
+                'allowed_product_types' => $t['allowed_product_types'] ?? null,
+            ], $data['media_usage_types']);
+        }
+
+        // Wörterbuch (JSON: dictionary_entries → Sheet: 26_Woerterbuch)
+        if (isset($data['dictionary_entries'])) {
+            $sheets['26_Woerterbuch'] = array_map(fn ($e) => [
+                'category' => $e['category'] ?? null,
+                'short_text_de' => $e['short_text_de'],
+                'short_text_en' => $e['short_text_en'] ?? null,
+                'long_text_de' => $e['long_text_de'] ?? $e['short_text_de'],
+                'long_text_en' => $e['long_text_en'] ?? null,
+                'status' => $e['status'] ?? 'active',
+            ], $data['dictionary_entries']);
+        }
+
+        // Collection-Typen (JSON: collection_types → Sheet: 27_Collection_Typen)
+        if (isset($data['collection_types'])) {
+            $sheets['27_Collection_Typen'] = array_map(fn ($t) => [
+                'technical_name' => $t['technical_name'],
+                'name_de' => $t['name_de'],
+                'name_en' => $t['name_en'] ?? null,
+                'description' => $t['description'] ?? null,
+                'icon' => $t['icon'] ?? null,
+                'color' => $t['color'] ?? null,
+                'default_attribute_groups' => $t['default_attribute_groups'] ?? null,
+                'default_item_attribute_groups' => $t['default_item_attribute_groups'] ?? null,
+                'default_price_type' => $t['default_price_type'] ?? null,
+                'default_discount_attribute' => $t['default_discount_attribute'] ?? null,
+                'requires_organization' => $t['requires_organization'] ?? false,
+                'requires_snapshot' => $t['requires_snapshot'] ?? false,
+                'allowed_export_formats' => $t['allowed_export_formats'] ?? null,
+                'sort_order' => $t['sort_order'] ?? 0,
+                'is_active' => $t['is_active'] ?? true,
+            ], $data['collection_types']);
+        }
+
+        // Referenz-Profile (JSON: product_reference_profiles → Sheet: 28_Referenz_Profile)
+        if (isset($data['product_reference_profiles'])) {
+            $sheets['28_Referenz_Profile'] = array_map(fn ($p) => [
+                'technical_name' => $p['technical_name'],
+                'name' => $p['name'] ?? $p['technical_name'],
+                'description' => $p['description'] ?? null,
+                'parent_profile' => $p['parent_profile'] ?? null,
+                'is_abstract' => $p['is_abstract'] ?? false,
+                'is_active' => $p['is_active'] ?? true,
+                'version' => $p['version'] ?? 1,
+                'rules' => $p['rules'] ?? null,
+                'golden_skus' => $p['golden_skus'] ?? null,
+            ], $data['product_reference_profiles']);
+        }
+
         // Einheiten (JSON: unit_groups + units → Sheet: 03_Einheiten)
         if (isset($data['units'])) {
             $sheets['03_Einheiten'] = $this->mapUnitsToRows($data['units'], $data['unit_groups'] ?? []);
@@ -250,6 +439,8 @@ class JsonFormatImporter
                 'value_list' => $a['value_list'] ?? null,
                 'unit_group' => $a['unit_group'] ?? null,
                 'default_unit' => $a['default_unit'] ?? null,
+                'formatting_rule' => $a['formatting_rule'] ?? null,
+                'comparison_operator_group' => $a['comparison_operator_group'] ?? null,
                 'is_multipliable' => $a['is_multipliable'] ?? false,
                 'max_multiplied' => $a['max_multiplied'] ?? null,
                 'is_translatable' => $a['is_translatable'] ?? false,

@@ -6,20 +6,30 @@ namespace App\Services\Import;
 
 use App\Events\HierarchyAttributeChanged;
 use App\Models\Attribute;
+use App\Models\AttributeFormattingRule;
 use App\Models\AttributeType;
 use App\Models\AttributeView;
+use App\Models\CollectionType;
+use App\Models\ComparisonOperator;
+use App\Models\ComparisonOperatorGroup;
+use App\Models\DictionaryEntry;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\HierarchyAttributeAssignment;
 use App\Models\HierarchyNodeAttributeAssignment;
+use App\Models\Manufacturer;
 use App\Models\Media;
+use App\Models\MediaCountry;
+use App\Models\MediaLanguage;
 use App\Models\OutputHierarchyProductAssignment;
+use App\Models\PriceRegion;
 use App\Models\PriceType;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\MediaUsageType;
 use App\Models\ProductMediaAssignment;
 use App\Models\ProductPrice;
+use App\Models\ProductReferenceProfile;
 use App\Models\ProductRelation;
 use App\Models\ProductRelationAttributeValue;
 use App\Models\ProductRelationType;
@@ -288,9 +298,19 @@ class ImportExecutor
             '03_Einheiten',
             '04_Wertelisten',
             '15_Attribut_Sichten',
+            '18_Formatierungsregeln',
+            '19_Vergleichsoperator_Gruppen',
+            '20_Vergleichsoperatoren',
             '05_Attribute',
             '16_Preistypen',
+            '21_Preisregionen',
             '17_Beziehungstypen',
+            '22_Hersteller',
+            '23_Medien_Sprachen',
+            '24_Medien_Laender',
+            '25_Medien_Verwendungstypen',
+            '26_Woerterbuch',
+            '27_Collection_Typen',
             '06_Hierarchien',
             '07_Hierarchie_Attribute',
             '07b_Hierarchie_Ebene_Attribute',
@@ -301,6 +321,7 @@ class ImportExecutor
             '12_Produktbeziehungen',
             '13_Preise',
             '14_Medien',
+            '28_Referenz_Profile',
         ];
 
         // Bei delete_insert: betroffene Daten vorher löschen
@@ -408,6 +429,17 @@ class ImportExecutor
                 '15_Attribut_Sichten' => 'importAttributeViews',
                 '16_Preistypen' => 'importPriceTypes',
                 '17_Beziehungstypen' => 'importRelationTypes',
+                '18_Formatierungsregeln' => 'importAttributeFormattingRules',
+                '19_Vergleichsoperator_Gruppen' => 'importComparisonOperatorGroups',
+                '20_Vergleichsoperatoren' => 'importComparisonOperators',
+                '21_Preisregionen' => 'importPriceRegions',
+                '22_Hersteller' => 'importManufacturers',
+                '23_Medien_Sprachen' => 'importMediaLanguages',
+                '24_Medien_Laender' => 'importMediaCountries',
+                '25_Medien_Verwendungstypen' => 'importMediaUsageTypes',
+                '26_Woerterbuch' => 'importDictionaryEntries',
+                '27_Collection_Typen' => 'importCollectionTypes',
+                '28_Referenz_Profile' => 'importProductReferenceProfiles',
                 default => null,
             };
 
@@ -965,6 +997,24 @@ class ImportExecutor
                         $data['default_unit_id'] = $result->id;
                     } else {
                         Log::channel('import')->warning("Standard-Einheit nicht aufgelöst: '{$row['default_unit']}' für Attribut '{$row['technical_name']}'");
+                    }
+                }
+
+                if (!empty($row['formatting_rule'])) {
+                    $rule = AttributeFormattingRule::where('name', $row['formatting_rule'])->first();
+                    if ($rule) {
+                        $data['formatting_rule_id'] = $rule->id;
+                    } else {
+                        Log::channel('import')->warning("Formatierungsregel nicht aufgelöst: '{$row['formatting_rule']}' für Attribut '{$row['technical_name']}'");
+                    }
+                }
+
+                if (!empty($row['comparison_operator_group'])) {
+                    $group = ComparisonOperatorGroup::where('technical_name', $row['comparison_operator_group'])->first();
+                    if ($group) {
+                        $data['comparison_operator_group_id'] = $group->id;
+                    } else {
+                        Log::channel('import')->warning("Vergleichsoperator-Gruppe nicht aufgelöst: '{$row['comparison_operator_group']}' für Attribut '{$row['technical_name']}'");
                     }
                 }
 
@@ -2901,5 +2951,381 @@ class ImportExecutor
         );
 
         return $region->id;
+    }
+
+    // ── Formatierungsregeln ───────────────────────────────────────────────
+
+    private function importAttributeFormattingRules(array $rows, string $sheetKey): void
+    {
+        foreach ($rows as $row) {
+            try {
+                $existing = AttributeFormattingRule::where('name', $row['name'])->first();
+
+                $data = [
+                    'name' => $row['name'],
+                    'rule_type' => $row['rule_type'],
+                    'config' => $row['config'] ?? null,
+                    'description' => $row['description'] ?? null,
+                ];
+
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    AttributeFormattingRule::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
+        }
+    }
+
+    // ── Vergleichsoperator-Gruppen/-Operatoren ─────────────────────────────
+
+    private function importComparisonOperatorGroups(array $rows, string $sheetKey): void
+    {
+        foreach ($rows as $row) {
+            try {
+                $existing = ComparisonOperatorGroup::where('technical_name', $row['technical_name'])->first();
+
+                $data = [
+                    'technical_name' => $row['technical_name'],
+                    'name_de' => $row['name_de'],
+                    'name_en' => $row['name_en'] ?? null,
+                ];
+
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    ComparisonOperatorGroup::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
+        }
+    }
+
+    private function importComparisonOperators(array $rows, string $sheetKey): void
+    {
+        foreach ($rows as $row) {
+            try {
+                $group = ComparisonOperatorGroup::where('technical_name', $row['group'])->first();
+                if (!$group) {
+                    Log::channel('import')->warning("Vergleichsoperator-Gruppe nicht gefunden: '{$row['group']}' für Operator '{$row['technical_name']}'");
+                    $this->stats[$sheetKey]['skipped']++;
+                    continue;
+                }
+
+                $existing = ComparisonOperator::where('group_id', $group->id)
+                    ->where('technical_name', $row['technical_name'])
+                    ->first();
+
+                $data = [
+                    'group_id' => $group->id,
+                    'technical_name' => $row['technical_name'],
+                    'symbol' => $row['symbol'],
+                    'description_de' => $row['description_de'] ?? null,
+                ];
+
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    ComparisonOperator::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
+        }
+    }
+
+    // ── Preisregionen ───────────────────────────────────────────────────────
+
+    private function importPriceRegions(array $rows, string $sheetKey): void
+    {
+        foreach ($rows as $row) {
+            try {
+                $existing = PriceRegion::where('code', $row['code'])->first();
+
+                $data = [
+                    'code' => $row['code'],
+                    'name' => $row['name'],
+                    'type' => $row['type'] ?? 'country',
+                    'metadata' => $row['metadata'] ?? null,
+                ];
+
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    PriceRegion::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
+        }
+    }
+
+    // ── Hersteller ───────────────────────────────────────────────────────
+
+    private function importManufacturers(array $rows, string $sheetKey): void
+    {
+        foreach ($rows as $row) {
+            try {
+                // Kein eindeutiger Schluessel in der DB (name ist nicht unique) — beim
+                // Import wird der erste Treffer nach 'name' als "derselbe Hersteller"
+                // behandelt, konsistent mit der Dropdown-Praxis im Rest der App.
+                $existing = Manufacturer::where('name', $row['name'])->first();
+
+                $data = [
+                    'name' => $row['name'],
+                    'street' => $row['street'] ?? null,
+                    'zip' => $row['zip'] ?? null,
+                    'city' => $row['city'] ?? null,
+                    'country' => $row['country'] ?? null,
+                    'email' => $row['email'] ?? null,
+                    'website' => $row['website'] ?? null,
+                ];
+
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    Manufacturer::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
+        }
+    }
+
+    // ── Medien-Sprachen/-Länder ─────────────────────────────────────────────
+
+    private function importMediaLanguages(array $rows, string $sheetKey): void
+    {
+        foreach ($rows as $row) {
+            try {
+                $existing = MediaLanguage::where('technical_name', $row['technical_name'])->first();
+
+                $data = [
+                    'technical_name' => $row['technical_name'],
+                    'name_de' => $row['name_de'],
+                    'name_en' => $row['name_en'] ?? null,
+                    'sort_order' => $row['sort_order'] ?? 0,
+                ];
+
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    MediaLanguage::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
+        }
+    }
+
+    private function importMediaCountries(array $rows, string $sheetKey): void
+    {
+        foreach ($rows as $row) {
+            try {
+                $existing = MediaCountry::where('technical_name', $row['technical_name'])->first();
+
+                $data = [
+                    'technical_name' => $row['technical_name'],
+                    'name_de' => $row['name_de'],
+                    'name_en' => $row['name_en'] ?? null,
+                    'sort_order' => $row['sort_order'] ?? 0,
+                ];
+
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    MediaCountry::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
+        }
+    }
+
+    // ── Medien-Verwendungstypen ─────────────────────────────────────────────
+
+    private function importMediaUsageTypes(array $rows, string $sheetKey): void
+    {
+        foreach ($rows as $row) {
+            try {
+                $existing = MediaUsageType::where('technical_name', $row['technical_name'])->first();
+
+                $data = [
+                    'technical_name' => $row['technical_name'],
+                    'name_de' => $row['name_de'],
+                    'name_en' => $row['name_en'] ?? null,
+                    'sort_order' => $row['sort_order'] ?? 0,
+                    'allowed_extensions' => $row['allowed_extensions'] ?? null,
+                    'restricted_display_mode' => $row['restricted_display_mode'] ?? 'locked',
+                ];
+
+                if (!empty($row['allowed_product_types'])) {
+                    $ids = ProductType::whereIn('technical_name', $row['allowed_product_types'])->pluck('id')->toArray();
+                    $data['allowed_product_type_ids'] = $ids ?: null;
+                }
+
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    MediaUsageType::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
+        }
+    }
+
+    // ── Wörterbuch ───────────────────────────────────────────────────────
+
+    private function importDictionaryEntries(array $rows, string $sheetKey): void
+    {
+        foreach ($rows as $row) {
+            try {
+                // Kein eindeutiger Schluessel in der DB — (category, short_text_de) wird
+                // als natuerlicher Schluessel fuer den Upsert verwendet.
+                $existing = DictionaryEntry::where('category', $row['category'] ?? null)
+                    ->where('short_text_de', $row['short_text_de'])
+                    ->first();
+
+                $data = [
+                    'category' => $row['category'] ?? null,
+                    'short_text_de' => $row['short_text_de'],
+                    'short_text_en' => $row['short_text_en'] ?? null,
+                    'long_text_de' => $row['long_text_de'] ?? $row['short_text_de'],
+                    'long_text_en' => $row['long_text_en'] ?? null,
+                    'status' => $row['status'] ?? 'active',
+                ];
+
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    DictionaryEntry::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
+        }
+    }
+
+    // ── Collection-Typen ───────────────────────────────────────────────────
+
+    private function importCollectionTypes(array $rows, string $sheetKey): void
+    {
+        foreach ($rows as $row) {
+            try {
+                $existing = CollectionType::where('technical_name', $row['technical_name'])->first();
+
+                $data = [
+                    'technical_name' => $row['technical_name'],
+                    'name_de' => $row['name_de'],
+                    'name_en' => $row['name_en'] ?? null,
+                    'description' => $row['description'] ?? null,
+                    'icon' => $row['icon'] ?? null,
+                    'color' => $row['color'] ?? null,
+                    // Bereits technical_names (Attribut-Sichten/Attribute) — direkt uebernehmbar,
+                    // siehe JsonFormatExporter::exportCollectionTypes().
+                    'default_attribute_groups' => $row['default_attribute_groups'] ?? null,
+                    'default_item_attribute_groups' => $row['default_item_attribute_groups'] ?? null,
+                    'default_price_type' => $row['default_price_type'] ?? null,
+                    'default_discount_attribute' => $row['default_discount_attribute'] ?? null,
+                    'requires_organization' => $this->toBool($row['requires_organization'] ?? false),
+                    'requires_snapshot' => $this->toBool($row['requires_snapshot'] ?? false),
+                    'allowed_export_formats' => $row['allowed_export_formats'] ?? null,
+                    'sort_order' => $row['sort_order'] ?? 0,
+                    'is_active' => $this->toBool($row['is_active'] ?? true),
+                ];
+
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    CollectionType::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
+        }
+    }
+
+    // ── Referenz-Profile ───────────────────────────────────────────────────
+
+    private function importProductReferenceProfiles(array $rows, string $sheetKey): void
+    {
+        foreach ($rows as $row) {
+            try {
+                $existing = ProductReferenceProfile::where('technical_name', $row['technical_name'])->first();
+
+                $data = [
+                    'technical_name' => $row['technical_name'],
+                    'name' => $row['name'],
+                    'description' => $row['description'] ?? null,
+                    'is_abstract' => $this->toBool($row['is_abstract'] ?? false),
+                    'is_active' => $this->toBool($row['is_active'] ?? true),
+                    'version' => $row['version'] ?? 1,
+                    'rules' => $row['rules'] ?? null,
+                ];
+
+                // Eltern-Profil: Einzel-Durchlauf-Aufloesung wie bei Attribute::parent_attribute —
+                // funktioniert nur wenn das Eltern-Profil bereits vorher im selben Import
+                // (oder frueher) angelegt wurde.
+                if (!empty($row['parent_profile'])) {
+                    $parent = ProductReferenceProfile::where('technical_name', $row['parent_profile'])->first();
+                    if ($parent) {
+                        $data['parent_profile_id'] = $parent->id;
+                    } else {
+                        Log::channel('import')->warning("Eltern-Profil nicht aufgeloest: '{$row['parent_profile']}' für Profil '{$row['technical_name']}'");
+                    }
+                }
+
+                // Golden-Produkte: per SKU aufloesen, unbekannte SKUs werden uebersprungen
+                // (Produkte existieren evtl. nicht, wenn nur Konfiguration importiert wird).
+                if (!empty($row['golden_skus'])) {
+                    $data['golden_product_ids'] = Product::whereIn('sku', $row['golden_skus'])->pluck('id')->toArray() ?: null;
+                }
+
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    ProductReferenceProfile::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
+        }
     }
 }

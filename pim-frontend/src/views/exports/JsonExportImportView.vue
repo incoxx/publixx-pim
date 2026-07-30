@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import {
   FileJson, Download, Upload, CheckCircle, XCircle, Loader2,
-  AlertTriangle, ChevronDown, ChevronUp, X, FileUp,
+  AlertTriangle, ChevronDown, ChevronUp, X, FileUp, StopCircle,
 } from 'lucide-vue-next'
 import jsonExportImportApi from '@/api/jsonExportImport'
 import SearchFilterPanel from '@/components/shared/SearchFilterPanel.vue'
@@ -39,6 +39,10 @@ const validating = ref(false)
 const validationResult = ref(null)
 const importResult = ref(null)
 const dragOver = ref(false)
+const importProgress = ref(null) // { phase, message, current, total, percent, import_id }
+const importProgressLog = ref([]) // Verlauf aller Progress-Events (fuer das Log-Panel)
+const importCancelling = ref(false)
+const importCancelled = ref(false)
 
 // --- Load ---
 onMounted(async () => {
@@ -206,15 +210,54 @@ async function validateImport() {
 async function runImport() {
   if (!importFile.value) return
   importing.value = true
+  importCancelling.value = false
+  importCancelled.value = false
   error.value = ''
   importResult.value = null
+  importProgressLog.value = []
+  importProgress.value = { phase: 'starting', message: 'Import wird vorbereitet...', current: 0, total: 0, percent: 0 }
   try {
-    const { data } = await jsonExportImportApi.importFile(importFile.value, importMode.value)
-    importResult.value = data.data || data
+    const result = await jsonExportImportApi.importFileWithProgress(
+      importFile.value,
+      importMode.value,
+      (progress) => {
+        const entry = {
+          ...progress,
+          percent: progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0,
+          at: new Date(),
+        }
+        importProgress.value = entry
+        importProgressLog.value.push(entry)
+      },
+    )
+    importResult.value = result
+    importProgress.value = null
   } catch (e) {
-    error.value = e.response?.data?.error || e.response?.data?.message || 'Import fehlgeschlagen'
+    if (!importCancelled.value) {
+      error.value = e.message || 'Import fehlgeschlagen'
+    }
+    importProgress.value = null
   } finally {
     importing.value = false
+    importCancelling.value = false
+  }
+}
+
+async function cancelImport() {
+  const importId = importProgress.value?.import_id
+  if (!importId || importCancelling.value) return
+  importCancelling.value = true
+  importCancelled.value = true
+  try {
+    await jsonExportImportApi.cancelImport(importId)
+    importProgress.value = {
+      ...importProgress.value,
+      message: 'Import wird abgebrochen...',
+    }
+  } catch (e) {
+    // Cancel-Request fehlgeschlagen — Import läuft weiter
+    importCancelling.value = false
+    importCancelled.value = false
   }
 }
 
@@ -231,11 +274,21 @@ const sectionLabel = (s) => ({
   units: 'Einheiten',
   attribute_views: 'Attributsichten',
   attribute_groups: 'Attributgruppen',
+  attribute_formatting_rules: 'Formatierungsregeln',
+  comparison_operator_groups: 'Vergleichsoperator-Gruppen',
+  comparison_operators: 'Vergleichsoperatoren',
   value_lists: 'Wertelisten',
   attributes: 'Attribute',
   product_types: 'Produkttypen',
   price_types: 'Preisarten',
+  price_regions: 'Preisregionen',
   relation_types: 'Beziehungstypen',
+  manufacturers: 'Hersteller',
+  media_languages: 'Medien-Sprachen',
+  media_countries: 'Medien-Länder',
+  media_usage_types: 'Medien-Verwendungstypen',
+  dictionary_entries: 'Wörterbuch',
+  collection_types: 'Collection-Typen',
   hierarchies: 'Hierarchien',
   hierarchy_attribute_assignments: 'Hierarchie-Attribute',
   products: 'Produkte',
@@ -245,6 +298,7 @@ const sectionLabel = (s) => ({
   product_relations: 'Produktbeziehungen',
   prices: 'Preise',
   media_assignments: 'Medien',
+  product_reference_profiles: 'Referenz-Profile',
 }[s] || s)
 
 const tabs = [
@@ -450,6 +504,73 @@ const tabs = [
           <Upload v-else class="w-3.5 h-3.5" :stroke-width="1.75" />
           {{ importing ? 'Importiere...' : 'Import starten' }}
         </button>
+      </div>
+
+      <!-- Import Progress -->
+      <div v-if="importProgress" class="pim-card p-4 space-y-3">
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-[var(--color-text-secondary)] flex items-center gap-2">
+            <Loader2 v-if="!importCancelling" class="w-3.5 h-3.5 animate-spin text-[var(--color-accent)]" :stroke-width="2" />
+            <StopCircle v-else class="w-3.5 h-3.5 text-orange-500" :stroke-width="2" />
+            {{ importProgress.message }}
+          </span>
+          <span v-if="importProgress.current > 0" class="text-[var(--color-text-tertiary)]">
+            <template v-if="importProgress.total > 0">
+              {{ importProgress.current }} / {{ importProgress.total }}
+            </template>
+            <template v-else>
+              {{ importProgress.current }}
+            </template>
+          </span>
+        </div>
+        <div class="w-full bg-[var(--color-bg)] rounded-full h-2 overflow-hidden">
+          <div
+            class="h-full rounded-full transition-all duration-300 ease-out"
+            :class="[
+              importCancelling ? 'bg-orange-500' : 'bg-[var(--color-accent)]',
+              importProgress.total > 0 ? '' : 'animate-pulse',
+            ]"
+            :style="{ width: importProgress.total > 0 ? importProgress.percent + '%' : '100%' }"
+          />
+        </div>
+        <div v-if="importProgress.import_id && !importCancelling" class="flex justify-end">
+          <button
+            class="pim-btn pim-btn-secondary text-xs text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+            @click="cancelImport"
+          >
+            <StopCircle class="w-3.5 h-3.5" :stroke-width="1.75" />
+            Import abbrechen
+          </button>
+        </div>
+        <p v-if="importCancelling" class="text-[10px] text-orange-600">
+          Abbruch angefordert — der Import stoppt nach dem aktuellen Schritt...
+        </p>
+      </div>
+
+      <!-- Import Progress-Log -->
+      <div v-if="importProgressLog.length" class="pim-card p-4 space-y-2">
+        <h3 class="text-xs font-semibold text-[var(--color-text-primary)]">Verlauf</h3>
+        <div class="max-h-48 overflow-y-auto space-y-1 font-mono text-[11px]">
+          <div
+            v-for="(entry, i) in importProgressLog"
+            :key="i"
+            class="flex items-start gap-2 text-[var(--color-text-secondary)]"
+          >
+            <span class="text-[var(--color-text-tertiary)] shrink-0">{{ entry.at.toLocaleTimeString() }}</span>
+            <span class="truncate">{{ entry.message }}</span>
+            <span v-if="entry.stats" class="text-[var(--color-text-tertiary)] shrink-0">
+              (+{{ (entry.stats.created || 0) + (entry.stats.updated || 0) }})
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Import Cancelled -->
+      <div v-if="importCancelled && !importing" class="pim-card p-4">
+        <div class="flex items-center gap-2">
+          <AlertTriangle class="w-4 h-4 text-orange-500" :stroke-width="2" />
+          <span class="text-sm font-medium text-orange-600">Import wurde abgebrochen</span>
+        </div>
       </div>
 
       <!-- Validation Result -->
