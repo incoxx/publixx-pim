@@ -265,4 +265,65 @@ export default {
   cancelMissingMediaPull(importId) {
     return client.post('/json-import/cancel', { import_id: importId })
   },
+
+  // =====================================================================
+  // anyPIM Suchprofil-Push
+  // =====================================================================
+
+  /**
+   * Alle Produkte, die einem gespeicherten Suchprofil entsprechen, zur
+   * Remote-Instanz pushen, mit SSE-Progress-Streaming und Abbruch-Möglichkeit
+   * (identisch zu pullConfigWithProgress).
+   *
+   * @param {string} connectionId
+   * @param {string} searchProfileId
+   * @param {(event: object) => void} onProgress
+   * @returns {Promise<object>}
+   */
+  pushBySearchProfileWithProgress(connectionId, searchProfileId, onProgress = null) {
+    const auth = useAuthStore()
+    const token = auth.token
+
+    const xsrfToken = document.cookie
+      .split('; ')
+      .find((c) => c.startsWith('XSRF-TOKEN='))
+      ?.split('=')[1]
+
+    return new Promise((resolve, reject) => {
+      fetch(`${apiBaseURL}/connectors/connections/${connectionId}/push-search-profile`, {
+        method: 'POST',
+        headers: {
+          Accept: 'text/event-stream',
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : '',
+          ...(xsrfToken ? { 'X-XSRF-TOKEN': decodeURIComponent(xsrfToken) } : {}),
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ search_profile_id: searchProfileId }),
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            const text = await response.text()
+            try {
+              const json = JSON.parse(text)
+              reject(new Error(json.error || json.message || `Suchprofil-Push fehlgeschlagen (HTTP ${response.status})`))
+            } catch {
+              const snippet = text.length > 200 ? text.slice(0, 200) + '…' : text
+              reject(new Error(`Suchprofil-Push fehlgeschlagen (HTTP ${response.status}): ${snippet}`))
+            }
+            return
+          }
+
+          this._handleSseResponse(response, onProgress, resolve, reject)
+        })
+        .catch(reject)
+    })
+  },
+
+  /**
+   * Laufenden Suchprofil-Push abbrechen (nutzt denselben Cancel-Kanal wie der JSON-Import).
+   */
+  cancelSearchProfilePush(importId) {
+    return client.post('/json-import/cancel', { import_id: importId })
+  },
 }

@@ -241,6 +241,84 @@ class AnyPimConnectorSyncTest extends TestCase
         $this->assertSame(2, $response->json('data.missing'));
     }
 
+    public function test_push_search_profile_sendet_nur_passende_produkte_an_remote_instanz(): void
+    {
+        $productType = \App\Models\ProductType::factory()->create(['technical_name' => 'werkzeug']);
+        $matching = Product::factory()->create(['sku' => 'PASST-001', 'product_type_id' => $productType->id, 'status' => 'active']);
+        Product::factory()->create(['sku' => 'PASST-NICHT-002', 'product_type_id' => $productType->id, 'status' => 'draft']);
+
+        $profile = \App\Models\SearchProfile::factory()->create([
+            'user_id' => $this->user->id,
+            'status_filter' => 'active',
+        ]);
+
+        Http::fake([
+            self::REMOTE_URL . '/api/v1/pim-sync/products' => Http::response([
+                'stats' => ['created' => 1, 'updated' => 0, 'skipped' => 0, 'errors' => 0, 'details' => []],
+            ]),
+        ]);
+
+        $response = $this->call(
+            'POST',
+            "/api/v1/connectors/connections/{$this->connection->id}/push-search-profile",
+            ['search_profile_id' => $profile->id],
+        );
+
+        $response->assertOk();
+        $content = $response->streamedContent();
+
+        $this->assertStringContainsString('event: complete', $content);
+
+        Http::assertSent(function ($request) use ($matching) {
+            $skus = collect($request->data()['products'] ?? [])->pluck('sku');
+            return $request->url() === self::REMOTE_URL . '/api/v1/pim-sync/products'
+                && $request->method() === 'POST'
+                && $skus->contains($matching->sku)
+                && $skus->doesntContain('PASST-NICHT-002');
+        });
+
+        $this->assertDatabaseHas('connector_sync_logs', [
+            'connector_connection_id' => $this->connection->id,
+            'action' => 'push_search_profile',
+        ]);
+    }
+
+    public function test_push_search_profile_ohne_treffer_sendet_nichts_an_remote_instanz(): void
+    {
+        $productType = \App\Models\ProductType::factory()->create(['technical_name' => 'werkzeug']);
+        Product::factory()->create(['product_type_id' => $productType->id, 'status' => 'draft']);
+
+        $profile = \App\Models\SearchProfile::factory()->create([
+            'user_id' => $this->user->id,
+            'status_filter' => 'active',
+        ]);
+
+        Http::fake();
+
+        $response = $this->call(
+            'POST',
+            "/api/v1/connectors/connections/{$this->connection->id}/push-search-profile",
+            ['search_profile_id' => $profile->id],
+        );
+
+        $response->assertOk();
+        $content = $response->streamedContent();
+
+        $this->assertStringContainsString('event: complete', $content);
+        Http::assertNotSent(fn ($request) => $request->url() === self::REMOTE_URL . '/api/v1/pim-sync/products');
+    }
+
+    public function test_push_search_profile_ist_nur_fuer_anypim_verbindungen_verfuegbar(): void
+    {
+        $shopwareConnection = ConnectorConnection::factory()->create(['connector_type' => 'shopware']);
+        $profile = \App\Models\SearchProfile::factory()->create(['user_id' => $this->user->id]);
+
+        $this->postJson(
+            "/api/v1/connectors/connections/{$shopwareConnection->id}/push-search-profile",
+            ['search_profile_id' => $profile->id],
+        )->assertStatus(422);
+    }
+
     public function test_pull_missing_media_laedt_fehlende_dateien_von_remote_instanz(): void
     {
         \Illuminate\Support\Facades\Storage::fake('public');

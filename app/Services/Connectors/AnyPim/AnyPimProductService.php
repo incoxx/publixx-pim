@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Services\Connectors\AnyPim;
 
+use App\Exceptions\ImportCancelledException;
 use App\Services\PimSync\PimSyncExportService;
 use App\Services\PimSync\PimSyncImportService;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class AnyPimProductService
@@ -19,6 +21,13 @@ class AnyPimProductService
     /**
      * Produkte zur Remote-Instanz pushen.
      *
+     * Nutzt denselben Cache-basierten Abbruch-Mechanismus wie der JSON-Import
+     * (Cache-Key "bmecat_import_cancel_{$importId}"), wenn eine Import-ID
+     * mitgegeben wird — damit der bestehende /json-import/cancel-Endpoint
+     * auch hierfür funktioniert.
+     *
+     * @param  callable(int $pushed, int $total, int $page): void|null  $progressCallback
+     * @param  callable(): void|null  $heartbeatCallback
      * @return array{pushed: int, errors: int, details: array}
      */
     public function pushProducts(
@@ -26,12 +35,25 @@ class AnyPimProductService
         string $remoteUrl,
         array $filters = [],
         array $options = [],
+        ?string $importId = null,
+        ?callable $progressCallback = null,
+        ?callable $heartbeatCallback = null,
     ): array {
         $stats = ['pushed' => 0, 'errors' => 0, 'details' => []];
         $perPage = 100;
         $page = 1;
+        $total = isset($filters['skus']) ? count($filters['skus']) : 0;
 
         do {
+            if ($heartbeatCallback) {
+                ($heartbeatCallback)();
+            }
+
+            if ($importId && Cache::get("bmecat_import_cancel_{$importId}")) {
+                Cache::forget("bmecat_import_cancel_{$importId}");
+                throw new ImportCancelledException($importId);
+            }
+
             $filters['per_page'] = $perPage;
             $filters['page'] = $page;
 
@@ -68,6 +90,10 @@ class AnyPimProductService
                     'page'  => $page,
                     'error' => $e->getMessage(),
                 ]);
+            }
+
+            if ($progressCallback) {
+                ($progressCallback)($stats['pushed'] + $stats['errors'], $total, $page);
             }
 
             $page++;

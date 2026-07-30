@@ -7,10 +7,12 @@ namespace App\Services\Connectors\AnyPim;
 use App\Models\ConnectorConnection;
 use App\Models\Media;
 use App\Models\Product;
+use App\Models\SearchProfile;
 use App\Services\Connectors\AbstractConnector;
 use App\Services\Export\JsonFormatExporter;
 use App\Services\Import\JsonFormatImporter;
 use App\Services\Import\JsonImportResult;
+use App\Services\Search\SearchProfileQueryBuilder;
 use Illuminate\Support\Facades\Log;
 
 class AnyPimConnector extends AbstractConnector
@@ -23,6 +25,7 @@ class AnyPimConnector extends AbstractConnector
         private readonly AnyPimChecksumService $checksumService,
         private readonly AnyPimConfigService $configService,
         private readonly JsonFormatImporter $jsonImporter,
+        private readonly SearchProfileQueryBuilder $searchProfileQueryBuilder,
     ) {}
 
     public function getType(): string
@@ -90,6 +93,61 @@ class AnyPimConnector extends AbstractConnector
     // =========================================================================
     // anyPIM-spezifische Methoden (erweitert das Standard-ConnectorInterface)
     // =========================================================================
+
+    /**
+     * Push aller Produkte, die einem gespeicherten Suchprofil entsprechen — zur
+     * Remote-Instanz senden. Löst das Suchprofil über den zentralen
+     * SearchProfileQueryBuilder auf (siehe dessen Klassenkommentar: das ist
+     * verpflichtend die einzige Stelle, die Suchprofil-Filter interpretiert).
+     */
+    public function pushBySearchProfile(
+        ConnectorConnection $connection,
+        string $searchProfileId,
+        array $options = [],
+        ?string $importId = null,
+        ?callable $progressCallback = null,
+        ?callable $heartbeatCallback = null,
+    ): array {
+        $profile = SearchProfile::findOrFail($searchProfileId);
+        $skus = $this->searchProfileQueryBuilder->forProducts($profile)->pluck('sku')->all();
+
+        if (empty($skus)) {
+            // Wichtig: ein leerer 'skus'-Filter wird von PimSyncExportService::buildQuery()
+            // als "kein Filter" behandelt (empty() auf []) — würde sonst ALLE Produkte
+            // pushen statt keine. Also hier explizit abbrechen statt pushProducts() zu rufen.
+            $result = ['pushed' => 0, 'errors' => 0, 'details' => [], 'total' => 0];
+            $this->logSync($connection, 'push_search_profile', 'products', $profile->name, 'success', null, null, $result);
+
+            return $result;
+        }
+
+        $http = $this->authenticatedRequest($connection);
+        $remoteUrl = $this->authService->getRemoteUrl($connection);
+        $settings = $connection->settings ?? [];
+
+        $mergedOptions = array_merge([
+            'conflict_resolution' => $settings['conflict_resolution'] ?? 'remote_wins',
+            'sync_attributes'     => true,
+            'sync_prices'         => true,
+            'sync_media'          => true,
+        ], $options);
+
+        $result = $this->productService->pushProducts(
+            $http,
+            $remoteUrl,
+            ['skus' => $skus],
+            $mergedOptions,
+            $importId,
+            $progressCallback,
+            $heartbeatCallback,
+        );
+        $result['total'] = count($skus);
+
+        $status = ($result['errors'] ?? 0) > 0 ? 'partial' : 'success';
+        $this->logSync($connection, 'push_search_profile', 'products', $profile->name, $status, null, null, $result);
+
+        return $result;
+    }
 
     /**
      * Vollständiger Push: Alle Produkte zur Remote-Instanz senden.
