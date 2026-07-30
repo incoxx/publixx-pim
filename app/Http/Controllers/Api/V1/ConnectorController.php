@@ -11,6 +11,7 @@ use App\Models\ConnectorProductChecksum;
 use App\Models\ConnectorSyncLog;
 use App\Models\Media;
 use App\Models\Product;
+use App\Models\SearchProfile;
 use App\Models\WebsiteProfile;
 use App\Services\Connectors\AnyPim\AnyPimConnector;
 use App\Services\Connectors\ConnectorRegistry;
@@ -1319,6 +1320,87 @@ class ConnectorController extends Controller
 
                 $sendEvent('error', [
                     'error' => 'Media-Pull fehlgeschlagen: ' . $e->getMessage(),
+                ]);
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no',
+        ]);
+    }
+
+    /**
+     * POST /api/v1/connectors/connections/{connection}/push-search-profile — Alle Produkte,
+     * die einem gespeicherten Suchprofil entsprechen, zur Remote-anyPIM-Instanz pushen,
+     * mit SSE-Fortschritt (analog zu pullConfig()/pullMissingMedia()).
+     */
+    public function pushBySearchProfile(Request $request, ConnectorConnection $connection, AnyPimConnector $connector): StreamedResponse
+    {
+        $this->authorize('sync', $connection);
+
+        if ($connection->connector_type !== 'anypim') {
+            abort(422, 'Suchprofil-Push ist nur für anyPIM-Connections verfügbar.');
+        }
+
+        $validated = $request->validate([
+            'search_profile_id' => 'required|uuid',
+        ]);
+
+        $profile = SearchProfile::visibleTo($request->user()->id)
+            ->find($validated['search_profile_id']);
+
+        if (! $profile) {
+            abort(404, 'Suchprofil nicht gefunden.');
+        }
+
+        return new StreamedResponse(function () use ($connection, $connector, $profile) {
+            $this->configureForLongRunning('512M');
+            $sendEvent = $this->createSseEventSender();
+            $sendHeartbeat = $this->createSseHeartbeatSender();
+
+            $importId = (string) Str::uuid();
+
+            $sendEvent('progress', [
+                'phase' => 'starting',
+                'message' => "Suchprofil \"{$profile->name}\" wird ausgewertet...",
+                'current' => 0,
+                'total' => 0,
+                'import_id' => $importId,
+            ]);
+
+            $progressCallback = function (int $current, int $total, int $page) use ($sendEvent, $importId) {
+                $sendEvent('progress', [
+                    'phase' => 'products',
+                    'message' => "Sende Seite {$page}...",
+                    'current' => $current,
+                    'total' => $total,
+                    'import_id' => $importId,
+                ]);
+            };
+
+            try {
+                $result = $connector->pushBySearchProfile($connection, $profile->id, [], $importId, $progressCallback, $sendHeartbeat);
+
+                Log::channel('connectors')->info('anyPIM Suchprofil-Push abgeschlossen', $result);
+
+                $sendEvent('complete', [
+                    'message' => 'Suchprofil synchronisiert',
+                    'data' => $result,
+                ]);
+            } catch (ImportCancelledException $e) {
+                Log::channel('connectors')->info('anyPIM Suchprofil-Push abgebrochen', ['import_id' => $importId]);
+                $sendEvent('cancelled', [
+                    'message' => 'Abbruch durch Benutzer.',
+                    'import_id' => $importId,
+                ]);
+            } catch (\Throwable $e) {
+                Log::channel('connectors')->error('anyPIM Suchprofil-Push fehlgeschlagen', [
+                    'error' => $e->getMessage(),
+                ]);
+
+                $sendEvent('error', [
+                    'error' => 'Suchprofil-Push fehlgeschlagen: ' . $e->getMessage(),
                 ]);
             }
         }, 200, [

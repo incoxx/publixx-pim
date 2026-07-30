@@ -4,11 +4,13 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft, RefreshCw, Image, Package, CheckCircle, XCircle, Clock,
   Play, Settings, Save, Search, ChevronDown, ChevronUp, X, Zap, Download, Trash2,
-  RotateCcw, AlertTriangle, FolderTree, ImageMinus, ImageIcon,
+  RotateCcw, AlertTriangle, FolderTree, ImageMinus, ImageIcon, ListFilter, StopCircle, Loader2,
 } from 'lucide-vue-next'
 import connectorsApi from '@/api/connectors'
 import productsApi from '@/api/products'
 import attributesApi from '@/api/attributes'
+import pimSyncApi from '@/api/pimSync'
+import searchProfilesApi from '@/api/searchProfiles'
 
 const route = useRoute()
 const router = useRouter()
@@ -36,6 +38,16 @@ const productSearchResults = ref([])
 const productSearching = ref(false)
 const selectedProduct = ref(null)
 let productSearchTimeout = null
+
+// Sync über Suchprofil (anyPIM)
+const showProfileSyncDialog = ref(false)
+const searchProfileList = ref([])
+const selectedSearchProfileId = ref('')
+const profileSyncPushing = ref(false)
+const profileSyncProgress = ref(null)
+const profileSyncProgressLog = ref([])
+const profileSyncCancelling = ref(false)
+const profileSyncPushResult = ref(null)
 
 // Export-Profil Konfiguration
 const showProfileConfig = ref(false)
@@ -107,6 +119,7 @@ const connectionId = computed(() => route.params.id)
 const isShopware = computed(() => connection.value?.connector_type === 'shopware')
 const isShopify = computed(() => connection.value?.connector_type === 'shopify')
 const isShopConnector = computed(() => isShopware.value || isShopify.value)
+const isAnyPim = computed(() => connection.value?.connector_type === 'anypim')
 const activeFieldDefinitions = computed(() => isShopify.value ? SHOPIFY_FIELD_DEFINITIONS : SHOPWARE_FIELD_DEFINITIONS)
 const shopFields = computed(() => isShopify.value ? shopifyFields.value : shopwareFields.value)
 const shopifyFields = ref({})
@@ -427,6 +440,69 @@ async function executeSyncSingle() {
   } finally {
     syncing.value = false
     await loadConnection()
+  }
+}
+
+// --- Sync über Suchprofil (anyPIM) ---
+
+async function toggleProfileSyncDialog() {
+  if (showProfileSyncDialog.value) {
+    showProfileSyncDialog.value = false
+    return
+  }
+  showProfileSyncDialog.value = true
+  profileSyncPushResult.value = null
+  if (searchProfileList.value.length === 0) {
+    try {
+      const res = await searchProfilesApi.list()
+      searchProfileList.value = res.data.data || res.data
+    } catch (e) { /* Dropdown bleibt dann leer */ }
+  }
+}
+
+async function runProfileSyncPush() {
+  if (!selectedSearchProfileId.value) return
+  profileSyncPushing.value = true
+  profileSyncCancelling.value = false
+  profileSyncPushResult.value = null
+  profileSyncProgressLog.value = []
+  profileSyncProgress.value = { phase: 'starting', message: 'Suchprofil wird ausgewertet...', current: 0, total: 0, percent: 0 }
+  syncError.value = ''
+  try {
+    const result = await pimSyncApi.pushBySearchProfileWithProgress(
+      connectionId.value,
+      selectedSearchProfileId.value,
+      (progress) => {
+        const entry = {
+          ...progress,
+          percent: progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0,
+          at: new Date(),
+        }
+        profileSyncProgress.value = entry
+        profileSyncProgressLog.value = [...profileSyncProgressLog.value, entry]
+      },
+    )
+    profileSyncPushResult.value = result
+    profileSyncProgress.value = null
+  } catch (e) {
+    syncError.value = e.message || 'Suchprofil-Push fehlgeschlagen'
+    profileSyncProgress.value = null
+  } finally {
+    profileSyncPushing.value = false
+    profileSyncCancelling.value = false
+    await loadConnection()
+  }
+}
+
+async function cancelProfileSyncPush() {
+  const importId = profileSyncProgress.value?.import_id
+  if (!importId || profileSyncCancelling.value) return
+  profileSyncCancelling.value = true
+  try {
+    await pimSyncApi.cancelSearchProfilePush(importId)
+    profileSyncProgress.value = { ...profileSyncProgress.value, message: 'Wird abgebrochen...' }
+  } catch (e) {
+    profileSyncCancelling.value = false
   }
 }
 
@@ -1158,6 +1234,10 @@ const statusColors = {
 
       <!-- Einzel-Sync Aktionen -->
       <div class="flex flex-wrap gap-2 items-center">
+        <button v-if="isAnyPim" class="btn btn-ghost btn-sm" @click="toggleProfileSyncDialog">
+          <ListFilter class="w-4 h-4" />
+          Über Suchprofil synchronisieren
+        </button>
         <button class="btn btn-ghost btn-sm" @click="showSyncDialog = true; syncType = 'product'; clearSelectedProduct()">
           <Package class="w-4 h-4" />
           Einzelnes Produkt
@@ -1177,6 +1257,86 @@ const statusColors = {
         <div>
           <span>{{ syncError }}</span>
           <button class="btn btn-ghost btn-xs ml-2" @click="syncError = ''"><X class="w-3 h-3" /></button>
+        </div>
+      </div>
+
+      <!-- Sync über Suchprofil -->
+      <div v-if="showProfileSyncDialog" class="card bg-base-100 shadow-sm border border-primary/20 max-w-xl">
+        <div class="card-body space-y-3">
+          <h3 class="font-semibold">Über Suchprofil synchronisieren</h3>
+          <p class="text-xs text-base-content/60">
+            Pusht alle Produkte, die dem gewählten Suchprofil entsprechen, zur Remote-Instanz —
+            statt einzelne Produkte manuell auszuwählen.
+          </p>
+
+          <div v-if="!profileSyncPushing" class="flex gap-3 items-center">
+            <select v-model="selectedSearchProfileId" class="pim-input text-xs flex-1">
+              <option value="">-- Suchprofil wählen --</option>
+              <option v-for="p in searchProfileList" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" @click="showProfileSyncDialog = false">Abbrechen</button>
+            <button
+              class="btn btn-primary btn-sm"
+              :disabled="!selectedSearchProfileId"
+              @click="runProfileSyncPush"
+            >
+              Synchronisieren
+            </button>
+          </div>
+
+          <!-- Progress -->
+          <div v-if="profileSyncProgress" class="space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="flex items-center gap-2 text-base-content/70">
+                <Loader2 v-if="!profileSyncCancelling" class="w-3.5 h-3.5 animate-spin" />
+                <StopCircle v-else class="w-3.5 h-3.5 text-orange-500" />
+                {{ profileSyncProgress.message }}
+              </span>
+              <span v-if="profileSyncProgress.current > 0" class="text-base-content/50">
+                {{ profileSyncProgress.current }}<template v-if="profileSyncProgress.total > 0"> / {{ profileSyncProgress.total }}</template>
+              </span>
+            </div>
+            <div class="w-full bg-base-200 rounded-full h-2 overflow-hidden">
+              <div
+                class="h-full rounded-full transition-all duration-300 ease-out"
+                :class="[
+                  profileSyncCancelling ? 'bg-orange-500' : 'bg-primary',
+                  profileSyncProgress.total > 0 ? '' : 'animate-pulse',
+                ]"
+                :style="{ width: profileSyncProgress.total > 0 ? profileSyncProgress.percent + '%' : '100%' }"
+              />
+            </div>
+            <div v-if="profileSyncProgress.import_id && !profileSyncCancelling" class="flex justify-end">
+              <button
+                class="btn btn-ghost btn-xs text-error"
+                @click="cancelProfileSyncPush"
+              >
+                <StopCircle class="w-3.5 h-3.5 mr-1" />
+                Abbrechen
+              </button>
+            </div>
+          </div>
+
+          <!-- Progress-Log -->
+          <div v-if="profileSyncProgressLog.length" class="max-h-40 overflow-y-auto space-y-1 font-mono text-[11px] rounded-lg bg-base-200/50 p-2">
+            <div
+              v-for="(entry, i) in profileSyncProgressLog"
+              :key="i"
+              class="flex items-start gap-2 text-base-content/70"
+            >
+              <span class="text-base-content/40 shrink-0">{{ entry.at.toLocaleTimeString() }}</span>
+              <span class="truncate">{{ entry.message }}</span>
+            </div>
+          </div>
+
+          <!-- Result -->
+          <div v-if="profileSyncPushResult" class="flex items-start gap-2 text-xs text-success">
+            <CheckCircle class="w-4 h-4 shrink-0" />
+            <span>
+              {{ profileSyncPushResult.pushed }} von {{ profileSyncPushResult.total }} Produkt(en) gepusht.
+              <template v-if="profileSyncPushResult.errors > 0">{{ profileSyncPushResult.errors }} Fehler.</template>
+            </span>
+          </div>
         </div>
       </div>
 

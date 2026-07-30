@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\Connectors\AnyPim;
 
 use App\Models\ConnectorConnection;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 
 class AnyPimAuthService
@@ -51,22 +50,6 @@ class AnyPimAuthService
     {
         // API-Keys benötigen keinen Refresh.
         // Der gespeicherte access_token IST der API-Key.
-    }
-
-    /**
-     * API-Key verschlüsselt in Connection-Settings speichern.
-     */
-    public static function encryptApiKey(string $apiKey): string
-    {
-        return Crypt::encryptString($apiKey);
-    }
-
-    /**
-     * Verschlüsselten API-Key aus Connection-Settings auslesen.
-     */
-    public static function decryptApiKey(string $encrypted): string
-    {
-        return Crypt::decryptString($encrypted);
     }
 
     /**

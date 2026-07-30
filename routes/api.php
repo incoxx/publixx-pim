@@ -1424,6 +1424,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::get('/config-sections', [ConnectorController::class, 'configSections']);
         Route::get('/connections/{connection}/missing-media-count', [ConnectorController::class, 'missingMediaCount']);
         Route::post('/connections/{connection}/pull-missing-media', [ConnectorController::class, 'pullMissingMedia']);
+        Route::post('/connections/{connection}/push-search-profile', [ConnectorController::class, 'pushBySearchProfile']);
     });
 
     // =====================================================================
