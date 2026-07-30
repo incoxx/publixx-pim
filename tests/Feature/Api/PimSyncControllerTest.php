@@ -342,6 +342,53 @@ class PimSyncControllerTest extends TestCase
             ->assertJsonPath('data.0.file_name', 'sync-media.jpg');
     }
 
+    public function test_receive_media_speichert_neue_datei_und_media_datensatz(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+
+        $response = $this->post('/api/v1/pim-sync/media', [
+            'file'      => \Illuminate\Http\UploadedFile::fake()->image('teaser.jpg', 640, 480),
+            'file_name' => 'teaser.jpg',
+            'mime_type' => 'image/jpeg',
+            'title_de'  => 'Teaserbild',
+        ]);
+
+        $response->assertOk()->assertJsonPath('data.file_name', 'teaser.jpg');
+
+        \Illuminate\Support\Facades\Storage::disk('public')->assertExists('media/teaser.jpg');
+        $this->assertDatabaseHas('media', [
+            'file_name' => 'teaser.jpg',
+            'title_de'  => 'Teaserbild',
+        ]);
+        $media = Media::where('file_name', 'teaser.jpg')->firstOrFail();
+        $this->assertGreaterThan(0, $media->file_size);
+    }
+
+    public function test_receive_media_lehnt_nicht_erlaubten_dateityp_ab(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+
+        $response = $this->post('/api/v1/pim-sync/media', [
+            'file'      => \Illuminate\Http\UploadedFile::fake()->create('script.exe', 10),
+            'file_name' => 'script.exe',
+        ]);
+
+        $response->assertStatus(422);
+        $this->assertDatabaseMissing('media', ['file_name' => 'script.exe']);
+    }
+
+    public function test_receive_media_lehnt_pfad_traversal_im_dateinamen_ab(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+
+        $response = $this->post('/api/v1/pim-sync/media', [
+            'file'      => \Illuminate\Http\UploadedFile::fake()->image('bild.jpg'),
+            'file_name' => '../../etc/passwd.jpg',
+        ], ['Accept' => 'application/json']);
+
+        $response->assertStatus(422);
+    }
+
     public function test_unauthenticated_request_wird_abgelehnt(): void
     {
         app('auth')->forgetGuards();

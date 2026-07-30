@@ -211,15 +211,33 @@ class PimSyncController extends Controller
     }
 
     /**
-     * Media empfangen (Placeholder für Phase 2).
+     * Media-Datei empfangen (Gegenstück zu AnyPimMediaService::pushMedia()).
      *
      * POST /api/v1/pim-sync/media
      */
     public function receiveMedia(Request $request): JsonResponse
     {
+        $validated = $request->validate([
+            'file'        => ['required', 'file', 'max:204800'], // 200 MB, wie StoreMediaRequest
+            'file_name'   => ['required', 'string', 'max:255', 'regex:/^[a-zA-Z0-9._-]+$/'],
+            'mime_type'   => 'sometimes|nullable|string|max:100',
+            'title_de'    => 'sometimes|nullable|string|max:255',
+            'title_en'    => 'sometimes|nullable|string|max:255',
+            'alt_text_de' => 'sometimes|nullable|string|max:255',
+            'alt_text_en' => 'sometimes|nullable|string|max:255',
+        ]);
+
+        $extension = strtolower($request->file('file')->getClientOriginalExtension());
+        if (! in_array($extension, \App\Support\Media\MediaFileTypes::ALLOWED_EXTENSIONS, true)) {
+            return response()->json(['message' => "Dateityp \".{$extension}\" ist nicht erlaubt."], 422);
+        }
+
+        $media = $this->importService->receiveMediaFile($request->file('file'), $validated);
+
         return response()->json([
-            'message' => 'Direkter Media-Upload wird in einer späteren Version unterstützt.',
-        ], 501);
+            'message' => 'Media importiert.',
+            'data'    => ['id' => $media->id, 'file_name' => $media->file_name],
+        ]);
     }
 
     /**

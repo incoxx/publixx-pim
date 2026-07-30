@@ -15,8 +15,11 @@ use App\Models\ProductPrice;
 use App\Models\ProductType;
 use App\Models\Unit;
 use App\Models\ValueListEntry;
+use App\Support\Media\MediaFileTypes;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class PimSyncImportService
@@ -349,6 +352,41 @@ class PimSyncImportService
                 ],
             );
         }
+    }
+
+    /**
+     * Media-Datei von einer Remote-Instanz empfangen und lokal speichern
+     * (Gegenstück zu AnyPimMediaService::pushMedia()). Anders als syncMedia()
+     * (Produkt-Zuordnungen, konservativ — überschreibt bestehende Metadaten nicht)
+     * ist dies eine gezielte Push-Aktion: die übertragene Datei/Metadaten gewinnen.
+     *
+     * @param  array{file_name: string, mime_type?: string|null, title_de?: string|null,
+     *   title_en?: string|null, alt_text_de?: string|null, alt_text_en?: string|null}  $meta
+     */
+    public function receiveMediaFile(UploadedFile $file, array $meta): Media
+    {
+        $fileName = $meta['file_name'];
+        $filePath = 'media/' . $fileName;
+        $disk = Storage::disk('public');
+
+        $disk->putFileAs('media', $file, $fileName);
+
+        $mimeType = $meta['mime_type'] ?? $file->getMimeType() ?? 'application/octet-stream';
+
+        return Media::updateOrCreate(
+            ['file_name' => $fileName],
+            [
+                'original_file_name' => $fileName,
+                'file_path'          => $filePath,
+                'mime_type'          => $mimeType,
+                'file_size'          => $disk->size($filePath),
+                'media_type'         => MediaFileTypes::classifyMimeType($mimeType),
+                'title_de'           => $meta['title_de'] ?? null,
+                'title_en'           => $meta['title_en'] ?? null,
+                'alt_text_de'        => $meta['alt_text_de'] ?? null,
+                'alt_text_en'        => $meta['alt_text_en'] ?? null,
+            ],
+        );
     }
 
     /**

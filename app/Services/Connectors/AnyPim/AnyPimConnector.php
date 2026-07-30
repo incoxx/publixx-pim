@@ -22,7 +22,6 @@ class AnyPimConnector extends AbstractConnector
         private readonly AnyPimProductService $productService,
         private readonly AnyPimMediaService $mediaService,
         private readonly AnyPimCategoryService $categoryService,
-        private readonly AnyPimChecksumService $checksumService,
         private readonly AnyPimConfigService $configService,
         private readonly JsonFormatImporter $jsonImporter,
         private readonly SearchProfileQueryBuilder $searchProfileQueryBuilder,
