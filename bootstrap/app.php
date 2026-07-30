@@ -27,6 +27,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'catalog.no-share' => \App\Http\Middleware\RejectCatalogShareAccess::class,
             'catalog.cache' => CacheCatalogResponse::class,
             'module' => CheckModuleLicense::class,
+            // Seit spatie/laravel-permission v6 werden diese Aliase nicht mehr
+            // automatisch registriert (siehe Upgrade-Guide) - ohne diese Zeilen
+            // werfen alle Routen mit ->middleware('permission:...')/'role:...'
+            // einen 500er ("Target class [permission] does not exist").
+            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
+            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
         ]);
 
         // Agent 2: Sanctum stateful middleware for API
