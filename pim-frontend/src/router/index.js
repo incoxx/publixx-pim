@@ -317,18 +317,6 @@ const routes = [
     meta: { title: 'OAuth Callback', guest: true },
   },
   {
-    path: '/connectors/canva',
-    name: 'connector-canva',
-    component: () => import('@/views/connectors/ConnectorCanvaView.vue'),
-    meta: { title: 'Canva' },
-  },
-  {
-    path: '/connectors/canva/export',
-    name: 'connector-canva-export',
-    component: () => import('@/views/connectors/CanvaExportView.vue'),
-    meta: { title: 'Canva Export' },
-  },
-  {
     path: '/connectors/deepl',
     name: 'connector-deepl',
     component: () => import('@/views/connectors/ConnectorDeepLView.vue'),
@@ -345,18 +333,6 @@ const routes = [
     name: 'connector-shopify',
     component: () => import('@/views/connectors/ConnectorShopifyView.vue'),
     meta: { title: 'Shopify' },
-  },
-  {
-    path: '/connectors/salesforce-commerce',
-    name: 'connector-salesforce-commerce',
-    component: () => import('@/views/connectors/ConnectorSalesforceCommerceView.vue'),
-    meta: { title: 'Salesforce Commerce Cloud' },
-  },
-  {
-    path: '/connectors/cloudinary',
-    name: 'connector-cloudinary',
-    component: () => import('@/views/connectors/ConnectorCloudinaryView.vue'),
-    meta: { title: 'Cloudinary' },
   },
   {
     path: '/connectors/claude-ai',
@@ -435,18 +411,6 @@ const routes = [
     name: 'catalog-template-designer',
     component: () => import('@/views/catalog-templates/CatalogTemplateDesignerView.vue'),
     meta: { title: 'Katalog-Vorlage Designer', tabable: true, tabTitle: 'Katalog-Vorlage' },
-  },
-  {
-    path: '/portal-config',
-    name: 'portal-config',
-    component: () => import('@/views/portalConfig/PortalConfigListView.vue'),
-    meta: { title: 'Portale' },
-  },
-  {
-    path: '/portal-config/:id',
-    name: 'portal-config-editor',
-    component: () => import('@/views/portalConfig/PortalConfigEditorView.vue'),
-    meta: { title: 'Portal Editor', tabable: true, tabTitle: 'Portal' },
   },
   {
     path: '/social-video',

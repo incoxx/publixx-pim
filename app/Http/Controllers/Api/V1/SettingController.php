@@ -305,9 +305,7 @@ class SettingController extends Controller
         // Also check .env-based config for connectors not stored in DB
         $envChecks = [
             'deepl' => config('connectors.deepl.api_key'),
-            'canva' => config('connectors.canva.client_id'),
             'shopware' => config('connectors.shopware.client_id'),
-            'cloudinary' => config('connectors.cloudinary.api_key'),
             'claude_ai' => config('connectors.claude_ai.api_key'),
             'openai' => config('connectors.openai.api_key'),
         ];
@@ -348,12 +346,9 @@ class SettingController extends Controller
         // Zeige welche Felder pro Connector/Provider konfigurierbar sind
         $schema = [
             // ── Connectoren ──
-            'canva'     => ['client_id', 'client_secret', 'redirect_uri'],
             'deepl'     => ['api_key'],
             'shopware'  => ['shop_url', 'client_id', 'client_secret'],
             'shopify'   => ['shop_url', 'access_token', 'client_id', 'client_secret'],
-            'cloudinary' => ['cloud_name', 'api_key', 'api_secret'],
-            'salesforce_commerce' => ['instance_url', 'client_id', 'client_secret', 'site_id', 'catalog_id'],
             'claude_ai' => ['api_key', 'model', 'max_tokens'],
             'openai'    => ['api_key', 'model'],
             // ── Übersetzungsdienste (TMS) ──
@@ -386,26 +381,12 @@ class SettingController extends Controller
         }
 
         $validated = $request->validate([
-            'canva'              => 'sometimes|array',
-            'canva.client_id'    => 'nullable|string|max:500',
-            'canva.client_secret' => 'nullable|string|max:500',
-            'canva.redirect_uri' => 'nullable|string|max:500',
             'deepl'              => 'sometimes|array',
             'deepl.api_key'      => 'nullable|string|max:500',
             'shopware'           => 'sometimes|array',
             'shopware.shop_url'  => 'nullable|string|max:500',
             'shopware.client_id' => 'nullable|string|max:500',
             'shopware.client_secret' => 'nullable|string|max:500',
-            'cloudinary'                     => 'sometimes|array',
-            'cloudinary.cloud_name'          => 'nullable|string|max:500',
-            'cloudinary.api_key'             => 'nullable|string|max:500',
-            'cloudinary.api_secret'          => 'nullable|string|max:500',
-            'salesforce_commerce'                => 'sometimes|array',
-            'salesforce_commerce.instance_url'   => 'nullable|string|max:500',
-            'salesforce_commerce.client_id'      => 'nullable|string|max:500',
-            'salesforce_commerce.client_secret'  => 'nullable|string|max:500',
-            'salesforce_commerce.site_id'        => 'nullable|string|max:500',
-            'salesforce_commerce.catalog_id'     => 'nullable|string|max:500',
             'claude_ai'             => 'sometimes|array',
             'claude_ai.api_key'     => 'nullable|string|max:500',
             'claude_ai.model'       => 'nullable|string|max:100',

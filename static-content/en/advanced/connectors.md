@@ -12,17 +12,14 @@ Via **connectors**, anyPIM links product data and media with external systems â€
 |---|---|
 | **Shopware 6** | Sync categories, products, properties and media |
 | **Shopify** | Sync products, categories, metafields and media |
-| **Salesforce Commerce** | Sync categories, products and media |
 | **anyPIM** | Bidirectional sync with other anyPIM instances (incl. translations) |
-| **Canva** | Send product data and images to Canva for designs |
-| **Cloudinary** | Upload media/assets to Cloudinary |
 | **DeepL** | Machine translation (e.g. for [Translation Jobs](/en/usage/translation-jobs)) |
 | **Claude AI** | AI text generation (e.g. for [Copilot](/en/ai/copilot) and the [Reel Generator](/en/ai/reel-generator)) |
 
 ## Setup
 
 1. Navigation: **Connectors â†’ Plugin Settings**. Store the credentials of the desired service there (stored encrypted).
-2. Choose **"Connect"** on the connector card. For OAuth services (Shopware, Shopify, Salesforce, Canva, anyPIM) the authorisation opens; the connection then appears under **"Connections"**.
+2. Choose **"Connect"** on the connector card. For OAuth services (Shopware, Shopify, anyPIM) the authorisation opens; the connection then appears under **"Connections"**.
 
 ## Synchronising (shop systems)
 

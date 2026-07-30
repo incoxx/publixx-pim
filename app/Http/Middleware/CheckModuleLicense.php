@@ -63,9 +63,7 @@ class CheckModuleLicense
 
         // Check .env-based config
         return ! empty(config('connectors.deepl.api_key'))
-            || ! empty(config('connectors.canva.client_id'))
             || ! empty(config('connectors.shopware.client_id'))
-            || ! empty(config('connectors.cloudinary.api_key'))
             || ! empty(config('connectors.claude_ai.api_key'))
             || ! empty(config('connectors.openai.api_key'));
     }

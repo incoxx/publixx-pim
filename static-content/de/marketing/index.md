@@ -102,7 +102,7 @@ hero:
 <div class="marketing-card">
 <div class="marketing-card-icon">🛒</div>
 <h3>E-Commerce Connectors</h3>
-<p>Shopware 6, Shopify und Salesforce Commerce Cloud nativ angebunden. Produkte, Kategorien, Medien und Preise per Klick synchronisieren — mit Delta-Sync.</p>
+<p>Shopware 6 und Shopify nativ angebunden. Produkte, Kategorien, Medien und Preise per Klick synchronisieren — mit Delta-Sync.</p>
 </div>
 
 <div class="marketing-card">
@@ -115,12 +115,6 @@ hero:
 <div class="marketing-card-icon">⚡</div>
 <h3>GraphQL & API Designer</h3>
 <p>Visueller API Designer mit dynamischer GraphQL-Schema-Generierung. API Streams und Templates fuer massgeschneiderte Datenausgabe.</p>
-</div>
-
-<div class="marketing-card">
-<div class="marketing-card-icon">🎨</div>
-<h3>Canva & Cloudinary</h3>
-<p>Medien nach Canva und Cloudinary pushen. OAuth-basiert, mit Export-Profilen und automatischem Brand-Template-Befuellen.</p>
 </div>
 
 <div class="marketing-card">
@@ -220,7 +214,7 @@ hero:
 </tr>
 <tr>
 <td><strong>E-Commerce</strong></td>
-<td class="marketing-highlight-col">Shopware 6, Shopify, Salesforce</td>
+<td class="marketing-highlight-col">Shopware 6, Shopify</td>
 <td>Eigene Connectoren oder Middleware noetig</td>
 </tr>
 <tr>

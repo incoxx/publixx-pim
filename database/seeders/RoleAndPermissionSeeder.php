@@ -105,8 +105,6 @@ class RoleAndPermissionSeeder extends Seeder
             'api-templates.view', 'api-templates.create', 'api-templates.edit', 'api-templates.delete',
             // Catalog Templates
             'catalog-templates.view', 'catalog-templates.create', 'catalog-templates.edit', 'catalog-templates.delete',
-            // Portale
-            'portals.view', 'portals.create', 'portals.edit', 'portals.delete',
             // Connectoren
             'connectors.view', 'connectors.manage',
             // Dashboard
@@ -366,7 +364,6 @@ class RoleAndPermissionSeeder extends Seeder
             // Übersetzungen
             'translations.view', 'translations.edit',
             // Ausspielung
-            'portals.view',
             'catalog-templates.view',
             'preview.view',
             'reports.view',

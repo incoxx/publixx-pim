@@ -4,19 +4,7 @@ title: Portals (Document Portal & Asset Catalog)
 
 # Portals
 
-With **portals** you publish selected product information — with or without login. anyPIM offers a configurable portal builder plus two ready-to-use portal types: the **Document Portal** and the **Asset Catalog**.
-
-## Portal builder (portal configuration)
-
-Under **Portals** you create portals and design them across several tabs:
-
-- **Settings** — name, unique slug, default language, linked catalog template, *active* (published) and *shared* (visible to others).
-- **Branding** — title, subtitle, hero text and feature list.
-- **Filter steps** — step-by-step filtering via widgets (country select, language select, filter dropdown, filter cards).
-- **HTML template** — custom HTML with placeholders for the portal widgets.
-- **CSS** — custom styling.
-
-A **live preview** (desktop/tablet/mobile) shows the result. Portals can be created from presets with one click or duplicated from existing ones. The published portal is reachable at `…/portal/{slug}`.
+With **portals** you publish selected product information — with or without login. anyPIM offers two ready-to-use portal types: the **Document Portal** and the **Asset Catalog**.
 
 ## Document Portal
 
@@ -38,7 +26,7 @@ The Asset Catalog is a searchable media library:
 
 ## Access & protection
 
-The public portal routes are secured via the catalog access control (open or access-protected). Portals are managed inside the PIM; the visibility of portal configurations is user/team-scoped.
+The public portal routes are secured via the catalog access control (open or access-protected). Portals are managed inside the PIM.
 
 ::: tip Related features
 For embedded product catalogs on your own website, see [Catalog Embed](/en/advanced/catalog-embed).

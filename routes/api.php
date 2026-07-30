@@ -21,7 +21,6 @@ use App\Http\Controllers\Api\V1\BmecatImportController;
 use App\Http\Controllers\Api\V1\BulkEditorController;
 use App\Http\Controllers\Api\V1\BulkUpdateController;
 use App\Http\Controllers\Api\V1\CalendarController;
-use App\Http\Controllers\Api\V1\CanvaExportProfileController;
 use App\Http\Controllers\Api\V1\CartController;
 use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\CatalogTemplateController;
@@ -88,8 +87,6 @@ use App\Http\Controllers\Api\V1\PdfController;
 use App\Http\Controllers\Api\V1\PdfFontController;
 use App\Http\Controllers\Api\V1\PdfTemplateController;
 use App\Http\Controllers\Api\V1\PermissionController;
-use App\Http\Controllers\Api\V1\PortalApiController;
-use App\Http\Controllers\Api\V1\PortalConfigController;
 use App\Http\Controllers\Api\V1\PqlController;
 use App\Http\Controllers\Api\V1\PriceRegionController;
 use App\Http\Controllers\Api\V1\PriceTypeController;
@@ -198,14 +195,6 @@ Route::prefix('v1/asset-catalog')->middleware(['throttle.pim', 'catalog.access']
     Route::get('folders', [AssetCatalogController::class, 'folders']);
     Route::get('usage-types', [AssetCatalogController::class, 'usageTypes']);
     Route::post('download', [AssetCatalogController::class, 'download']);
-});
-
-// =========================================================================
-// Portal (public — konfigurierbare Vorschaltseiten)
-// =========================================================================
-Route::prefix('v1/portal')->middleware(['throttle.pim', 'catalog.access'])->group(function () {
-    Route::get('{slug}/config', [PortalApiController::class, 'config']);
-    Route::get('{slug}/filter-values', [PortalApiController::class, 'filterValues']);
 });
 
 // =========================================================================
@@ -1208,15 +1197,6 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     });
 
     // =====================================================================
-    // Portal Configs (Enterprise: portals)
-    // =====================================================================
-    Route::middleware('module:portals')->group(function () {
-        Route::get('portal-configs/presets', [PortalConfigController::class, 'presets']);
-        Route::apiResource('portal-configs', PortalConfigController::class);
-        Route::post('portal-configs/{portal_config}/duplicate', [PortalConfigController::class, 'duplicate']);
-    });
-
-    // =====================================================================
     // Publish: Social-Media-Produktvideos (Reels/Shorts aus PIM-Daten)
     // =====================================================================
     Route::prefix('social-video')->group(function () {
@@ -1433,11 +1413,6 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::get('/connections/{connection}/sync-logs', [ConnectorController::class, 'syncLogs']);
         Route::delete('/connections/{connection}/sync-logs', [ConnectorController::class, 'clearSyncLogs']);
         Route::delete('/connections/{connection}/sync-logs/{syncLog}', [ConnectorController::class, 'deleteSyncLog']);
-
-        // Canva Export-Profile (CRUD + Execute)
-        Route::apiResource('canva-export-profiles', CanvaExportProfileController::class)
-            ->parameters(['canva-export-profiles' => 'canvaExportProfile']);
-        Route::post('canva-export-profiles/{canvaExportProfile}/execute', [CanvaExportProfileController::class, 'execute']);
 
         // anyPIM Connector-Erweiterungen (Pull/Bidirektional)
         Route::post('/connections/{connection}/pull-products', [ConnectorController::class, 'pullProducts']);

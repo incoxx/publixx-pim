@@ -353,17 +353,6 @@ Der Copilot bindet den eigenen MCP-Endpoint via Anthropic MCP-Connector ein. Vor
 | `OPENAI_MODEL` | `gpt-4o` | – | Modell-ID |
 | `OPENAI_MAX_TOKENS` | `4096` | – | Maximale Tokens pro Antwort |
 
-### Canva
-
-OAuth 2.0-Integration für Canva-Designs.
-
-| Variable | Standard | Pflicht | Beschreibung |
-|----------|----------|---------|--------------|
-| `CANVA_CLIENT_ID` | *(leer)* | – ⚠️ | Canva App Client ID |
-| `CANVA_CLIENT_SECRET` | *(leer)* | – ⚠️ | Canva App Client Secret |
-| `CANVA_REDIRECT_URI` | *(leer)* | – | OAuth Redirect URI (muss in Canva registriert sein) |
-| `CANVA_API_BASE_URL` | `https://api.canva.com/rest/v1` | – | Canva API-Endpunkt |
-
 ### DeepL
 
 Direkte DeepL-Integration (außerhalb des TMS).
@@ -389,24 +378,6 @@ Direkte DeepL-Integration (außerhalb des TMS).
 | `SHOPIFY_ACCESS_TOKEN` | *(leer)* | – ⚠️ | Statischer Admin API Access Token (Legacy) |
 | `SHOPIFY_CLIENT_ID` | *(leer)* | – ⚠️ | OAuth2 Client ID (ab 2026) |
 | `SHOPIFY_CLIENT_SECRET` | *(leer)* | – ⚠️ | OAuth2 Client Secret (ab 2026) |
-
-### Cloudinary
-
-| Variable | Standard | Pflicht | Beschreibung |
-|----------|----------|---------|--------------|
-| `CLOUDINARY_CLOUD_NAME` | *(leer)* | – | Cloudinary Cloud Name |
-| `CLOUDINARY_API_KEY` | *(leer)* | – ⚠️ | Cloudinary API Key |
-| `CLOUDINARY_API_SECRET` | *(leer)* | – ⚠️ | Cloudinary API Secret |
-
-### Salesforce Commerce Cloud (SFCC)
-
-| Variable | Standard | Pflicht | Beschreibung |
-|----------|----------|---------|--------------|
-| `SFCC_INSTANCE_URL` | *(leer)* | – | SFCC-Instanz-URL, z. B. `https://abcd-001.dx.commercecloud.salesforce.com` |
-| `SFCC_CLIENT_ID` | *(leer)* | – ⚠️ | Account Manager Client ID |
-| `SFCC_CLIENT_SECRET` | *(leer)* | – ⚠️ | Account Manager Client Secret |
-| `SFCC_SITE_ID` | *(leer)* | – | Site ID, z. B. `RefArch` |
-| `SFCC_CATALOG_ID` | `storefront-catalog` | – | Katalog-ID für Produktexporte |
 
 ---
 

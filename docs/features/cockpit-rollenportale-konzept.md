@@ -48,10 +48,9 @@ aber **nicht rollenspezifisch**. Genau diese Lücke schließt das Konzept.
 > Channels, Übersetzungen, Reports) sind aber alle bereits vorhanden.
 
 ### 1.4 Namens-Hinweis (wichtig)
-Der Begriff **„Portal" ist im Code bereits belegt**: `PortalConfig` / das `portals`-Modul
-liefern **öffentliche, kundenseitige** Landingpages und Catalog-Embeds
-(`/portal/{slug}`). Das hier beschriebene, **interne** Single-Page-Konzept für
-PIM-Anwender wird deshalb **„Cockpit"** genannt, um Verwechslungen zu vermeiden.
+Das hier beschriebene, **interne** Single-Page-Konzept für PIM-Anwender wird
+**„Cockpit"** genannt, um Verwechslungen mit dem (inzwischen entfernten)
+Dokumentenportal (`/document-portal`) zu vermeiden.
 
 ---
 
@@ -264,9 +263,8 @@ Permissions (Vollzugriff Content/Medien, sonst lesend):
   export.view                         # Exporte sehen/anstoßen, nicht konfigurieren
 
 Module (Lizenz vorausgesetzt):
-  connectors  (DeepL, Canva, Cloudinary)
+  connectors  (DeepL, Shopware, Shopify, Claude AI)
   translations
-  portals
   catalog_templates
   reports
   publixx      # optional, falls lizenziert

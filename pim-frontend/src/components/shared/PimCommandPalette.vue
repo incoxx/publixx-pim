@@ -12,7 +12,7 @@ import {
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages, LayoutTemplate,
   Factory, CalendarDays, ScrollText, Globe, ExternalLink,
   LayoutDashboard, ClipboardList, Code, ArrowRight, ArrowRightLeft,
-  FlaskConical, FileSpreadsheet, Send, Plug, Wand2,
+  FlaskConical, FileSpreadsheet, Plug, Wand2,
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -232,27 +232,11 @@ const allItems = computed(() => {
       permission: 'users.view',
     },
     {
-      id: 'nav-connector-canva', icon: Send,
-      label: t('Canva'),
-      description: t('cmd.desc.connectorCanva'),
-      keywords: ['canva', 'design', 'connector', 'grafik', 'bild'],
-      section: 'config', action: () => router.push('/connectors/canva'),
-      module: 'connectors',
-    },
-    {
       id: 'nav-connector-shopware', icon: Package,
       label: t('Shopware'),
       description: t('cmd.desc.connectorShopware'),
       keywords: ['shopware', 'shop', 'connector', 'ecommerce', 'onlineshop'],
       section: 'config', action: () => router.push('/connectors/shopware'),
-      module: 'connectors',
-    },
-    {
-      id: 'nav-connector-cloudinary', icon: Image,
-      label: t('Cloudinary'),
-      description: t('cmd.desc.connectorCloudinary'),
-      keywords: ['cloudinary', 'cdn', 'cloud', 'medien', 'connector', 'bild'],
-      section: 'config', action: () => router.push('/connectors/cloudinary'),
       module: 'connectors',
     },
     {

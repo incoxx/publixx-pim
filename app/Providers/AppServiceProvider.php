@@ -10,7 +10,6 @@ use App\Models\AttributeFormattingRule;
 use App\Models\AttributeMapping;
 use App\Models\AttributeType;
 use App\Models\AttributeView;
-use App\Models\CanvaExportProfile;
 use App\Models\ColumnProfile;
 use App\Models\ComparisonOperator;
 use App\Models\ComparisonOperatorGroup;
@@ -53,7 +52,6 @@ use App\Policies\AttributeMappingPolicy;
 use App\Policies\AttributePolicy;
 use App\Policies\AttributeTypePolicy;
 use App\Policies\AttributeViewPolicy;
-use App\Policies\CanvaExportProfilePolicy;
 use App\Policies\ColumnProfilePolicy;
 use App\Policies\ComparisonOperatorGroupPolicy;
 use App\Policies\ComparisonOperatorPolicy;
@@ -182,7 +180,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(WorkflowStatus::class, WorkflowStatusPolicy::class);
         Gate::policy(WorkflowTask::class, WorkflowTaskPolicy::class);
         Gate::policy(ConnectorConnection::class, ConnectorConnectionPolicy::class);
-        Gate::policy(CanvaExportProfile::class, CanvaExportProfilePolicy::class);
         Gate::policy(AttributeMapping::class, AttributeMappingPolicy::class);
         Gate::policy(\App\Models\ProductReferenceProfile::class, \App\Policies\ProductReferenceProfilePolicy::class);
 

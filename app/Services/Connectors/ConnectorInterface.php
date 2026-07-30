@@ -11,7 +11,7 @@ use App\Models\Product;
 interface ConnectorInterface
 {
     /**
-     * Eindeutiger Typ-Bezeichner (z.B. 'canva', 'adobe', 'deepl').
+     * Eindeutiger Typ-Bezeichner (z.B. 'shopware', 'shopify', 'deepl').
      */
     public function getType(): string;
 

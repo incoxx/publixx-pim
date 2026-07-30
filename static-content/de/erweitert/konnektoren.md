@@ -12,17 +12,14 @@ title: Konnektoren & Integrationen
 |---|---|
 | **Shopware 6** | Kategorien, Produkte, Eigenschaften und Medien synchronisieren |
 | **Shopify** | Produkte, Kategorien, Metafelder und Medien synchronisieren |
-| **Salesforce Commerce** | Kategorien, Produkte und Medien synchronisieren |
 | **anyPIM** | Bidirektionaler Abgleich mit anderen anyPIM-Instanzen (inkl. Übersetzungen) |
-| **Canva** | Produktdaten und Bilder für Designs nach Canva übertragen |
-| **Cloudinary** | Medien/Assets zu Cloudinary hochladen |
 | **DeepL** | Maschinelle Übersetzung (u. a. für [Übersetzungsjobs](/de/bedienung/uebersetzungsjobs)) |
 | **Claude AI** | KI-Textgenerierung (u. a. für [Copilot](/de/ki/copilot) und [Reel-Generator](/de/ki/reel-generator)) |
 
 ## Einrichtung
 
 1. Navigation: **Konnektoren → Plugin-Einstellungen**. Dort die Zugangsdaten des gewünschten Dienstes hinterlegen (verschlüsselt gespeichert).
-2. Auf der Konnektor-Karte **„Verbinden"** wählen. Bei OAuth-Diensten (Shopware, Shopify, Salesforce, Canva, anyPIM) öffnet sich die Autorisierung; die Verbindung erscheint anschließend unter **„Verbindungen"**.
+2. Auf der Konnektor-Karte **„Verbinden"** wählen. Bei OAuth-Diensten (Shopware, Shopify, anyPIM) öffnet sich die Autorisierung; die Verbindung erscheint anschließend unter **„Verbindungen"**.
 
 ## Synchronisieren (Shop-Systeme)
 
