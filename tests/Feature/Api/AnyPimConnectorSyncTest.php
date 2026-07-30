@@ -166,6 +166,17 @@ class AnyPimConnectorSyncTest extends TestCase
         $response->assertOk()->assertJsonPath('data.status', 'ok');
     }
 
+    public function test_test_connection_meldet_fehler_bei_nicht_erreichbarer_remote_instanz(): void
+    {
+        Http::fake([
+            self::REMOTE_URL . '/api/v1/pim-sync/schema' => Http::response(['message' => 'Unauthorized'], 401),
+        ]);
+
+        $response = $this->postJson("/api/v1/connectors/connections/{$this->connection->id}/test-connection");
+
+        $response->assertStatus(422)->assertJsonPath('data.status', 'error');
+    }
+
     public function test_pull_config_holt_und_importiert_konfiguration_von_remote_instanz(): void
     {
         Http::fake([

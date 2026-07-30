@@ -365,11 +365,19 @@ class PimSyncImportService
             // Media-Datensatz finden oder erstellen
             $media = Media::where('file_name', $fileName)->first();
             if (! $media) {
+                $filePath = $mediaItem['file_path'] ?? 'media/' . $fileName;
+                // file_size ist NOT NULL ohne Default — die eigentliche Datei kommt hier (noch)
+                // nicht mit (nur Metadaten), daher 0 wenn sie lokal nicht bereits vorhanden ist.
+                // "Fehlende Medien synchronisieren" im anyPIM-Connector kann sie später nachladen.
+                $disk = \Illuminate\Support\Facades\Storage::disk('public');
+                $fileSize = $disk->exists($filePath) ? $disk->size($filePath) : 0;
+
                 $media = Media::create([
                     'file_name'          => $fileName,
                     'original_file_name' => $fileName,
-                    'file_path'          => $mediaItem['file_path'] ?? '',
+                    'file_path'          => $filePath,
                     'mime_type'          => $mediaItem['mime_type'] ?? 'application/octet-stream',
+                    'file_size'          => $fileSize,
                     'media_type'         => 'image',
                     'title_de'           => $mediaItem['title_de'] ?? null,
                     'title_en'           => $mediaItem['title_en'] ?? null,

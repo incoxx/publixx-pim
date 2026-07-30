@@ -152,11 +152,9 @@ class PimSyncControllerTest extends TestCase
             ['technical_name' => 'teaser'],
             ['name_de' => 'Hauptbild', 'name_en' => 'Main Image', 'sort_order' => 0],
         );
-        // Medium existiert bereits lokal (per file_name gefunden) - der Import-Pfad, der ein
-        // NEUES Media-Objekt anlegt (PimSyncImportService::syncMedia()), setzt kein file_size,
-        // obwohl die Spalte NOT NULL ohne Default ist, und schlaegt daher unconditional fehl.
-        // Das ist ein Bug in der Connector-Logik selbst, bewusst nicht mitbehoben (siehe
-        // Zusammenfassung) - dieser Test deckt daher nur den funktionierenden Zuordnungs-Pfad ab.
+        // Medium existiert bereits lokal (per file_name gefunden) — deckt den
+        // Zuordnungs-Pfad ab. Der Auto-Create-Pfad (neue Datei, noch nicht lokal
+        // bekannt) wird separat in test_receive_products_legt_neues_medium_ohne_file_size_fehler_an geprüft.
         $media = Media::factory()->create(['file_name' => 'produkt.jpg']);
 
         $response = $this->postJson('/api/v1/pim-sync/products', [
@@ -215,6 +213,39 @@ class PimSyncControllerTest extends TestCase
             'is_primary'    => true,
         ]);
         $this->assertDatabaseHas('media', ['file_name' => 'produkt.jpg']);
+    }
+
+    public function test_receive_products_legt_neues_medium_ohne_file_size_fehler_an(): void
+    {
+        // Regression: PimSyncImportService::syncMedia() legte fuer ein noch nicht lokal
+        // bekanntes file_name ein Media-Objekt ohne file_size an, obwohl die Spalte NOT
+        // NULL ohne Default ist — schlug bisher unconditional fehl (Insert-Fehler, vom
+        // umgebenden try/catch als Produkt-Fehler verbucht statt eines DB-Fehlers).
+        \Illuminate\Support\Facades\Storage::fake('public');
+        $productType = ProductType::factory()->create(['technical_name' => 'werkzeug']);
+
+        $response = $this->postJson('/api/v1/pim-sync/products', [
+            'products' => [[
+                'sku'          => 'NEW-SKU-002',
+                'name'         => 'Produkt mit neuem Bild',
+                'status'       => 'active',
+                'product_type' => $productType->technical_name,
+                'media' => [[
+                    'file_name' => 'noch-nicht-lokal.jpg',
+                    'file_path' => 'media/noch-nicht-lokal.jpg',
+                    'mime_type' => 'image/jpeg',
+                ]],
+            ]],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('stats.created', 1)
+            ->assertJsonPath('stats.errors', 0);
+
+        $this->assertDatabaseHas('media', [
+            'file_name' => 'noch-nicht-lokal.jpg',
+            'file_size' => 0,
+        ]);
     }
 
     public function test_receive_products_aktualisiert_bestehendes_produkt(): void
