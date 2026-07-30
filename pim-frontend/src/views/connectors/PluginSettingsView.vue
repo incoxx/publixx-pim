@@ -15,12 +15,9 @@ const form = ref({})
 const showSecrets = ref({})
 
 const connectorLabels = {
-  canva: 'Canva',
   deepl: 'DeepL',
   shopware: 'Shopware 6',
   shopify: 'Shopify',
-  salesforce_commerce: 'Salesforce Commerce Cloud',
-  cloudinary: 'Cloudinary',
   claude_ai: 'Claude AI (Betextung)',
   openai: 'OpenAI / ChatGPT (Betextung)',
   google_translate: 'Google Translate',
@@ -33,7 +30,7 @@ const sections = {
   connectors: {
     label: 'Connectoren',
     description: 'API-Zugangsdaten für externe Dienste und Integrationen.',
-    keys: ['canva', 'deepl', 'shopware', 'shopify', 'salesforce_commerce', 'cloudinary'],
+    keys: ['deepl', 'shopware', 'shopify'],
   },
   ai: {
     label: 'KI-Dienste (Betextung)',

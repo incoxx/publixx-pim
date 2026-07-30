@@ -41,17 +41,6 @@ Native Anbindung an Shopify ueber die Admin API:
 
 Unterstuetzt sowohl Legacy Access Tokens als auch OAuth (Client ID / Secret).
 
-### Salesforce Commerce Cloud
-
-Enterprise-E-Commerce-Anbindung fuer Salesforce Commerce Cloud (SFCC):
-
-- **Produkte** — Produktdaten in den SFCC-Katalog synchronisieren
-- **Kategorien** — Katalogstruktur automatisch abbilden
-- **Medien** — Assets in die SFCC-Medienbibliothek hochladen
-- **Checksums** — Inkrementelle Updates fuer grosse Kataloge
-
-Konfiguration ueber Account Manager Client Credentials. Unterstuetzt beliebige Site- und Catalog-IDs.
-
 ---
 
 ## PIM-to-PIM
@@ -66,27 +55,6 @@ Bidirektionale Synchronisation zwischen anyPIM-Instanzen:
 - **Verbindungstest** — Konnektivitaet vorab pruefen
 
 Ideal fuer verteilte Teams, Mandanten-Setups oder die Zusammenarbeit zwischen Unternehmen.
-
----
-
-## DAM & Design
-
-### Canva
-
-OAuth-basierte Integration mit Canva fuer kreative Workflows:
-
-- **Asset-Sync** — Produktbilder und Medien mit Canva synchronisieren
-- **Export-Profile** — Konfigurierbare Profile fuer automatisierte Canva-Exporte
-- **Brand Templates** — Produktdaten automatisch in bestehende Canva Brand Templates einfuegen (Autofill)
-
-Perfekt fuer Marketing-Teams, die Produktbilder direkt in Canva weiterverarbeiten.
-
-### Cloudinary
-
-Produktmedien in die Cloudinary-Cloud hochladen:
-
-- **Asset-Upload** — Medien aus anyPIM nach Cloudinary pushen, organisiert in Ordnerstrukturen
-- **Transformations-URLs** — Cloudinary-URLs fuer automatische Bildoptimierung und -skalierung generieren
 
 ---
 

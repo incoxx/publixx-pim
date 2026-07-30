@@ -4,14 +4,8 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
-use App\Services\Connectors\Canva\CanvaAssetService;
-use App\Services\Connectors\Canva\CanvaAuthService;
-use App\Services\Connectors\Canva\CanvaConnector;
-use App\Services\Connectors\Canva\CanvaDataService;
 use App\Services\Connectors\ClaudeAI\ClaudeAIConnector;
 use App\Services\Connectors\ClaudeAI\ClaudeAITextService;
-use App\Services\Connectors\Cloudinary\CloudinaryAssetService;
-use App\Services\Connectors\Cloudinary\CloudinaryConnector;
 use App\Services\Connectors\ConnectorRegistry;
 use App\Services\Connectors\DeepL\DeepLConnector;
 use App\Services\Connectors\DeepL\DeepLTranslationService;
@@ -27,12 +21,6 @@ use App\Services\Connectors\Shopware\ShopwareConnector;
 use App\Services\Connectors\Shopware\ShopwareMediaService;
 use App\Services\Connectors\Shopware\ShopwareProductService;
 use App\Services\Connectors\Shopware\ShopwarePropertyService;
-use App\Services\Connectors\SalesforceCommerce\SalesforceCommerceAuthService;
-use App\Services\Connectors\SalesforceCommerce\SalesforceCommerceCategoryService;
-use App\Services\Connectors\SalesforceCommerce\SalesforceCommerceChecksumService;
-use App\Services\Connectors\SalesforceCommerce\SalesforceCommerceConnector;
-use App\Services\Connectors\SalesforceCommerce\SalesforceCommerceMediaService;
-use App\Services\Connectors\SalesforceCommerce\SalesforceCommerceProductService;
 use App\Services\Connectors\Shopify\ShopifyAuthService;
 use App\Services\Connectors\Shopify\ShopifyCategoryService;
 use App\Services\Connectors\Shopify\ShopifyChecksumService;
@@ -92,12 +80,6 @@ class ConnectorServiceProvider extends ServiceProvider
 
         $this->app->singleton(ConnectorRegistry::class);
 
-        // Canva
-        $this->app->singleton(CanvaAuthService::class);
-        $this->app->singleton(CanvaAssetService::class);
-        $this->app->singleton(CanvaDataService::class);
-        $this->app->singleton(CanvaConnector::class);
-
         // DeepL
         $this->app->singleton(DeepLTranslationService::class);
         $this->app->singleton(DeepLConnector::class);
@@ -119,21 +101,9 @@ class ConnectorServiceProvider extends ServiceProvider
         $this->app->singleton(ShopifyChecksumService::class);
         $this->app->singleton(ShopifyConnector::class);
 
-        // Cloudinary
-        $this->app->singleton(CloudinaryAssetService::class);
-        $this->app->singleton(CloudinaryConnector::class);
-
         // Claude AI
         $this->app->singleton(ClaudeAITextService::class);
         $this->app->singleton(ClaudeAIConnector::class);
-
-        // Salesforce Commerce Cloud
-        $this->app->singleton(SalesforceCommerceAuthService::class);
-        $this->app->singleton(SalesforceCommerceProductService::class);
-        $this->app->singleton(SalesforceCommerceMediaService::class);
-        $this->app->singleton(SalesforceCommerceCategoryService::class);
-        $this->app->singleton(SalesforceCommerceChecksumService::class);
-        $this->app->singleton(SalesforceCommerceConnector::class);
 
         // anyPIM (bidirektionaler Sync)
         $this->app->singleton(AnyPimAuthService::class);
@@ -149,12 +119,9 @@ class ConnectorServiceProvider extends ServiceProvider
         $registry = $this->app->make(ConnectorRegistry::class);
 
         $connectorClasses = [
-            CanvaConnector::class,
             DeepLConnector::class,
             ShopwareConnector::class,
             ShopifyConnector::class,
-            SalesforceCommerceConnector::class,
-            CloudinaryConnector::class,
             ClaudeAIConnector::class,
             AnyPimConnector::class,
         ];

@@ -15,7 +15,7 @@ class ConnectorConnectionFactory extends Factory
     public function definition(): array
     {
         return [
-            'connector_type' => fake()->randomElement(['shopware', 'cloudinary', 'deepl']),
+            'connector_type' => fake()->randomElement(['shopware', 'deepl']),
             'name' => fake()->words(2, true),
             'access_token' => fake()->sha256(),
             'settings' => ['base_url' => fake()->url()],

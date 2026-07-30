@@ -51,7 +51,6 @@ class PermissionController extends Controller
         'api-templates' => 'API-Templates',
         'dashboard' => 'Dashboard',
         'catalog-templates' => 'Katalog-Vorlagen',
-        'portals' => 'Portale',
         'connectors' => 'Connectoren',
         'workflow' => 'Workflow',
         'workflows' => 'Workflows',
@@ -99,7 +98,7 @@ class PermissionController extends Controller
         [
             'label' => 'Enterprise',
             'entities' => [
-                'catalog-templates', 'portals', 'connectors',
+                'catalog-templates', 'connectors',
                 'workflow', 'workflows', 'workflow-statuses',
                 'ecommerce-cart-types', 'ecommerce-address-types',
                 'ecommerce-payment-types', 'ecommerce-orders',

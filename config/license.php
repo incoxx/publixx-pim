@@ -81,7 +81,7 @@ return [
         ],
         'connectors' => [
             'name' => 'Connectoren',
-            'description' => 'Externe API-Connectoren (Canva, DeepL, Adobe u.a.)',
+            'description' => 'Externe API-Connectoren (Shopware, Shopify, DeepL, Claude AI u.a.)',
         ],
         'catalog_templates' => [
             'name' => 'Katalog-Vorlagen',
@@ -90,10 +90,6 @@ return [
         'typo3' => [
             'name' => 'TYPO3-Integration',
             'description' => 'Anleitung zur Einbindung des Catalog-Embed-Widgets in TYPO3-Websites',
-        ],
-        'portals' => [
-            'name' => 'Portale',
-            'description' => 'Konfigurierbare Vorschaltseiten mit Filter-Widgets und Katalogvorlage-Verknüpfung',
         ],
         'ecommerce' => [
             'name' => 'E-Commerce',

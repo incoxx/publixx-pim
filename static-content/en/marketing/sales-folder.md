@@ -92,7 +92,6 @@ anyPIM synchronizes product data natively with leading shop systems — no middl
 |-----------|----------|
 | **Shopware 6** | Products, categories, media, properties, delta sync, profile-based sync, shop reset, thumbnail generation |
 | **Shopify** | Products, categories, media, metafields, delta sync (OAuth + legacy token) |
-| **Salesforce Commerce Cloud** | Products, categories, media, checksums for large catalogs |
 | **anyPIM-to-anyPIM** | Bidirectional sync: push, pull, translations, connection test |
 
 All connectors offer: OAuth authentication, delta sync with checksums, sync logs with export, bulk operations, preview/dry run, and connection management.
@@ -131,15 +130,6 @@ AI-powered text processing directly in the PIM:
 - **API Templates** — With preview, custom keys, and dependency overview
 
 More details: [AI, Translation & API Designer](/en/marketing/ai-translation)
-
----
-
-### DAM & Design Integrations
-
-| Connector | Features |
-|-----------|----------|
-| **Canva** | OAuth-based asset upload, export profiles, Brand Template autofill |
-| **Cloudinary** | Asset upload to the Cloudinary cloud, transformation URLs |
 
 ---
 
@@ -209,7 +199,7 @@ Complete REST API with token authentication (Laravel Sanctum) plus GraphQL suppo
 - Attributes (management, groups, types)
 - Hierarchies (tree structure, nodes)
 - Import/Export (trigger, status, download)
-- Connectors (Shopware, Shopify, Salesforce, Canva, Cloudinary)
+- Connectors (Shopware, Shopify)
 - Translation (TMS, translation jobs, XLIFF)
 - API Designer (templates, streams, GraphQL)
 - System (health check, status, queue management)
@@ -231,7 +221,7 @@ Complete REST API with token authentication (Laravel Sanctum) plus GraphQL suppo
 | **Setup Time** | 10 minutes | 3–12 months |
 | **New Attributes** | Instant, no migration | Schema change + deployment |
 | **API** | 370+ REST endpoints + GraphQL | Often limited or paid add-on |
-| **E-Commerce** | Shopware 6, Shopify, Salesforce native | Custom connectors or middleware |
+| **E-Commerce** | Shopware 6, Shopify native | Custom connectors or middleware |
 | **AI & Translation** | DeepL, Claude AI, Google, OpenAI | Manual or third-party plugin |
 | **Query Language** | PQL with fuzzy + phonetic | Basic filters or SQL |
 | **Source Code** | 100% visible, customizable | Closed source, black box |

@@ -12,16 +12,6 @@ return [
     |
     */
 
-    'canva' => [
-        'client_id'     => env('CANVA_CLIENT_ID', ''),
-        'client_secret' => env('CANVA_CLIENT_SECRET', ''),
-        'redirect_uri'  => env('CANVA_REDIRECT_URI', ''),
-        'base_url'      => env('CANVA_API_BASE_URL', 'https://api.canva.com/rest/v1'),
-        'auth_url'      => env('CANVA_AUTH_URL', 'https://www.canva.com/api/oauth/authorize'),
-        'token_url'     => env('CANVA_TOKEN_URL', 'https://api.canva.com/rest/v1/oauth/token'),
-        'scopes'        => ['asset:write', 'asset:read', 'design:content:read', 'design:content:write'],
-    ],
-
     'deepl' => [
         'api_key'  => env('DEEPL_API_KEY', ''),
         'base_url' => env('DEEPL_BASE_URL', 'https://api-free.deepl.com/v2'),
@@ -38,12 +28,6 @@ return [
         'access_token'  => env('SHOPIFY_ACCESS_TOKEN', ''),     // Legacy: statischer Admin API Access Token
         'client_id'     => env('SHOPIFY_CLIENT_ID', ''),        // Neu (ab 2026): Client ID
         'client_secret' => env('SHOPIFY_CLIENT_SECRET', ''),    // Neu (ab 2026): Client Secret
-    ],
-
-    'cloudinary' => [
-        'cloud_name' => env('CLOUDINARY_CLOUD_NAME', ''),
-        'api_key'    => env('CLOUDINARY_API_KEY', ''),
-        'api_secret' => env('CLOUDINARY_API_SECRET', ''),
     ],
 
     'claude_ai' => [
@@ -76,14 +60,6 @@ return [
         'api_token'   => env('JIRA_API_TOKEN', ''),     // Atlassian API Token
         'project_key' => env('JIRA_PROJECT_KEY', ''),   // z.B. DEV
         'issue_type'  => env('JIRA_ISSUE_TYPE', 'Bug'),
-    ],
-
-    'salesforce_commerce' => [
-        'instance_url'  => env('SFCC_INSTANCE_URL', ''),        // z.B. https://abcd-001.dx.commercecloud.salesforce.com
-        'client_id'     => env('SFCC_CLIENT_ID', ''),            // Account Manager Client ID
-        'client_secret' => env('SFCC_CLIENT_SECRET', ''),        // Account Manager Client Secret
-        'site_id'       => env('SFCC_SITE_ID', ''),              // z.B. "RefArch"
-        'catalog_id'    => env('SFCC_CATALOG_ID', 'storefront-catalog'),
     ],
 
 ];

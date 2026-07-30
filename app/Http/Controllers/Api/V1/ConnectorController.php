@@ -21,7 +21,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * REST-API für externe Connectoren (Canva, DeepL, Adobe u.a.).
+ * REST-API für externe Connectoren (Shopware, Shopify, DeepL u.a.).
  *
  *   GET    /api/v1/connectors                              — Verfügbare Connectoren
  *   GET    /api/v1/connectors/connections                  — Aktive Verbindungen

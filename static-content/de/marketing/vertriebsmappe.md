@@ -92,7 +92,6 @@ anyPIM synchronisiert Produktdaten nativ mit fuehrenden Shopsystemen — ohne Mi
 |-----------|-----------|
 | **Shopware 6** | Produkte, Kategorien, Medien, Properties, Delta-Sync, Profil-basierter Sync, Shop-Reset, Thumbnail-Generierung |
 | **Shopify** | Produkte, Kategorien, Medien, Metafields, Delta-Sync (OAuth + Legacy Token) |
-| **Salesforce Commerce Cloud** | Produkte, Kategorien, Medien, Checksums fuer grosse Kataloge |
 | **anyPIM-to-anyPIM** | Bidirektionaler Sync: Push, Pull, Uebersetzungen, Verbindungstest |
 
 Alle Connectors bieten: OAuth-Authentifizierung, Delta-Sync mit Checksums, Sync-Logs mit Export, Bulk-Operationen, Vorschau/Dry Run und Verbindungsverwaltung.
@@ -131,15 +130,6 @@ KI-gestuetzte Textverarbeitung direkt im PIM:
 - **API Templates** — Mit Vorschau, eigenen Keys und Abhaengigkeits-Uebersicht
 
 Mehr Details: [KI, Uebersetzung & API Designer](/de/marketing/ki-uebersetzung)
-
----
-
-### DAM & Design Integrationen
-
-| Connector | Funktionen |
-|-----------|-----------|
-| **Canva** | OAuth-basierter Asset-Upload, Export-Profile, Brand-Template-Autofill |
-| **Cloudinary** | Asset-Upload in die Cloudinary-Cloud, Transformations-URLs |
 
 ---
 
@@ -209,7 +199,7 @@ Vollstaendige REST-API mit Token-Authentifizierung (Laravel Sanctum) plus GraphQ
 - Attribute (Verwaltung, Gruppen, Typen)
 - Hierarchien (Baumstruktur, Knoten)
 - Import/Export (Trigger, Status, Download)
-- Connectors (Shopware, Shopify, Salesforce, Canva, Cloudinary)
+- Connectors (Shopware, Shopify)
 - Uebersetzung (TMS, Translation Jobs, XLIFF)
 - API Designer (Templates, Streams, GraphQL)
 - System (Health-Check, Status, Queue-Management)
@@ -231,7 +221,7 @@ Vollstaendige REST-API mit Token-Authentifizierung (Laravel Sanctum) plus GraphQ
 | **Setup-Zeit** | 10 Minuten | 3–12 Monate |
 | **Neue Attribute** | Sofort, ohne Migration | Schema-Aenderung + Deployment |
 | **API** | 370+ REST-Endpoints + GraphQL | Oft eingeschraenkt oder kostenpflichtig |
-| **E-Commerce** | Shopware 6, Shopify, Salesforce nativ | Eigene Connectoren oder Middleware |
+| **E-Commerce** | Shopware 6, Shopify nativ | Eigene Connectoren oder Middleware |
 | **KI & Uebersetzung** | DeepL, Claude AI, Google, OpenAI | Manuell oder Drittanbieter-Plugin |
 | **Abfragesprache** | PQL mit Fuzzy + phonetisch | Einfache Filter oder SQL |
 | **Quellcode** | 100% einsehbar, anpassbar | Closed Source, Blackbox |
