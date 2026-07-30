@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Exceptions\ImportCancelledException;
+use App\Http\Controllers\Concerns\HandlesSseProgress;
 use App\Services\Import\BmecatFormatImporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class BmecatImportController extends Controller
 {
+    use HandlesSseProgress;
+
     public function __construct(
         private readonly BmecatFormatImporter $importer,
     ) {}
@@ -534,61 +537,6 @@ class BmecatImportController extends Controller
             'message' => 'Abbruch wurde angefordert. Der Import wird nach dem aktuellen Schritt gestoppt.',
             'import_id' => $importId,
         ]);
-    }
-
-    /**
-     * Konfiguriert PHP für lang laufende Imports.
-     */
-    private function configureForLongRunning(string $memoryLimit): void
-    {
-        set_time_limit(0);
-        ini_set('max_execution_time', '0');
-        ini_set('memory_limit', $memoryLimit);
-        if (function_exists('fastcgi_finish_request')) {
-            ignore_user_abort(true);
-        }
-
-        // Output Buffering deaktivieren für Echtzeit-Streaming
-        while (ob_get_level() > 0) {
-            ob_end_flush();
-        }
-    }
-
-    /**
-     * Erstellt eine SSE-Event-Sender-Funktion.
-     */
-    private function createSseEventSender(): \Closure
-    {
-        $lastEventTime = microtime(true);
-
-        return function (string $event, array $data) use (&$lastEventTime) {
-            echo "event: {$event}\n";
-            echo 'data: ' . json_encode($data, JSON_UNESCAPED_UNICODE) . "\n\n";
-            if (ob_get_level() > 0) {
-                ob_flush();
-            }
-            flush();
-            $lastEventTime = microtime(true);
-        };
-    }
-
-    /**
-     * Erstellt eine SSE-Heartbeat-Funktion.
-     */
-    private function createSseHeartbeatSender(): \Closure
-    {
-        $lastEventTime = microtime(true);
-
-        return function () use (&$lastEventTime) {
-            if ((microtime(true) - $lastEventTime) > 15) {
-                echo ": heartbeat\n\n";
-                if (ob_get_level() > 0) {
-                    ob_flush();
-                }
-                flush();
-                $lastEventTime = microtime(true);
-            }
-        };
     }
 
     /**

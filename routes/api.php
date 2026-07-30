@@ -888,6 +888,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::prefix('json-import')->group(function () {
         Route::post('/', [JsonExportImportController::class, 'import']);
         Route::post('validate', [JsonExportImportController::class, 'validate']);
+        Route::post('cancel', [JsonExportImportController::class, 'cancelImport']);
     });
     // Enterprise: BMEcat Import/Export
     Route::middleware('module:bmecat')->group(function () {

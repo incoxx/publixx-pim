@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services\Import;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * Importiert PIM-Daten aus einem JSON-Format (erzeugt von JsonFormatExporter).
@@ -39,6 +41,9 @@ class JsonFormatImporter
     /** Fehler während des Imports. */
     private array $errors = [];
 
+    /** Import-ID für Progress/Cancel-Tracking. */
+    private ?string $importId = null;
+
     public function __construct(
         private readonly ImportExecutor $executor,
     ) {}
@@ -46,6 +51,54 @@ class JsonFormatImporter
     public function setMode(string $mode): void
     {
         $this->mode = in_array($mode, ['update', 'delete_insert']) ? $mode : 'update';
+    }
+
+    /**
+     * Setzt die Import-ID für Cancel-Tracking.
+     */
+    public function setImportId(string $importId): void
+    {
+        $this->importId = $importId;
+        $this->executor->setImportId($importId);
+    }
+
+    /**
+     * Gibt die Import-ID zurück (erzeugt eine neue falls nicht gesetzt).
+     */
+    public function getImportId(): string
+    {
+        if ($this->importId === null) {
+            $this->importId = Str::uuid()->toString();
+            $this->executor->setImportId($this->importId);
+        }
+
+        return $this->importId;
+    }
+
+    /**
+     * Setzt eine Callback-Funktion für Fortschrittsmeldungen (pro Sektion/Sheet).
+     */
+    public function setProgressCallback(callable $callback): void
+    {
+        $this->executor->setProgressCallback($callback);
+    }
+
+    /**
+     * Setzt eine Callback-Funktion, die periodisch waehrend langer Sheets
+     * aufgerufen wird (haelt die SSE-Verbindung zwischen Progress-Events am Leben).
+     */
+    public function setHeartbeatCallback(callable $callback): void
+    {
+        $this->executor->setHeartbeatCallback($callback);
+    }
+
+    /**
+     * Bricht einen laufenden Import ab (per Import-ID, gleicher Cancel-Kanal wie
+     * der BMEcat-Import — ImportExecutor::checkCancelled() prueft denselben Key).
+     */
+    public static function cancelImport(string $importId): void
+    {
+        Cache::put("bmecat_import_cancel_{$importId}", true, 300);
     }
 
     /**
