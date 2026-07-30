@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import {
   RefreshCw, Plus, Trash2, CheckCircle, XCircle, ArrowUpRight, Settings,
   ArrowDownUp, ArrowUp, ArrowDown, Zap, TestTube, Loader2, Key, Globe,
+  SlidersHorizontal, StopCircle,
 } from 'lucide-vue-next'
 import connectorsApi from '@/api/connectors'
 import pimSyncApi from '@/api/pimSync'
@@ -30,11 +31,31 @@ const testResult = ref(null)
 // Sync State
 const syncing = ref({})
 
+// Konfigurations-Sync ("Maske" pro Verbindung)
+const availableConfigSections = ref([])
+const openConfigForm = ref(null) // connId oder null
+const selectedConfigSections = ref([])
+const configPulling = ref({})
+const configProgress = ref({})
+const configProgressLog = ref({})
+const configCancelling = ref({})
+const configResult = ref({})
+
 const canConnect = computed(() =>
   formData.value.name && formData.value.remote_url && formData.value.api_key
 )
 
-onMounted(loadData)
+onMounted(() => {
+  loadData()
+  loadConfigSections()
+})
+
+async function loadConfigSections() {
+  try {
+    const res = await pimSyncApi.configSections()
+    availableConfigSections.value = res.data.data || res.data
+  } catch (e) { /* ignore — Formular zeigt dann nur den Standard-Button */ }
+}
 
 async function loadData() {
   loading.value = true
@@ -138,6 +159,108 @@ function directionLabel(dir) {
 
 function conflictLabel(cr) {
   return { remote_wins: 'Remote gewinnt', local_wins: 'Lokal gewinnt', newer_wins: 'Neuer gewinnt' }[cr] || cr
+}
+
+// --- Konfigurations-Sync ("Maske" pro Verbindung) ---
+
+function toggleConfigForm(connId) {
+  if (openConfigForm.value === connId) {
+    openConfigForm.value = null
+    return
+  }
+  openConfigForm.value = connId
+  selectedConfigSections.value = [...availableConfigSections.value]
+  configResult.value = { ...configResult.value, [connId]: null }
+}
+
+function toggleConfigSection(section) {
+  const idx = selectedConfigSections.value.indexOf(section)
+  if (idx >= 0) {
+    selectedConfigSections.value.splice(idx, 1)
+  } else {
+    selectedConfigSections.value.push(section)
+  }
+}
+
+async function runConfigPull(connId) {
+  configPulling.value = { ...configPulling.value, [connId]: true }
+  configCancelling.value = { ...configCancelling.value, [connId]: false }
+  configResult.value = { ...configResult.value, [connId]: null }
+  configProgressLog.value = { ...configProgressLog.value, [connId]: [] }
+  configProgress.value = {
+    ...configProgress.value,
+    [connId]: { phase: 'starting', message: 'Konfigurations-Pull wird gestartet...', current: 0, total: 0, percent: 0 },
+  }
+  error.value = ''
+  try {
+    const result = await pimSyncApi.pullConfigWithProgress(
+      connId,
+      selectedConfigSections.value,
+      (progress) => {
+        const entry = {
+          ...progress,
+          percent: progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0,
+          at: new Date(),
+        }
+        configProgress.value = { ...configProgress.value, [connId]: entry }
+        configProgressLog.value = {
+          ...configProgressLog.value,
+          [connId]: [...(configProgressLog.value[connId] || []), entry],
+        }
+      },
+    )
+    configResult.value = { ...configResult.value, [connId]: result }
+    configProgress.value = { ...configProgress.value, [connId]: null }
+  } catch (e) {
+    error.value = e.message || 'Konfigurations-Pull fehlgeschlagen'
+    configProgress.value = { ...configProgress.value, [connId]: null }
+  } finally {
+    configPulling.value = { ...configPulling.value, [connId]: false }
+    configCancelling.value = { ...configCancelling.value, [connId]: false }
+  }
+}
+
+async function cancelConfigPull(connId) {
+  const importId = configProgress.value[connId]?.import_id
+  if (!importId || configCancelling.value[connId]) return
+  configCancelling.value = { ...configCancelling.value, [connId]: true }
+  try {
+    await pimSyncApi.cancelConfigPull(importId)
+    configProgress.value = {
+      ...configProgress.value,
+      [connId]: { ...configProgress.value[connId], message: 'Wird abgebrochen...' },
+    }
+  } catch (e) {
+    configCancelling.value = { ...configCancelling.value, [connId]: false }
+  }
+}
+
+function configSectionLabel(s) {
+  return {
+    unit_groups: 'Einheitengruppen',
+    units: 'Einheiten',
+    attribute_views: 'Attributsichten',
+    attribute_groups: 'Attributgruppen',
+    attribute_formatting_rules: 'Formatierungsregeln',
+    comparison_operator_groups: 'Vergleichsoperator-Gruppen',
+    comparison_operators: 'Vergleichsoperatoren',
+    value_lists: 'Wertelisten',
+    attributes: 'Attribute',
+    product_types: 'Produkttypen',
+    price_types: 'Preisarten',
+    price_regions: 'Preisregionen',
+    relation_types: 'Beziehungstypen',
+    manufacturers: 'Hersteller',
+    media_languages: 'Medien-Sprachen',
+    media_countries: 'Medien-Länder',
+    media_usage_types: 'Medien-Verwendungstypen',
+    dictionary_entries: 'Wörterbuch',
+    collection_types: 'Collection-Typen',
+    hierarchies: 'Hierarchien',
+    hierarchy_attribute_assignments: 'Hierarchie-Attribute',
+    hierarchy_level_attribute_assignments: 'Hierarchie-Ebene-Attribute',
+    product_reference_profiles: 'Referenz-Profile',
+  }[s] || s
 }
 </script>
 
@@ -370,6 +493,13 @@ function conflictLabel(cr) {
               <TestTube v-else class="w-3 h-3 mr-1" />
               Testen
             </button>
+            <button
+              class="pim-btn pim-btn-ghost text-xs"
+              @click="toggleConfigForm(conn.id)"
+            >
+              <SlidersHorizontal class="w-3 h-3 mr-1" />
+              Konfiguration synchronisieren
+            </button>
 
             <!-- Detail-View Link -->
             <button
@@ -379,6 +509,102 @@ function conflictLabel(cr) {
               Logs & Details
               <ArrowUpRight class="w-3 h-3 ml-1" />
             </button>
+          </div>
+
+          <!-- Konfigurations-Sync ("Maske") -->
+          <div v-if="openConfigForm === conn.id" class="pt-3 border-t border-[var(--color-border)] space-y-3">
+            <p class="text-xs text-[var(--color-text-tertiary)]">
+              Holt das Datenmodell (Produkttypen, Attribute, Wertelisten, Hersteller, ...) von
+              <strong>{{ conn.settings?.remote_url }}</strong> und legt es hier an bzw. aktualisiert es.
+              Produktbestand (Artikel/Preise/Medien) ist nicht enthalten — dafür die Buttons oben nutzen.
+            </p>
+
+            <div v-if="!configPulling[conn.id]" class="flex flex-wrap gap-1.5">
+              <label
+                v-for="section in availableConfigSections"
+                :key="section"
+                class="flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full border cursor-pointer"
+                :class="selectedConfigSections.includes(section)
+                  ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+                  : 'border-[var(--color-border)] text-[var(--color-text-tertiary)]'"
+              >
+                <input
+                  type="checkbox"
+                  class="hidden"
+                  :checked="selectedConfigSections.includes(section)"
+                  @change="toggleConfigSection(section)"
+                />
+                {{ configSectionLabel(section) }}
+              </label>
+            </div>
+
+            <div v-if="!configPulling[conn.id]" class="flex justify-end">
+              <button
+                class="pim-btn pim-btn-primary text-xs"
+                :disabled="selectedConfigSections.length === 0"
+                @click="runConfigPull(conn.id)"
+              >
+                <ArrowDown class="w-3.5 h-3.5 mr-1" />
+                Konfiguration holen
+              </button>
+            </div>
+
+            <!-- Progress -->
+            <div v-if="configProgress[conn.id]" class="space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-[var(--color-text-secondary)] flex items-center gap-2">
+                  <Loader2 v-if="!configCancelling[conn.id]" class="w-3.5 h-3.5 animate-spin text-[var(--color-accent)]" />
+                  <StopCircle v-else class="w-3.5 h-3.5 text-orange-500" />
+                  {{ configProgress[conn.id].message }}
+                </span>
+                <span v-if="configProgress[conn.id].current > 0" class="text-[var(--color-text-tertiary)]">
+                  {{ configProgress[conn.id].current }}<template v-if="configProgress[conn.id].total > 0"> / {{ configProgress[conn.id].total }}</template>
+                </span>
+              </div>
+              <div class="w-full bg-[var(--color-bg)] rounded-full h-2 overflow-hidden">
+                <div
+                  class="h-full rounded-full transition-all duration-300 ease-out"
+                  :class="[
+                    configCancelling[conn.id] ? 'bg-orange-500' : 'bg-[var(--color-accent)]',
+                    configProgress[conn.id].total > 0 ? '' : 'animate-pulse',
+                  ]"
+                  :style="{ width: configProgress[conn.id].total > 0 ? configProgress[conn.id].percent + '%' : '100%' }"
+                />
+              </div>
+              <div v-if="configProgress[conn.id].import_id && !configCancelling[conn.id]" class="flex justify-end">
+                <button
+                  class="pim-btn pim-btn-secondary text-xs text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+                  @click="cancelConfigPull(conn.id)"
+                >
+                  <StopCircle class="w-3.5 h-3.5 mr-1" />
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+
+            <!-- Progress-Log -->
+            <div v-if="configProgressLog[conn.id]?.length" class="max-h-40 overflow-y-auto space-y-1 font-mono text-[11px] rounded-lg bg-[var(--color-bg)] p-2">
+              <div
+                v-for="(entry, i) in configProgressLog[conn.id]"
+                :key="i"
+                class="flex items-start gap-2 text-[var(--color-text-secondary)]"
+              >
+                <span class="text-[var(--color-text-tertiary)] shrink-0">{{ entry.at.toLocaleTimeString() }}</span>
+                <span class="truncate">{{ entry.message }}</span>
+              </div>
+            </div>
+
+            <!-- Result -->
+            <div v-if="configResult[conn.id]" class="flex items-start gap-2 text-xs text-[var(--color-success)]">
+              <CheckCircle class="w-4 h-4 shrink-0" />
+              <span>
+                Konfiguration importiert.
+                <template v-if="configResult[conn.id].stats">
+                  {{ Object.values(configResult[conn.id].stats).reduce((s, v) => s + (v.created || 0), 0) }} neu,
+                  {{ Object.values(configResult[conn.id].stats).reduce((s, v) => s + (v.updated || 0), 0) }} aktualisiert.
+                </template>
+              </span>
+            </div>
           </div>
         </div>
       </div>

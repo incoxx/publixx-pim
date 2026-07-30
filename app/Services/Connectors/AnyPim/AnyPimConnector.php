@@ -8,6 +8,9 @@ use App\Models\ConnectorConnection;
 use App\Models\Media;
 use App\Models\Product;
 use App\Services\Connectors\AbstractConnector;
+use App\Services\Export\JsonFormatExporter;
+use App\Services\Import\JsonFormatImporter;
+use App\Services\Import\JsonImportResult;
 use Illuminate\Support\Facades\Log;
 
 class AnyPimConnector extends AbstractConnector
@@ -18,6 +21,8 @@ class AnyPimConnector extends AbstractConnector
         private readonly AnyPimMediaService $mediaService,
         private readonly AnyPimCategoryService $categoryService,
         private readonly AnyPimChecksumService $checksumService,
+        private readonly AnyPimConfigService $configService,
+        private readonly JsonFormatImporter $jsonImporter,
     ) {}
 
     public function getType(): string
@@ -219,6 +224,35 @@ class AnyPimConnector extends AbstractConnector
         $remoteUrl = $this->authService->getRemoteUrl($connection);
 
         return $this->categoryService->fetchRemoteSchema($http, $remoteUrl);
+    }
+
+    /**
+     * Konfiguration (Produkttypen, Attribute, Wertelisten, Hersteller, ...) von der
+     * Remote-Instanz holen und lokal importieren. Fortschritt/Abbruch laufen ueber
+     * den injizierten JsonFormatImporter — siehe getJsonImporter().
+     */
+    public function pullConfig(ConnectorConnection $connection, array $sections = []): JsonImportResult
+    {
+        $http = $this->authenticatedRequest($connection);
+        $remoteUrl = $this->authService->getRemoteUrl($connection);
+        $activeSections = $sections ?: JsonFormatExporter::configSections();
+
+        $result = $this->configService->pullConfig($http, $remoteUrl, $activeSections, $this->jsonImporter);
+
+        $status = $result->totalErrors() > 0 ? 'partial' : 'success';
+        $this->logSync($connection, 'pull_config', 'config', '*', $status, null, null, $result->toArray());
+
+        return $result;
+    }
+
+    /**
+     * Gibt den fuer pullConfig() verwendeten JsonFormatImporter zurueck, damit der
+     * Aufrufer VOR pullConfig() Progress-/Heartbeat-Callbacks und die Import-ID setzen
+     * kann (fuer SSE-Streaming — siehe ConnectorController::pullConfigStreamed()).
+     */
+    public function getJsonImporter(): JsonFormatImporter
+    {
+        return $this->jsonImporter;
     }
 
     /**

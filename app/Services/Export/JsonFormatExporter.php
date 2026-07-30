@@ -531,6 +531,17 @@ class JsonFormatExporter
     }
 
     /**
+     * Sektionen, die reine Konfiguration/Stammdaten sind (kein Produktbestand) —
+     * z.B. fuer den "Konfiguration synchronisieren"-Pull des anyPIM-Connectors.
+     *
+     * @return string[]
+     */
+    public static function configSections(): array
+    {
+        return array_values(array_diff(self::SECTION_ORDER, self::LARGE_SECTIONS));
+    }
+
+    /**
      * Baut das komplette Export-Array auf.
      */
     private function buildExportData(array $sections, array $filters): array

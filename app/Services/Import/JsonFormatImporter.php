@@ -513,7 +513,7 @@ class JsonFormatImporter
             $sheets['09_Produktwerte'] = array_map(fn ($v) => [
                 'sku' => $v['sku'],
                 'attribute' => $v['attribute'],
-                'value' => $v['value'],
+                'value' => $v['value'] ?? null,
                 'unit' => $v['unit'] ?? null,
                 'language' => $v['language'] ?? null,
                 'index' => $v['index'] ?? 0,

@@ -12,6 +12,7 @@ use App\Services\Connectors\DeepL\DeepLTranslationService;
 use App\Services\Connectors\AnyPim\AnyPimAuthService;
 use App\Services\Connectors\AnyPim\AnyPimCategoryService;
 use App\Services\Connectors\AnyPim\AnyPimChecksumService;
+use App\Services\Connectors\AnyPim\AnyPimConfigService;
 use App\Services\Connectors\AnyPim\AnyPimConnector;
 use App\Services\Connectors\AnyPim\AnyPimMediaService;
 use App\Services\Connectors\AnyPim\AnyPimProductService;
@@ -111,6 +112,7 @@ class ConnectorServiceProvider extends ServiceProvider
         $this->app->singleton(AnyPimMediaService::class);
         $this->app->singleton(AnyPimCategoryService::class);
         $this->app->singleton(AnyPimChecksumService::class);
+        $this->app->singleton(AnyPimConfigService::class);
         $this->app->singleton(AnyPimConnector::class);
     }
 
