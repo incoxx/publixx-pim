@@ -256,6 +256,36 @@ class AnyPimConnector extends AbstractConnector
     }
 
     /**
+     * Anzahl lokaler Media-Einträge, deren Datei physisch fehlt (z.B. nach
+     * JSON-Import von Produktdaten ohne Dateiübertragung).
+     */
+    public function countMissingMedia(): int
+    {
+        return $this->mediaService->countMissingMedia();
+    }
+
+    /**
+     * Holt alle lokal fehlenden Mediendateien von der Remote-Instanz nach
+     * (Download über deren öffentlichen /storage/-Pfad).
+     */
+    public function pullMissingMedia(
+        ConnectorConnection $connection,
+        ?string $importId = null,
+        ?callable $progressCallback = null,
+        ?callable $heartbeatCallback = null,
+    ): array {
+        $http = $this->authenticatedRequest($connection);
+        $remoteUrl = $this->authService->getRemoteUrl($connection);
+
+        $result = $this->mediaService->pullMissingMedia($http, $remoteUrl, $importId, $progressCallback, $heartbeatCallback);
+
+        $status = $result['failed'] > 0 ? 'partial' : 'success';
+        $this->logSync($connection, 'pull_missing_media', 'media', '*', $status, null, null, $result);
+
+        return $result;
+    }
+
+    /**
      * Verbindung zur Remote-Instanz testen.
      */
     public function testConnection(ConnectorConnection $connection): array

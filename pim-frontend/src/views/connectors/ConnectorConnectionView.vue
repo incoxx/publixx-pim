@@ -1181,7 +1181,7 @@ const statusColors = {
       </div>
 
       <!-- Sync Dialog -->
-      <div v-if="showSyncDialog" class="card bg-base-100 shadow-sm border border-primary/20">
+      <div v-if="showSyncDialog" class="card bg-base-100 shadow-sm border border-primary/20 max-w-xl">
         <div class="card-body">
           <h3 class="font-semibold">
             {{ syncType === 'media' ? 'Media-Asset' : 'Produkt' }} synchronisieren

@@ -20,6 +20,7 @@ use App\Services\Export\JsonFormatExporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -1241,5 +1242,90 @@ class ConnectorController extends Controller
     public function configSections(): JsonResponse
     {
         return response()->json(['data' => JsonFormatExporter::configSections()]);
+    }
+
+    /**
+     * GET /api/v1/connectors/connections/{connection}/missing-media-count — Anzahl lokaler
+     * Media-Einträge ohne physische Datei (z.B. nach JSON-Import von Produktdaten).
+     */
+    public function missingMediaCount(ConnectorConnection $connection, AnyPimConnector $connector): JsonResponse
+    {
+        $this->authorize('sync', $connection);
+
+        if ($connection->connector_type !== 'anypim') {
+            abort(422, 'Nur für anyPIM-Connections verfügbar.');
+        }
+
+        return response()->json(['data' => ['missing' => $connector->countMissingMedia()]]);
+    }
+
+    /**
+     * POST /api/v1/connectors/connections/{connection}/pull-missing-media — Dateien für
+     * lokal fehlende Media-Einträge von der Remote-anyPIM-Instanz nachladen (Download über
+     * deren öffentlichen /storage/-Pfad), mit SSE-Fortschritt (analog zu pullConfig()).
+     */
+    public function pullMissingMedia(Request $request, ConnectorConnection $connection, AnyPimConnector $connector): StreamedResponse
+    {
+        $this->authorize('sync', $connection);
+
+        if ($connection->connector_type !== 'anypim') {
+            abort(422, 'Media-Pull ist nur für anyPIM-Connections verfügbar.');
+        }
+
+        return new StreamedResponse(function () use ($connection, $connector) {
+            $this->configureForLongRunning('512M');
+            $sendEvent = $this->createSseEventSender();
+            $sendHeartbeat = $this->createSseHeartbeatSender();
+
+            $importId = (string) Str::uuid();
+
+            $sendEvent('progress', [
+                'phase' => 'starting',
+                'message' => 'Fehlende Medien werden ermittelt...',
+                'current' => 0,
+                'total' => 0,
+                'import_id' => $importId,
+            ]);
+
+            $progressCallback = function (int $current, int $total, string $fileName) use ($sendEvent, $importId) {
+                $sendEvent('progress', [
+                    'phase' => 'media',
+                    'message' => "Lade {$fileName}...",
+                    'current' => $current,
+                    'total' => $total,
+                    'import_id' => $importId,
+                ]);
+            };
+
+            try {
+                $result = $connector->pullMissingMedia($connection, $importId, $progressCallback, $sendHeartbeat);
+
+                Log::channel('connectors')->info('anyPIM Missing-Media-Pull abgeschlossen', $result);
+
+                $sendEvent('complete', [
+                    'message' => 'Fehlende Medien synchronisiert',
+                    'data' => $result,
+                ]);
+            } catch (ImportCancelledException $e) {
+                Log::channel('connectors')->info('anyPIM Missing-Media-Pull abgebrochen', ['import_id' => $importId]);
+                $sendEvent('cancelled', [
+                    'message' => 'Abbruch durch Benutzer.',
+                    'import_id' => $importId,
+                ]);
+            } catch (\Throwable $e) {
+                Log::channel('connectors')->error('anyPIM Missing-Media-Pull fehlgeschlagen', [
+                    'error' => $e->getMessage(),
+                ]);
+
+                $sendEvent('error', [
+                    'error' => 'Media-Pull fehlgeschlagen: ' . $e->getMessage(),
+                ]);
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no',
+        ]);
     }
 }

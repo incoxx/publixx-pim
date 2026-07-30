@@ -222,4 +222,52 @@ class AnyPimConnectorSyncTest extends TestCase
         $this->postJson("/api/v1/connectors/connections/{$shopwareConnection->id}/pull-products")
             ->assertStatus(422);
     }
+
+    public function test_missing_media_count_liefert_anzahl_fehlender_dateien(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+
+        // Datei existiert nicht auf dem Disk (typisch nach JSON-Import ohne Dateiübertragung)
+        \App\Models\Media::factory()->create(['file_path' => 'media/fehlt-1.jpg']);
+        \App\Models\Media::factory()->create(['file_path' => 'media/fehlt-2.jpg']);
+
+        // Diese Datei existiert wirklich → zählt nicht mit
+        \Illuminate\Support\Facades\Storage::disk('public')->put('media/vorhanden.jpg', 'inhalt');
+        \App\Models\Media::factory()->create(['file_path' => 'media/vorhanden.jpg']);
+
+        $response = $this->getJson("/api/v1/connectors/connections/{$this->connection->id}/missing-media-count");
+
+        $response->assertOk();
+        $this->assertSame(2, $response->json('data.missing'));
+    }
+
+    public function test_pull_missing_media_laedt_fehlende_dateien_von_remote_instanz(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+
+        $media = \App\Models\Media::factory()->create([
+            'file_name' => 'produktbild.jpg',
+            'file_path' => 'media/produktbild.jpg',
+            'file_size' => 0,
+        ]);
+
+        Http::fake([
+            self::REMOTE_URL . '/storage/media/produktbild.jpg' => Http::response(
+                'binaerdaten-des-bildes',
+                200,
+                ['Content-Type' => 'image/jpeg'],
+            ),
+        ]);
+
+        $response = $this->call('POST', "/api/v1/connectors/connections/{$this->connection->id}/pull-missing-media");
+        $response->assertOk();
+        $content = $response->streamedContent();
+
+        $this->assertStringContainsString('event: complete', $content);
+        \Illuminate\Support\Facades\Storage::disk('public')->assertExists('media/produktbild.jpg');
+
+        $media->refresh();
+        $this->assertSame(strlen('binaerdaten-des-bildes'), $media->file_size);
+        $this->assertSame('image/jpeg', $media->mime_type);
+    }
 }
