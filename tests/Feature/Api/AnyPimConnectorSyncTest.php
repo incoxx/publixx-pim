@@ -166,6 +166,55 @@ class AnyPimConnectorSyncTest extends TestCase
         $response->assertOk()->assertJsonPath('data.status', 'ok');
     }
 
+    public function test_pull_config_holt_und_importiert_konfiguration_von_remote_instanz(): void
+    {
+        Http::fake([
+            self::REMOTE_URL . '/api/v1/json-export' => Http::response([
+                '_meta' => ['format' => 'anypim-json', 'version' => '1.0'],
+                'product_types' => [[
+                    'technical_name' => 'werkzeug-remote',
+                    'name_de' => 'Werkzeug (Remote)',
+                ]],
+            ]),
+        ]);
+
+        $response = $this->call(
+            'POST',
+            "/api/v1/connectors/connections/{$this->connection->id}/pull-config",
+            ['sections' => ['product_types']],
+        );
+
+        $response->assertOk();
+        $content = $response->streamedContent();
+
+        $this->assertStringContainsString('event: complete', $content);
+        $this->assertDatabaseHas('product_types', ['technical_name' => 'werkzeug-remote']);
+
+        Http::assertSent(fn ($request) => $request->url() === self::REMOTE_URL . '/api/v1/json-export'
+            && $request->method() === 'POST'
+            && $request['sections'] === ['product_types']
+            && $request['inline'] === true);
+    }
+
+    public function test_pull_config_ohne_sektionsauswahl_nutzt_alle_konfigurations_sektionen(): void
+    {
+        Http::fake([
+            self::REMOTE_URL . '/api/v1/json-export' => Http::response([
+                '_meta' => ['format' => 'anypim-json', 'version' => '1.0'],
+            ]),
+        ]);
+
+        $response = $this->call('POST', "/api/v1/connectors/connections/{$this->connection->id}/pull-config");
+        $response->streamedContent();
+
+        Http::assertSent(function ($request) {
+            $sections = $request['sections'] ?? [];
+            return $request->url() === self::REMOTE_URL . '/api/v1/json-export'
+                && in_array('attributes', $sections, true)
+                && !in_array('products', $sections, true);
+        });
+    }
+
     public function test_pull_products_ist_nur_fuer_anypim_verbindungen_verfuegbar(): void
     {
         $shopwareConnection = ConnectorConnection::factory()->create(['connector_type' => 'shopware']);

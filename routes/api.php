@@ -1420,6 +1420,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::post('/connections/{connection}/pull-translations', [ConnectorController::class, 'pullTranslations']);
         Route::post('/connections/{connection}/sync-bidirectional', [ConnectorController::class, 'syncBidirectional']);
         Route::post('/connections/{connection}/test-connection', [ConnectorController::class, 'testAnyPimConnection']);
+        Route::post('/connections/{connection}/pull-config', [ConnectorController::class, 'pullConfig']);
+        Route::get('/config-sections', [ConnectorController::class, 'configSections']);
     });
 
     // =====================================================================

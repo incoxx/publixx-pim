@@ -1,4 +1,7 @@
 import client from './client'
+import { useAuthStore } from '@/stores/auth'
+
+const apiBaseURL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
 export default {
   // =====================================================================
@@ -52,5 +55,148 @@ export default {
 
   testConnection(connectionId) {
     return client.post(`/connectors/connections/${connectionId}/test-connection`)
+  },
+
+  // =====================================================================
+  // anyPIM Konfigurations-Sync
+  // =====================================================================
+
+  /**
+   * Verfügbare Konfigurations-Sektionen auflisten (alles außer Produktdaten).
+   */
+  configSections() {
+    return client.get('/connectors/config-sections')
+  },
+
+  /**
+   * Konfiguration von der Remote-Instanz holen und lokal importieren,
+   * mit SSE-Progress-Streaming und Abbruch-Möglichkeit.
+   *
+   * @param {string} connectionId
+   * @param {string[]} sections  Leer = alle Konfigurations-Sektionen
+   * @param {(event: object) => void} onProgress
+   * @returns {Promise<object>}
+   */
+  pullConfigWithProgress(connectionId, sections = [], onProgress = null) {
+    const auth = useAuthStore()
+    const token = auth.token
+
+    const xsrfToken = document.cookie
+      .split('; ')
+      .find((c) => c.startsWith('XSRF-TOKEN='))
+      ?.split('=')[1]
+
+    return new Promise((resolve, reject) => {
+      fetch(`${apiBaseURL}/connectors/connections/${connectionId}/pull-config`, {
+        method: 'POST',
+        headers: {
+          Accept: 'text/event-stream',
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : '',
+          ...(xsrfToken ? { 'X-XSRF-TOKEN': decodeURIComponent(xsrfToken) } : {}),
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ sections }),
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            const text = await response.text()
+            try {
+              const json = JSON.parse(text)
+              reject(new Error(json.error || json.message || `Konfigurations-Pull fehlgeschlagen (HTTP ${response.status})`))
+            } catch {
+              const snippet = text.length > 200 ? text.slice(0, 200) + '…' : text
+              reject(new Error(`Konfigurations-Pull fehlgeschlagen (HTTP ${response.status}): ${snippet}`))
+            }
+            return
+          }
+
+          this._handleSseResponse(response, onProgress, resolve, reject)
+        })
+        .catch(reject)
+    })
+  },
+
+  /**
+   * Gemeinsame SSE-Response-Verarbeitung (identisch zum JSON-/BMEcat-Import-Client).
+   */
+  _handleSseResponse(response, onProgress, resolve, reject) {
+    const contentType = response.headers.get('content-type') || ''
+
+    if (!contentType.includes('text/event-stream')) {
+      response.json().then((json) => {
+        if (json.error) {
+          reject(new Error(json.error))
+        } else {
+          resolve(json.data || json)
+        }
+      }).catch(reject)
+      return
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let settled = false
+    const settledResolve = (v) => {
+      if (!settled) { settled = true; resolve(v) }
+    }
+    const settledReject = (e) => {
+      if (!settled) { settled = true; reject(e) }
+    }
+
+    const processLines = () => {
+      const lines = buffer.split('\n')
+      buffer = lines.pop()
+
+      let currentEvent = null
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim()
+        } else if (line.startsWith('data: ')) {
+          const data = line.slice(6)
+          try {
+            const parsed = JSON.parse(data)
+            if (currentEvent === 'progress' && onProgress) {
+              onProgress(parsed)
+            } else if (currentEvent === 'complete') {
+              settledResolve(parsed.data || parsed)
+            } else if (currentEvent === 'cancelled') {
+              settledReject(new Error(parsed.message || 'Import wurde abgebrochen.'))
+            } else if (currentEvent === 'error') {
+              settledReject(new Error(parsed.error || parsed.message || 'Konfigurations-Pull fehlgeschlagen'))
+            }
+          } catch {
+            // Skip malformed JSON
+          }
+          currentEvent = null
+        }
+      }
+    }
+
+    const read = async () => {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        processLines()
+      }
+      if (buffer.trim()) {
+        buffer += '\n'
+        processLines()
+      }
+      if (!settled) {
+        settledReject(new Error('Verbindung wurde unerwartet beendet. Bitte Log prüfen.'))
+      }
+    }
+
+    read().catch(settledReject)
+  },
+
+  /**
+   * Laufenden Konfigurations-Pull abbrechen (nutzt denselben Cancel-Kanal wie der JSON-Import).
+   */
+  cancelConfigPull(importId) {
+    return client.post('/json-import/cancel', { import_id: importId })
   },
 }

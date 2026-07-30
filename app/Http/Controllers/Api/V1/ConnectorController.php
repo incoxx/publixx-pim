@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\ImportCancelledException;
+use App\Http\Controllers\Concerns\HandlesSseProgress;
 use App\Models\ConnectorConnection;
 use App\Models\ConnectorProductChecksum;
 use App\Models\ConnectorSyncLog;
@@ -14,8 +16,10 @@ use App\Services\Connectors\AnyPim\AnyPimConnector;
 use App\Services\Connectors\ConnectorRegistry;
 use App\Services\Connectors\Shopify\ShopifyConnector;
 use App\Services\Connectors\Shopware\ShopwareConnector;
+use App\Services\Export\JsonFormatExporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -41,6 +45,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class ConnectorController extends Controller
 {
+    use HandlesSseProgress;
+
     public function __construct(
         private readonly ConnectorRegistry $registry,
     ) {}
@@ -1148,5 +1154,92 @@ class ConnectorController extends Controller
         $statusCode = $result['status'] === 'ok' ? 200 : 422;
 
         return response()->json(['data' => $result], $statusCode);
+    }
+
+    /**
+     * POST /api/v1/connectors/connections/{connection}/pull-config — Konfiguration
+     * (Produkttypen, Attribute, Wertelisten, Hersteller, ...) von der Remote-anyPIM-
+     * Instanz holen und lokal importieren, mit SSE-Fortschritt (analog zum JSON-Import).
+     */
+    public function pullConfig(Request $request, ConnectorConnection $connection, AnyPimConnector $connector): StreamedResponse
+    {
+        $this->authorize('sync', $connection);
+
+        if ($connection->connector_type !== 'anypim') {
+            abort(422, 'Konfigurations-Pull ist nur für anyPIM-Connections verfügbar.');
+        }
+
+        $sections = $request->input('sections', []);
+        $sections = is_array($sections) ? $sections : [];
+
+        return new StreamedResponse(function () use ($connection, $connector, $sections) {
+            $this->configureForLongRunning('1G');
+            $sendEvent = $this->createSseEventSender();
+            $sendHeartbeat = $this->createSseHeartbeatSender();
+
+            $importer = $connector->getJsonImporter();
+            $importId = $importer->getImportId();
+
+            $sendEvent('progress', [
+                'phase' => 'starting',
+                'message' => 'Konfiguration wird von der Remote-Instanz geladen...',
+                'current' => 0,
+                'total' => 0,
+                'import_id' => $importId,
+            ]);
+
+            $importer->setProgressCallback(
+                function (string $phase, int $current, int $total, array $stats) use ($sendEvent, $importId) {
+                    $sendEvent('progress', [
+                        'phase' => $phase,
+                        'message' => "Importiere {$phase}...",
+                        'current' => $current,
+                        'total' => $total,
+                        'stats' => $stats,
+                        'import_id' => $importId,
+                    ]);
+                }
+            );
+            $importer->setHeartbeatCallback($sendHeartbeat);
+
+            try {
+                $result = $connector->pullConfig($connection, $sections);
+
+                Log::channel('import')->info('anyPIM Konfigurations-Pull abgeschlossen', $result->toArray());
+
+                $sendEvent('complete', [
+                    'message' => 'Konfiguration importiert',
+                    'data' => $result->toArray(),
+                ]);
+            } catch (ImportCancelledException $e) {
+                Log::channel('import')->info('anyPIM Konfigurations-Pull abgebrochen', ['import_id' => $importId]);
+                $sendEvent('cancelled', [
+                    'message' => 'Import wurde abgebrochen.',
+                    'import_id' => $importId,
+                ]);
+            } catch (\Throwable $e) {
+                Log::channel('import')->error('anyPIM Konfigurations-Pull fehlgeschlagen', [
+                    'error' => $e->getMessage(),
+                ]);
+
+                $sendEvent('error', [
+                    'error' => 'Konfigurations-Pull fehlgeschlagen: ' . $e->getMessage(),
+                ]);
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no',
+        ]);
+    }
+
+    /**
+     * GET /api/v1/connectors/config-sections — Verfügbare Konfigurations-Sektionen
+     * für die "Konfiguration synchronisieren"-Auswahl im anyPIM-Connector.
+     */
+    public function configSections(): JsonResponse
+    {
+        return response()->json(['data' => JsonFormatExporter::configSections()]);
     }
 }
