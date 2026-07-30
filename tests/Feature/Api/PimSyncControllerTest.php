@@ -280,12 +280,15 @@ class PimSyncControllerTest extends TestCase
         $this->assertTrue($names->contains('sync-test-attribut'));
     }
 
-    // Kein Test fuer GET /api/v1/pim-sync/schema: PimSyncController::schema() selektiert
-    // `id, name, technical_name` von product_types und `id, name, type` von hierarchies -
-    // beide Spalten ("name", "type") existieren dort nicht (name_de/name_en statt name,
-    // kein type auf hierarchies). Der Endpoint wirft daher unconditional einen 500er.
-    // Das ist ein Bug in PimSyncController selbst (Connector-Logik), nicht Testinfrastruktur -
-    // bewusst nicht mitbehoben, siehe Zusammenfassung.
+    public function test_schema_endpoint_liefert_produkttypen_und_hierarchien(): void
+    {
+        ProductType::factory()->create(['technical_name' => 'werkzeug']);
+
+        $this->getJson('/api/v1/pim-sync/schema')
+            ->assertOk()
+            ->assertJsonStructure(['product_types', 'hierarchies', 'attribute_count'])
+            ->assertJsonFragment(['technical_name' => 'werkzeug']);
+    }
 
     public function test_media_endpoint_verlangt_sku_parameter(): void
     {
