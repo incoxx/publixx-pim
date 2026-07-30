@@ -245,11 +245,11 @@ class PimSyncController extends Controller
     public function schema(): JsonResponse
     {
         return response()->json([
-            'product_types' => ProductType::orderBy('name')
-                ->get(['id', 'name', 'technical_name'])
+            'product_types' => ProductType::orderBy('name_de')
+                ->get(['id', 'name_de', 'name_en', 'technical_name'])
                 ->toArray(),
-            'hierarchies' => Hierarchy::orderBy('name')
-                ->get(['id', 'name', 'type'])
+            'hierarchies' => Hierarchy::orderBy('name_de')
+                ->get(['id', 'name_de', 'name_en', 'technical_name', 'hierarchy_type'])
                 ->toArray(),
             'attribute_count' => Attribute::count(),
         ]);
