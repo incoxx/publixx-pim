@@ -45,10 +45,11 @@ Built for teams that need to manage **hundreds to tens of thousands of products*
 ### Core
 
 - **Products & Variants** — Master data management with configurable attributes, variant generation, and attribute inheritance across hierarchies
-- **Flexible Attribute System** — 12 data types (String, Number, Float, Date, Flag, Selection, Dictionary, Composite, RichText, Hyperlink, ImageLink, PdfLink, VideoLink), units of measurement, value lists, and attribute grouping
+- **Flexible Attribute System** — 21 data types (String, Number, Float, Date, Flag, Selection, MultiSelection, Dictionary, Composite, RichText, Hyperlink, ImageLink, PdfLink, VideoLink, DelimitedValue, JsonArtefact, Textarea, HierarchyNodeReference, ProductReference, SimpleSelect, SimpleMultiSelect), units of measurement, value lists, and attribute grouping
 - **Hierarchies** — Master and output hierarchies with materialized path, drag-and-drop sorting, and attribute inheritance across all levels
 - **Media Management** — Upload, thumbnails, asset catalog with media-specific attributes and automatic image processing
 - **Product Versioning** — Version history with scheduling (publish dates) and one-click rollback
+- **Reference Profiles & Conformance** — Define required attribute/media rules per product type and run conformance checks with a data-quality report
 
 ### Search & Query
 
@@ -64,14 +65,52 @@ Built for teams that need to manage **hundreds to tens of thousands of products*
 - **Prices & Relations** — Price types, price regions, product relationships with relation-specific attributes
 - **Attribute Views** — Define custom attribute views for different use cases and departments
 - **Workflow & Calendar** — Task management with assignments and a planning calendar for scheduled product actions
+- **Classification Mapping** — Global attribute mapping (source → target) with conditional rules for external classification standards (e.g. ETIM), so products can be maintained once and exported into multiple classifications
+- **Export Jobs** — Scheduled, reusable export configurations with SFTP and webhook delivery
+
+### Content (CMS)
+
+- **Content Pages & Sections** — Configurable page types and section types for building product-related content pages
+- **Product Widgets** — Reusable, product-data-driven widgets embeddable in content sections
+- **Sitemap / Navigation** — Manage the public site's navigation tree
+- **Website Preview** — Live preview of published content
+- **CMS Integration** — TYPO3 connector for pushing content into an existing CMS
+
+### E-Commerce
+
+- **Cart, Address & Payment Types** — Configure checkout building blocks (cart types, address types, payment types)
+- **Orders** — Order management view for orders placed through connected shop systems
+
+### Publish
+
+- **Reports** — Reporting module across products and data quality
+- **PDF & Catalog Templates** — Design PDF and catalog output templates
+- **Catalog Demo / Embed** — Embeddable, faceted product catalog for previewing and sharing
+- **Social Video** — Generate short social-media product videos from product data and media
+
+### Integrations & Connectors
+
+- **anyPIM Sync** — Connect and synchronize with other anyPIM instances
+- **Shopify & Shopware** — Native e-commerce connectors for products, categories, media, and metafields/properties
+- **DeepL** — Machine translation for multi-language attribute content
+- **Claude AI** — AI-assisted text generation for product content
+- **Translation Management (TMS)** — Translation jobs and translation memory across configured providers
+- **API Designer & MCP Playground** — Design custom API endpoints and test them against a built-in MCP (Model Context Protocol) playground
 
 ### Administration
 
 - **Roles & Permissions** — Fine-grained access control with 5 default roles (Admin, Data Steward, Product Manager, Viewer, Export Manager)
 - **User Management** — Full user administration with Sanctum-based authentication and SSO support
+- **Cockpit Layouts** — Configurable dashboard layouts per role/user
 - **Audit Trail** — Track changes across the system with user audit logs and journal
-- **Export Jobs** — Scheduled, reusable export configurations with SFTP and webhook delivery
 - **Access Links** — Temporary, token-based links for external catalog access without user accounts
+- **System Tools** — Built-in test runner, API tester, database browser, data-consistency checker, security guard, log viewer, and Artisan cockpit for operations without shell access
+
+### Project Management
+
+- **Project Dashboard** — Overview of projects, teams, and workflow status
+- **Workflows** — Configurable workflow statuses for task and product processes
+- **Teams & Projects** — Organize users into teams and projects
 
 ### Public Catalog
 
@@ -86,6 +125,7 @@ Built for teams that need to manage **hundreds to tens of thousands of products*
 - **Keyboard Shortcuts** — Power-user friendly with keyboard navigation
 
 > See [FEATURES.md](docs/features/features.md) for a detailed feature list with business benefits for each module.
+> Content, E-Commerce, and some other modules are optional/licensed modules and only appear in the menu once enabled.
 
 ---
 
@@ -161,6 +201,7 @@ sudo bash update.sh --skip-frontend      # Skip frontend rebuild
 sudo bash update.sh --skip-docs          # Skip documentation rebuild
 sudo bash update.sh --skip-tms           # Skip TMS setup
 sudo bash update.sh --skip-composer      # Skip Composer install
+sudo bash update.sh --skip-meilisearch   # Skip Meilisearch setup
 sudo bash update.sh --seed               # Re-run database seeders
 sudo bash update.sh --force              # Skip confirmation prompt
 ```
@@ -186,21 +227,21 @@ sudo bash update.sh --force              # Skip confirmation prompt
 ```
 anyPIM/
 ├── app/
-│   ├── Http/Controllers/     75 API controllers (V1)
-│   ├── Models/               55 Eloquent models
-│   └── Services/             70 service classes (Inheritance, PQL, Export, Import, Versioning)
-├── pim-frontend/             Vue 3 SPA (standalone npm project)
-│   ├── src/components/       116+ Vue components
-│   ├── src/stores/           Pinia state management
-│   └── src/views/            35+ page-level views
+│   ├── Http/Controllers/Api/V1/  150+ API controllers (V1)
+│   ├── Models/                   125+ Eloquent models
+│   └── Services/                 175+ service classes (Inheritance, PQL, Export, Import, Versioning, Connectors)
+├── pim-frontend/                 Vue 3 SPA (standalone npm project)
+│   ├── src/components/            190+ Vue components
+│   ├── src/stores/                Pinia state management
+│   └── src/views/                 120+ page-level views
 ├── database/
-│   ├── migrations/           88 migration files
-│   └── seeders/              Demo data (products, attributes, hierarchies)
-├── routes/api.php            ~285 API routes (/api/v1/*)
-├── static-content/           VitePress documentation site
-├── setup.sh                  One-command server setup
-├── update.sh                 One-command update & rebuild
-└── healthcheck.sh            Service health verification
+│   ├── migrations/               225+ migration files
+│   └── seeders/                  Demo data (products, attributes, hierarchies)
+├── routes/api.php                600+ API routes (/api/v1/*)
+├── static-content/               VitePress documentation site
+├── setup.sh                      One-command server setup
+├── update.sh                     One-command update & rebuild
+└── healthcheck.sh                Service health verification
 ```
 
 ---
@@ -231,7 +272,7 @@ Both modes are configured automatically by `setup.sh`.
 
 All endpoints are available under `/api/v1/` with Laravel Sanctum authentication (Bearer Token).
 
-**~285 RESTful endpoints** covering products, attributes, hierarchies, media, prices, relations, imports, exports, workflow, reports, PDF templates, and more.
+**600+ RESTful endpoints** covering products, attributes, hierarchies, media, prices, relations, imports, exports, workflow, reports, PDF templates, connectors, and more.
 
 ```bash
 # Authenticate
@@ -272,7 +313,7 @@ Full documentation is available as a VitePress site in both German and English:
 | [Quick Start](https://smartentities.de/web/help/en/installation/quickstart) | Get anyPIM running in 10 minutes |
 | [User Guide](https://smartentities.de/web/help/en/usage/) | Full user manual for all modules |
 | [Architecture](https://smartentities.de/web/help/en/architecture/) | EAV data model, services, inheritance engine |
-| [API Reference](https://smartentities.de/web/help/en/api/) | ~285 REST endpoints with examples |
+| [API Reference](https://smartentities.de/web/help/en/api/) | 600+ REST endpoints with examples |
 | [Import](https://smartentities.de/web/help/en/import/) | Excel import with 14-tab structure |
 | [Export](https://smartentities.de/web/help/en/export/) | JSON export and Publixx integration |
 | [FAQ](https://smartentities.de/web/help/en/faq/) | Frequently asked questions |
@@ -282,7 +323,7 @@ Full documentation is available as a VitePress site in both German and English:
 | File | Description |
 |---|---|
 | [Features](docs/features/features.md) | Complete feature overview with business benefits |
-| [API Reference](docs/reference/api.md) | REST API reference (~285 endpoints) |
+| [API Reference](docs/reference/api.md) | REST API reference (600+ endpoints) |
 | [Database Schema](docs/reference/database.md) | Database schema documentation |
 | [Installation](docs/operations/install.md) | Detailed installation guide (`setup.sh`) |
 | [Updates](docs/operations/update.md) | Update procedures (`update.sh`) |
