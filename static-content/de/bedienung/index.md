@@ -138,7 +138,7 @@ Laden Sie Bilder, Dokumente und Videos hoch, organisieren Sie diese in der Medie
 Verwalten Sie verschiedene Preisarten in mehreren Waehrungen mit Gueltigkeitszeitraeumen und ordnen Sie Preise Ihren Produkten zu.
 
 ### [Benutzer](./benutzer)
-Administrieren Sie Benutzerkonten, weisen Sie Rollen zu (Admin, Data Steward, Product Manager, Viewer, Export Manager) und konfigurieren Sie feingranulare Berechtigungen auf Entitaets- und Aktionsebene.
+Administrieren Sie Benutzerkonten, weisen Sie Rollen zu (Sysadmin, Admin, Data Steward, Product Manager, Viewer, Export Manager, API Designer, Project Management, Marketing) und konfigurieren Sie feingranulare Berechtigungen auf Entitaets- und Aktionsebene.
 
 ### [Uebersetzungen (TMS)](./uebersetzungen)
 Verwalten Sie die Uebersetzung von Metadaten wie Attributnamen, Wertelisten-Eintraegen und Hierarchie-Knoten. Das Translation Memory Service uebersetzt automatisch ueber DeepL, Google Translate oder Claude und synchronisiert die Ergebnisse in die PIM-Datenbank.

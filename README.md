@@ -55,6 +55,8 @@ Built for teams that need to manage **hundreds to tens of thousands of products*
 
 - **PQL (Product Query Language)** — Powerful, flexible query language for complex product searches across all attributes
 - **Full-Text Search** — Instant search across product names, SKUs, EANs, and attribute values
+- **Hybrid / Semantic Search** — Meilisearch-backed search combining keyword and vector similarity (via a configurable embedding provider, e.g. Ollama) for natural-language product queries
+- **PDF Full-Text Search** — Typesense-backed indexing of PDF document content (data sheets, manuals) attached to products
 - **Quick Lookup** — Column-level inline filtering for rapid data exploration
 - **Advanced Filters** — Filter by any attribute, product type, status, or custom criteria
 
@@ -99,7 +101,7 @@ Built for teams that need to manage **hundreds to tens of thousands of products*
 
 ### Administration
 
-- **Roles & Permissions** — Fine-grained access control with 5 default roles (Admin, Data Steward, Product Manager, Viewer, Export Manager)
+- **Roles & Permissions** — Fine-grained access control with 9 default roles (Sysadmin, Admin, Data Steward, Product Manager, Viewer, Export Manager, API Designer, Project Management, Marketing)
 - **User Management** — Full user administration with Sanctum-based authentication and SSO support
 - **Cockpit Layouts** — Configurable dashboard layouts per role/user
 - **Audit Trail** — Track changes across the system with user audit logs and journal
@@ -147,7 +149,7 @@ sudo bash setup.sh
 ```
 
 The interactive setup script handles everything:
-- PHP 8.4, Apache, MySQL 8, Redis, Node.js 20
+- PHP 8.4, Apache, MySQL 8, Redis, Node.js 22, Meilisearch, Typesense
 - Database creation, migrations, and demo data seeding
 - Frontend build (Vue 3 + Vite)
 - Supervisor for Laravel Horizon (queue processing)
@@ -217,6 +219,8 @@ sudo bash update.sh --force              # Skip confirmation prompt
 | **Database** | MySQL 8+ |
 | **Cache & Queue** | Redis |
 | **Queue Worker** | Laravel Horizon + Supervisor |
+| **Hybrid/Semantic Search** | Meilisearch (optional embedding provider, e.g. Ollama) |
+| **PDF Search** | Typesense |
 | **Web Server** | Apache 2.4 |
 | **Auth** | Laravel Sanctum (token + SPA cookie) |
 
@@ -354,7 +358,7 @@ The same topics are available under your own installation's docs route (`.../hel
 | PHP | 8.3+ (8.4 recommended) |
 | MySQL | 8.0+ |
 | Redis | 6+ |
-| Node.js | 20 LTS |
+| Node.js | 22 LTS |
 | RAM | 2 GB (4 GB recommended) |
 | Disk | 2 GB free |
 

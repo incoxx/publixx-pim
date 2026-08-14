@@ -46,7 +46,7 @@ Manage the translation of metadata such as attribute names, value list entries, 
 
 ### Users & Permissions
 
-Manage user accounts, roles, and permissions to control access to the system. The user management section is only visible to users with the **Admin** role. The system provides five roles: Admin, Data Steward, Product Manager, Viewer, and Export Manager.
+Manage user accounts, roles, and permissions to control access to the system. The user management section is only visible to users with the **Admin** role. The system provides nine roles: Sysadmin, Admin, Data Steward, Product Manager, Viewer, Export Manager, API Designer, Project Management, and Marketing.
 
 ::: info Note
 Users with the **Viewer** role have read-only access and cannot see the user management menu. Save and delete buttons are automatically hidden for users without the corresponding permissions.
