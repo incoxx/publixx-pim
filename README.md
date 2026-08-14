@@ -300,23 +300,26 @@ See [API.md](docs/reference/api.md) for the full endpoint reference.
 
 ## Documentation
 
-Full documentation is available as a VitePress site in both German and English:
+Full documentation is available as a VitePress site in both German and English. `update.sh` builds it automatically and Apache serves it alongside your own installation (see [Updating](#updating)) — no external hosting or fixed domain involved. It's served at `<your-app-url>/help/{de,en}/`, where `<your-app-url>` is wherever you installed anyPIM — the domain root in Root Mode, or the subdirectory you chose in Subdirectory Mode (see [Deployment Modes](#deployment-modes)):
 
 | | German | English |
 |---|---|---|
-| **Online** | [smartentities.de/web/help/de](https://smartentities.de/web/help/de/) | [smartentities.de/web/help/en](https://smartentities.de/web/help/en/) |
+| **On your install** | `https://your-domain.com/help/de/` | `https://your-domain.com/help/en/` |
+| *(subdirectory mode)* | `https://your-domain.com/pim/help/de/` | `https://your-domain.com/pim/help/en/` |
 
 ### Guides
 
-| Topic | Description |
+The same topics are available under your own installation's docs route (`.../help/en/...` below):
+
+| Topic | Path |
 |---|---|
-| [Quick Start](https://smartentities.de/web/help/en/installation/quickstart) | Get anyPIM running in 10 minutes |
-| [User Guide](https://smartentities.de/web/help/en/usage/) | Full user manual for all modules |
-| [Architecture](https://smartentities.de/web/help/en/architecture/) | EAV data model, services, inheritance engine |
-| [API Reference](https://smartentities.de/web/help/en/api/) | 600+ REST endpoints with examples |
-| [Import](https://smartentities.de/web/help/en/import/) | Excel import with 17-tab structure |
-| [Export](https://smartentities.de/web/help/en/export/) | JSON export and Publixx integration |
-| [FAQ](https://smartentities.de/web/help/en/faq/) | Frequently asked questions |
+| Quick Start | `installation/quickstart` |
+| User Guide | `usage/` |
+| Architecture | `architecture/` |
+| API Reference | `api/` |
+| Import | `import/` |
+| Export | `export/` |
+| FAQ | `faq/` |
 
 ### Local Documentation
 

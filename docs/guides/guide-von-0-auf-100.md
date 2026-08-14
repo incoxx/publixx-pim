@@ -613,8 +613,8 @@ Was wir eingerichtet haben:
 
 | Ressource | Link |
 |---|---|
-| Hilfe-Portal (DE) | [smartentities.de/web/help/de/](https://smartentities.de/web/help/de/) |
-| Hilfe-Portal (EN) | [smartentities.de/web/help/en/](https://smartentities.de/web/help/en/) |
+| Hilfe-Portal (DE) | `https://ihre-domain.de/web/help/de/` (auf der eigenen Installation) |
+| Hilfe-Portal (EN) | `https://ihre-domain.de/web/help/en/` (auf der eigenen Installation) |
 | Quellcode | [github.com/incoxx/publixx-pim](https://github.com/incoxx/publixx-pim) |
 
 ---

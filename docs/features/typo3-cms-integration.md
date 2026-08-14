@@ -38,7 +38,7 @@ Reinziehen ohne JS-Ausführung.
 
 | Modus | Wann | Wie |
 |---|---|---|
-| **CORS** | Getrennte Domains (Katalog-API auf `anypim.de`, Website auf `www.kunde.de`) | Kunden-Domain wird als erlaubte CORS-Origin freigeschaltet (dynamisch, kein Deploy nötig) |
+| **CORS** | Getrennte Domains (Katalog-API auf `ihre-domain.de`, Website auf `www.kunde.de`) | Kunden-Domain wird als erlaubte CORS-Origin freigeschaltet (dynamisch, kein Deploy nötig) |
 | **Reverse-Proxy** | Eine Domain, IT will die PIM-Domain nicht extern exponieren | Website-Webserver reicht einen Pfad (`/pim-api/…`) an anyPIM durch — kein CORS nötig |
 | **API Designer (headless)** | Kein Widget, eigenes JSON/GraphQL-Schema für serverseitiges Rendering | Nutzt ein bestehendes API-Designer-Profil (`/api-streams/{slug}`), kein Facetten-/Suche-Support |
 

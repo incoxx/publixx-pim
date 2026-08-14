@@ -1216,7 +1216,16 @@ if [ -d "$DOCS_DIR" ] && [ -f "${DOCS_DIR}/package.json" ]; then
     cd "$DOCS_DIR"
     npm ci 2>&1
 
-    info "Baue Dokumentation (VitePress)..."
+    # Docs-Basis passend zum gewaehlten Web-Pfad setzen (Root-Modus -> /web/help/,
+    # Unterverzeichnis-Modus -> ${WEB_PATH}/help/), sonst zeigen die gebauten
+    # Asset-Pfade ins Leere. Siehe Apache-Alias-Setup weiter unten.
+    if [ -n "$WEB_PATH" ]; then
+        export DOCS_BASE_PATH="${WEB_PATH}/help/"
+    else
+        export DOCS_BASE_PATH="/web/help/"
+    fi
+
+    info "Baue Dokumentation (VitePress, Basis: ${DOCS_BASE_PATH})..."
     npm run build 2>&1
 
     if [ -d "${DOCS_DIR}/.vitepress/dist" ]; then

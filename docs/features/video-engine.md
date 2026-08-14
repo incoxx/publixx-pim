@@ -179,8 +179,8 @@ php artisan pim:video-generate --all --force
 Videos werden nach `public/videos/` kopiert und sind über den Webserver erreichbar:
 
 ```
-https://anypim.de/videos/01-produktanlage.mp4
-https://anypim.de/videos/01-produktanlage.srt
+https://ihre-domain.de/videos/01-produktanlage.mp4
+https://ihre-domain.de/videos/01-produktanlage.srt
 ```
 
 ## Neue Story erstellen
