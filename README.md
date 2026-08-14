@@ -60,7 +60,7 @@ Built for teams that need to manage **hundreds to tens of thousands of products*
 
 ### Data Management
 
-- **Import / Export** — Excel import with 14-tab structure, JSON export/import, BMEcat, and Publixx integration
+- **Import / Export** — Excel import with 17-tab structure, JSON export/import, BMEcat, and Publixx integration
 - **Bulk Operations** — Spreadsheet-style bulk editor and bulk update for mass data maintenance
 - **Prices & Relations** — Price types, price regions, product relationships with relation-specific attributes
 - **Attribute Views** — Define custom attribute views for different use cases and departments
@@ -314,7 +314,7 @@ Full documentation is available as a VitePress site in both German and English:
 | [User Guide](https://smartentities.de/web/help/en/usage/) | Full user manual for all modules |
 | [Architecture](https://smartentities.de/web/help/en/architecture/) | EAV data model, services, inheritance engine |
 | [API Reference](https://smartentities.de/web/help/en/api/) | 600+ REST endpoints with examples |
-| [Import](https://smartentities.de/web/help/en/import/) | Excel import with 14-tab structure |
+| [Import](https://smartentities.de/web/help/en/import/) | Excel import with 17-tab structure |
 | [Export](https://smartentities.de/web/help/en/export/) | JSON export and Publixx integration |
 | [FAQ](https://smartentities.de/web/help/en/faq/) | Frequently asked questions |
 

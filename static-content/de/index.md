@@ -31,7 +31,7 @@ features:
     details: Excel-Import mit Validierung, JSON-Export und Katalog-Integration über Publixx-Mappings.
   - icon: 🌐
     title: Vollständige REST API
-    details: 90+ JSON-API-Endpoints mit Token-Authentifizierung für nahtlose Integration in bestehende Systeme.
+    details: 600+ REST-API-Endpoints mit Token-Authentifizierung für nahtlose Integration in bestehende Systeme.
   - icon: 🌍
     title: Mehrsprachigkeit
     details: Beliebig viele Sprachen pro Attribut. Komplettsystem in Deutsch und Englisch verfügbar.
