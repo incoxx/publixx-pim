@@ -176,20 +176,13 @@ Wir empfehlen, mit dem Abschnitt [Produkte](./produkte) zu beginnen, da die Prod
 ---
 
 <script setup>
-import { ref, onMounted } from 'vue'
-
-// Die Dokumentation wird laut setup.sh/update.sh immer unter "<App-Basis>/help/..."
-// ausgeliefert (Apache-Alias "${WEB_PATH}/help" fuer die Doku, "${WEB_PATH}" fuer die
-// App selbst). Der Login-Link wird deshalb zur Laufzeit relativ zur aktuellen URL
-// berechnet -- unabhaengig von Domain und Installationspfad (Root- oder
-// Unterverzeichnis-Modus) -- statt fest verdrahtet zu sein.
-const loginUrl = ref('/login')
-onMounted(() => {
-  const path = window.location.pathname
-  const idx = path.indexOf('/help/')
-  const appBase = idx >= 0 ? path.slice(0, idx) : ''
-  loginUrl.value = `${appBase}/login`
-})
+// __APP_ROOT_PATH__ ist eine Build-Zeit-Konstante aus .vitepress/config.ts (von
+// setup.sh/update.sh gesetzt: Root-Modus -> "/", Unterverzeichnis-Modus -> "${WEB_PATH}/").
+// WICHTIG: laesst sich nicht laufzeitseitig aus der aktuellen Doku-URL ableiten -- im
+// Root-Modus liegt die Doku per fixer Konvention unter "/web/help/", obwohl die App
+// unter "/" (nicht "/web/") laeuft. Ein frueherer Versuch, das aus der URL zu raten,
+// hatte deshalb im Root-Modus einen kaputten Login-Link erzeugt.
+const loginUrl = `${__APP_ROOT_PATH__}login`
 </script>
 
 <div style="text-align: center; margin: 2.5rem 0 1rem; padding: 1.75rem; border: 1px solid var(--vp-c-divider); border-radius: 12px; background: var(--vp-c-bg-soft);">

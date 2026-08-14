@@ -26,10 +26,13 @@ const videos = ref([])
 const activeVideo = ref(null)
 
 // Externe Links
-// Doku liegt laut setup.sh/update.sh immer unter "<App-Basis>/help/..." (Apache-Alias
-// "${WEB_PATH}/help"), daher relativ zur App-Basis berechnet statt Domain hardcodiert.
-const APP_BASE = (import.meta.env.VITE_BASE_PATH || '/').replace(/\/+$/, '')
-const DOCS_URL = `${APP_BASE}/help/de/`
+// VITE_DOCS_BASE_PATH wird von setup.sh/update.sh gesetzt (Root-Modus -> "/web/help/",
+// Unterverzeichnis-Modus -> "${WEB_PATH}/help/" -- siehe Apache-Alias). Kann NICHT aus
+// VITE_BASE_PATH abgeleitet werden: im Root-Modus liegt die Doku per fixer Konvention
+// unter "/web/help/", nicht unter der (dort leeren) App-Basis -- das hatte zuvor einen
+// kaputten Doku-Link im Root-Modus verursacht.
+const DOCS_BASE = (import.meta.env.VITE_DOCS_BASE_PATH || '/web/help/').replace(/\/+$/, '')
+const DOCS_URL = `${DOCS_BASE}/de/`
 const VENDOR_URL = 'https://www.incoxx.com'
 
 async function handleLogin() {

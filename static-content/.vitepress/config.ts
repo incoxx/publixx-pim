@@ -6,6 +6,15 @@ import { defineConfig } from 'vitepress'
 // jeweiligen WEB_PATH; ohne die Variable (z.B. lokaler `vitepress dev`) gilt die Root-Konvention.
 const DOCS_BASE_PATH = process.env.DOCS_BASE_PATH || '/web/help/'
 
+// Wo die App selbst liegt (Root-Modus -> "/", Unterverzeichnis-Modus -> "${WEB_PATH}/").
+// WICHTIG: laesst sich NICHT aus DOCS_BASE_PATH ableiten -- im Root-Modus liegt die Doku
+// per fixer Konvention unter "/web/help/", obwohl die App unter "/" (nicht "/web/") laeuft.
+// Beide Faelle ergeben ohne diesen zweiten, von setup.sh/update.sh separat gesetzten Wert
+// identisch aussehende Doku-URLs, sind aber nicht auseinander ableitbar -- deshalb hier
+// explizit und nicht laufzeitseitig aus der aktuellen URL geraten (das hatte zuvor einen
+// kaputten "PIM öffnen"-Link im Root-Modus verursacht).
+const APP_ROOT_PATH = process.env.APP_ROOT_PATH || '/'
+
 export default defineConfig({
   title: 'anyPIM',
   description: 'Dokumentation für das anyPIM Product Information Management System',
@@ -14,6 +23,12 @@ export default defineConfig({
   lastUpdated: true,
 
   vite: {
+    define: {
+      // Fuer Seiten, die zur Laufzeit auf die App zurueckverlinken muessen
+      // (z.B. der Login-Link im Bedienungshandbuch), als Build-Zeit-Konstante
+      // statt als laufzeitseitige URL-Vermutung.
+      __APP_ROOT_PATH__: JSON.stringify(APP_ROOT_PATH),
+    },
     build: {
       chunkSizeWarningLimit: 1000,
     },
@@ -36,11 +51,10 @@ export default defineConfig({
           { text: 'KI & API', link: '/de/marketing/ki-uebersetzung' },
           { text: 'Dokumentation', link: '/de/' },
           { text: 'API-Referenz', link: '/de/api/' },
-          // Domain- UND installationspfad-unabhaengig: der Marker-Href wird
-          // clientseitig durch die tatsaechliche App-Basis ersetzt, siehe
-          // .vitepress/theme/index.ts (resolveAppRootLinks). Funktioniert fuer
-          // Root- ("/") und Unterverzeichnis-Installationen (z.B. "/pim/") gleichermassen.
-          { text: 'PIM öffnen', link: '#app-root-link' },
+          // Build-Zeit-Konstante (siehe APP_ROOT_PATH oben) statt hardcodierter Domain
+          // oder laufzeitseitig geratenem Pfad -- funktioniert fuer Root- ("/") und
+          // Unterverzeichnis-Installationen (z.B. "/pim/") gleichermassen korrekt.
+          { text: 'PIM öffnen', link: APP_ROOT_PATH },
         ],
         sidebar: {
           '/de/': [
@@ -228,11 +242,10 @@ export default defineConfig({
           { text: 'AI & API', link: '/en/marketing/ai-translation' },
           { text: 'Documentation', link: '/en/' },
           { text: 'API Reference', link: '/en/api/' },
-          // Domain- and install-path-independent: the marker href is replaced
-          // client-side with the real app root, see .vitepress/theme/index.ts
-          // (resolveAppRootLinks). Works for root ("/") and subdirectory
-          // installs (e.g. "/pim/") alike.
-          { text: 'Open PIM', link: '#app-root-link' },
+          // Build-time constant (see APP_ROOT_PATH above) instead of a hardcoded
+          // domain or a runtime-guessed path -- correct for root ("/") and
+          // subdirectory installs (e.g. "/pim/") alike.
+          { text: 'Open PIM', link: APP_ROOT_PATH },
         ],
         sidebar: {
           '/en/': [

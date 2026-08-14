@@ -8,7 +8,11 @@ import {
 
 const { t } = useI18n()
 
-const docsBase = '/web/help/de'
+// VITE_DOCS_BASE_PATH wird von setup.sh/update.sh gesetzt (Root-Modus -> "/web/help/",
+// Unterverzeichnis-Modus -> "${WEB_PATH}/help/"). Kann NICHT aus VITE_BASE_PATH abgeleitet
+// werden -- im Root-Modus liegt die Doku per fixer Konvention unter "/web/help/", nicht
+// unter der (dort leeren) App-Basis. Siehe LoginView.vue fuer denselben Fall.
+const docsBase = `${(import.meta.env.VITE_DOCS_BASE_PATH || '/web/help/').replace(/\/+$/, '')}/de`
 
 const sections = [
   {

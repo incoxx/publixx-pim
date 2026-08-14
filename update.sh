@@ -461,6 +461,17 @@ elif [ -d "$FRONTEND_DIR" ]; then
         info "Subdirectory-Modus: Base-Path=${VITE_BASE_PATH}"
     fi
 
+    # Doku-Basis dem Frontend bekannt machen (z.B. fuer den "Dokumentation"-Link
+    # auf der Login-Seite). WICHTIG: die Doku liegt im Root-Modus NICHT unter "/",
+    # sondern per fixer Konvention unter "/web/help/" (siehe Apache-Alias weiter
+    # unten und DOCS_BASE_PATH beim Docs-Build) -- das laesst sich aus dem
+    # Frontend-Base-Path allein nicht ableiten, deshalb hier explizit setzen.
+    if [ -n "$WEB_PATH" ]; then
+        export VITE_DOCS_BASE_PATH="${WEB_PATH}/help/"
+    else
+        export VITE_DOCS_BASE_PATH="/web/help/"
+    fi
+
     # Absicherung gegen "JavaScript heap out of memory" beim Vite-Build (grosser
     # Modul-Graph + mehrere Chunks > 500 kB). Gilt fuer den Rest des Skripts,
     # deckt damit auch die catalog-embed- und Doku-Builds weiter unten ab.
@@ -536,10 +547,17 @@ elif [ -d "$DOCS_DIR" ] && [ -f "${DOCS_DIR}/package.json" ]; then
     # Docs-Basis passend zum Installationspfad setzen (Root-Modus -> /web/help/,
     # Unterverzeichnis-Modus -> ${WEB_PATH}/help/), sonst zeigen die gebauten
     # Asset-Pfade ins Leere. Siehe Apache-Alias-Setup weiter unten.
+    #
+    # APP_ROOT_PATH ist bewusst eine ZWEITE, unabhaengige Variable (nicht aus
+    # DOCS_BASE_PATH abgeleitet): im Root-Modus liegt die Doku per fixer Konvention
+    # unter "/web/help/", obwohl die App unter "/" (nicht "/web/") laeuft. Wird fuer
+    # den "PIM öffnen"-Link im Doku-Nav benoetigt (siehe .vitepress/config.ts).
     if [ -n "$WEB_PATH" ]; then
         export DOCS_BASE_PATH="${WEB_PATH}/help/"
+        export APP_ROOT_PATH="${WEB_PATH}/"
     else
         export DOCS_BASE_PATH="/web/help/"
+        export APP_ROOT_PATH="/"
     fi
 
     info "Baue Dokumentation (VitePress, Basis: ${DOCS_BASE_PATH})..."
