@@ -134,6 +134,8 @@ The **resolution order** is clearly defined:
 
 This system drastically reduces redundancy: Common attributes like brand name, manufacturer, or material descriptions are maintained only once and automatically inherited by hundreds of variants.
 
+For channel-specific output hierarchies (see point 8), a third, complementary resolution layer exists: an attribute value can be set independently per output hierarchy; if none is set, the system falls back to the normal master cascade (variant → parent → hierarchy default).
+
 ---
 
 ## 3. PQL — Product Query Language
@@ -142,13 +144,18 @@ PQL is a standalone, SQL-like query language specifically designed for searching
 
 | Operator | Description | Example |
 |---|---|---|
-| `=`, `!=`, `<`, `>` | Standard comparisons | `price > 100` |
-| `LIKE` | Pattern search with wildcards | `name LIKE "%Screw%"` |
-| `IN` | Value list | `color IN ("Red", "Blue")` |
-| `FUZZY` | Fuzzy search (Levenshtein distance) | `name FUZZY "Screw"` |
-| `SOUNDS_LIKE` | Phonetic search | `manufacturer SOUNDS_LIKE "Mayer"` |
-| `SEARCH_FIELDS` | Full-text search across multiple fields | `SEARCH_FIELDS("Valve DN50")` |
-| `AND`, `OR`, `NOT` | Logical operators | `color = "Red" AND price < 50` |
+| `=`, `!=`, `<`, `>`, `<=`, `>=` | Standard comparisons | `price >= 100` |
+| `LIKE` / `NOT LIKE` | Pattern search with wildcards | `name LIKE "%Screw%"` |
+| `IN` / `NOT IN` | Value list | `color IN ("Red", "Blue")` |
+| `BETWEEN` / `NOT BETWEEN` | Value range | `price BETWEEN 10 AND 50` |
+| `EXISTS` / `NOT EXISTS` | Attribute present/empty | `weight EXISTS` |
+| `FUZZY` / `NOT FUZZY` | Fuzzy search (blended Levenshtein + trigram similarity) | `name FUZZY "Screw"` |
+| `SOUNDS_LIKE` / `NOT SOUNDS_LIKE` | Phonetic search (Kölner Phonetik, with Soundex fallback) | `manufacturer SOUNDS_LIKE "Mayer"` |
+| `SEARCH_FIELDS` | Full-text search across multiple fields, optionally weighted (`field^weight`) | `SEARCH_FIELDS("Valve DN50")` |
+| `AND`, `OR` | Logical operators | `color = "Red" AND price < 50` |
+| `ORDER BY SCORE` | Sort by relevance score | `... ORDER BY SCORE DESC` |
+
+`NOT` is not a standalone prefix in PQL — it always attaches directly to the field operator (`NOT LIKE`, `NOT IN`, `NOT EXISTS`, `NOT BETWEEN`, `NOT FUZZY`, `NOT SOUNDS_LIKE`).
 
 PQL queries are translated server-side into optimized SQL queries, leveraging the materialized search index. The language is available both through the REST API and the user interface.
 
@@ -159,9 +166,9 @@ name FUZZY "Screw" AND color = "Red" AND price < 5.00
 
 ---
 
-## 4. Excel Import with 14-Tab Structure
+## 4. Excel Import with 17-Tab Structure
 
-The import process is designed for maximum user-friendliness while maintaining data integrity. A single Excel file with **14 specialized worksheets** maps the entire product data model:
+The import process is designed for maximum user-friendliness while maintaining data integrity. A single Excel file with **17 specialized worksheets** maps the entire product data model:
 
 **Three-phase import:**
 
@@ -184,6 +191,8 @@ The export system works with **configurable mapping templates**. Each template d
 
 The **catalog integration** enables direct export of product data to catalog systems. Changes to products can be transmitted automatically or manually.
 
+For external classification standards (e.g. ETIM, eCl@ss) there is a separate **classification mapping layer** (`attribute_mappings` table): a global source-to-target mapping with optional transformations (direct, unit conversion, value mapping) and conditional rules lets products be maintained once and exported into multiple classifications simultaneously — independently of the channel-specific mapping templates.
+
 ---
 
 ## 6. Fine-Grained Permission System (RBAC)
@@ -196,9 +205,9 @@ User roles can be restricted to specific **attribute views**. An attribute view 
 
 ### Hierarchy Node Restrictions
 
-Users can be restricted to specific **subtrees of the hierarchy**. A user with access only to the "Electronics" node exclusively sees products in that subtree and its child nodes.
+Users can be restricted to specific **subtrees of the hierarchy**. A user with edit access only to the "Electronics" node can only edit or delete products in that subtree and its child nodes. This restriction currently governs editing/deleting; general list visibility is still controlled by the normal `products.view` permission.
 
-Both restrictions work cumulatively: A user can, for example, only see and edit the marketing attributes of products in the Electronics category.
+Both restrictions work cumulatively: A user can, for example, only see and edit the marketing attributes of products in the Electronics category. A broader, role-based entity restriction mechanism also exists that can limit access levels for other object types (e.g. media usage types) on a per-role basis.
 
 ---
 
@@ -207,7 +216,7 @@ Both restrictions work cumulatively: A user can, for example, only see and edit 
 Multilingual support is not an add-on but an integral part of the EAV architecture. Every attribute value can be maintained in **any number of languages**. The language version is stored directly in the value table, so no additional translation tables are needed.
 
 - Languages are defined system-wide and are immediately available for all attributes
-- The API supports language-specific queries (`?locale=de`, `?locale=en`)
+- The API supports language-specific queries via the `?lang=de` parameter (comma-separated for multiple languages), falling back to the `Accept-Language` header
 - In the frontend, users switch the editing language via dropdown
 - PQL queries can filter by language
 

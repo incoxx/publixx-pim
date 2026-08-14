@@ -134,6 +134,8 @@ Die **Aufloesungsreihenfolge** ist klar definiert:
 
 Dieses System reduziert Redundanz drastisch: Gemeinsame Attribute wie Markenname, Hersteller oder Materialbeschreibungen werden nur einmal gepflegt und automatisch an hunderte Varianten vererbt.
 
+Fuer kanalspezifische Ausgabe-Hierarchien (siehe Punkt 8) existiert eine dritte, ergaenzende Aufloesungsstufe: Ein Attributwert kann pro Ausgabe-Hierarchie eigenstaendig gesetzt werden; ist keiner vorhanden, faellt das System auf die normale Master-Kaskade (Variante -> Eltern -> Hierarchie-Standard) zurueck.
+
 ---
 
 ## 3. PQL -- Product Query Language
@@ -142,13 +144,18 @@ PQL ist eine eigenstaendige, SQL-aehnliche Abfragesprache, die speziell fuer die
 
 | Operator | Beschreibung | Beispiel |
 |---|---|---|
-| `=`, `!=`, `<`, `>` | Standardvergleiche | `preis > 100` |
-| `LIKE` | Mustersuche mit Platzhaltern | `name LIKE "%Schraube%"` |
-| `IN` | Wertliste | `farbe IN ("Rot", "Blau")` |
-| `FUZZY` | Unscharfe Suche (Levenshtein-Distanz) | `name FUZZY "Schraub"` |
-| `SOUNDS_LIKE` | Phonetische Suche | `hersteller SOUNDS_LIKE "Mayer"` |
-| `SEARCH_FIELDS` | Volltextsuche ueber mehrere Felder | `SEARCH_FIELDS("Ventil DN50")` |
-| `AND`, `OR`, `NOT` | Logische Verknuepfungen | `farbe = "Rot" AND preis < 50` |
+| `=`, `!=`, `<`, `>`, `<=`, `>=` | Standardvergleiche | `preis >= 100` |
+| `LIKE` / `NOT LIKE` | Mustersuche mit Platzhaltern | `name LIKE "%Schraube%"` |
+| `IN` / `NOT IN` | Wertliste | `farbe IN ("Rot", "Blau")` |
+| `BETWEEN` / `NOT BETWEEN` | Wertebereich | `preis BETWEEN 10 AND 50` |
+| `EXISTS` / `NOT EXISTS` | Attribut vorhanden/leer | `gewicht EXISTS` |
+| `FUZZY` / `NOT FUZZY` | Unscharfe Suche (Levenshtein- und Trigram-Aehnlichkeit kombiniert) | `name FUZZY "Schraub"` |
+| `SOUNDS_LIKE` / `NOT SOUNDS_LIKE` | Phonetische Suche (Koelner Phonetik, mit Soundex-Fallback) | `hersteller SOUNDS_LIKE "Mayer"` |
+| `SEARCH_FIELDS` | Volltextsuche ueber mehrere Felder, optional gewichtet (`feld^gewicht`) | `SEARCH_FIELDS("Ventil DN50")` |
+| `AND`, `OR` | Logische Verknuepfungen | `farbe = "Rot" AND preis < 50` |
+| `ORDER BY SCORE` | Sortierung nach Relevanz-Score | `... ORDER BY SCORE DESC` |
+
+`NOT` steht in PQL nicht als eigenstaendiger Praefix vor einem Ausdruck, sondern immer direkt am jeweiligen Feldoperator (`NOT LIKE`, `NOT IN`, `NOT EXISTS`, `NOT BETWEEN`, `NOT FUZZY`, `NOT SOUNDS_LIKE`).
 
 PQL-Abfragen werden serverseitig in optimierte SQL-Queries uebersetzt und profitieren dabei vom materialisierten Suchindex. Die Sprache ist sowohl ueber die REST-API als auch ueber die Oberflaeche nutzbar.
 
@@ -159,9 +166,9 @@ name FUZZY "Schraube" AND farbe = "Rot" AND preis < 5.00
 
 ---
 
-## 4. Excel-Import mit 14-Tab-Struktur
+## 4. Excel-Import mit 17-Tab-Struktur
 
-Der Import-Prozess ist auf maximale Benutzerfreundlichkeit bei gleichzeitiger Datenintegritaet ausgelegt. Eine einzelne Excel-Datei mit **14 spezialisierten Tabellenblättern** bildet das gesamte Produktdatenmodell ab:
+Der Import-Prozess ist auf maximale Benutzerfreundlichkeit bei gleichzeitiger Datenintegritaet ausgelegt. Eine einzelne Excel-Datei mit **17 spezialisierten Tabellenblättern** bildet das gesamte Produktdatenmodell ab:
 
 **Dreiphasiger Import:**
 
@@ -184,6 +191,8 @@ Das Export-System arbeitet mit **konfigurierbaren Mapping-Templates**. Jedes Tem
 
 Die **Katalog-Integration** ermoeglicht den direkten Export von Produktdaten in Katalogsysteme. Aenderungen an Produkten koennen automatisch oder manuell an den Katalog uebermittelt werden.
 
+Fuer externe Klassifikationsstandards (z.B. ETIM, eCl@ss) existiert zusaetzlich eine eigenstaendige **Klassifikations-Mapping-Schicht** (`attribute_mappings`-Tabelle): Ein globales Quelle-zu-Ziel-Mapping mit optionalen Transformationen (direkt, Einheitenumrechnung, Wertzuordnung) und bedingten Regeln sorgt dafuer, dass Produkte einmal gepflegt und in mehrere Klassifikationen gleichzeitig exportiert werden koennen -- unabhaengig von den kanalspezifischen Mapping-Templates.
+
 ---
 
 ## 6. Feingranulares Berechtigungssystem (RBAC)
@@ -196,9 +205,9 @@ Benutzerrollen koennen auf bestimmte **Attribut-Views** beschraenkt werden. Eine
 
 ### Hierarchieknoten-Einschraenkungen
 
-Benutzer koennen auf bestimmte **Teilbaeume der Hierarchie** eingeschraenkt werden. Ein Benutzer, der nur Zugriff auf den Knoten "Elektronik" hat, sieht ausschliesslich Produkte in diesem Teilbaum und dessen Kindknoten.
+Benutzer koennen auf bestimmte **Teilbaeume der Hierarchie** eingeschraenkt werden. Ein Benutzer, der nur eine Bearbeitungsberechtigung auf den Knoten "Elektronik" hat, kann ausschliesslich Produkte in diesem Teilbaum und dessen Kindknoten bearbeiten oder loeschen. Diese Einschraenkung greift aktuell bei Bearbeiten/Loeschen; die allgemeine Sichtbarkeit in Listen wird weiterhin ueber die normale `products.view`-Berechtigung gesteuert.
 
-Beide Einschraenkungen wirken kumulativ: Ein Benutzer kann beispielsweise nur die Marketing-Attribute von Produkten im Bereich Elektronik sehen und bearbeiten.
+Beide Einschraenkungen wirken kumulativ: Ein Benutzer kann beispielsweise nur die Marketing-Attribute von Produkten im Bereich Elektronik sehen und bearbeiten. Darueber hinaus existiert mit den rollenbasierten Entitaets-Einschraenkungen ein generischer Mechanismus, der Zugriffsebenen auch fuer andere Objekttypen (z.B. Medien-Nutzungsarten) rollenspezifisch begrenzen kann.
 
 ---
 
@@ -207,7 +216,7 @@ Beide Einschraenkungen wirken kumulativ: Ein Benutzer kann beispielsweise nur di
 Mehrsprachigkeit ist kein Aufsatz, sondern integraler Bestandteil der EAV-Architektur. Jeder Attributwert kann in **beliebig vielen Sprachen** gepflegt werden. Die Sprachversion wird direkt in der Wert-Tabelle gespeichert, sodass keine zusaetzlichen Uebersetzungstabellen noetig sind.
 
 - Sprachen werden systemweit definiert und stehen sofort fuer alle Attribute zur Verfuegung
-- Die API unterstuetzt sprachspezifische Abfragen (`?locale=de`, `?locale=en`)
+- Die API unterstuetzt sprachspezifische Abfragen ueber den Parameter `?lang=de` (auch mehrere Sprachen kommagetrennt), mit Fallback auf den `Accept-Language`-Header
 - Im Frontend wechselt der Benutzer die Bearbeitungssprache per Dropdown
 - PQL-Abfragen koennen sprachspezifisch filtern
 

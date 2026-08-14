@@ -80,22 +80,22 @@ Das anyPIM ist als moderne Single-Page-Applikation auf Basis von Vue 3 mit Tailw
 
 Die Sidebar ist persistent sichtbar und kann eingeklappt werden. Sie gliedert sich in die folgenden Hauptbereiche:
 
+Die Sidebar ist in thematische Bereiche gegliedert, die je nach Lizenz und Berechtigung des Benutzers aus- oder eingeblendet werden:
+
 | Bereich | Beschreibung |
 |---|---|
-| **Suche** | Globale Produktsuche und Suchassistent mit PQL-Abfragesprache |
-| **Produkte** | Produktverwaltung mit Varianten, Relationen und Versionshistorie |
-| **Hierarchien** | Master- und Ausgabehierarchien als Baumstrukturen |
-| **Attribute** | Attributdefinitionen und Konfigurationen |
-| **Produkttypen** | Definition von Produkttypen mit zugeordneten Attributen |
-| **Attributgruppen** | Logische Gruppierung von Attributen (AttributeTypes) |
-| **Wertelisten** | Auswahllisten fuer Selection-Attribute |
-| **Import / Export** | Datenimport (Excel) und -export (JSON, Publixx) |
-| **Medien** | Medienbibliothek mit Upload und Zuordnung |
-| **Preise** | Preisarten, Waehrungen und Gueltigkeiten |
-| **Uebersetzungen** | Translation Memory Service fuer Metadaten-Uebersetzungen |
-| **Benutzer** | Benutzerverwaltung, Rollen und Berechtigungen *(nur für Admins sichtbar)* |
-| **Einstellungen** | Systemkonfiguration und Benutzereinstellungen |
+| **Daily Business** | Dashboard, Schnellsuche, Suche, Produkte, Hierarchien, Merkliste, Collections, Workflow, Planungskalender, Medien, Motive |
+| **Content** *(Zusatzmodul)* | Content-Seiten, Sitemap, Website-Vorschau, Seiten-/Sektionstypen, Produkt-Widgets, CMS-Integrationen (z.B. TYPO3) |
+| **E-Commerce** *(Zusatzmodul)* | Warenkörbe, Adress- und Zahlungsarten, Bestellungen |
+| **Publish** | Berichte, PDF-Vorlagen, Katalog-Vorlagen, Katalog-Demo, Social-Video |
+| **Plugins** | Plugin-Einstellungen, Connectoren (Shopware, Shopify, Claude AI, anyPIM Sync), API-Keys |
+| **Übersetzungen** | Übersetzungsjobs, Translation Memory, DeepL-Einstellungen |
+| **Projektmanagement** | Projekt-Dashboard, Workflows, Workflow-Status, Teams, Projekte |
+| **Konfiguration** | Produktstruktur (Hersteller, Produkttypen, Referenz-Profile, Konformitäts-Report, Beziehungstypen), Attribute (Ansichten, Typen, Wertelisten, Formatierungsregeln, Wörterbuch), Preise & Einheiten, Medien-Konfiguration, Collection-Typen |
+| **Administration** | Datenaustausch (Import, Export, JSON, Sheet Designer, BMEcat, Export-Jobs, Attribut-Mapping), Einstellungen, Benutzer & Rollen, Cockpit-Layouts, Zugangslinks, System-Tools |
 | **Hilfe** | Öffnet die Dokumentation in der eingestellten Sprache (Deutsch/Englisch) |
+
+Innerhalb von **Administration → System** stehen zusätzlich Betriebswerkzeuge zur Verfügung, die auch ohne Shell-Zugriff auf den Server genutzt werden können: Test-Runner, API-Designer, MCP Playground, API-Tester, Datenbank-Browser, Datenkonsistenz-Prüfung, Security Guard, Log Viewer, Artisan-Cockpit, Fehlerliste und Journal.
 
 ## Anmeldung und Authentifizierung
 
@@ -145,15 +145,40 @@ Verwalten Sie die Uebersetzung von Metadaten wie Attributnamen, Wertelisten-Eint
 
 ## Tastenkombinationen
 
-Fuer haeufige Aktionen stehen Tastenkombinationen zur Verfuegung:
+Fuer haeufige Aktionen stehen Tastenkombinationen zur Verfuegung (auf macOS jeweils `Cmd` statt `Strg`):
 
 | Kuerzel | Aktion |
 |---|---|
-| `Strg + S` | Aktuellen Datensatz speichern |
 | `Strg + K` | Befehlspalette (Command Palette) oeffnen |
+| `Strg + S` | Aktuellen Datensatz speichern |
+| `Strg + N` | Neues Element anlegen |
+| `/` | Suche fokussieren (ausserhalb von Eingabefeldern) |
 | `Esc` | Dialog oder Modal schliessen |
-| `Strg + F` | Suche im aktuellen Bereich oeffnen |
+
+Zusaetzlich stehen direkte Navigations-Shortcuts mit `Strg + Umschalt + <Buchstabe>` zur Verfuegung:
+
+| Kuerzel | Ziel |
+|---|---|
+| `Strg + Umschalt + D` | Dashboard |
+| `Strg + Umschalt + F` | Schnellsuche |
+| `Strg + Umschalt + P` | Produkte |
+| `Strg + Umschalt + H` | Hierarchien |
+| `Strg + Umschalt + A` | Attribute |
+| `Strg + Umschalt + M` | Medien |
+| `Strg + Umschalt + I` | Import |
+| `Strg + Umschalt + E` | Export |
+| `Strg + Umschalt + W` | Workflow |
 
 ## Naechste Schritte
 
 Wir empfehlen, mit dem Abschnitt [Produkte](./produkte) zu beginnen, da die Produktverwaltung den Kern des PIM-Systems bildet. Von dort aus koennen Sie bei Bedarf in die jeweiligen Konfigurationsbereiche fuer Attribute, Hierarchien und andere Themen abzweigen.
+
+---
+
+<div style="text-align: center; margin: 2.5rem 0 1rem; padding: 1.75rem; border: 1px solid var(--vp-c-divider); border-radius: 12px; background: var(--vp-c-bg-soft);">
+  <p style="margin: 0 0 1rem; font-weight: 600;">Bereit loszulegen?</p>
+  <a href="https://smartentities.de/web/login" target="_blank" rel="noopener"
+     style="display: inline-block; padding: 0.6rem 1.5rem; border-radius: 8px; background: var(--vp-c-brand-1); color: #fff; font-weight: 600; text-decoration: none;">
+    Zur Login-Seite des anyPIM →
+  </a>
+</div>

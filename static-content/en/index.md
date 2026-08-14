@@ -31,7 +31,7 @@ features:
     details: Excel import with validation, JSON export, and catalog integration via Publixx mappings.
   - icon: 🌐
     title: Full REST API
-    details: 90+ JSON API endpoints with token authentication for seamless integration into existing systems.
+    details: 600+ REST API endpoints with token authentication for seamless integration into existing systems.
   - icon: 🌍
     title: Multilingual
     details: Unlimited languages per attribute. Complete system available in German and English.
