@@ -1,9 +1,15 @@
 import { defineConfig } from 'vitepress'
 
+// Der Deploy-Pfad haengt vom individuellen Installationspfad ab (Root-Modus -> "/web/help/",
+// Unterverzeichnis-Modus z.B. "/pim/help/" -- siehe setup.sh/update.sh, Apache-Alias
+// "${WEB_PATH}/help"). update.sh/setup.sh setzen DOCS_BASE_PATH vor dem Build passend zum
+// jeweiligen WEB_PATH; ohne die Variable (z.B. lokaler `vitepress dev`) gilt die Root-Konvention.
+const DOCS_BASE_PATH = process.env.DOCS_BASE_PATH || '/web/help/'
+
 export default defineConfig({
   title: 'anyPIM',
   description: 'Dokumentation für das anyPIM Product Information Management System',
-  base: '/web/help/',
+  base: DOCS_BASE_PATH,
   cleanUrls: true,
   lastUpdated: true,
 
@@ -14,7 +20,7 @@ export default defineConfig({
   },
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/web/help/logo.svg' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${DOCS_BASE_PATH}logo.svg` }],
   ],
 
   locales: {
@@ -30,7 +36,11 @@ export default defineConfig({
           { text: 'KI & API', link: '/de/marketing/ki-uebersetzung' },
           { text: 'Dokumentation', link: '/de/' },
           { text: 'API-Referenz', link: '/de/api/' },
-          { text: 'PIM öffnen', link: 'https://smartentities.de/web/' },
+          // Domain- UND installationspfad-unabhaengig: der Marker-Href wird
+          // clientseitig durch die tatsaechliche App-Basis ersetzt, siehe
+          // .vitepress/theme/index.ts (resolveAppRootLinks). Funktioniert fuer
+          // Root- ("/") und Unterverzeichnis-Installationen (z.B. "/pim/") gleichermassen.
+          { text: 'PIM öffnen', link: '#app-root-link' },
         ],
         sidebar: {
           '/de/': [
@@ -218,7 +228,11 @@ export default defineConfig({
           { text: 'AI & API', link: '/en/marketing/ai-translation' },
           { text: 'Documentation', link: '/en/' },
           { text: 'API Reference', link: '/en/api/' },
-          { text: 'Open PIM', link: 'https://smartentities.de/web/' },
+          // Domain- and install-path-independent: the marker href is replaced
+          // client-side with the real app root, see .vitepress/theme/index.ts
+          // (resolveAppRootLinks). Works for root ("/") and subdirectory
+          // installs (e.g. "/pim/") alike.
+          { text: 'Open PIM', link: '#app-root-link' },
         ],
         sidebar: {
           '/en/': [

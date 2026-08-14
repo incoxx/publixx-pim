@@ -15,7 +15,7 @@
  * --- HTTP mode (claude.ai Custom Connector / remote agents) ---
  *   MCP_HTTP_PORT=3100 MCP_AUTH_TOKEN=<secret> node dist/index.js
  *
- *   Endpoint:  POST https://anypim.de/mcp  (or wherever nginx proxies it)
+ *   Endpoint:  POST https://your-domain.example/mcp  (or wherever nginx proxies it)
  *   Auth:      Authorization: Bearer <MCP_AUTH_TOKEN>
  *
  * Usage in .mcp.json (stdio):

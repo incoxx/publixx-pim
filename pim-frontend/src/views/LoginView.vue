@@ -26,7 +26,10 @@ const videos = ref([])
 const activeVideo = ref(null)
 
 // Externe Links
-const DOCS_URL = 'https://anypim.de/web/help/de/'
+// Doku liegt laut setup.sh/update.sh immer unter "<App-Basis>/help/..." (Apache-Alias
+// "${WEB_PATH}/help"), daher relativ zur App-Basis berechnet statt Domain hardcodiert.
+const APP_BASE = (import.meta.env.VITE_BASE_PATH || '/').replace(/\/+$/, '')
+const DOCS_URL = `${APP_BASE}/help/de/`
 const VENDOR_URL = 'https://www.incoxx.com'
 
 async function handleLogin() {

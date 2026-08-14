@@ -685,8 +685,8 @@ Drei Komponenten: tägliches Datenbank-Backup (`mysqldump`), tägliches Medien-B
 | Ressource | Link |
 |---|---|
 | Quellcode | [github.com/incoxx/publixx-pim](https://github.com/incoxx/publixx-pim) |
-| Hilfe-Portal (DE) | [smartentities.de/web/help/de/](https://smartentities.de/web/help/de/) |
-| Hilfe-Portal (EN) | [smartentities.de/web/help/en/](https://smartentities.de/web/help/en/) |
+| Hilfe-Portal (DE) | `https://ihre-domain.de/web/help/de/` (auf der eigenen Installation) |
+| Hilfe-Portal (EN) | `https://ihre-domain.de/web/help/en/` (auf der eigenen Installation) |
 | API-Dokumentation | [API Reference](https://github.com/incoxx/publixx-pim/blob/main/docs/reference/api.md) |
 | Feature-Übersicht | [Features](https://github.com/incoxx/publixx-pim/blob/main/docs/features/features.md) |
 | Installationsanleitung | [Installation](https://github.com/incoxx/publixx-pim/blob/main/docs/operations/install.md) |

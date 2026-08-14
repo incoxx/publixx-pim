@@ -533,7 +533,16 @@ elif [ -d "$DOCS_DIR" ] && [ -f "${DOCS_DIR}/package.json" ]; then
     info "Installiere Dokumentations-Abhaengigkeiten..."
     npm ci --fund=false --loglevel=warn 2>&1
 
-    info "Baue Dokumentation (VitePress)..."
+    # Docs-Basis passend zum Installationspfad setzen (Root-Modus -> /web/help/,
+    # Unterverzeichnis-Modus -> ${WEB_PATH}/help/), sonst zeigen die gebauten
+    # Asset-Pfade ins Leere. Siehe Apache-Alias-Setup weiter unten.
+    if [ -n "$WEB_PATH" ]; then
+        export DOCS_BASE_PATH="${WEB_PATH}/help/"
+    else
+        export DOCS_BASE_PATH="/web/help/"
+    fi
+
+    info "Baue Dokumentation (VitePress, Basis: ${DOCS_BASE_PATH})..."
     npm run build 2>&1
 
     if [ -d "${DOCS_DIR}/.vitepress/dist" ]; then
@@ -559,7 +568,7 @@ elif [ -d "$DOCS_DIR" ] && [ -f "${DOCS_DIR}/package.json" ]; then
         fi
 
         if [ "$DOCS_ALIAS_EXISTS" = false ]; then
-            warn "Apache-Alias fuer Dokumentation (/web/help) fehlt."
+            warn "Apache-Alias fuer Dokumentation (${WEB_PATH}/help) fehlt."
 
             if [ -n "$WEB_PATH" ] && [ -f "$ALIAS_CONF" ]; then
                 # Subdirectory-Modus: Alias an bestehende Konfiguration anhaengen

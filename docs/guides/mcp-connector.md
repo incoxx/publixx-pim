@@ -78,7 +78,7 @@ Der "Custom Connector"-Dialog von claude.ai bietet **nur** Name, URL und (option
 | Feld | Wert |
 |------|------|
 | Name | `anyPIM` |
-| Remote MCP Server URL | `https://anypim.de/api/v1/mcp/<MCP_AUTH_TOKEN>` |
+| Remote MCP Server URL | `https://ihre-domain.de/api/v1/mcp/<MCP_AUTH_TOKEN>` |
 | OAuth (Erweitert) | leer lassen |
 
 Die Verbindung synchronisiert auf Mobile und Desktop.
