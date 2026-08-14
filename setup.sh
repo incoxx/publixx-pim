@@ -1689,6 +1689,24 @@ if command -v ufw &> /dev/null; then
     info "Firewall-Regeln hinzugefuegt. Aktiviere mit: sudo ufw enable"
 fi
 
+# Healthcheck (wie update.sh: schneller HTTP-Check gegen den Health-Endpoint,
+# fuer eine gruendlichere Pruefung siehe healthcheck.sh)
+sleep 1
+if command -v curl > /dev/null 2>&1; then
+    HC_URL="${APP_URL}/api/v1/health"
+    HC_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$HC_URL" 2>/dev/null || echo "000")
+
+    if [ "$HC_STATUS" = "200" ]; then
+        info "Healthcheck OK (${HC_URL} → ${HC_STATUS})"
+    elif [ "$HC_STATUS" = "000" ]; then
+        warn "Healthcheck nicht erreichbar (${HC_URL}) — ggf. Firewall oder DNS pruefen."
+    else
+        warn "Healthcheck HTTP ${HC_STATUS} (${HC_URL}) — bitte manuell pruefen."
+    fi
+else
+    warn "curl nicht installiert — Healthcheck uebersprungen."
+fi
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  FERTIG
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1742,6 +1760,7 @@ echo -e "  Typesense:     $(systemctl is-active typesense-server 2>/dev/null || 
 echo -e "  Meilisearch:   $(systemctl is-active meilisearch 2>/dev/null || echo 'nicht installiert') (Port 7700)"
 echo ""
 echo -e "${BOLD}Nuetzliche Befehle:${NC}"
+echo -e "  Healthcheck:   bash ${INSTALL_DIR}/healthcheck.sh"
 echo -e "  Horizon:       sudo supervisorctl status horizon"
 echo -e "  Logs:          tail -f ${INSTALL_DIR}/storage/logs/laravel.log"
 echo -e "  Update:        sudo bash ${INSTALL_DIR}/update.sh"
@@ -1754,10 +1773,10 @@ if [ "$DB_EXISTS" = true ] && [ "$DB_RESET" = false ]; then
     echo -e "  Demodaten wurden nicht erneut geladen."
 else
     echo -e "${BOLD}Demodaten geladen:${NC}"
-    echo -e "  7 Rollen (Admin, Data Steward, Product Manager, Viewer, Export Manager, API Designer, Project Management)"
+    echo -e "  9 Rollen (Sysadmin, Admin, Data Steward, Product Manager, Viewer, Export Manager, API Designer, Project Management, Marketing)"
     echo -e "  2 Admin-Benutzer"
     echo -e "  6 Produkttypen"
-    echo -e "  12 Attribute mit Einheiten und Wertelisten"
+    echo -e "  21 Attribute mit Einheiten und Wertelisten"
     echo -e "  Produkt-Hierarchien (Elektrowerkzeuge)"
     echo -e "  5 Demo-Produkte mit Preisen und Attributwerten"
 fi
