@@ -175,9 +175,26 @@ Wir empfehlen, mit dem Abschnitt [Produkte](./produkte) zu beginnen, da die Prod
 
 ---
 
+<script setup>
+import { ref, onMounted } from 'vue'
+
+// Die Dokumentation wird laut setup.sh/update.sh immer unter "<App-Basis>/help/..."
+// ausgeliefert (Apache-Alias "${WEB_PATH}/help" fuer die Doku, "${WEB_PATH}" fuer die
+// App selbst). Der Login-Link wird deshalb zur Laufzeit relativ zur aktuellen URL
+// berechnet -- unabhaengig von Domain und Installationspfad (Root- oder
+// Unterverzeichnis-Modus) -- statt fest verdrahtet zu sein.
+const loginUrl = ref('/login')
+onMounted(() => {
+  const path = window.location.pathname
+  const idx = path.indexOf('/help/')
+  const appBase = idx >= 0 ? path.slice(0, idx) : ''
+  loginUrl.value = `${appBase}/login`
+})
+</script>
+
 <div style="text-align: center; margin: 2.5rem 0 1rem; padding: 1.75rem; border: 1px solid var(--vp-c-divider); border-radius: 12px; background: var(--vp-c-bg-soft);">
   <p style="margin: 0 0 1rem; font-weight: 600;">Bereit loszulegen?</p>
-  <a href="https://smartentities.de/web/login" target="_blank" rel="noopener"
+  <a :href="loginUrl" target="_blank" rel="noopener"
      style="display: inline-block; padding: 0.6rem 1.5rem; border-radius: 8px; background: var(--vp-c-brand-1); color: #fff; font-weight: 600; text-decoration: none;">
     Zur Login-Seite des anyPIM →
   </a>
