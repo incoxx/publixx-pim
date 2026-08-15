@@ -77,6 +77,7 @@ class RoleAndPermissionSeeder extends Seeder
             'dictionary.view', 'dictionary.create', 'dictionary.edit', 'dictionary.delete',
             // Übersetzungen
             'translations.view', 'translations.edit',
+            'languages.view', 'languages.create', 'languages.update', 'languages.delete',
             // Journal
             'journal.view',
             // Workflow
@@ -363,6 +364,7 @@ class RoleAndPermissionSeeder extends Seeder
             'attribute-formatting-rules.view',
             // Übersetzungen
             'translations.view', 'translations.edit',
+            'languages.view', 'languages.create', 'languages.update', 'languages.delete',
             // Ausspielung
             'catalog-templates.view',
             'preview.view',

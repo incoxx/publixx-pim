@@ -68,6 +68,7 @@ use App\Http\Controllers\Api\V1\ManufacturerController;
 use App\Http\Controllers\Api\V1\MediaAttributeValueController;
 use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\MediaCountryController;
+use App\Http\Controllers\Api\V1\LanguageController;
 use App\Http\Controllers\Api\V1\MediaLanguageController;
 use App\Http\Controllers\Api\V1\MediaMotifController;
 use App\Http\Controllers\Api\V1\MediaRenditionPresetController;
@@ -699,6 +700,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::put('media-usage-types/{media_usage_type}/default-attributes', [MediaUsageTypeController::class, 'updateDefaultAttributes']);
 
     // Medien-Metadaten: Sprache und Land (frei konfigurierbar, kann auch Regionen abbilden)
+    // Inhaltssprachen (steuert TMS-Zielsprachen und Rueckschreiben)
+    Route::apiResource('languages', LanguageController::class);
+
     Route::apiResource('media-languages', MediaLanguageController::class);
     Route::get('media-languages/{media_language}/dependencies', [MediaLanguageController::class, 'dependencies']);
     Route::apiResource('media-countries', MediaCountryController::class);
