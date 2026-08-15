@@ -3449,6 +3449,14 @@ async function reloadAfterVersionChange() {
 }
 
 onMounted(async () => {
+  // Sprachen zuerst: die Werte werden je Sprache geladen (lang=de,en,fi).
+  // Ohne diese Zeile startet der Editor mit leerer Sprachliste, laedt seine
+  // Werte ohne Sprachen und zeigt weder Uebersetzungen noch den Fallback.
+  await localeStore.fetchLanguages()
+  if (!activeDataLang.value || !localeStore.dataLocales.includes(activeDataLang.value)) {
+    activeDataLang.value = localeStore.sourceLocale
+  }
+
   await store.fetchOne(route.params.id)
   // Update tab title with SKU instead of UUID
   if (product.value?.sku) {
@@ -4323,6 +4331,26 @@ onUnmounted(() => {
           <p v-if="attr.formatted_value ?? formattedValues[attr.id]" class="flex items-center gap-1 text-[11px] text-[var(--color-text-tertiary)] mt-1" title="Formatierte Vorschau (nur bei Export/Ansicht angewendet)">
             <Wand2 class="w-3 h-3 shrink-0" :stroke-width="1.75" />
             {{ attr.formatted_value ?? formattedValues[attr.id] }}
+          </p>
+
+          <!-- Anzeige-Fallback: nur Orientierung, nichts ist gespeichert -->
+          <p
+            v-if="fallbackFor(attr)"
+            class="flex items-start gap-1.5 text-[11px] text-[var(--color-text-tertiary)] mt-1"
+          >
+            <Languages class="w-3 h-3 shrink-0 mt-0.5" :stroke-width="1.75" />
+            <span class="italic opacity-70 min-w-0 break-words">
+              {{ fallbackFor(attr).lang.toUpperCase() }}: {{ fallbackFor(attr).value }}
+            </span>
+            <button
+              v-if="!(attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly || isAttrReadOnlyInActiveView(attr.id))"
+              type="button"
+              class="shrink-0 underline hover:text-[var(--color-accent)]"
+              :title="`Wert aus ${fallbackFor(attr).lang.toUpperCase()} übernehmen`"
+              @click="takeFallback(attr)"
+            >
+              übernehmen
+            </button>
           </p>
           </div>
           <!-- Normal (non-translatable) attribute -->
