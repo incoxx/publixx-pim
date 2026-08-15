@@ -71,10 +71,10 @@ class TmsClient
      * @param  array  $entities
      * @param  string[]  $targetLanguages  leer = das TMS nimmt seine Konfiguration
      */
-    public function ingest(array $entities, array $targetLanguages = []): void
+    public function ingest(array $entities, array $targetLanguages = []): bool
     {
         if (!$this->enabled || empty($entities)) {
-            return;
+            return false;
         }
 
         try {
@@ -89,10 +89,22 @@ class TmsClient
                 ->post("{$this->baseUrl}/ingest", $payload);
 
             if (!$response->successful()) {
-                Log::warning('TMS ingest failed', ['status' => $response->status()]);
+                // Body mitloggen: bei 422 steht dort, welches Feld das TMS
+                // abgelehnt hat — ohne das ist ein fehlgeschlagener Ingest von
+                // aussen nicht von einem leeren Datenbestand zu unterscheiden.
+                Log::warning('TMS ingest failed', [
+                    'status' => $response->status(),
+                    'body' => mb_substr($response->body(), 0, 500),
+                ]);
+
+                return false;
             }
+
+            return true;
         } catch (\Throwable $e) {
             Log::warning('TMS ingest error', ['error' => $e->getMessage()]);
+
+            return false;
         }
     }
 
