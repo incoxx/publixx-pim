@@ -715,6 +715,21 @@ else
     TMS_PORT=$(echo "$TMS_BASE_URL" | grep -oP ':\K[0-9]+' | head -1 || true)
     TMS_PORT=${TMS_PORT:-8001}
 
+    # --- Fehlende TMS-Variablen ergaenzen ---
+    # Das TM ist fuer jede Installation relevant und daher standardmaessig an.
+    # Eine ausdrueckliche Festlegung wird NIE ueberschrieben: wer TMS_ENABLED
+    # bewusst auf false gesetzt hat, behaelt das.
+    if ! grep -q '^TMS_ENABLED=' "$PIM_ENV" 2>/dev/null; then
+        set_env "$PIM_ENV" "TMS_ENABLED" "true"
+        info "TMS: TMS_ENABLED=true in die .env eingetragen (Standard)."
+    fi
+    if ! grep -q '^TMS_BASE_URL=' "$PIM_ENV" 2>/dev/null; then
+        set_env "$PIM_ENV" "TMS_BASE_URL" "http://127.0.0.1:${TMS_PORT}/api"
+    fi
+    if ! grep -q '^TMS_TIMEOUT=' "$PIM_ENV" 2>/dev/null; then
+        set_env "$PIM_ENV" "TMS_TIMEOUT" "5"
+    fi
+
     # --- API-Key: muss auf beiden Seiten identisch sein ---
     if [ -z "$TMS_API_KEY" ] || [ "$TMS_API_KEY" = "change-me-to-a-secure-key" ]; then
         TMS_API_KEY=$(openssl rand -hex 32 2>/dev/null || cat /proc/sys/kernel/random/uuid | tr -d '-')
@@ -940,8 +955,10 @@ TMSVHOST
 
         PIM_TMS_ENABLED=$(read_env "$PIM_ENV" "TMS_ENABLED")
         if [ "$PIM_TMS_ENABLED" != "true" ]; then
-            warn "TMS laeuft, ist im PIM aber deaktiviert (TMS_ENABLED=${PIM_TMS_ENABLED:-false})."
-            warn "Zum Aktivieren: TMS_ENABLED=true in ${PIM_ENV} setzen."
+            warn "TMS laeuft, wird vom PIM aber nicht genutzt (TMS_ENABLED=${PIM_TMS_ENABLED})."
+            warn "Das ist eine ausdrueckliche Festlegung in ${PIM_ENV} und wird nicht"
+            warn "automatisch geaendert. Zum Aktivieren: TMS_ENABLED=true setzen,"
+            warn "danach: php artisan config:cache"
         fi
     else
         warn "TMS: Setup unvollstaendig — Dienst wurde nicht gestartet."

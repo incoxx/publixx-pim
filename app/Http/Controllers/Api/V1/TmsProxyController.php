@@ -67,6 +67,18 @@ class TmsProxyController extends Controller
         $this->abortIfDisabled();
 
         $data = $this->client->getStats(Language::targetCodes());
+
+        // Der TmsClient verschluckt Fehler bewusst und liefert dann []. Seit das
+        // TM standardmaessig aktiv ist, waere ein nicht erreichbarer Dienst sonst
+        // nicht von einem leeren TM zu unterscheiden — die Oberflaeche zeigte
+        // stillschweigend "0 Begriffe". Ein echtes leeres TM antwortet mit
+        // total_units=0 und ist damit nie ein leeres Array.
+        if (empty($data)) {
+            abort(503, 'Das Translation Memory ist nicht erreichbar. '
+                . 'Pruefen: laeuft der Dienst, stimmt TMS_API_KEY in .env und tms/.env? '
+                . 'Details: php artisan tms:status');
+        }
+
         return response()->json($data);
     }
 
