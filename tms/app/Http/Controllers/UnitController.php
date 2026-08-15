@@ -29,6 +29,14 @@ class UnitController
             $query->where('domain', $domain);
         }
 
+        // Die Uebersetzung der gewaehlten Sprache mitliefern — unabhaengig vom
+        // Statusfilter. Vorher wurde 'lang' nur ausgewertet, wenn zusaetzlich
+        // ein Status gesetzt war; die Sprachauswahl in der Oberflaeche blieb
+        // damit folgenlos, und die Liste zeigte ohnehin nur die Quellsprache.
+        if ($lang = $request->query('lang')) {
+            $query->with(['translations' => fn ($q) => $q->where('target_lang', $lang)]);
+        }
+
         if ($request->query('status')) {
             $status = $request->query('status');
             $lang = $request->query('lang', 'en');
