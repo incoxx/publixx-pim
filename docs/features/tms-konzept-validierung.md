@@ -31,18 +31,17 @@ Ergänzt `tms-bestandsaufnahme.md` (Einzelbefunde). Dieses Dokument bewertet das
   Agentur. Deren CAT-Werkzeug bringt Segmentierung und Fuzzy-Matching mit — genau
   die Fähigkeiten, die diesem TM fehlen.
 
-**Offener Widerspruch im Bestandscode:** `TranslationJobService::importTranslations()`
-ruft in Zeile 288 unbedingt `syncToTms()` auf und schiebt **alle** übersetzten
-Positionen ins TM, `entity_type = 'product'` eingeschlossen. Attributwerte landen
-damit heute bereits im TM. Zu klären ist, ob dieser Rückfluss
+**Rückfluss abgeschaltet.** `TranslationJobService::syncToTms()` schob bis dahin
+nach jedem Übersetzungs-Job **alle** Positionen ins TM, `entity_type = 'product'`
+eingeschlossen — Attributwerte landeten also bereits im TM, ohne dass das je
+entschieden worden wäre. Die Methode filtert jetzt über `resolveModelClass()`:
+was dort kein Modell hat, ist keine Metadate und geht nicht ins TM. Die Liste ist
+bewusst positiv, damit auch künftige unbekannte Typen nicht durchsickern.
 
-- **(a)** abgeschaltet wird (TM bleibt sauber auf Metadaten beschränkt), oder
-- **(b)** als reiner Sammelbestand erhalten bleibt, aus dem nie für Produkte
-  gelesen wird.
-
-Relevanz von (b): Weil die `domain` nicht in den Hash eingeht, kann eine aus einem
-Produkttext stammende Übersetzung vom Metadaten-Sync zurückgelesen werden, sobald
-die Quelltexte übereinstimmen. Bei „Schwarz" ist das erwünscht, bei „Bank" nicht.
+Damit entfällt auch die Kollisionsgefahr: weil die `domain` nicht in den Hash
+eingeht, hätte eine aus einem Produkttext stammende Übersetzung vom
+Metadaten-Sync zurückgelesen werden können — bei „Schwarz" erwünscht, bei „Bank"
+oder „Absatz" falsch.
 
 ---
 
@@ -150,24 +149,24 @@ Die Trefferquote des TM hängt vollständig an der Textsorte:
 | Technische Fließtexte | Montageanleitung | mittel | mittel |
 | Marketing-/Langtexte, USPs | individuelle Produkttexte | gering | **nahe null** |
 
-Empfehlung daraus:
+Diese Tabelle war die Grundlage der Entscheidung aus Abschnitt 0. Erwogen und
+**verworfen** wurde ein zweigleisiges Modell:
 
-- **TM-Weg** für kurze und standardisierte Felder. Dort ist die Ersparnis groß und
-  die Homonym-Gefahr klein, weil die Texte fachlich eindeutig sind.
-- **Auftragsweg (Job + XLIFF)** für Langtexte. Dort gehört ein Mensch bzw. eine
-  Agentur in die Schleife, und die Agentur bringt ihr eigenes, segmentierendes TM
-  mit — genau die Fähigkeit, die diesem TM fehlt.
-- Die Steuerung dafür existiert bereits nicht: `Attribute.is_translatable` ist ein
-  reines Ja/Nein. Es bräuchte eine zweite Stufe („per TM" vs. „per Auftrag"), sonst
-  landen Marketingtexte im TM und blähen es ohne Gegenwert auf.
+- ~~**TM-Weg** für kurze und standardisierte Felder. Dort ist die Ersparnis groß und
+  die Homonym-Gefahr klein, weil die Texte fachlich eindeutig sind.~~
+- **Auftragsweg (Job + XLIFF) für alle Attributwerte.** Die Agentur bringt ihr
+  eigenes, segmentierendes TM mit — genau die Fähigkeit, die diesem TM fehlt.
+  Damit wandert die Wiederverwendung dorthin, wo sie technisch sauber funktioniert.
 
-**Zur Suchprofil-Eingrenzung:** konzeptionell richtig und über
-`SearchProfileQueryBuilder` sauber umsetzbar. Ein Hinweis: das Suchprofil grenzt
-ein, *welche Produkte* ingestiert werden — nicht, welche Texte übersetzt werden.
-Taucht derselbe Text auch bei einem ausgeschlossenen Produkt auf, wird er trotzdem
-übersetzt, sobald irgendein eingeschlossenes Produkt ihn enthält. Das ist richtig
-so (das TM ist textbasiert, nicht produktbasiert), sollte aber niemanden
-überraschen, der eine Kostenschätzung macht.
+Ausschlaggebend gegen das zweigleisige Modell: die Steuerung dafür fehlt.
+`Attribute.is_translatable` ist ein reines Ja/Nein. Es bräuchte eine zweite Stufe
+(„per TM" vs. „per Auftrag") plus die Disziplin, sie zu pflegen — sonst landen
+Marketingtexte im TM und blähen es ohne Gegenwert auf.
+
+**Zur Suchprofil-Eingrenzung:** für den TM-Weg mit der Entscheidung
+gegenstandslos. Für Übersetzungs-Jobs bleibt sie sinnvoll und ist über
+`SearchProfileQueryBuilder` sauber umsetzbar — dort grenzt sie tatsächlich
+Produkte ein, was beim textbasierten TM ohnehin nur bedingt funktioniert hätte.
 
 ---
 
