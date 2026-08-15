@@ -23,9 +23,17 @@ class TranslateUnitJob implements ShouldQueue
     public int $tries = 3;
     public array $backoff = [10, 30, 120];
 
+    /**
+     * @param  bool  $force  true = vorhandene maschinelle Übersetzungen neu
+     *                       erzeugen (Retranslate). false = nur echte Lücken
+     *                       füllen. Der Ingest nutzt false, damit mehrfach
+     *                       eingeplante Units nicht mehrfach kostenpflichtig
+     *                       übersetzt werden.
+     */
     public function __construct(
         private readonly string $unitId,
         private readonly array $targetLangs,
+        private readonly bool $force = false,
     ) {
     }
 
@@ -46,12 +54,20 @@ class TranslateUnitJob implements ShouldQueue
                 continue;
             }
 
-            // Skip if already reviewed (human translations)
             $existing = TmsTranslation::where('tms_unit_id', $unit->id)
                 ->where('target_lang', $targetLang)
                 ->first();
 
+            // Geprüfte Übersetzungen sind tabu — auch beim Retranslate.
             if ($existing && $existing->status === 'reviewed') {
+                continue;
+            }
+
+            // Ohne force nur echte Lücken füllen. Derselbe Quelltext taucht im
+            // Ingest vielfach auf (z.B. "Gewicht" an hunderten Attributen) und
+            // wird dadurch mehrfach eingeplant — ohne diese Prüfung zahlt man
+            // den MT-Anbieter mehrfach für exakt denselben String.
+            if ($existing && !$this->force) {
                 continue;
             }
 

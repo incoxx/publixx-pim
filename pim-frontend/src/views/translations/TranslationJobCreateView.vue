@@ -4,7 +4,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { useTranslationJobsStore } from '@/stores/translationJobs'
 import searchApi from '@/api/search'
 import searchProfilesApi from '@/api/searchProfiles'
-import { translationLanguages as availableLanguages } from '@/config/languages'
+import { useLocaleStore } from '@/stores/locale'
+
+const localeStore = useLocaleStore()
+const availableLanguages = computed(() => localeStore.availableLocales)
 import { ArrowLeft, ArrowRight, Languages, Check, Search, List, Layers } from 'lucide-vue-next'
 
 const route = useRoute()

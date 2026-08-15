@@ -92,6 +92,38 @@ export const useTranslationsStore = defineStore('translations', () => {
     return translationsApi.retranslate(payload)
   }
 
+  /**
+   * Rollt eine Zielsprache ueber den gesamten Bestand aus.
+   *
+   * Der Endpunkt ist gedeckelt, damit die Queue bei grossen Bestaenden nicht
+   * in einem Rutsch geflutet wird. Wir schleifen hier, bis nichts mehr offen
+   * ist, und melden den Fortschritt ueber onProgress zurueck.
+   */
+  async function translateMissing(lang, onProgress = null) {
+    const MAX_ROUNDS = 1000
+    let total = 0
+
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      const { data } = await translationsApi.translateMissing(lang)
+
+      // Fehler liefert der Proxy als leeres Objekt — nicht als "fertig" werten
+      if (typeof data?.dispatched !== 'number') {
+        throw new Error('Keine gültige Antwort vom TMS erhalten.')
+      }
+
+      total += data.dispatched
+      if (onProgress) onProgress(total, data.remaining ?? 0)
+
+      if (data.dispatched === 0 || (data.remaining ?? 0) === 0) break
+    }
+
+    return total
+  }
+
+  async function importGlossary(file) {
+    return translationsApi.importGlossary(file)
+  }
+
   async function triggerIngest() {
     return translationsApi.triggerIngest()
   }
@@ -111,6 +143,6 @@ export const useTranslationsStore = defineStore('translations', () => {
   return {
     units, unitsPagination, currentUnit, stats, missingUnits, missingPagination,
     unitsLoading, unitLoading, statsLoading, missingLoading, error,
-    fetchUnits, fetchUnit, fetchStats, fetchMissing, updateTranslation, retranslate, triggerIngest, syncToDatabase, deleteAllTranslations, purgeAllUnits,
+    fetchUnits, fetchUnit, fetchStats, fetchMissing, updateTranslation, retranslate, translateMissing, importGlossary, triggerIngest, syncToDatabase, deleteAllTranslations, purgeAllUnits,
   }
 })

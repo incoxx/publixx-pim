@@ -63,20 +63,30 @@ class TmsClient
     /**
      * Send entities to TMS for ingestion.
      *
+     * Die Zielsprachen gehen im Payload mit. Das PIM ist die Quelle der
+     * Wahrheit (Tabelle `languages`); das TMS soll dafür nicht seine eigene
+     * TMS_TARGET_LANGUAGES lesen müssen — sonst laufen beide Seiten
+     * auseinander, sobald jemand nur eine der beiden .env pflegt.
+     *
      * @param  array  $entities
+     * @param  string[]  $targetLanguages  leer = das TMS nimmt seine Konfiguration
      */
-    public function ingest(array $entities): void
+    public function ingest(array $entities, array $targetLanguages = []): void
     {
         if (!$this->enabled || empty($entities)) {
             return;
         }
 
         try {
+            $payload = ['entities' => $entities];
+
+            if (!empty($targetLanguages)) {
+                $payload['target_languages'] = array_values($targetLanguages);
+            }
+
             $response = Http::timeout(30)
                 ->withToken($this->apiKey)
-                ->post("{$this->baseUrl}/ingest", [
-                    'entities' => $entities,
-                ]);
+                ->post("{$this->baseUrl}/ingest", $payload);
 
             if (!$response->successful()) {
                 Log::warning('TMS ingest failed', ['status' => $response->status()]);
@@ -112,10 +122,14 @@ class TmsClient
 
     /**
      * Get translation coverage stats.
+     *
+     * @param  string[]  $targetLanguages  leer = das TMS nimmt seine Konfiguration
      */
-    public function getStats(): array
+    public function getStats(array $targetLanguages = []): array
     {
-        return $this->get('/stats');
+        return $this->get('/stats', empty($targetLanguages)
+            ? []
+            : ['langs' => implode(',', $targetLanguages)]);
     }
 
     /**
@@ -132,6 +146,61 @@ class TmsClient
     public function retranslate(array $data): array
     {
         return $this->post('/retranslate', $data);
+    }
+
+    /**
+     * Plant alle Begriffe ohne Übersetzung in einer Zielsprache zur
+     * maschinellen Übersetzung ein — der Weg, eine neue Sprache auszurollen.
+     *
+     * Gedeckelt durch $limit; die Antwort enthält `remaining`, damit der
+     * Aufrufer bis zur Vollständigkeit schleifen kann.
+     *
+     * @return array{lang?: string, dispatched?: int, remaining?: int, message?: string}
+     */
+    public function translateMissing(string $lang, int $limit = 1000): array
+    {
+        return $this->post('/translate-missing', [
+            'lang' => $lang,
+            'limit' => $limit,
+        ]);
+    }
+
+    /**
+     * Eine Seite des Glossars holen (Begriffe samt Übersetzungen und
+     * Verwendungsstellen) — Grundlage für den Datei-Export.
+     *
+     * @param  string[]  $langs
+     * @return array{data?: array, current_page?: int, last_page?: int, total?: int}
+     */
+    public function glossaryPage(array $langs, array $params = []): array
+    {
+        return $this->get('/glossary', array_merge($params, [
+            'langs' => implode(',', $langs),
+        ]));
+    }
+
+    /**
+     * Übersetzungen aus einer externen Datei zurückspielen.
+     *
+     * @param  array<int, array{hash: string, lang: string, translation: string}>  $items
+     */
+    public function glossaryImport(array $items): array
+    {
+        if (!$this->enabled || empty($items)) {
+            return [];
+        }
+
+        $total = ['updated' => 0, 'unchanged' => 0, 'unknown' => 0];
+
+        foreach (array_chunk($items, 1000) as $batch) {
+            $result = $this->post('/glossary', ['items' => $batch]);
+
+            foreach (['updated', 'unchanged', 'unknown'] as $key) {
+                $total[$key] += (int) ($result[$key] ?? 0);
+            }
+        }
+
+        return $total;
     }
 
     /**

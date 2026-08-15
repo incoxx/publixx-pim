@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Tms\Http\Controllers\GlossaryController;
 use Tms\Http\Controllers\ImportTranslationsController;
 use Tms\Http\Controllers\IngestController;
 use Tms\Http\Controllers\ResolveController;
@@ -34,4 +35,11 @@ Route::middleware(ValidateApiKey::class)->group(function () {
 
     // Retranslate
     Route::post('retranslate', [UnitController::class, 'retranslate']);
+
+    // Neue Zielsprache ausrollen: alles Fehlende einplanen (gedeckelt, wiederholbar)
+    Route::post('translate-missing', [UnitController::class, 'translateMissing']);
+
+    // Glossar: Bulk-Ausgabe und Ruecknahme fuer den Datei-Austausch (XLSX/CSV)
+    Route::get('glossary', [GlossaryController::class, 'index']);
+    Route::post('glossary', [GlossaryController::class, 'store']);
 });

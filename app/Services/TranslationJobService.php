@@ -291,7 +291,18 @@ class TranslationJobService
     }
 
     /**
-     * Sync translated items to the Translation Memory System.
+     * Überträgt übersetzte Metadaten ins Translation Memory.
+     *
+     * Bewusst NICHT für Attributwerte: das TM trifft nur exakt und auf ganze
+     * Felder — bei Produkttexten geht die Trefferquote gegen null, während das
+     * Risiko bleibt. Weil die `domain` nicht in den Hash eingeht, könnte eine
+     * aus einem Produkttext stammende Übersetzung sonst vom Metadaten-Sync
+     * zurückgelesen werden ("Bank", "Absatz", "Golf").
+     *
+     * Attributwerte laufen stattdessen über Übersetzungs-Jobs und XLIFF zur
+     * Agentur, deren CAT-Werkzeug Segmentierung und Fuzzy-Matching mitbringt.
+     *
+     * Siehe docs/features/tms-konzept-validierung.md, Abschnitt 0.
      */
     protected function syncToTms(TranslationJob $job, $translatedItems): void
     {
@@ -302,6 +313,13 @@ class TranslationJobService
         try {
             $tmsItems = [];
             foreach ($translatedItems as $item) {
+                // Positive Liste: resolveModelClass() kennt genau die
+                // Metadaten-Typen. 'product' liefert dort null — ebenso jeder
+                // künftige Typ, der nicht ausdrücklich als Metadate gilt.
+                if ($this->resolveModelClass($item->entity_type) === null) {
+                    continue;
+                }
+
                 $fieldPrefix = $this->resolveFieldPrefix($item->entity_type);
 
                 $tmsItems[] = [
@@ -314,6 +332,11 @@ class TranslationJobService
                     'field_name' => "{$fieldPrefix}_{$job->source_language}",
                     'provider' => 'deepl',
                 ];
+            }
+
+            // Reine Produkt-Jobs erzeugen gar keine TM-Positionen mehr
+            if (empty($tmsItems)) {
+                return;
             }
 
             $this->tmsClient->importTranslations($tmsItems);

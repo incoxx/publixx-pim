@@ -14,8 +14,10 @@ use App\Models\ProductRelationType;
 use App\Models\ProductType;
 use App\Models\UnitGroup;
 use App\Models\ValueList;
+use App\Models\Language;
 use App\Models\ValueListEntry;
 use App\Services\Tms\TmsClient;
+use App\Services\Tms\TmsHash;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -95,7 +97,8 @@ class SyncTmsTranslationsJob implements ShouldQueue, ShouldBeUnique
             return ['total_updated' => 0, 'skipped' => true, 'message' => 'TMS is disabled.'];
         }
 
-        $targetLangs = array_filter(config('tms.target_languages', ['en', 'fr', 'es', 'it', 'nl']));
+        $targetLangs = Language::targetCodes();
+        $sourceLang = Language::sourceCode();
         $totalUpdated = 0;
 
         foreach (self::ENTITY_MAP as $entityType => $config) {
@@ -103,7 +106,7 @@ class SyncTmsTranslationsJob implements ShouldQueue, ShouldBeUnique
             $jsonField = $config['json_field'];
             $sourceField = $config['source_field'];
 
-            $modelClass::chunk(500, function ($records) use ($client, $jsonField, $sourceField, $targetLangs, &$totalUpdated) {
+            $modelClass::chunk(500, function ($records) use ($client, $jsonField, $sourceField, $targetLangs, $sourceLang, &$totalUpdated) {
                 // Use multi-map to handle duplicate source texts correctly
                 $hashMap = []; // hash => [records...]
                 $uniqueHashes = [];
@@ -113,7 +116,7 @@ class SyncTmsTranslationsJob implements ShouldQueue, ShouldBeUnique
                     if (empty($sourceText)) {
                         continue;
                     }
-                    $hash = hash('sha256', 'de|' . $sourceText);
+                    $hash = TmsHash::for($sourceLang, $sourceText);
                     $hashMap[$hash][] = $record;
                     $uniqueHashes[$hash] = true;
                 }
@@ -152,7 +155,7 @@ class SyncTmsTranslationsJob implements ShouldQueue, ShouldBeUnique
         }
 
         // Handle value list entries separately (display_value_json)
-        ValueListEntry::chunk(500, function ($entries) use ($client, $targetLangs, &$totalUpdated) {
+        ValueListEntry::chunk(500, function ($entries) use ($client, $targetLangs, $sourceLang, &$totalUpdated) {
             $hashMap = [];
             $uniqueHashes = [];
 
@@ -161,7 +164,7 @@ class SyncTmsTranslationsJob implements ShouldQueue, ShouldBeUnique
                 if (empty($sourceText)) {
                     continue;
                 }
-                $hash = hash('sha256', 'de|' . $sourceText);
+                $hash = TmsHash::for($sourceLang, $sourceText);
                 $hashMap[$hash][] = $entry;
                 $uniqueHashes[$hash] = true;
             }

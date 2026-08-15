@@ -4,7 +4,10 @@ import { ChevronDown, ChevronRight, X } from 'lucide-vue-next'
 import searchApi from '@/api/search'
 import hierarchiesApi from '@/api/hierarchies'
 import { priceRegions } from '@/api/priceRegions'
-import { translationLanguages as availableLanguages } from '@/config/languages'
+import { useLocaleStore } from '@/stores/locale'
+
+const localeStore = useLocaleStore()
+const availableLanguages = computed(() => localeStore.availableLocales)
 
 const props = defineProps({
   modelValue: {

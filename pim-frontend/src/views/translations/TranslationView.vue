@@ -1,11 +1,15 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import { useTranslationsStore } from '@/stores/translations'
+import { useLocaleStore } from '@/stores/locale'
+import translationsApi from '@/api/translations'
+import { resolveApiUrl } from '@/api/client'
 import { Languages, RefreshCw, Download, Upload, Search, Globe, BarChart3, AlertCircle, Check, Loader2, Settings, X, Trash2 } from 'lucide-vue-next'
 import TranslationStatsCard from './TranslationStatsCard.vue'
 import TranslationUnitPanel from './TranslationUnitPanel.vue'
 
 const store = useTranslationsStore()
+const localeStore = useLocaleStore()
 
 const activeTab = ref('overview')
 const searchQuery = ref('')
@@ -43,15 +47,22 @@ const domainOptions = [
   { value: 'hierarchy_node', label: 'Hierarchie-Knoten' },
 ]
 
-const languageOptions = [
-  { value: 'en', label: 'Englisch' },
-  { value: 'fr', label: 'Französisch' },
-  { value: 'es', label: 'Spanisch' },
-  { value: 'it', label: 'Italienisch' },
-  { value: 'nl', label: 'Niederländisch' },
-]
+// Zielsprachen kommen aus der Sprachverwaltung, nicht mehr aus einer
+// hart kodierten Liste. Die Quellsprache ist kein Uebersetzungsziel.
+const languageOptions = computed(() =>
+  localeStore.availableLocales
+    .filter(l => !l.is_source)
+    .map(l => ({ value: l.code, label: l.label })),
+)
 
-onMounted(() => {
+onMounted(async () => {
+  await localeStore.fetchLanguages()
+
+  // Vorauswahl auf die erste tatsaechlich gepflegte Zielsprache
+  if (!languageOptions.value.some(o => o.value === selectedLang.value)) {
+    selectedLang.value = languageOptions.value[0]?.value || 'en'
+  }
+
   store.fetchStats()
 })
 
@@ -114,12 +125,89 @@ function addLog(type, message) {
   if (actionLog.value.length > 20) actionLog.value.pop()
 }
 
+const glossaryImportLoading = ref(false)
+const glossaryFileInput = ref(null)
+
+/**
+ * Glossar herausgeben, damit es ohne MT-Anbieter übersetzt werden kann —
+ * typischerweise durch den Landesvertrieb. Alle Sprachen nebeneinander,
+ * damit der Quervergleich möglich ist.
+ */
+function exportGlossary(format) {
+  const url = translationsApi.glossaryExportUrl({
+    langs: selectedLang.value,
+    status: activeTab.value === 'missing' ? 'missing' : 'all',
+    domain: selectedDomain.value || '',
+    format,
+  })
+  addLog('info', `Glossar-Export (${format.toUpperCase()}) wird erzeugt…`)
+  window.open(resolveApiUrl(url), '_blank')
+}
+
+async function onGlossaryFile(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  glossaryImportLoading.value = true
+  addLog('info', `Import von "${file.name}" läuft…`)
+  try {
+    const { data } = await store.importGlossary(file)
+    addLog('success', data.message || 'Import abgeschlossen.')
+    if (data.unknown > 0) {
+      addLog('error', `${data.unknown} Begriffe nicht gefunden — stammt die Datei aus einem älteren Export?`)
+    }
+    if (data.skipped_rows > 0) {
+      addLog('info', `${data.skipped_rows} Zeilen ohne Schlüssel übersprungen.`)
+    }
+    await store.fetchStats()
+    if (activeTab.value === 'missing') loadMissing()
+  } catch (e) {
+    addLog('error', 'Import fehlgeschlagen: ' + (e.response?.data?.message || e.message))
+  } finally {
+    glossaryImportLoading.value = false
+    event.target.value = ''
+  }
+}
+
+const rolloutLoading = ref(false)
+
+/**
+ * Rollt die aktuell gewählte Sprache über den gesamten TM-Bestand aus.
+ * Das ist der Weg, eine neu hinzugefügte Sprache (z.B. Finnisch) zu füllen —
+ * bis dahin bleibt sie leer, weil der Ingest nur neue Begriffe übersetzt.
+ */
+async function rolloutLanguage() {
+  const lang = selectedLang.value
+  if (!confirm(`Alle fehlenden Begriffe für "${lang}" maschinell übersetzen lassen?\n\nDas verursacht Kosten beim MT-Anbieter.`)) return
+
+  rolloutLoading.value = true
+  addLog('info', `Rollout für "${lang}" gestartet…`)
+  try {
+    const total = await store.translateMissing(lang, (done, remaining) => {
+      addLog('info', `${done} eingeplant, noch ${remaining} offen…`)
+    })
+    addLog('success', `${total} Begriffe für "${lang}" eingeplant. Übersetzung läuft im Hintergrund.`)
+    await store.fetchStats()
+    loadMissing()
+  } catch (e) {
+    addLog('error', 'Rollout fehlgeschlagen: ' + (e.response?.data?.message || e.message))
+  } finally {
+    rolloutLoading.value = false
+  }
+}
+
+// Ingest und Sync laufen serverseitig über die Queue (HTTP 202) — sie können
+// je nach Katalogumfang mehrere Minuten dauern. Die Antwort bestätigt nur die
+// Einplanung; den Fortschritt sieht man über "Statistiken aktualisieren".
 async function triggerIngest() {
   ingestLoading.value = true
-  addLog('info', 'Ingest gestartet — sende PIM-Daten an TMS...')
+  addLog('info', 'Ingest wird eingeplant — sende PIM-Daten an TMS...')
   try {
     const { data } = await store.triggerIngest()
     addLog('success', data.message || `${data.total_sent} Entitäten gesendet.`)
+    if (data.queued) {
+      addLog('info', 'Läuft im Hintergrund. Fortschritt über "Statistiken aktualisieren" prüfen.')
+    }
   } catch (e) {
     addLog('error', 'Ingest fehlgeschlagen: ' + (e.response?.data?.message || e.message))
   } finally {
@@ -129,10 +217,13 @@ async function triggerIngest() {
 
 async function triggerSync() {
   syncLoading.value = true
-  addLog('info', 'Sync gestartet — hole Übersetzungen von TMS...')
+  addLog('info', 'Sync wird eingeplant — hole Übersetzungen von TMS...')
   try {
     const { data } = await store.syncToDatabase()
     addLog('success', data.message || `${data.total_updated} Datensätze aktualisiert.`)
+    if (data.queued) {
+      addLog('info', 'Läuft im Hintergrund. Fortschritt über "Statistiken aktualisieren" prüfen.')
+    }
   } catch (e) {
     addLog('error', 'Sync fehlgeschlagen: ' + (e.response?.data?.message || e.message))
   } finally {
@@ -322,6 +413,53 @@ const paginationPages = computed(() => {
           <option value="auto">Automatisch</option>
           <option value="reviewed">Geprüft</option>
         </select>
+
+        <!-- Neue Zielsprache ausrollen: plant alle fehlenden Begriffe der
+             gewählten Sprache zur maschinellen Übersetzung ein. -->
+        <button
+          v-if="activeTab === 'missing'"
+          class="px-3 py-2 text-sm rounded-md bg-[var(--color-accent)] text-white disabled:opacity-50"
+          :disabled="rolloutLoading"
+          :title="`Alle fehlenden Begriffe für '${selectedLang}' übersetzen lassen`"
+          @click="rolloutLanguage"
+        >
+          {{ rolloutLoading ? 'Wird eingeplant…' : `Alle fehlenden übersetzen (${selectedLang})` }}
+        </button>
+
+        <!-- Übersetzung ohne MT-Anbieter: Datei raus, ausgefüllt wieder rein -->
+        <button
+          class="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-[var(--color-border)] hover:bg-[var(--color-surface)]"
+          title="Begriffe als Excel-Datei herunterladen (alle Sprachen nebeneinander)"
+          @click="exportGlossary('xlsx')"
+        >
+          <Download class="w-4 h-4" /> Excel
+        </button>
+
+        <button
+          class="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-[var(--color-border)] hover:bg-[var(--color-surface)]"
+          title="Als CSV herunterladen"
+          @click="exportGlossary('csv')"
+        >
+          <Download class="w-4 h-4" /> CSV
+        </button>
+
+        <button
+          class="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-[var(--color-border)] hover:bg-[var(--color-surface)] disabled:opacity-50"
+          :disabled="glossaryImportLoading"
+          title="Ausgefüllte Datei zurückspielen — übernommene Werte gelten als geprüft"
+          @click="glossaryFileInput?.click()"
+        >
+          <Upload class="w-4 h-4" />
+          {{ glossaryImportLoading ? 'Wird eingelesen…' : 'Zurückspielen' }}
+        </button>
+
+        <input
+          ref="glossaryFileInput"
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          class="hidden"
+          @change="onGlossaryFile"
+        />
       </div>
 
       <!-- Table -->

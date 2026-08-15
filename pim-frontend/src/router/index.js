@@ -431,6 +431,12 @@ const routes = [
     meta: { title: 'Bildtypen' },
   },
   {
+    path: '/languages',
+    name: 'languages',
+    component: () => import('@/views/languages/LanguageView.vue'),
+    meta: { title: 'Sprachen' },
+  },
+  {
     path: '/media-languages',
     name: 'media-languages',
     component: () => import('@/views/mediaLanguages/MediaLanguageView.vue'),

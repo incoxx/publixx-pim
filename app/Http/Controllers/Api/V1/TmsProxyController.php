@@ -6,9 +6,12 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Jobs\IngestToTmsJob;
 use App\Jobs\SyncTmsTranslationsJob;
+use App\Models\Language;
+use App\Services\Tms\GlossaryFileService;
 use App\Services\Tms\TmsClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TmsProxyController extends Controller
 {
@@ -63,7 +66,7 @@ class TmsProxyController extends Controller
     {
         $this->abortIfDisabled();
 
-        $data = $this->client->getStats();
+        $data = $this->client->getStats(Language::targetCodes());
         return response()->json($data);
     }
 
@@ -95,22 +98,114 @@ class TmsProxyController extends Controller
             'target_langs.*' => 'string|max:5',
         ]);
 
-        $data = $this->client->retranslate($request->only('unit_ids', 'target_langs'));
+        // Ohne ausdrueckliche Angabe die Sprachliste des PIM verwenden, damit
+        // das TMS nicht auf seine eigene Konfiguration zurueckfaellt.
+        $payload = $request->only('unit_ids', 'target_langs');
+        if (empty($payload['target_langs'])) {
+            $payload['target_langs'] = Language::targetCodes();
+        }
+
+        $data = $this->client->retranslate($payload);
         return response()->json($data);
     }
 
     /**
-     * POST /tms/ingest — run ingest from PIM to TMS (synchronous).
+     * POST /tms/translate-missing — eine neue Zielsprache ausrollen.
+     *
+     * Plant alle Begriffe ein, die in dieser Sprache noch fehlen. Gedeckelt;
+     * `remaining` in der Antwort sagt, wie viel noch offen ist.
+     */
+    public function translateMissing(Request $request): JsonResponse
+    {
+        $this->abortIfDisabled();
+        abort_unless(auth()->user()?->hasPermissionTo('translations.edit'), 403);
+
+        $request->validate([
+            'lang' => 'required|string|max:5',
+            'limit' => 'sometimes|integer|min:1|max:5000',
+        ]);
+
+        $data = $this->client->translateMissing(
+            $request->input('lang'),
+            (int) $request->input('limit', 1000),
+        );
+
+        return response()->json($data, 202);
+    }
+
+    /**
+     * GET /tms/glossary/export — Begriffe als XLSX oder CSV herausgeben.
+     *
+     * Für Übersetzung ohne MT-Anbieter: Datei an den Landesvertrieb oder eine
+     * Agentur, ausgefüllt zurück über /tms/glossary/import.
+     */
+    public function exportGlossary(Request $request, GlossaryFileService $service): StreamedResponse
+    {
+        $this->abortIfDisabled();
+
+        $request->validate([
+            'langs' => 'sometimes|nullable|string|max:200',
+            'status' => 'sometimes|in:all,missing,auto,reviewed',
+            'domain' => 'sometimes|nullable|string|max:50',
+            'format' => 'sometimes|in:xlsx,csv',
+        ]);
+
+        $langs = array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) $request->query('langs')),
+        )));
+
+        return $service->export(
+            $langs,
+            $request->query('status', 'all'),
+            $request->query('domain'),
+            $request->query('format', 'xlsx'),
+        );
+    }
+
+    /**
+     * POST /tms/glossary/import — ausgefüllte Datei zurückspielen.
+     */
+    public function importGlossary(Request $request, GlossaryFileService $service): JsonResponse
+    {
+        $this->abortIfDisabled();
+        abort_unless(auth()->user()?->hasPermissionTo('translations.edit'), 403);
+
+        $request->validate([
+            'file' => 'required|file|max:51200|mimes:xlsx,xls,csv,txt',
+        ]);
+
+        $result = $service->import($request->file('file')->getRealPath());
+
+        return response()->json($result + [
+            'message' => sprintf(
+                '%d Übersetzungen übernommen, %d unverändert, %d Begriffe nicht gefunden.',
+                $result['updated'],
+                $result['unchanged'],
+                $result['unknown'],
+            ),
+        ]);
+    }
+
+    /**
+     * POST /tms/ingest — Ingest vom PIM ins TMS anstoßen.
+     *
+     * Läuft über die Queue: der Job iteriert über den kompletten
+     * Metadaten-Bestand (u.a. alle Hierarchie-Knoten, Attribute und
+     * Wertelisten-Einträge) mit einem HTTP-Roundtrip je 200er-Batch und
+     * lief synchron zuverlässig in den Request-Timeout.
      */
     public function triggerIngest(): JsonResponse
     {
         $this->abortIfDisabled();
         abort_unless(auth()->user()?->hasPermissionTo('translations.edit'), 403);
 
-        $job = new IngestToTmsJob();
-        $result = $job->handle($this->client);
+        IngestToTmsJob::dispatch();
 
-        return response()->json($result);
+        return response()->json([
+            'queued' => true,
+            'message' => 'Ingest wurde eingeplant und läuft im Hintergrund.',
+        ], 202);
     }
 
     /**
@@ -144,17 +239,21 @@ class TmsProxyController extends Controller
     }
 
     /**
-     * POST /tms/sync — sync translations from TMS back into PIM database (synchronous).
+     * POST /tms/sync — Übersetzungen aus dem TMS zurück ins PIM schreiben.
+     *
+     * Läuft aus denselben Gründen wie triggerIngest() über die Queue.
      */
     public function syncToDatabase(): JsonResponse
     {
         $this->abortIfDisabled();
         abort_unless(auth()->user()?->hasPermissionTo('translations.edit'), 403);
 
-        $job = new SyncTmsTranslationsJob();
-        $result = $job->handle($this->client);
+        SyncTmsTranslationsJob::dispatch();
 
-        return response()->json($result);
+        return response()->json([
+            'queued' => true,
+            'message' => 'Sync wurde eingeplant und läuft im Hintergrund.',
+        ], 202);
     }
 
     private function abortIfDisabled(): void

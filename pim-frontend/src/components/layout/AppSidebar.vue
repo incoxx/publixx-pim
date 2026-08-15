@@ -154,6 +154,7 @@ const sections = computed(() => {
       key: 'translations',
       label: t('Übersetzungen'),
       items: [
+        { icon: Globe, label: () => t('Sprachen'), to: '/languages' },
         { icon: ClipboardList, label: () => t('Übersetzungsjobs'), to: '/translation-jobs', permission: 'translations.view' },
         { icon: Languages, label: () => t('Translation Memory'), to: '/translations', permission: 'translations.view' },
         { icon: Settings, label: () => t('DeepL Einstellungen'), to: '/connectors/deepl', module: 'connectors', permission: 'connectors.view' },

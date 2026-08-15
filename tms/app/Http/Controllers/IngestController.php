@@ -26,11 +26,17 @@ class IngestController
             'entities.*.fields.*.field' => 'required|string|max:50',
             'entities.*.fields.*.text' => 'required|string|max:10000',
             'entities.*.fields.*.lang' => 'required|string|max:5',
+            // Das PIM ist die Quelle der Wahrheit fuer die Sprachliste und
+            // schickt sie mit. Faellt sie weg, greift die TMS-Konfiguration —
+            // fuer Aufrufer, die den Parameter (noch) nicht kennen.
+            'target_languages' => 'sometimes|array|max:50',
+            'target_languages.*' => 'string|max:5',
         ]);
 
         $entities = $request->input('entities');
+        $targetLanguages = $request->input('target_languages', []);
 
-        ProcessIngestBatchJob::dispatch($entities);
+        ProcessIngestBatchJob::dispatch($entities, $targetLanguages);
 
         return response()->json([
             'message' => 'Ingest accepted.',

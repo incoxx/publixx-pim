@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useLicenseStore } from '@/stores/license'
 import { useConnectorsStore } from '@/stores/connectors'
+import { useLocaleStore } from '@/stores/locale'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import PimCommandPalette from '@/components/shared/PimCommandPalette.vue'
 import PimToast from '@/components/shared/PimToast.vue'
@@ -11,6 +12,7 @@ import PimToast from '@/components/shared/PimToast.vue'
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const localeStore = useLocaleStore()
 const licenseStore = useLicenseStore()
 const connectorsStore = useConnectorsStore()
 
@@ -78,6 +80,10 @@ onMounted(async () => {
   if (authStore.isAuthenticated) {
     licenseStore.fetchLicense()
     connectorsStore.loadConfiguredPlugins()
+    // Sprachen zentral laden — Produkteditor, Suche, Export und Uebersetzungen
+    // haengen alle daran. Vorher hatte jede Stelle ihre eigene, hart kodierte
+    // Liste, sodass eine neu angelegte Sprache nirgends auftauchte.
+    localeStore.fetchLanguages()
   }
 })
 

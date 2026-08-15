@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Process;
 use Laravel\Horizon\Contracts\JobRepository;
@@ -838,6 +839,12 @@ class SystemInfoController extends Controller
             ];
         }
 
+        // TMS (Translation Memory Service)
+        // Wichtig, weil der TmsClient alle Fehler still verschluckt: ohne
+        // diesen Check ist ein toter TMS in der UI nicht von "keine Daten"
+        // zu unterscheiden.
+        $services[] = $this->checkTmsService();
+
         // Apache
         $services[] = $this->checkSystemdService('Apache', 'apache2');
 
@@ -845,6 +852,78 @@ class SystemInfoController extends Controller
         $services[] = $this->checkSystemdService('Supervisor', 'supervisor');
 
         return $services;
+    }
+
+    /**
+     * Prüft den TMS über seinen /up-Endpunkt (Laravel-Healthcheck).
+     */
+    private function checkTmsService(): array
+    {
+        if (!config('tms.enabled')) {
+            return [
+                'name' => 'TMS',
+                'status' => 'disabled',
+                'error' => 'TMS_ENABLED=false',
+            ];
+        }
+
+        $baseUrl = rtrim((string) config('tms.base_url', ''), '/');
+
+        if ($baseUrl === '') {
+            return [
+                'name' => 'TMS',
+                'status' => 'error',
+                'error' => 'TMS_BASE_URL nicht konfiguriert',
+            ];
+        }
+
+        // base_url zeigt auf /api — der Healthcheck liegt eine Ebene darüber
+        $healthUrl = preg_replace('#/api/?$#', '', $baseUrl) . '/up';
+
+        try {
+            $response = Http::timeout(3)->get($healthUrl);
+
+            if (!$response->successful()) {
+                return [
+                    'name' => 'TMS',
+                    'status' => 'error',
+                    'error' => "HTTP {$response->status()} von {$healthUrl}",
+                ];
+            }
+        } catch (\Throwable $e) {
+            return [
+                'name' => 'TMS',
+                'status' => 'stopped',
+                'error' => $e->getMessage(),
+            ];
+        }
+
+        // Erreichbar — zusätzlich prüfen, ob der API-Key stimmt
+        try {
+            $stats = Http::timeout(3)
+                ->withToken((string) config('tms.api_key'))
+                ->get("{$baseUrl}/stats");
+
+            if ($stats->status() === 401) {
+                return [
+                    'name' => 'TMS',
+                    'status' => 'error',
+                    'error' => 'TMS_API_KEY stimmt nicht mit tms/.env überein',
+                ];
+            }
+
+            return [
+                'name' => 'TMS',
+                'status' => 'running',
+                'version' => ($stats->json('total_units') ?? 0) . ' Begriffe',
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'name' => 'TMS',
+                'status' => 'running',
+                'error' => $e->getMessage(),
+            ];
+        }
     }
 
     private function checkSystemdService(string $name, string $unit): array

@@ -14,7 +14,7 @@ use App\Models\ProductRelationType;
 use App\Models\ProductType;
 use App\Models\UnitGroup;
 use App\Models\ValueList;
-use App\Models\ValueListEntry;
+use App\Models\Language;
 use App\Services\Tms\TmsClient;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -46,10 +46,7 @@ class IngestToTmsJob implements ShouldQueue, ShouldBeUnique
         // Helper: flush entities in batches
         $flush = function () use ($client, &$entities, $batchSize, &$totalSent) {
             if (count($entities) >= $batchSize) {
-                foreach (array_chunk($entities, $batchSize) as $batch) {
-                    $client->ingest($batch);
-                    $totalSent += count($batch);
-                }
+                $totalSent += $this->sendBatches($client, $entities, $batchSize);
                 $entities = [];
             }
         };
@@ -167,19 +164,45 @@ class IngestToTmsJob implements ShouldQueue, ShouldBeUnique
             $flush();
         });
 
-        // Filter and send remaining entities
-        $entities = array_values(array_filter($entities, function ($entity) {
-            return !empty($entity['fields']);
-        }));
-
-        foreach (array_chunk($entities, $batchSize) as $batch) {
-            $client->ingest($batch);
-            $totalSent += count($batch);
-        }
+        // Restbestand senden
+        $totalSent += $this->sendBatches($client, $entities, $batchSize);
 
         Log::info("TMS ingest completed: {$totalSent} entities sent.");
 
         return ['total_sent' => $totalSent, 'skipped' => false, 'message' => "{$totalSent} Entitäten an TMS gesendet."];
+    }
+
+    /**
+     * Sendet Entitäten in Batches an das TMS.
+     *
+     * Entitäten ohne Felder werden hier — und nicht erst am Ende des Jobs —
+     * aussortiert: der IngestController validiert `entities.*.fields` mit
+     * `required|array|min:1`, eine einzige feldlose Entität lässt sonst den
+     * kompletten Batch mit 422 scheitern und der TmsClient verschluckt das
+     * still. Betroffen waren genau die Zwischen-Flushes der großen Tabellen
+     * (Attribute, Wertelisten, Hierarchie-Knoten).
+     *
+     * @param  array<int, array<string, mixed>>  $entities
+     * @return int  Anzahl tatsächlich gesendeter Entitäten
+     */
+    private function sendBatches(TmsClient $client, array $entities, int $batchSize): int
+    {
+        $valid = array_values(array_filter($entities, fn ($e) => !empty($e['fields'])));
+
+        $skipped = count($entities) - count($valid);
+        if ($skipped > 0) {
+            Log::debug("TMS ingest: {$skipped} Entitäten ohne übersetzbare Felder übersprungen.");
+        }
+
+        $sent = 0;
+        $targetLanguages = Language::targetCodes();
+
+        foreach (array_chunk($valid, $batchSize) as $batch) {
+            $client->ingest($batch, $targetLanguages);
+            $sent += count($batch);
+        }
+
+        return $sent;
     }
 
     private function buildEntity(string $type, string $id, string $label, array $fields): array
@@ -188,7 +211,10 @@ class IngestToTmsJob implements ShouldQueue, ShouldBeUnique
             'entity_type' => $type,
             'entity_id' => $id,
             'entity_label' => $label,
-            'fields' => array_filter($fields, fn ($f) => !empty($f['text'])),
+            // array_values: array_filter erhält die Schlüssel — bei einer Lücke
+            // (z.B. name_de leer, name_en gesetzt) würde json_encode sonst ein
+            // Objekt {"1": ...} statt einer Liste erzeugen.
+            'fields' => array_values(array_filter($fields, fn ($f) => !empty($f['text']))),
         ];
     }
 }
