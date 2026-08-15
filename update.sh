@@ -31,6 +31,17 @@
 #   9.  Services neu starten + Dateiberechtigungen
 #   10. Healthcheck + Wartungsmodus deaktivieren
 #
+# Protokoll:
+#   Die komplette Ausgabe landet zusaetzlich in
+#     storage/logs/update-JJJJMMTT-HHMMSS.log   (die letzten 10 bleiben erhalten)
+#   Am Ende werden alle Warnungen und Fehler noch einmal gebuendelt angezeigt.
+#   Gezielt nachsehen:
+#     grep -nE '\[✗\]|\[!\]' storage/logs/update-*.log
+#
+# Tipp: Bei Verbindung ueber SSH in tmux/screen starten, damit ein Abbruch der
+#       Verbindung das Update nicht mittendrin killt (sonst bleibt die Instanz
+#       im Wartungsmodus — dann hilft: php artisan up).
+#
 
 set -euo pipefail
 
@@ -43,11 +54,53 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
+# ─── Protokollierung ────────────────────────────────────────────────────────
+# Alle Warnungen und Fehler werden zusaetzlich gesammelt und am Ende noch
+# einmal gebuendelt ausgegeben. Bei einem Update mit mehreren tausend Zeilen
+# Build-Ausgabe geht eine einzelne Warnung sonst unter.
+LOG_FILE=""
+WARN_MESSAGES=()
+ERROR_MESSAGES=()
+
 info()         { echo -e "${GREEN}[✓]${NC} $1"; }
-warn()         { echo -e "${YELLOW}[!]${NC} $1"; }
-error()        { echo -e "${RED}[✗]${NC} $1"; exit 1; }
-error_noexit() { echo -e "${RED}[✗]${NC} $1"; }
+warn()         { WARN_MESSAGES+=("$1"); echo -e "${YELLOW}[!]${NC} $1"; }
+error()        { ERROR_MESSAGES+=("$1"); echo -e "${RED}[✗]${NC} $1"; log_hint; exit 1; }
+error_noexit() { ERROR_MESSAGES+=("$1"); echo -e "${RED}[✗]${NC} $1"; }
 step()         { echo -e "\n${BLUE}━━━ $1 ━━━${NC}\n"; }
+
+# Pfad zur Logdatei ausgeben (nur wenn die Protokollierung schon aktiv ist)
+log_hint() {
+    [ -n "$LOG_FILE" ] || return 0
+    echo -e "  Vollstaendiges Protokoll: ${CYAN}${LOG_FILE}${NC}"
+}
+
+# Gesammelte Warnungen/Fehler gebuendelt ausgeben
+print_summary() {
+    local n_warn=${#WARN_MESSAGES[@]}
+    local n_err=${#ERROR_MESSAGES[@]}
+    local m
+
+    echo ""
+    if [ "$n_err" -eq 0 ] && [ "$n_warn" -eq 0 ]; then
+        info "Meldungen: keine Warnungen, keine Fehler."
+    else
+        echo -e "${BOLD}Meldungen: ${n_err} Fehler, ${n_warn} Warnung(en)${NC}"
+        for m in ${ERROR_MESSAGES[@]+"${ERROR_MESSAGES[@]}"}; do
+            echo -e "  ${RED}[✗]${NC} ${m}"
+        done
+        for m in ${WARN_MESSAGES[@]+"${WARN_MESSAGES[@]}"}; do
+            echo -e "  ${YELLOW}[!]${NC} ${m}"
+        done
+    fi
+    log_hint
+}
+
+# Der tee-Subprozess der Protokollierung schreibt asynchron — kurz warten,
+# damit die letzten Zeilen noch in der Logdatei landen.
+flush_log() {
+    [ -n "$LOG_FILE" ] || return 0
+    sleep 0.3
+}
 
 # ─── Argumente parsen ──────────────────────────────────────────────────────
 BRANCH="main"
@@ -98,6 +151,26 @@ git config --global --add safe.directory "${INSTALL_DIR}" 2>/dev/null || true
 # Pruefen ob .env existiert
 if [ ! -f "${INSTALL_DIR}/.env" ]; then
     error "Keine .env gefunden. Bitte zuerst setup.sh ausfuehren."
+fi
+
+# ─── Protokoll-Datei einrichten ─────────────────────────────────────────────
+# Die gesamte Ausgabe (inkl. npm-, Composer- und Vite-Meldungen) wird parallel
+# in eine Logdatei geschrieben. Ein Frontend-Build erzeugt mehr Zeilen als der
+# Terminal-Puffer haelt — ohne Log ist die Fehlerursache hinterher nicht mehr
+# auffindbar. Im Log werden ANSI-Farbcodes entfernt, damit es mit grep/less
+# lesbar bleibt.
+LOG_DIR="${INSTALL_DIR}/storage/logs"
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+LOG_FILE_CANDIDATE="${LOG_DIR}/update-$(date +%Y%m%d-%H%M%S).log"
+
+if : > "$LOG_FILE_CANDIDATE" 2>/dev/null; then
+    LOG_FILE="$LOG_FILE_CANDIDATE"
+    exec > >(tee >(sed -u -E 's/\x1B\[[0-9;]*[a-zA-Z]//g' >> "$LOG_FILE")) 2>&1
+
+    # Alte Protokolle aufraeumen: die letzten 10 behalten
+    ls -1t "${LOG_DIR}"/update-*.log 2>/dev/null | tail -n +11 | xargs -r rm -f 2>/dev/null || true
+else
+    warn "Protokoll-Datei ${LOG_FILE_CANDIDATE} nicht beschreibbar — Update laeuft ohne Log."
 fi
 
 # ─── Swap-Check ─────────────────────────────────────────────────────────────
@@ -159,6 +232,11 @@ if [ "$FORCE" = false ]; then
     read -r CONFIRM
     if [[ "$CONFIRM" =~ ^[nN]$ ]]; then
         echo "  Abgebrochen."
+        # Kein Update gelaufen -> die frisch angelegte, leere Logdatei wieder weg
+        if [ -n "$LOG_FILE" ]; then
+            flush_log
+            rm -f "$LOG_FILE"
+        fi
         exit 0
     fi
 fi
@@ -180,10 +258,18 @@ cleanup() {
     local failed_line=${BASH_LINENO[0]:-unbekannt}
     echo ""
     error_noexit "Fehler in Zeile ${failed_line} (Exit-Code: ${exit_code})"
-    error_noexit "Letzter Befehl ist fehlgeschlagen. Pruefe die Ausgabe oberhalb dieser Meldung."
-    warn "Deaktiviere Wartungsmodus..."
+    # Reine Hinweistexte bewusst ohne error_noexit/warn — sie sollen die
+    # Meldungsliste am Ende nicht aufblaehen.
+    echo -e "${RED}[✗]${NC} Letzter Befehl ist fehlgeschlagen. Pruefe die Ausgabe oberhalb dieser Meldung."
+    echo -e "${YELLOW}[!]${NC} Deaktiviere Wartungsmodus..."
     cd "$INSTALL_DIR"
     php artisan up 2>/dev/null || true
+    print_summary
+    if [ -n "$LOG_FILE" ]; then
+        echo ""
+        echo -e "  Fehlersuche: ${CYAN}grep -nE '\\[✗\\]|\\[!\\]' ${LOG_FILE}${NC}"
+    fi
+    flush_log
 }
 trap cleanup ERR
 
@@ -1092,4 +1178,7 @@ echo -e "${BOLD}${GREEN}  ╚═════════════════
 echo ""
 echo -e "  Stand:     ${CYAN}$(git log --oneline -1)${NC}"
 echo -e "  URL:       ${BOLD}${APP_URL}${NC}"
+
+print_summary
 echo ""
+flush_log
