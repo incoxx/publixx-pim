@@ -15,6 +15,17 @@ const DOCS_BASE_PATH = process.env.DOCS_BASE_PATH || '/web/help/'
 // kaputten "PIM öffnen"-Link im Root-Modus verursacht).
 const APP_ROOT_PATH = process.env.APP_ROOT_PATH || '/'
 
+// Oeffentliche Basis-URL der Doku fuer die sitemap.xml, z.B.
+// "https://ihre-domain.de/web/help/". Wird von setup.sh/update.sh aus APP_URL +
+// DOCS_BASE_PATH zusammengesetzt; ohne die Variable (lokaler Build) entsteht schlicht
+// keine sitemap.xml -- so bleibt die Domain nirgends hardcodiert.
+//
+// WICHTIG: Der Wert muss den Doku-Pfad enthalten UND auf "/" enden. VitePress erzeugt
+// die Eintraege aus den Quellpfaden ("de/bedienung/dashboard") OHNE `base` und loest sie
+// per new URL(eintrag, hostname) auf -- fehlt der Doku-Pfad oder der abschliessende
+// Slash, zeigen alle Sitemap-URLs ins Leere.
+const SITEMAP_HOSTNAME = process.env.DOCS_SITEMAP_HOSTNAME || ''
+
 export default defineConfig({
   title: 'anyPIM',
   description: 'Dokumentation für das anyPIM Product Information Management System',
@@ -27,6 +38,10 @@ export default defineConfig({
   appearance: {
     initialValue: 'light',
   },
+
+  // Erzeugt beim Build dist/sitemap.xml mit allen Seiten beider Sprachen
+  // (inkl. hreflang-Verknuepfung DE<->EN, die VitePress automatisch setzt).
+  ...(SITEMAP_HOSTNAME ? { sitemap: { hostname: SITEMAP_HOSTNAME } } : {}),
 
   vite: {
     define: {
@@ -51,10 +66,17 @@ export default defineConfig({
       link: '/de/',
       themeConfig: {
         nav: [
-          { text: 'Produkt', link: '/de/marketing/' },
-          { text: 'Vertriebsmappe', link: '/de/marketing/vertriebsmappe' },
-          { text: 'Integrationen', link: '/de/marketing/integrationen' },
-          { text: 'KI & API', link: '/de/marketing/ki-uebersetzung' },
+          // Marketing-Seiten in einem Aufklappmenue gebuendelt -- sie belegten vorher
+          // 4 von 7 Nav-Plaetzen und dominierten damit vor allem das mobile Menue.
+          {
+            text: 'Produkt',
+            items: [
+              { text: 'Übersicht', link: '/de/marketing/' },
+              { text: 'Vertriebsmappe', link: '/de/marketing/vertriebsmappe' },
+              { text: 'Integrationen', link: '/de/marketing/integrationen' },
+              { text: 'KI & API', link: '/de/marketing/ki-uebersetzung' },
+            ],
+          },
           { text: 'Dokumentation', link: '/de/' },
           { text: 'API-Referenz', link: '/de/api/' },
           // Build-Zeit-Konstante (siehe APP_ROOT_PATH oben) statt hardcodierter Domain
@@ -63,6 +85,14 @@ export default defineConfig({
           { text: 'PIM öffnen', link: APP_ROOT_PATH },
         ],
         sidebar: {
+          // Marketing-Landingpages ohne Doku-Baum. VitePress sortiert die Sidebar-Keys
+          // nach Pfadtiefe absteigend, '/de/marketing/' gewinnt also gegen '/de/'; ein
+          // leeres Array setzt hasSidebar=false, die Seite rendert dann volle Breite.
+          '/de/marketing/': [],
+          // Gliederung spiegelt bewusst die Sidebar der Anwendung (AppSidebar.vue), damit
+          // ein Nutzer die Doku dort findet, wo er die Funktion in der App kennt.
+          // Reihenfolge folgt dem Nutzer-Pfad: kennenlernen -> installieren -> bedienen ->
+          // konfigurieren -> Daten austauschen -> ausspielen -> integrieren -> verwalten.
           '/de/': [
             {
               text: 'Erste Schritte',
@@ -70,85 +100,12 @@ export default defineConfig({
               items: [
                 { text: 'Einführung', link: '/de/' },
                 { text: 'Alleinstellungsmerkmale', link: '/de/intro/alleinstellungsmerkmale' },
+                // Bewusst doppelt (auch unter "Installation & Betrieb") -- Wegweiser für Neulinge.
+                { text: 'Schnellstart', link: '/de/installation/schnellstart' },
               ],
             },
             {
-              text: 'Architektur',
-              collapsed: false,
-              items: [
-                { text: 'Übersicht', link: '/de/architektur/' },
-                { text: 'Datenmodell', link: '/de/architektur/datenmodell' },
-                { text: 'Services & Events', link: '/de/architektur/services' },
-                { text: 'Vererbung', link: '/de/architektur/vererbung' },
-              ],
-            },
-            {
-              text: 'Bedienung',
-              collapsed: false,
-              items: [
-                { text: 'Übersicht', link: '/de/bedienung/' },
-                { text: 'Dashboard', link: '/de/bedienung/dashboard' },
-                { text: 'Produkte', link: '/de/bedienung/produkte' },
-                { text: 'Merkliste', link: '/de/bedienung/merkliste' },
-                { text: 'Workflow', link: '/de/bedienung/workflow' },
-                { text: 'Attribute', link: '/de/bedienung/attribute' },
-                { text: 'Hierarchien', link: '/de/bedienung/hierarchien' },
-                { text: 'Medien', link: '/de/bedienung/medien' },
-                { text: 'Preise', link: '/de/bedienung/preise' },
-                { text: 'Hersteller', link: '/de/bedienung/hersteller' },
-                { text: 'Beziehungstypen', link: '/de/bedienung/beziehungstypen' },
-                { text: 'Einheiten', link: '/de/bedienung/einheiten' },
-                { text: 'Wörterbuch', link: '/de/bedienung/woerterbuch' },
-                { text: 'Benutzerverwaltung', link: '/de/bedienung/benutzer' },
-                { text: 'Massenbearbeitung', link: '/de/bedienung/massenbearbeitung' },
-                { text: 'Varianten & Versionen', link: '/de/bedienung/varianten-versionen' },
-                { text: 'Projekte & Teams', link: '/de/bedienung/projekte-teams' },
-                { text: 'Übersetzungsjobs (XLIFF)', link: '/de/bedienung/uebersetzungsjobs' },
-              ],
-            },
-            {
-              text: 'KI & Automatisierung',
-              collapsed: false,
-              items: [
-                { text: 'Übersicht', link: '/de/ki/' },
-                { text: 'Copilot (KI-Assistent)', link: '/de/ki/copilot' },
-                { text: 'Semantische Suche', link: '/de/ki/semantische-suche' },
-                { text: 'Reel-Generator (Social-Video)', link: '/de/ki/reel-generator' },
-              ],
-            },
-            {
-              text: 'Erweitert',
-              collapsed: true,
-              items: [
-                { text: 'Berichte', link: '/de/erweitert/berichte' },
-                { text: 'PDF-Vorlagen', link: '/de/erweitert/pdf-vorlagen' },
-                { text: 'Katalog-Embed', link: '/de/erweitert/catalog-embed' },
-                { text: 'Katalog-Embed Architektur', link: '/de/erweitert/catalog-embed-architektur' },
-                { text: 'Planungskalender', link: '/de/erweitert/planungskalender' },
-                { text: 'Geplante Aktionen', link: '/de/erweitert/geplante-aktionen' },
-                { text: 'Preisregionen', link: '/de/erweitert/preisregionen' },
-                { text: 'Export-Jobs', link: '/de/erweitert/exportjobs' },
-                { text: 'Konnektoren & Integrationen', link: '/de/erweitert/konnektoren' },
-                { text: 'API-Designer', link: '/de/erweitert/api-designer' },
-                { text: 'Attribut-Mapping', link: '/de/erweitert/attribut-mapping' },
-                { text: 'Portale', link: '/de/erweitert/portale' },
-              ],
-            },
-            {
-              text: 'Administration',
-              collapsed: true,
-              items: [
-                { text: 'Rollen & Berechtigungen', link: '/de/administration/rollen' },
-                { text: 'Benutzer-Audit', link: '/de/administration/benutzer-audit' },
-                { text: 'Zugangslinks', link: '/de/administration/zugangslinks' },
-                { text: 'API-Tester', link: '/de/administration/api-tester' },
-                { text: 'Datenbank', link: '/de/administration/datenbank' },
-                { text: 'Journal', link: '/de/administration/journal' },
-                { text: 'BMEcat', link: '/de/administration/bmecat' },
-              ],
-            },
-            {
-              text: 'Installation',
+              text: 'Installation & Betrieb',
               collapsed: true,
               items: [
                 { text: 'Übersicht', link: '/de/installation/' },
@@ -161,33 +118,94 @@ export default defineConfig({
               ],
             },
             {
-              text: 'FAQ',
-              collapsed: true,
+              // "Daily Business" ist das Label, das die App-Oberflaeche auch auf Deutsch
+              // woertlich anzeigt (locales/chromeRawText.js: 'Daily Business': 'Daily Business')
+              // -- bewusst uebernommen, damit die Ueberschrift exakt der App-Sidebar entspricht.
+              text: 'Daily Business',
+              collapsed: false,
               items: [
-                { text: 'Häufige Fragen', link: '/de/faq/' },
+                { text: 'Übersicht', link: '/de/bedienung/' },
+                { text: 'Dashboard', link: '/de/bedienung/dashboard' },
+                { text: 'Produkte', link: '/de/bedienung/produkte' },
+                { text: 'Varianten & Versionen', link: '/de/bedienung/varianten-versionen' },
+                { text: 'Hierarchien', link: '/de/bedienung/hierarchien' },
+                { text: 'Merkliste', link: '/de/bedienung/merkliste' },
+                { text: 'Massenbearbeitung', link: '/de/bedienung/massenbearbeitung' },
+                { text: 'Workflow', link: '/de/bedienung/workflow' },
+                { text: 'Planungskalender', link: '/de/erweitert/planungskalender' },
+                { text: 'Geplante Aktionen', link: '/de/erweitert/geplante-aktionen' },
+                { text: 'Medien', link: '/de/bedienung/medien' },
               ],
             },
             {
-              text: 'Import',
+              text: 'Konfiguration',
               collapsed: true,
               items: [
-                { text: 'Übersicht', link: '/de/import/' },
+                { text: 'Attribute', link: '/de/bedienung/attribute' },
+                { text: 'Wörterbuch', link: '/de/bedienung/woerterbuch' },
+                { text: 'Einheiten', link: '/de/bedienung/einheiten' },
+                { text: 'Preise', link: '/de/bedienung/preise' },
+                { text: 'Preisregionen', link: '/de/erweitert/preisregionen' },
+                { text: 'Hersteller', link: '/de/bedienung/hersteller' },
+                { text: 'Beziehungstypen', link: '/de/bedienung/beziehungstypen' },
+              ],
+            },
+            {
+              text: 'Import & Export',
+              collapsed: true,
+              items: [
+                { text: 'Import — Übersicht', link: '/de/import/' },
                 { text: 'Excel-Format', link: '/de/import/excel-format' },
                 { text: 'Validierung', link: '/de/import/validierung' },
-              ],
-            },
-            {
-              text: 'Export',
-              collapsed: true,
-              items: [
-                { text: 'Übersicht', link: '/de/export/' },
+                { text: 'Export — Übersicht', link: '/de/export/' },
                 { text: 'JSON-Export', link: '/de/export/json-export' },
                 { text: 'Sheet-Designer (Excel)', link: '/de/export/sheet-designer' },
                 { text: 'Publixx-Export', link: '/de/export/publixx-export' },
+                { text: 'BMEcat', link: '/de/administration/bmecat' },
+                { text: 'Export-Jobs', link: '/de/erweitert/exportjobs' },
+                { text: 'Attribut-Mapping', link: '/de/erweitert/attribut-mapping' },
               ],
             },
             {
-              text: 'JSON API',
+              text: 'Publish & Ausgabe',
+              collapsed: true,
+              items: [
+                { text: 'Berichte', link: '/de/erweitert/berichte' },
+                { text: 'PDF-Vorlagen', link: '/de/erweitert/pdf-vorlagen' },
+                { text: 'Katalog-Embed', link: '/de/erweitert/catalog-embed' },
+                { text: 'Katalog-Embed Architektur', link: '/de/erweitert/catalog-embed-architektur' },
+                { text: 'Portale', link: '/de/erweitert/portale' },
+                { text: 'Reel-Generator (Social-Video)', link: '/de/ki/reel-generator' },
+              ],
+            },
+            {
+              text: 'KI & Automatisierung',
+              collapsed: true,
+              items: [
+                { text: 'Übersicht', link: '/de/ki/' },
+                { text: 'Copilot (KI-Assistent)', link: '/de/ki/copilot' },
+                { text: 'Semantische Suche', link: '/de/ki/semantische-suche' },
+              ],
+            },
+            {
+              text: 'Übersetzungen',
+              collapsed: true,
+              items: [
+                { text: 'Übersetzungen (TMS)', link: '/de/bedienung/uebersetzungen' },
+                { text: 'Übersetzungsjobs (XLIFF)', link: '/de/bedienung/uebersetzungsjobs' },
+              ],
+            },
+            {
+              // Eigene Top-Level-Gruppe, weil die App "Projektmanagement" als eigenen
+              // Bereich fuehrt (Geschwister von Administration), nicht als Unterpunkt.
+              text: 'Projektmanagement',
+              collapsed: true,
+              items: [
+                { text: 'Projekte & Teams', link: '/de/bedienung/projekte-teams' },
+              ],
+            },
+            {
+              text: 'Integrationen & API',
               collapsed: true,
               items: [
                 { text: 'Übersicht', link: '/de/api/' },
@@ -198,6 +216,38 @@ export default defineConfig({
                 { text: 'Hierarchien', link: '/de/api/hierarchien' },
                 { text: 'PQL-Abfragesprache', link: '/de/api/pql' },
                 { text: 'PimSync API', link: '/de/api/pim-sync' },
+                { text: 'API-Designer', link: '/de/erweitert/api-designer' },
+                { text: 'Konnektoren & Integrationen', link: '/de/erweitert/konnektoren' },
+              ],
+            },
+            {
+              text: 'Administration',
+              collapsed: true,
+              items: [
+                { text: 'Rollen & Berechtigungen', link: '/de/administration/rollen' },
+                { text: 'Benutzerverwaltung', link: '/de/bedienung/benutzer' },
+                { text: 'Benutzer-Audit', link: '/de/administration/benutzer-audit' },
+                { text: 'Zugangslinks', link: '/de/administration/zugangslinks' },
+                { text: 'Journal', link: '/de/administration/journal' },
+                { text: 'Datenbank', link: '/de/administration/datenbank' },
+                { text: 'API-Tester', link: '/de/administration/api-tester' },
+              ],
+            },
+            {
+              text: 'Architektur',
+              collapsed: true,
+              items: [
+                { text: 'Übersicht', link: '/de/architektur/' },
+                { text: 'Datenmodell', link: '/de/architektur/datenmodell' },
+                { text: 'Services & Events', link: '/de/architektur/services' },
+                { text: 'Vererbung', link: '/de/architektur/vererbung' },
+              ],
+            },
+            {
+              text: 'FAQ',
+              collapsed: true,
+              items: [
+                { text: 'Häufige Fragen', link: '/de/faq/' },
               ],
             },
           ],
@@ -242,10 +292,17 @@ export default defineConfig({
       link: '/en/',
       themeConfig: {
         nav: [
-          { text: 'Product', link: '/en/marketing/' },
-          { text: 'Sales Folder', link: '/en/marketing/sales-folder' },
-          { text: 'Integrations', link: '/en/marketing/integrations' },
-          { text: 'AI & API', link: '/en/marketing/ai-translation' },
+          // Marketing pages bundled into one dropdown -- they previously took
+          // 4 of 7 nav slots and dominated the mobile menu in particular.
+          {
+            text: 'Product',
+            items: [
+              { text: 'Overview', link: '/en/marketing/' },
+              { text: 'Sales Folder', link: '/en/marketing/sales-folder' },
+              { text: 'Integrations', link: '/en/marketing/integrations' },
+              { text: 'AI & API', link: '/en/marketing/ai-translation' },
+            ],
+          },
           { text: 'Documentation', link: '/en/' },
           { text: 'API Reference', link: '/en/api/' },
           // Build-time constant (see APP_ROOT_PATH above) instead of a hardcoded
@@ -254,6 +311,14 @@ export default defineConfig({
           { text: 'Open PIM', link: APP_ROOT_PATH },
         ],
         sidebar: {
+          // Marketing landing pages without the docs tree. VitePress sorts sidebar keys
+          // by path depth descending, so '/en/marketing/' beats '/en/'; an empty array
+          // sets hasSidebar=false and the page renders full width.
+          '/en/marketing/': [],
+          // Structure deliberately mirrors the application's own sidebar (AppSidebar.vue)
+          // so users find a doc where they know the feature in the app. Order follows the
+          // user journey: learn -> install -> operate -> configure -> exchange data ->
+          // publish -> integrate -> administer.
           '/en/': [
             {
               text: 'Getting Started',
@@ -261,85 +326,12 @@ export default defineConfig({
               items: [
                 { text: 'Introduction', link: '/en/' },
                 { text: 'Unique Features', link: '/en/intro/unique-features' },
+                // Deliberately duplicated (also under "Installation & Operations") as a signpost.
+                { text: 'Quick Start', link: '/en/installation/quickstart' },
               ],
             },
             {
-              text: 'Architecture',
-              collapsed: false,
-              items: [
-                { text: 'Overview', link: '/en/architecture/' },
-                { text: 'Data Model', link: '/en/architecture/data-model' },
-                { text: 'Services & Events', link: '/en/architecture/services' },
-                { text: 'Inheritance', link: '/en/architecture/inheritance' },
-              ],
-            },
-            {
-              text: 'Usage',
-              collapsed: false,
-              items: [
-                { text: 'Overview', link: '/en/usage/' },
-                { text: 'Dashboard', link: '/en/usage/dashboard' },
-                { text: 'Products', link: '/en/usage/products' },
-                { text: 'Watchlist', link: '/en/usage/watchlist' },
-                { text: 'Workflow', link: '/en/usage/workflow' },
-                { text: 'Attributes', link: '/en/usage/attributes' },
-                { text: 'Hierarchies', link: '/en/usage/hierarchies' },
-                { text: 'Media', link: '/en/usage/media' },
-                { text: 'Pricing', link: '/en/usage/pricing' },
-                { text: 'Manufacturers', link: '/en/usage/manufacturers' },
-                { text: 'Relation Types', link: '/en/usage/relation-types' },
-                { text: 'Units', link: '/en/usage/units' },
-                { text: 'Dictionary', link: '/en/usage/dictionary' },
-                { text: 'User Management', link: '/en/usage/users' },
-                { text: 'Bulk Editing', link: '/en/usage/bulk-editing' },
-                { text: 'Variants & Versions', link: '/en/usage/variants-versions' },
-                { text: 'Projects & Teams', link: '/en/usage/projects-teams' },
-                { text: 'Translation Jobs (XLIFF)', link: '/en/usage/translation-jobs' },
-              ],
-            },
-            {
-              text: 'AI & Automation',
-              collapsed: false,
-              items: [
-                { text: 'Overview', link: '/en/ai/' },
-                { text: 'Copilot (AI Assistant)', link: '/en/ai/copilot' },
-                { text: 'Semantic Search', link: '/en/ai/semantic-search' },
-                { text: 'Reel Generator (Social Video)', link: '/en/ai/reel-generator' },
-              ],
-            },
-            {
-              text: 'Advanced',
-              collapsed: true,
-              items: [
-                { text: 'Reports', link: '/en/advanced/reports' },
-                { text: 'PDF Templates', link: '/en/advanced/pdf-templates' },
-                { text: 'Catalog Embed', link: '/en/advanced/catalog-embed' },
-                { text: 'Catalog Embed Architecture', link: '/en/advanced/catalog-embed-architecture' },
-                { text: 'Planning Calendar', link: '/en/advanced/calendar' },
-                { text: 'Scheduled Actions', link: '/en/advanced/scheduled-actions' },
-                { text: 'Price Regions', link: '/en/advanced/price-regions' },
-                { text: 'Export Jobs', link: '/en/advanced/export-jobs' },
-                { text: 'Connectors & Integrations', link: '/en/advanced/connectors' },
-                { text: 'API Designer', link: '/en/advanced/api-designer' },
-                { text: 'Attribute Mapping', link: '/en/advanced/attribute-mapping' },
-                { text: 'Portals', link: '/en/advanced/portals' },
-              ],
-            },
-            {
-              text: 'Administration',
-              collapsed: true,
-              items: [
-                { text: 'Roles & Permissions', link: '/en/administration/roles' },
-                { text: 'User Audit', link: '/en/administration/user-audit' },
-                { text: 'Access Links', link: '/en/administration/access-links' },
-                { text: 'API Tester', link: '/en/administration/api-tester' },
-                { text: 'Database', link: '/en/administration/database' },
-                { text: 'Journal', link: '/en/administration/journal' },
-                { text: 'BMEcat', link: '/en/administration/bmecat' },
-              ],
-            },
-            {
-              text: 'Installation',
+              text: 'Installation & Operations',
               collapsed: true,
               items: [
                 { text: 'Overview', link: '/en/installation/' },
@@ -352,33 +344,96 @@ export default defineConfig({
               ],
             },
             {
-              text: 'FAQ',
-              collapsed: true,
+              // "Daily Business" is the literal label the app chrome shows in BOTH languages
+              // (locales/chromeRawText.js: 'Daily Business': 'Daily Business') -- kept verbatim
+              // so the heading matches the app sidebar word for word.
+              text: 'Daily Business',
+              collapsed: false,
               items: [
-                { text: 'Common Questions', link: '/en/faq/' },
+                { text: 'Overview', link: '/en/usage/' },
+                { text: 'Dashboard', link: '/en/usage/dashboard' },
+                { text: 'Products', link: '/en/usage/products' },
+                { text: 'Variants & Versions', link: '/en/usage/variants-versions' },
+                { text: 'Hierarchies', link: '/en/usage/hierarchies' },
+                { text: 'Watchlist', link: '/en/usage/watchlist' },
+                { text: 'Bulk Editing', link: '/en/usage/bulk-editing' },
+                { text: 'Workflow', link: '/en/usage/workflow' },
+                { text: 'Planning Calendar', link: '/en/advanced/calendar' },
+                { text: 'Scheduled Actions', link: '/en/advanced/scheduled-actions' },
+                { text: 'Media', link: '/en/usage/media' },
               ],
             },
             {
-              text: 'Import',
+              text: 'Configuration',
               collapsed: true,
               items: [
-                { text: 'Overview', link: '/en/import/' },
+                { text: 'Attributes', link: '/en/usage/attributes' },
+                { text: 'Dictionary', link: '/en/usage/dictionary' },
+                { text: 'Units', link: '/en/usage/units' },
+                { text: 'Pricing', link: '/en/usage/pricing' },
+                { text: 'Price Regions', link: '/en/advanced/price-regions' },
+                { text: 'Manufacturers', link: '/en/usage/manufacturers' },
+                { text: 'Relation Types', link: '/en/usage/relation-types' },
+              ],
+            },
+            {
+              text: 'Import & Export',
+              collapsed: true,
+              items: [
+                { text: 'Import — Overview', link: '/en/import/' },
                 { text: 'Excel Format', link: '/en/import/excel-format' },
                 { text: 'Validation', link: '/en/import/validation' },
-              ],
-            },
-            {
-              text: 'Export',
-              collapsed: true,
-              items: [
-                { text: 'Overview', link: '/en/export/' },
+                { text: 'Export — Overview', link: '/en/export/' },
                 { text: 'JSON Export', link: '/en/export/json-export' },
                 { text: 'Sheet Designer (Excel)', link: '/en/export/sheet-designer' },
                 { text: 'Publixx Export', link: '/en/export/publixx-export' },
+                { text: 'BMEcat', link: '/en/administration/bmecat' },
+                { text: 'Export Jobs', link: '/en/advanced/export-jobs' },
+                { text: 'Attribute Mapping', link: '/en/advanced/attribute-mapping' },
               ],
             },
             {
-              text: 'JSON API',
+              text: 'Publishing & Output',
+              collapsed: true,
+              items: [
+                { text: 'Reports', link: '/en/advanced/reports' },
+                { text: 'PDF Templates', link: '/en/advanced/pdf-templates' },
+                { text: 'Catalog Embed', link: '/en/advanced/catalog-embed' },
+                { text: 'Catalog Embed Architecture', link: '/en/advanced/catalog-embed-architecture' },
+                { text: 'Portals', link: '/en/advanced/portals' },
+                { text: 'Reel Generator (Social Video)', link: '/en/ai/reel-generator' },
+              ],
+            },
+            {
+              text: 'AI & Automation',
+              collapsed: true,
+              items: [
+                { text: 'Overview', link: '/en/ai/' },
+                { text: 'Copilot (AI Assistant)', link: '/en/ai/copilot' },
+                { text: 'Semantic Search', link: '/en/ai/semantic-search' },
+              ],
+            },
+            {
+              text: 'Translation',
+              collapsed: true,
+              items: [
+                { text: 'Translations (TMS)', link: '/en/usage/translations' },
+                { text: 'Translation Jobs (XLIFF)', link: '/en/usage/translation-jobs' },
+              ],
+            },
+            {
+              // Own top-level group because the app has "Projektmanagement" as a section of
+              // its own (sibling of Administration), not as a child of it.
+              text: 'Project Management',
+              collapsed: true,
+              items: [
+                { text: 'Projects & Teams', link: '/en/usage/projects-teams' },
+              ],
+            },
+            {
+              // Note: API Keys and PimSync exist in German only -- no EN pages for them,
+              // so this group has 8 entries where the German one has 10.
+              text: 'Integrations & API',
               collapsed: true,
               items: [
                 { text: 'Overview', link: '/en/api/' },
@@ -387,6 +442,38 @@ export default defineConfig({
                 { text: 'Attributes', link: '/en/api/attributes' },
                 { text: 'Hierarchies', link: '/en/api/hierarchies' },
                 { text: 'PQL Query Language', link: '/en/api/pql' },
+                { text: 'API Designer', link: '/en/advanced/api-designer' },
+                { text: 'Connectors & Integrations', link: '/en/advanced/connectors' },
+              ],
+            },
+            {
+              text: 'Administration',
+              collapsed: true,
+              items: [
+                { text: 'Roles & Permissions', link: '/en/administration/roles' },
+                { text: 'User Management', link: '/en/usage/users' },
+                { text: 'User Audit', link: '/en/administration/user-audit' },
+                { text: 'Access Links', link: '/en/administration/access-links' },
+                { text: 'Journal', link: '/en/administration/journal' },
+                { text: 'Database', link: '/en/administration/database' },
+                { text: 'API Tester', link: '/en/administration/api-tester' },
+              ],
+            },
+            {
+              text: 'Architecture',
+              collapsed: true,
+              items: [
+                { text: 'Overview', link: '/en/architecture/' },
+                { text: 'Data Model', link: '/en/architecture/data-model' },
+                { text: 'Services & Events', link: '/en/architecture/services' },
+                { text: 'Inheritance', link: '/en/architecture/inheritance' },
+              ],
+            },
+            {
+              text: 'FAQ',
+              collapsed: true,
+              items: [
+                { text: 'Common Questions', link: '/en/faq/' },
               ],
             },
           ],
