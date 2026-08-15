@@ -7,14 +7,53 @@ Ergänzt `tms-bestandsaufnahme.md` (Einzelbefunde). Dieses Dokument bewertet das
 
 ---
 
+## 0. Getroffene Entscheidung (2026-08-15)
+
+> **Das Translation Memory wird NICHT für Attributwerte genutzt.**
+> Begründung: Der Nutzen ist zweifelhaft — siehe Abschnitt 2.3 und 3. Das TM
+> trifft nur exakt und auf ganze Felder; bei Produkttexten geht die Trefferquote
+> gegen null, während Aufwand und Risiko (Homonyme, Volumen) voll anfallen.
+
+**Damit entfällt:**
+
+- Ingest von `ProductAttributeValue` ins TM (inkrementelles Wasserzeichen,
+  Längenlimit, Volumenproblem bei Millionen Zeilen)
+- Rückschreiben aus dem TM nach `ProductAttributeValue`
+- Eingrenzung des TM-Ingests per Suchprofil
+- Die zweite Stufe an `is_translatable` („per TM" / „per Auftrag") — das Flag
+  bedeutet jetzt eindeutig: Auftragsweg
+
+**Damit bleibt:**
+
+- Das TM bleibt für **Metadaten** zuständig. Dort ist die globale Vereinheitlichung
+  eines Begriffs gewollt, die Textmenge klein und die Wiederholung hoch.
+- Attributwerte laufen ausschließlich über **Übersetzungs-Jobs + XLIFF** zur
+  Agentur. Deren CAT-Werkzeug bringt Segmentierung und Fuzzy-Matching mit — genau
+  die Fähigkeiten, die diesem TM fehlen.
+
+**Offener Widerspruch im Bestandscode:** `TranslationJobService::importTranslations()`
+ruft in Zeile 288 unbedingt `syncToTms()` auf und schiebt **alle** übersetzten
+Positionen ins TM, `entity_type = 'product'` eingeschlossen. Attributwerte landen
+damit heute bereits im TM. Zu klären ist, ob dieser Rückfluss
+
+- **(a)** abgeschaltet wird (TM bleibt sauber auf Metadaten beschränkt), oder
+- **(b)** als reiner Sammelbestand erhalten bleibt, aus dem nie für Produkte
+  gelesen wird.
+
+Relevanz von (b): Weil die `domain` nicht in den Hash eingeht, kann eine aus einem
+Produkttext stammende Übersetzung vom Metadaten-Sync zurückgelesen werden, sobald
+die Quelltexte übereinstimmen. Bei „Schwarz" ist das erwünscht, bei „Bank" nicht.
+
+---
+
 ## 1. Urteil vorweg
 
 | Teilziel | Trägt das Konzept? |
 |----------|--------------------|
 | Neue Sprache anlegen | **Ja** — seit der neuen `languages`-Tabelle. Vorher gar nicht. |
 | Metadaten nach Finnisch übersetzen | **Ja** — Ingest → `translate-missing` → Sync deckt das vollständig ab. |
-| Übersetzungsrelevante Attributwerte übersetzen | **Nur eingeschränkt** — siehe Abschnitt 3. Der Nutzen ist real, aber ungleich verteilt. |
-| Produkte per Suchprofil eingrenzen | **Ja**, konzeptionell sauber — `SearchProfileQueryBuilder` existiert und ist der richtige Hebel. |
+| Übersetzungsrelevante Attributwerte übersetzen | **Nicht über das TM** — Entscheidung vom 2026-08-15, siehe Abschnitt 0. Läuft über Übersetzungs-Jobs + XLIFF. |
+| Produkte per Suchprofil eingrenzen | Für den TM-Weg gegenstandslos. Für Übersetzungs-Jobs weiterhin sinnvoll — `SearchProfileQueryBuilder` ist dort der richtige Hebel. |
 | Austausch mit Trados/Across | **Ja**, aber nur mit beiden Formaten: XLIFF für Aufträge, TMX für Bestände. |
 
 Das Fundament trägt. Die drei Strukturprobleme in Abschnitt 2 sind aber real und
@@ -155,25 +194,29 @@ warnt inzwischen, wenn beide auseinanderlaufen — das ist eine Krücke, keine L
 
 ## 5. Empfohlene Reihenfolge
 
+Nach der Entscheidung aus Abschnitt 0:
+
 1. **Vue-Oberfläche für das Sprachen-CRUD** — ohne sie ist Schritt 1 nicht „per GUI".
 2. **Sprachliste wirklich einzügig machen:** Das PIM schickt die Zielsprachen im
    Ingest-Payload mit, das TMS hört auf, seine eigene Env zu lesen. Damit
    verschwindet die Drift-Klasse von Fehlern ganz statt nur überwacht zu werden.
-3. **TM-Abfrage vor DeepL** in `TranslationJobService`. Größter Sofort-Effekt,
-   kleinster Eingriff — und Voraussetzung dafür, dass die beiden Systeme
-   überhaupt zusammenarbeiten.
-4. **Attributwerte anbinden**, inkrementell (Wasserzeichen über `updated_at`),
-   gefiltert über `is_translatable`, eingegrenzt per Suchprofil, mit Längenlimit
-   (der Ingest validiert `max:10000` Zeichen — längere Werte kippen sonst den
-   ganzen Batch).
-5. **Zweistufiges `is_translatable`** („per TM" / „per Auftrag"), damit Langtexte
-   das TM nicht verwässern.
-6. **XLIFF im TMS** für den Auftragsweg, **TMX** für den Bestandsaustausch. TMX
-   ist der einzige Weg, ein vorhandenes Kunden-TM zu übernehmen — bei einer neuen
-   Sprache ist das der größte einzelne Kostenhebel.
+3. **Rückfluss von Produkttexten ins TM klären** (Abschnitt 0, (a) oder (b)) und
+   den Code an die Entscheidung angleichen.
+4. **TMX-Import** — der größte einzelne Kostenhebel bei einer neuen Sprache, weil
+   er einen vorhandenen Kundenbestand übernimmt, statt ihn neu zu bezahlen.
+   Betrifft die Metadaten-Seite und bleibt von der Entscheidung unberührt.
+5. **XLIFF im TMS** für den Auftragsweg — nur noch nötig, wenn Metadaten extern
+   übersetzt werden sollen. Für Attributwerte existiert der XLIFF-Weg bereits
+   PIM-seitig (`TranslationXliffController`).
+6. **Quellsprache aus der `languages`-Tabelle** auch für `ENTITY_MAP.source_field`
+   (aktuell 10× `name_de` hart verdrahtet).
 7. **Kontext in den Hash** (`domain` mit einbeziehen) — nur zusammen mit einem
-   vollständigen Neu-Ingest, deshalb bewusst zuletzt. Vorher entscheiden, ob die
-   globale Vereinheitlichung von Metadaten-Begriffen erhalten bleiben soll.
+   vollständigen Neu-Ingest, deshalb bewusst zuletzt. Nach der Entscheidung ist
+   der Druck geringer: bleibt das TM auf Metadaten beschränkt, ist die globale
+   Vereinheitlichung eines Begriffs gewollt und die Kollisionsgefahr klein.
+
+**Entfallen** gegenüber der ersten Fassung: Attributwert-Ingest, Suchprofil-
+Eingrenzung des TM-Ingests, zweistufiges `is_translatable`.
 
 ---
 
