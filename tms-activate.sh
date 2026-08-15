@@ -32,7 +32,6 @@
 #   --openai-key=KEY       OpenAI API-Key
 #   --openai-model=NAME    OpenAI Modell (Standard: gpt-4o)
 #   --provider-chain=A,B   Reihenfolge der Uebersetzungs-Provider
-#   --languages=de,en,...  Ruecktfall-Zielsprachen fuer tms/.env
 #   --port=8001            Port des TMS (Standard: aus TMS_BASE_URL)
 #   --no-restart           Apache und Supervisor nicht anfassen
 #   --help | -h            Diese Hilfe
@@ -113,7 +112,6 @@ OPT_ANTHROPIC_MODEL=""
 OPT_OPENAI_KEY=""
 OPT_OPENAI_MODEL=""
 OPT_PROVIDER_CHAIN=""
-OPT_LANGUAGES=""
 OPT_PORT=""
 
 for arg in "$@"; do
@@ -129,7 +127,6 @@ for arg in "$@"; do
         --openai-key=*)       OPT_OPENAI_KEY="${arg#*=}" ;;
         --openai-model=*)     OPT_OPENAI_MODEL="${arg#*=}" ;;
         --provider-chain=*)   OPT_PROVIDER_CHAIN="${arg#*=}" ;;
-        --languages=*)        OPT_LANGUAGES="${arg#*=}" ;;
         --port=*)             OPT_PORT="${arg#*=}" ;;
         --help|-h)
             sed -n '2,48p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -312,7 +309,6 @@ if [ "$ONLY_STATUS" = false ]; then
 
     set_env "$PIM_ENV" "TMS_BASE_URL" "http://127.0.0.1:${TMS_PORT}/api"
     default_env "$PIM_ENV" "TMS_TIMEOUT" "5"
-    [ -n "$OPT_LANGUAGES" ] && set_env "$PIM_ENV" "TMS_TARGET_LANGUAGES" "$OPT_LANGUAGES"
     info "TMS_BASE_URL und TMS_TIMEOUT gesetzt."
 else
     SHARED_KEY="$PIM_KEY"
@@ -330,7 +326,9 @@ if [ "$ONLY_STATUS" = false ]; then
         PIM_DB_NAME="$(read_env "$PIM_ENV" "DB_DATABASE")"
         PIM_DB_USER="$(read_env "$PIM_ENV" "DB_USERNAME")"
         PIM_DB_PASS="$(read_env "$PIM_ENV" "DB_PASSWORD")"
-        PIM_LANGS="$(read_env "$PIM_ENV" "TMS_TARGET_LANGUAGES")"
+        # Aus der Sprachverwaltung (Tabelle `languages`), nicht aus einer .env:
+        # dort werden die Sprachen gepflegt, und nur dort.
+        PIM_LANGS="$(cd "$INSTALL_DIR" && php artisan pim:languages --targets 2>/dev/null | tail -1 || true)"
         PIM_LANGS="${PIM_LANGS:-en,fr,es,it,nl}"
 
         cat > "${TMS_DIR}/.env" <<TMSENV
@@ -365,6 +363,9 @@ QUEUE_FAILED_DRIVER=database-uuids
 
 TMS_API_KEY=${SHARED_KEY}
 
+# Nur Rueckfallebene: die Zielsprachen kommen bei jedem Ingest aus der
+# Sprachverwaltung des PIM mit. Diese Zeile greift lediglich, wenn ein
+# Aufrufer sie nicht mitschickt.
 TMS_TARGET_LANGUAGES=${PIM_LANGS}
 TMS_PROVIDER_CHAIN=deepl,google
 TMS_CACHE_TTL=86400
@@ -411,7 +412,6 @@ TMSENV
     [ -n "$OPT_OPENAI_KEY" ]       && { set_env "${TMS_DIR}/.env" "OPENAI_API_KEY" "$OPT_OPENAI_KEY";              info "OpenAI-Key gesetzt: $(mask "$OPT_OPENAI_KEY")"; }
     [ -n "$OPT_OPENAI_MODEL" ]     && { set_env "${TMS_DIR}/.env" "OPENAI_MODEL" "$OPT_OPENAI_MODEL";              info "OpenAI-Modell: ${OPT_OPENAI_MODEL}"; }
     [ -n "$OPT_PROVIDER_CHAIN" ]   && { set_env "${TMS_DIR}/.env" "TMS_PROVIDER_CHAIN" "$OPT_PROVIDER_CHAIN";      info "Provider-Reihenfolge: ${OPT_PROVIDER_CHAIN}"; }
-    [ -n "$OPT_LANGUAGES" ]        && { set_env "${TMS_DIR}/.env" "TMS_TARGET_LANGUAGES" "$OPT_LANGUAGES";         info "Zielsprachen (Rueckfall): ${OPT_LANGUAGES}"; }
 
     if [ "$(read_env "${TMS_DIR}/.env" "APP_DEBUG")" = "true" ]; then
         warn "APP_DEBUG=true in tms/.env — fuer den Produktivbetrieb auf false setzen."
@@ -429,7 +429,7 @@ TMSENV
     echo -e "    ANTHROPIC_API_KEY        $(mask "$(read_env "${TMS_DIR}/.env" "ANTHROPIC_API_KEY")")"
     echo -e "    OPENAI_API_KEY           $(mask "$(read_env "${TMS_DIR}/.env" "OPENAI_API_KEY")")"
     echo -e "    TMS_PROVIDER_CHAIN       $(read_env "${TMS_DIR}/.env" "TMS_PROVIDER_CHAIN")"
-    echo -e "    TMS_TARGET_LANGUAGES     $(read_env "${TMS_DIR}/.env" "TMS_TARGET_LANGUAGES")"
+    echo -e "    TMS_TARGET_LANGUAGES     $(read_env "${TMS_DIR}/.env" "TMS_TARGET_LANGUAGES")  ${BOLD}(nur Rueckfall)${NC}"
     echo ""
 
     chown www-data:www-data "${TMS_DIR}/.env" 2>/dev/null || true

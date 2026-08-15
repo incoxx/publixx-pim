@@ -23,12 +23,13 @@ const syncLoading = ref(false)
 const deleteLoading = ref(false)
 const actionLog = ref([])
 const unitsPage = ref(1)
-const missingPage = ref(1)
 
 const tabs = [
   { key: 'overview', label: 'Übersicht', icon: BarChart3 },
+  // "Fehlend" war ein eigener Tab, lieferte aber dieselbe Liste wie der
+  // Statusfilter "Fehlend" im Tab "Begriffe" — zwei Wege zum selben Ergebnis,
+  // nur mit unterschiedlichem Funktionsumfang. Jetzt ein Ort, ein Filter.
   { key: 'units', label: 'Begriffe', icon: Globe },
-  { key: 'missing', label: 'Fehlend', icon: AlertCircle },
   { key: 'settings', label: 'Einstellungen', icon: Settings },
 ]
 
@@ -55,6 +56,41 @@ const languageOptions = computed(() =>
     .map(l => ({ value: l.code, label: l.label })),
 )
 
+// Alle Begriffe stammen aus derselben Quellsprache — sie gehoert in die
+// Spaltenueberschrift, nicht in jede einzelne Zeile.
+const sourceLangLabel = computed(() =>
+  (localeStore.availableLocales.find(l => l.is_source)?.code || 'de').toUpperCase(),
+)
+
+/**
+ * Uebersetzung in der gewaehlten Zielsprache.
+ *
+ * Die Liste laedt sie ueber den lang-Parameter mit. Fehlt sie, ist der Begriff
+ * in dieser Sprache schlicht noch nicht uebersetzt.
+ */
+function translationOf(unit) {
+  return unit.translations?.[0] ?? null
+}
+
+function statusOf(unit) {
+  const t = translationOf(unit)
+
+  if (!t) {
+    return { label: 'Fehlend', done: false, class: 'bg-amber-500/10 text-amber-600' }
+  }
+  if (t.status === 'reviewed') {
+    return { label: 'Geprüft', done: true, class: 'bg-green-500/10 text-green-600' }
+  }
+
+  // 'auto' umfasst maschinelle Uebersetzungen und aus dem PIM uebernommene
+  // Werte — der Provider unterscheidet beide.
+  return {
+    label: t.provider === 'import' ? 'Aus PIM' : 'Automatisch',
+    done: true,
+    class: 'bg-blue-500/10 text-blue-600',
+  }
+}
+
 onMounted(async () => {
   await localeStore.fetchLanguages()
 
@@ -68,7 +104,6 @@ onMounted(async () => {
 
 watch(activeTab, (tab) => {
   if (tab === 'units') loadUnits()
-  if (tab === 'missing') loadMissing()
   if (tab === 'overview') store.fetchStats()
 })
 
@@ -79,14 +114,6 @@ function loadUnits() {
     search: searchQuery.value || undefined,
     domain: selectedDomain.value || undefined,
     status: selectedStatus.value || undefined,
-    lang: selectedLang.value,
-  })
-}
-
-function loadMissing() {
-  store.fetchMissing({
-    page: missingPage.value,
-    per_page: 50,
     lang: selectedLang.value,
   })
 }
@@ -104,19 +131,13 @@ function closePanel() {
 
 function onSearch() {
   unitsPage.value = 1
-  missingPage.value = 1
   if (activeTab.value === 'units') loadUnits()
-  if (activeTab.value === 'missing') loadMissing()
 }
 
 function goToPage(p) {
-  if (activeTab.value === 'units') {
-    unitsPage.value = p
-    loadUnits()
-  } else if (activeTab.value === 'missing') {
-    missingPage.value = p
-    loadMissing()
-  }
+  if (activeTab.value !== 'units') return
+  unitsPage.value = p
+  loadUnits()
 }
 
 function addLog(type, message) {
@@ -136,7 +157,8 @@ const glossaryFileInput = ref(null)
 function exportGlossary(format) {
   const url = translationsApi.glossaryExportUrl({
     langs: selectedLang.value,
-    status: activeTab.value === 'missing' ? 'missing' : 'all',
+    // Exportiert, was gerade gefiltert ist — nicht mehr an einen Tab gebunden.
+    status: selectedStatus.value || 'all',
     domain: selectedDomain.value || '',
     format,
   })
@@ -160,7 +182,7 @@ async function onGlossaryFile(event) {
       addLog('info', `${data.skipped_rows} Zeilen ohne Schlüssel übersprungen.`)
     }
     await store.fetchStats()
-    if (activeTab.value === 'missing') loadMissing()
+    if (activeTab.value === 'units') loadUnits()
   } catch (e) {
     addLog('error', 'Import fehlgeschlagen: ' + (e.response?.data?.message || e.message))
   } finally {
@@ -188,7 +210,7 @@ async function rolloutLanguage() {
     })
     addLog('success', `${total} Begriffe für "${lang}" eingeplant. Übersetzung läuft im Hintergrund.`)
     await store.fetchStats()
-    loadMissing()
+    loadUnits()
   } catch (e) {
     addLog('error', 'Rollout fehlgeschlagen: ' + (e.response?.data?.message || e.message))
   } finally {
@@ -278,17 +300,11 @@ function dismissError() {
   store.error = null
 }
 
-const pagination = computed(() => {
-  return activeTab.value === 'missing' ? store.missingPagination : store.unitsPagination
-})
+const pagination = computed(() => store.unitsPagination)
 
-const displayedUnits = computed(() => {
-  return activeTab.value === 'missing' ? store.missingUnits : store.units
-})
+const displayedUnits = computed(() => store.units)
 
-const tableLoading = computed(() => {
-  return activeTab.value === 'missing' ? store.missingLoading : store.unitsLoading
-})
+const tableLoading = computed(() => store.unitsLoading)
 
 const paginationPages = computed(() => {
   const last = pagination.value.lastPage || 1
@@ -371,7 +387,7 @@ const paginationPages = computed(() => {
     </div>
 
     <!-- Tab: Units / Missing -->
-    <div v-if="activeTab === 'units' || activeTab === 'missing'">
+    <div v-if="activeTab === 'units'">
       <!-- Toolbar -->
       <div class="flex flex-wrap items-center gap-2 sm:gap-3 mb-4">
         <div class="relative flex-1 min-w-[200px]">
@@ -385,16 +401,21 @@ const paginationPages = computed(() => {
           />
         </div>
 
-        <select
-          v-model="selectedLang"
-          class="px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md"
-          @change="onSearch"
-        >
-          <option v-for="opt in languageOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-        </select>
+        <!-- Zielsprache: bestimmt, welche Uebersetzung die Liste zeigt, worauf
+             sich der Statusfilter bezieht und was der Export enthaelt. Die
+             Quellsprache steht nicht zur Wahl — aus ihr kommt jeder Begriff. -->
+        <label class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+          <span class="whitespace-nowrap">Zielsprache</span>
+          <select
+            v-model="selectedLang"
+            class="px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md"
+            @change="onSearch"
+          >
+            <option v-for="opt in languageOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
+        </label>
 
         <select
-          v-if="activeTab === 'units'"
           v-model="selectedDomain"
           class="flex-1 sm:flex-none min-w-0 px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md"
           @change="onSearch"
@@ -403,7 +424,6 @@ const paginationPages = computed(() => {
         </select>
 
         <select
-          v-if="activeTab === 'units'"
           v-model="selectedStatus"
           class="flex-1 sm:flex-none min-w-0 px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md"
           @change="onSearch"
@@ -415,9 +435,9 @@ const paginationPages = computed(() => {
         </select>
 
         <!-- Neue Zielsprache ausrollen: plant alle fehlenden Begriffe der
-             gewählten Sprache zur maschinellen Übersetzung ein. -->
+             gewählten Sprache zur maschinellen Übersetzung ein. Bezieht sich
+             auf die Zielsprache, nicht auf den gerade sichtbaren Filter. -->
         <button
-          v-if="activeTab === 'missing'"
           class="px-3 py-2 text-sm rounded-md bg-[var(--color-accent)] text-white disabled:opacity-50"
           :disabled="rolloutLoading"
           :title="`Alle fehlenden Begriffe für '${selectedLang}' übersetzen lassen`"
@@ -467,10 +487,14 @@ const paginationPages = computed(() => {
         <table class="w-full text-sm min-w-[600px]">
           <thead>
             <tr class="border-b border-[var(--color-border)] bg-[var(--color-bg)]">
-              <th class="text-left px-4 py-3 font-medium text-[var(--color-text-secondary)]">Quelltext</th>
-              <th class="text-left px-4 py-3 font-medium text-[var(--color-text-secondary)]">Sprache</th>
+              <th class="text-left px-4 py-3 font-medium text-[var(--color-text-secondary)]">
+                Quelltext <span class="font-normal text-xs text-[var(--color-text-tertiary)]">({{ sourceLangLabel }})</span>
+              </th>
               <th class="text-left px-4 py-3 font-medium text-[var(--color-text-secondary)]">Bereich</th>
-              <th class="text-left px-4 py-3 font-medium text-[var(--color-text-secondary)]">Übersetzungen</th>
+              <th class="text-left px-4 py-3 font-medium text-[var(--color-text-secondary)]">
+                Übersetzung <span class="font-normal text-xs text-[var(--color-text-tertiary)]">({{ selectedLang.toUpperCase() }})</span>
+              </th>
+              <th class="text-left px-4 py-3 font-medium text-[var(--color-text-secondary)]">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -495,24 +519,21 @@ const paginationPages = computed(() => {
                 {{ unit.source_text }}
               </td>
               <td class="px-4 py-3 text-[var(--color-text-secondary)]">
-                <span class="uppercase text-xs font-mono bg-[var(--color-bg)] px-1.5 py-0.5 rounded">{{ unit.source_lang }}</span>
-              </td>
-              <td class="px-4 py-3 text-[var(--color-text-secondary)]">
                 {{ unit.domain || '—' }}
+              </td>
+              <td class="px-4 py-3 max-w-[300px] truncate" :class="translationOf(unit) ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'">
+                {{ translationOf(unit)?.translation || '—' }}
               </td>
               <td class="px-4 py-3">
                 <span
-                  v-if="unit.translations_count !== undefined"
                   :class="[
                     'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
-                    unit.translations_count > 0
-                      ? 'bg-green-500/10 text-green-600'
-                      : 'bg-amber-500/10 text-amber-600'
+                    statusOf(unit).class,
                   ]"
                 >
-                  <Check v-if="unit.translations_count > 0" class="w-3 h-3" />
+                  <Check v-if="statusOf(unit).done" class="w-3 h-3" />
                   <AlertCircle v-else class="w-3 h-3" />
-                  {{ unit.translations_count }}
+                  {{ statusOf(unit).label }}
                 </span>
               </td>
             </tr>
@@ -659,17 +680,44 @@ const paginationPages = computed(() => {
 
       <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4 sm:p-6">
         <h2 class="text-base font-medium text-[var(--color-text-primary)] mb-4">Konfiguration</h2>
-        <div class="text-sm text-[var(--color-text-secondary)] space-y-2">
-          <p>Die TMS-Konfiguration erfolgt über Umgebungsvariablen:</p>
-          <ul class="list-disc list-inside ml-2 space-y-1 text-xs font-mono text-[var(--color-text-tertiary)]">
-            <li>TMS_ENABLED — TMS aktivieren/deaktivieren</li>
-            <li>TMS_BASE_URL — URL der TMS-App</li>
-            <li>TMS_API_KEY — Shared API Key</li>
-            <li>TMS_TARGET_LANGUAGES — Zielsprachen (kommasepariert)</li>
-            <li>DEEPL_API_KEY — DeepL API Schlüssel</li>
-            <li>GOOGLE_TRANSLATE_API_KEY — Google Translate Schlüssel</li>
-            <li>ANTHROPIC_API_KEY — Claude API Schlüssel</li>
-          </ul>
+        <div class="text-sm text-[var(--color-text-secondary)] space-y-4">
+          <div>
+            <p class="mb-1">
+              <span class="font-medium text-[var(--color-text-primary)]">Zielsprachen</span>
+              werden nicht hier konfiguriert, sondern unter
+              <RouterLink to="/languages" class="text-[var(--color-accent)] hover:underline">Sprachen</RouterLink>
+              gepflegt. Von dort kommen auch Quellsprache und Reihenfolge.
+            </p>
+          </div>
+
+          <div>
+            <div class="font-medium text-[var(--color-text-primary)] mb-1">Verbindung — in der PIM-<code>.env</code></div>
+            <ul class="list-disc list-inside ml-2 space-y-1 text-xs font-mono text-[var(--color-text-tertiary)]">
+              <li>TMS_ENABLED — TMS aktivieren/deaktivieren</li>
+              <li>TMS_BASE_URL — URL des TMS-Dienstes</li>
+              <li>TMS_API_KEY — gemeinsames Kennwort, muss in beiden Dateien identisch sein</li>
+            </ul>
+          </div>
+
+          <div>
+            <div class="font-medium text-[var(--color-text-primary)] mb-1">Übersetzungs-Anbieter — in <code>tms/.env</code></div>
+            <ul class="list-disc list-inside ml-2 space-y-1 text-xs font-mono text-[var(--color-text-tertiary)]">
+              <li>TMS_API_KEY — Gegenstück zur PIM-.env</li>
+              <li>TMS_PROVIDER_CHAIN — Reihenfolge der Anbieter</li>
+              <li>DEEPL_API_KEY — DeepL</li>
+              <li>GOOGLE_TRANSLATE_API_KEY — Google Translate</li>
+              <li>ANTHROPIC_API_KEY — Claude</li>
+              <li>OPENAI_API_KEY — OpenAI</li>
+            </ul>
+            <p class="text-xs mt-2 text-[var(--color-text-tertiary)]">
+              Ohne Anbieter-Schlüssel sammelt das Translation Memory nur Begriffe und übersetzt nichts maschinell.
+            </p>
+          </div>
+
+          <p class="text-xs text-[var(--color-text-tertiary)]">
+            Beide Dateien abgleichen, Dienst starten und die Verbindung prüfen:
+            <code>sudo bash tms-activate.sh</code>
+          </p>
         </div>
       </div>
     </div>

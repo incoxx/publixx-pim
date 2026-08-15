@@ -217,6 +217,14 @@ class TmsClient
 
     /**
      * Batch-import pre-translated items into TMS.
+     *
+     * Wird auch vom Ingest genutzt, um im PIM bereits gepflegte Uebersetzungen
+     * (z.B. name_en neben name_de) als fertige Uebersetzung des Quelltexts zu
+     * melden — statt sie als zweites Quell-Segment anzulegen. Das TMS plant
+     * dadurch fuer diese Sprache keine maschinelle Uebersetzung mehr ein.
+     *
+     * @return array<int, array<string, mixed>>  eine Antwort je 200er-Batch,
+     *                                           fehlgeschlagene Batches liefern []
      */
     public function importTranslations(array $items): array
     {

@@ -202,6 +202,137 @@ class IngestToTmsJobTest extends TestCase
         $this->assertSame(2, $failed->getValue($job), '250 Entitäten bei Batchgroesse 200 = 2 Batches.');
     }
 
+    // ─── Quellsprache vs. gepflegte Übersetzung ──────────────────────────
+
+    /**
+     * Nur die Quellsprache bildet eine Unit. name_en ist keine zweite Quelle,
+     * sondern die fertige Übersetzung von name_de — sonst lägen zwei Units im
+     * TM, von denen der Rückweg (SyncTmsTranslationsJob) nur die deutsche je
+     * nachschlägt, während die englische weitere MT-Läufe auslöst.
+     */
+    public function test_only_source_language_becomes_a_source_unit(): void
+    {
+        Http::fake([
+            '*/import-translations' => Http::response(['imported' => 1], 200),
+            '*/ingest' => Http::response([], 202),
+        ]);
+
+        $entities = [[
+            'entity_type' => 'attribute',
+            'entity_id' => 'uuid-1',
+            'entity_label' => 'weight',
+            'fields' => [
+                ['field' => 'name_de', 'text' => 'Gewicht', 'lang' => 'de'],
+                ['field' => 'name_en', 'text' => 'Weight', 'lang' => 'en'],
+            ],
+        ]];
+
+        $sent = $this->callPrivate('sendBatches', [$this->client(), $entities, 200]);
+
+        $this->assertSame(1, $sent, 'Genau eine Quell-Unit — nicht zwei.');
+
+        Http::assertSent(function ($request) {
+            if (!str_contains($request->url(), '/ingest')) {
+                return false;
+            }
+            $fields = $request['entities'][0]['fields'];
+
+            return count($fields) === 1 && $fields[0]['field'] === 'name_de';
+        });
+    }
+
+    public function test_secondary_language_is_reported_as_existing_translation(): void
+    {
+        Http::fake([
+            '*/import-translations' => Http::response(['imported' => 1], 200),
+            '*/ingest' => Http::response([], 202),
+        ]);
+
+        $entities = [[
+            'entity_type' => 'attribute',
+            'entity_id' => 'uuid-1',
+            'entity_label' => 'weight',
+            'fields' => [
+                ['field' => 'name_de', 'text' => 'Gewicht', 'lang' => 'de'],
+                ['field' => 'name_en', 'text' => 'Weight', 'lang' => 'en'],
+            ],
+        ]];
+
+        $this->callPrivate('sendBatches', [$this->client(), $entities, 200]);
+
+        Http::assertSent(function ($request) {
+            if (!str_contains($request->url(), '/import-translations')) {
+                return false;
+            }
+            $item = $request['items'][0];
+
+            return $item['source_text'] === 'Gewicht'
+                && $item['source_lang'] === 'de'
+                && $item['target_lang'] === 'en'
+                && $item['translated_text'] === 'Weight'
+                && $item['entity_type'] === 'attribute'
+                && $item['entity_id'] === 'uuid-1'
+                // Derselbe Feldname wie beim Ingest — sonst entstuende im TMS
+                // eine zweite Usage-Zeile fuer dieselbe Stelle.
+                && $item['field_name'] === 'name_de'
+                && $item['provider'] === 'import';
+        });
+    }
+
+    public function test_entity_without_source_text_is_skipped_entirely(): void
+    {
+        // Nur eine englische Fassung, kein deutscher Quelltext: es gibt keine
+        // Unit, der die Uebersetzung zugeordnet werden koennte.
+        Http::fake();
+
+        $entities = [[
+            'entity_type' => 'attribute',
+            'entity_id' => 'uuid-1',
+            'fields' => [
+                ['field' => 'name_de', 'text' => null, 'lang' => 'de'],
+                ['field' => 'name_en', 'text' => 'Weight', 'lang' => 'en'],
+            ],
+        ]];
+
+        $this->assertSame(0, $this->callPrivate('sendBatches', [$this->client(), $entities, 200]));
+        Http::assertNothingSent();
+    }
+
+    public function test_language_outside_the_target_list_is_ignored(): void
+    {
+        // Zielsprachen im Test: en,fr,es,it,nl — 'pl' gehoert nicht dazu und
+        // hat im TM nichts verloren.
+        Http::fake(['*/ingest' => Http::response([], 202)]);
+
+        $entities = [[
+            'entity_type' => 'attribute',
+            'entity_id' => 'uuid-1',
+            'fields' => [
+                ['field' => 'name_de', 'text' => 'Gewicht', 'lang' => 'de'],
+                ['field' => 'name_pl', 'text' => 'Waga', 'lang' => 'pl'],
+            ],
+        ]];
+
+        $this->callPrivate('sendBatches', [$this->client(), $entities, 200]);
+
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), '/import-translations'));
+    }
+
+    public function test_fields_without_language_still_count_as_source(): void
+    {
+        // Aeltere Aufrufer liefern kein 'lang' — die duerfen nicht stillschweigend
+        // nichts mehr senden.
+        Http::fake(['*/ingest' => Http::response([], 202)]);
+
+        $entities = [[
+            'entity_type' => 'attribute',
+            'entity_id' => 'uuid-1',
+            'fields' => [['field' => 'name_de', 'text' => 'Gewicht']],
+        ]];
+
+        $this->assertSame(1, $this->callPrivate('sendBatches', [$this->client(), $entities, 200]));
+    }
+
     public function test_send_batches_counts_only_the_accepted_batch(): void
     {
         // Erster Batch angenommen, zweiter abgelehnt — die Zahl muss die
