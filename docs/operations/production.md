@@ -490,6 +490,7 @@ Reading the result of the connection test:
 | Response | Meaning |
 |---|---|
 | `/up` → 000 | Service not listening — check the vhost and `ss -ltnp \| grep 8001` |
+| `/up` → 404 | Apache answers but never reaches Laravel — `tms/public/.htaccess` missing or `mod_rewrite` not loaded. The script recreates the file; rerun it afterwards. |
 | `/api/stats` → 401 | Key mismatch, or the TMS config cache is stale |
 | `/api/stats` → 500 | `TMS_API_KEY` missing in `tms/.env` |
 | `/api/stats` → 200 | Connection is fine — coverage follows via `php artisan tms:status` |
