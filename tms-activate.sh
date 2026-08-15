@@ -538,6 +538,47 @@ TMSWORKER
         warn "Supervisor nicht gefunden — Queue Worker nicht gestartet (maschinelle Uebersetzung bleibt liegen)."
     fi
 
+    # Ohne public/.htaccess reicht Apache nur vorhandene Dateien aus: "/" laeuft
+    # ueber den DirectoryIndex noch, jede echte Route (/up, /api/stats) endet
+    # aber in einem 404 von Apache, ohne dass Laravel je gefragt wird. Die Datei
+    # gehoert ins Repository — hier nur als Selbstheilung fuer Installationen,
+    # bei denen sie fehlt.
+    if [ ! -f "${TMS_DIR}/public/.htaccess" ]; then
+        cat > "${TMS_DIR}/public/.htaccess" <<'TMSHTACCESS'
+<IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
+
+    RewriteEngine On
+
+    # Handle Authorization Header
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Redirect Trailing Slashes If Not A Folder...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
+
+    # Send Requests To Front Controller...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>
+TMSHTACCESS
+        chown www-data:www-data "${TMS_DIR}/public/.htaccess" 2>/dev/null || true
+        warn "tms/public/.htaccess fehlte und wurde angelegt — ohne sie liefert jede TMS-Route 404."
+    fi
+
+    # Die .htaccess ist wirkungslos, wenn mod_rewrite nicht geladen ist.
+    if command -v a2enmod > /dev/null 2>&1; then
+        if ! apache2ctl -M 2>/dev/null | grep -q rewrite_module; then
+            a2enmod rewrite > /dev/null 2>&1 && info "mod_rewrite aktiviert." \
+                || warn "mod_rewrite konnte nicht aktiviert werden — TMS-Routen bleiben auf 404."
+        fi
+    fi
+
     if command -v a2ensite > /dev/null 2>&1; then
         cat > /etc/apache2/sites-available/anypim-tms.conf <<TMSVHOST
 # anyPIM — Translation Memory Service (nur ueber Loopback erreichbar)
@@ -614,6 +655,15 @@ else
     HEALTH_CODE="${HEALTH_CODE:-000}"
     if [ "$HEALTH_CODE" = "200" ]; then
         info "Dienst erreichbar (${VERIFY_ORIGIN}/up → 200)."
+    elif [ "$HEALTH_CODE" = "404" ]; then
+        # 404 heisst: da antwortet ein Webserver, aber er reicht die Anfrage
+        # nicht an Laravel weiter. Das ist ein anderer Fehler als "laeuft nicht".
+        error_noexit "HTTP 404 auf ${VERIFY_ORIGIN}/up — der Webserver antwortet, aber Laravel wird nicht erreicht."
+        echo -e "     Fast immer eine fehlende Rewrite-Regel. Pruefen:"
+        echo -e "       ls -l ${TMS_DIR}/public/.htaccess       (muss existieren)"
+        echo -e "       apache2ctl -M | grep rewrite            (rewrite_module muss geladen sein)"
+        echo -e "       apache2ctl -S | grep ${TMS_PORT}                 (antwortet wirklich der TMS-VHost?)"
+        echo -e "     Dieses Script legt die .htaccess bei Bedarf an — danach erneut ausfuehren."
     else
         error_noexit "Dienst NICHT erreichbar (${VERIFY_ORIGIN}/up → ${HEALTH_CODE})."
         echo -e "     Pruefen: systemctl status apache2 · ss -ltnp | grep ${TMS_PORT} · tail /var/log/apache2/anypim-tms-error.log"
@@ -638,6 +688,11 @@ else
             echo -e "     In tms/.env fehlt TMS_API_KEY, oder der Config-Cache des TMS ist alt:"
             echo -e "     cd ${TMS_DIR} && php artisan config:cache"
             ;;
+        404)
+            error_noexit "HTTP 404 auf ${VERIFY_BASE}/stats — die API-Route wird nicht ausgeliefert."
+            echo -e "     Gleiche Ursache wie oben: ohne tms/public/.htaccess bzw. mod_rewrite sieht"
+            echo -e "     Apache nur Dateien und findet /api/stats nicht."
+            ;;
         000)
             error_noexit "Keine Antwort von ${VERIFY_BASE}/stats."
             ;;
@@ -655,7 +710,7 @@ echo -e "${BOLD}php artisan tms:status${NC}"
 echo ""
 if [ "$TMS_REACHABLE" = true ]; then
     echo -e "${BOLD}${GREEN}  ╔══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BOLD}${GREEN}  ║   Translation Memory ist aktiv und erreichbar             ║${NC}"
+    echo -e "${BOLD}${GREEN}  ║   Translation Memory ist aktiv und erreichbar            ║${NC}"
     echo -e "${BOLD}${GREEN}  ╚══════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "  Begriffe einspeisen:    ${CYAN}php artisan tms:ingest${NC}"
