@@ -113,6 +113,27 @@ class TmsClientTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_ingest_reports_success_and_failure(): void
+    {
+        // Der Rueckgabewert ist die einzige Naht, an der der Aufrufer einen
+        // fehlgeschlagenen Ingest bemerken kann — Exceptions werden hier
+        // bewusst verschluckt, damit das PIM weiterlaeuft.
+        $entities = [['entity_type' => 'attribute', 'entity_id' => 'uuid-1', 'fields' => []]];
+
+        // Sequenz statt mehrfachem Http::fake(): ein zweiter fake()-Aufruf
+        // ersetzt den ersten Stub nicht, der bereits registrierte greift weiter.
+        Http::fakeSequence('*/ingest')
+            ->push(['count' => 1], 202)
+            ->push(['message' => 'Unauthorized'], 401)
+            ->push(['message' => 'boom'], 500);
+
+        $client = $this->client();
+
+        $this->assertTrue($client->ingest($entities), '202 muss als Erfolg gelten.');
+        $this->assertFalse($client->ingest($entities), '401 muss als Fehlschlag gemeldet werden.');
+        $this->assertFalse($client->ingest($entities), '500 muss als Fehlschlag gemeldet werden.');
+    }
+
     // ─── importTranslations ──────────────────────────────────────────────
 
     public function test_import_translations_chunks_at_200_items(): void

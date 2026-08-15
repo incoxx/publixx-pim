@@ -32,6 +32,9 @@ class IngestToTmsJob implements ShouldQueue, ShouldBeUnique
     public array $backoff = [5, 15, 60];
     public int $uniqueFor = 300; // 5 minutes
 
+    /** Anzahl der Batches, die das TMS nicht angenommen hat. */
+    private int $failedBatches = 0;
+
     public function handle(TmsClient $client): array
     {
         if (!$client->isEnabled()) {
@@ -167,9 +170,25 @@ class IngestToTmsJob implements ShouldQueue, ShouldBeUnique
         // Restbestand senden
         $totalSent += $this->sendBatches($client, $entities, $batchSize);
 
+        if ($this->failedBatches > 0) {
+            Log::error("TMS ingest: {$this->failedBatches} Batch(es) abgelehnt, {$totalSent} Entitäten gesendet.");
+
+            return [
+                'total_sent' => $totalSent,
+                'failed_batches' => $this->failedBatches,
+                'skipped' => false,
+                'message' => "{$totalSent} Entitäten gesendet, {$this->failedBatches} Batch(es) abgelehnt — Details im Log.",
+            ];
+        }
+
         Log::info("TMS ingest completed: {$totalSent} entities sent.");
 
-        return ['total_sent' => $totalSent, 'skipped' => false, 'message' => "{$totalSent} Entitäten an TMS gesendet."];
+        return [
+            'total_sent' => $totalSent,
+            'failed_batches' => 0,
+            'skipped' => false,
+            'message' => "{$totalSent} Entitäten an TMS gesendet.",
+        ];
     }
 
     /**
@@ -198,8 +217,14 @@ class IngestToTmsJob implements ShouldQueue, ShouldBeUnique
         $targetLanguages = Language::targetCodes();
 
         foreach (array_chunk($valid, $batchSize) as $batch) {
-            $client->ingest($batch, $targetLanguages);
-            $sent += count($batch);
+            // Nur zaehlen, was das TMS auch angenommen hat. Frueher wurde jeder
+            // Batch als gesendet gezaehlt — bei durchgehend fehlschlagenden
+            // Requests meldete der Ingest damit Erfolg, obwohl nichts ankam.
+            if ($client->ingest($batch, $targetLanguages)) {
+                $sent += count($batch);
+            } else {
+                $this->failedBatches++;
+            }
         }
 
         return $sent;

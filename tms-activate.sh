@@ -533,7 +533,21 @@ TMSWORKER
         supervisorctl update > /dev/null 2>&1 || true
         supervisorctl restart "anypim-tms-worker:*" > /dev/null 2>&1 \
             || supervisorctl start "anypim-tms-worker:*" > /dev/null 2>&1 || true
-        info "Queue Worker via Supervisor gestartet."
+
+        # Nicht behaupten, sondern nachsehen. Der Worker ist keine Nebensache:
+        # der TMS speichert beim Ingest nichts direkt, sondern stellt einen
+        # ProcessIngestBatchJob in seine Queue. Laeuft der Worker nicht, quittiert
+        # der Ingest mit 202 — und es entsteht trotzdem kein einziger Begriff.
+        sleep 1
+        WORKER_STATUS="$(supervisorctl status "anypim-tms-worker:*" 2>/dev/null || true)"
+        if echo "$WORKER_STATUS" | grep -q "RUNNING"; then
+            info "Queue Worker laeuft ($(echo "$WORKER_STATUS" | grep -c RUNNING) Prozess(e))."
+        else
+            error_noexit "Queue Worker laeuft NICHT — ohne ihn uebernimmt das TMS keine Begriffe."
+            echo "$WORKER_STATUS" | sed 's/^/     /'
+            echo -e "     Log: ${TMS_DIR}/storage/logs/queue-worker.log"
+            echo -e "     Im Vordergrund testen: cd ${TMS_DIR} && php artisan queue:work --queue=tms,default --once"
+        fi
     else
         warn "Supervisor nicht gefunden — Queue Worker nicht gestartet (maschinelle Uebersetzung bleibt liegen)."
     fi
@@ -702,7 +716,21 @@ else
     esac
 fi
 
-# c) Sicht des PIM — zeigt zusaetzlich Abdeckung und Sprach-Drift
+# c) Verarbeitet die PIM-Seite ihre Queue? Der Ingest wird als Job auf die
+#    'default'-Queue gelegt (IngestToTmsJob). Ohne Horizon bleibt er dort
+#    liegen, die GUI meldet trotzdem "laeuft im Hintergrund".
+if command -v supervisorctl > /dev/null 2>&1; then
+    if supervisorctl status horizon 2>/dev/null | grep -q "RUNNING"; then
+        info "Horizon laeuft — der Ingest-Job der 'default'-Queue wird abgearbeitet."
+    elif pgrep -f "artisan queue:work" > /dev/null 2>&1; then
+        info "Queue Worker im PIM aktiv (kein Horizon)."
+    else
+        warn "Im PIM arbeitet niemand die 'default'-Queue ab — der Ingest bleibt liegen."
+        warn "Starten mit: sudo supervisorctl start horizon   (oder: php artisan tms:ingest --sync)"
+    fi
+fi
+
+# d) Sicht des PIM — zeigt zusaetzlich Abdeckung und Sprach-Drift
 echo ""
 echo -e "${BOLD}php artisan tms:status${NC}"
 (cd "$INSTALL_DIR" && php artisan tms:status 2>&1) || warn "tms:status meldet ein Problem (siehe Ausgabe oberhalb)."

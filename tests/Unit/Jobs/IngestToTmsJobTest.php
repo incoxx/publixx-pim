@@ -8,6 +8,7 @@ use App\Jobs\IngestToTmsJob;
 use App\Services\Tms\TmsClient;
 use Illuminate\Support\Facades\Http;
 use ReflectionMethod;
+use ReflectionProperty;
 use Tests\TestCase;
 
 /**
@@ -173,5 +174,52 @@ class IngestToTmsJobTest extends TestCase
         );
 
         $this->assertSame(10, $this->callPrivate('sendBatches', [$this->client(), $entities, 200]));
+    }
+
+    public function test_send_batches_does_not_count_batches_the_tms_rejected(): void
+    {
+        // Symptom im Betrieb: "Ingest abgeschlossen, 4.000 Entitäten gesendet",
+        // im TMS aber kein einziger Begriff. Ursache war, dass jeder Batch als
+        // gesendet gezählt wurde — unabhängig von der Antwort des TMS.
+        Http::fake(['*/ingest' => Http::response(['message' => 'Unauthorized'], 401)]);
+
+        $job = new IngestToTmsJob();
+        $method = new ReflectionMethod(IngestToTmsJob::class, 'sendBatches');
+        $method->setAccessible(true);
+
+        $entities = array_fill(0, 250, [
+            'entity_type' => 'attribute',
+            'entity_id' => 'x',
+            'fields' => [['field' => 'name_de', 'text' => 'A']],
+        ]);
+
+        $sent = $method->invokeArgs($job, [$this->client(), $entities, 200]);
+
+        $this->assertSame(0, $sent, 'Abgelehnte Batches duerfen nicht als gesendet gelten.');
+
+        $failed = new ReflectionProperty(IngestToTmsJob::class, 'failedBatches');
+        $failed->setAccessible(true);
+        $this->assertSame(2, $failed->getValue($job), '250 Entitäten bei Batchgroesse 200 = 2 Batches.');
+    }
+
+    public function test_send_batches_counts_only_the_accepted_batch(): void
+    {
+        // Erster Batch angenommen, zweiter abgelehnt — die Zahl muss die
+        // Teil-Uebernahme widerspiegeln, nicht die Gesamtmenge.
+        Http::fakeSequence()
+            ->push([], 202)
+            ->push(['message' => 'Unprocessable'], 422);
+
+        $job = new IngestToTmsJob();
+        $method = new ReflectionMethod(IngestToTmsJob::class, 'sendBatches');
+        $method->setAccessible(true);
+
+        $entities = array_fill(0, 250, [
+            'entity_type' => 'attribute',
+            'entity_id' => 'x',
+            'fields' => [['field' => 'name_de', 'text' => 'A']],
+        ]);
+
+        $this->assertSame(200, $method->invokeArgs($job, [$this->client(), $entities, 200]));
     }
 }
