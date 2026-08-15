@@ -1243,7 +1243,13 @@ if [ -d "$DOCS_DIR" ] && [ -f "${DOCS_DIR}/package.json" ]; then
         export APP_ROOT_PATH="/"
     fi
 
-    info "Baue Dokumentation (VitePress, Basis: ${DOCS_BASE_PATH})..."
+    # Oeffentliche Doku-URL fuer die sitemap.xml: Origin aus APP_URL (ohne den
+    # angehaengten WEB_PATH) plus DOCS_BASE_PATH. Nicht "APP_URL + /help/" -- im
+    # Root-Modus liegt die Doku unter /web/help/, die App aber unter /.
+    APP_ORIGIN="${APP_URL%${WEB_PATH}}"
+    export DOCS_SITEMAP_HOSTNAME="${APP_ORIGIN%/}${DOCS_BASE_PATH}"
+
+    info "Baue Dokumentation (VitePress, Basis: ${DOCS_BASE_PATH}, Sitemap: ${DOCS_SITEMAP_HOSTNAME})..."
     npm run build 2>&1
 
     if [ -d "${DOCS_DIR}/.vitepress/dist" ]; then
