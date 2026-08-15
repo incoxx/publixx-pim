@@ -516,8 +516,12 @@ if [ "$ONLY_STATUS" = false ] && [ "$NO_RESTART" = false ]; then
     pkill -f "tms/artisan queue:work" > /dev/null 2>&1 || true
     pkill -f "php.*-S.*127.0.0.1:${TMS_PORT}" > /dev/null 2>&1 || true
 
-    if command -v supervisorctl > /dev/null 2>&1; then
-        cat > /etc/supervisor/conf.d/anypim-tms-worker.conf <<TMSWORKER
+    # Der Schreibvorgang ist bewusst abgefangen: schlaegt er fehl, wuerde
+    # 'set -e' hier den ganzen Lauf beenden und die Schritte 6 und 7 (Caches,
+    # Verbindungspruefung) faenden nie statt.
+    mkdir -p /etc/supervisor/conf.d 2>/dev/null || true
+    if command -v supervisorctl > /dev/null 2>&1 \
+       && cat > /etc/supervisor/conf.d/anypim-tms-worker.conf <<TMSWORKER
 [program:anypim-tms-worker]
 process_name=%(program_name)s_%(process_num)02d
 command=php ${TMS_DIR}/artisan queue:work --queue=tms,default --sleep=3 --tries=3 --max-time=3600
@@ -529,6 +533,7 @@ redirect_stderr=true
 stdout_logfile=${TMS_DIR}/storage/logs/queue-worker.log
 stopwaitsecs=3600
 TMSWORKER
+    then
         supervisorctl reread > /dev/null 2>&1 || true
         supervisorctl update > /dev/null 2>&1 || true
         supervisorctl restart "anypim-tms-worker:*" > /dev/null 2>&1 \
@@ -545,11 +550,27 @@ TMSWORKER
         else
             error_noexit "Queue Worker laeuft NICHT — ohne ihn uebernimmt das TMS keine Begriffe."
             echo "$WORKER_STATUS" | sed 's/^/     /'
-            echo -e "     Log: ${TMS_DIR}/storage/logs/queue-worker.log"
-            echo -e "     Im Vordergrund testen: cd ${TMS_DIR} && php artisan queue:work --queue=tms,default --once"
+
+            # Bei "Exited too quickly" steht der Grund im Worker-Log — den hier
+            # gleich mitliefern, statt nur den Pfad zu nennen. Ohne ihn ist die
+            # Meldung von Supervisor nicht zu gebrauchen.
+            WORKER_LOG="${TMS_DIR}/storage/logs/queue-worker.log"
+            if [ -s "$WORKER_LOG" ]; then
+                echo ""
+                echo -e "     ${BOLD}Letzte Zeilen aus queue-worker.log${NC}"
+                tail -15 "$WORKER_LOG" | sed 's/^/       /'
+                echo ""
+            else
+                echo -e "     Worker-Log ist leer (${WORKER_LOG}) — der Prozess startet gar nicht erst."
+                echo -e "     Dann steht der Grund in Supervisors eigenem Log: /var/log/supervisor/supervisord.log"
+            fi
+
+            echo -e "     Im Vordergrund testen — zeigt den Fehler direkt:"
+            echo -e "       cd ${TMS_DIR} && sudo -u www-data php artisan queue:work --queue=tms,default --once"
         fi
     else
-        warn "Supervisor nicht gefunden — Queue Worker nicht gestartet (maschinelle Uebersetzung bleibt liegen)."
+        warn "Supervisor nicht verfuegbar oder /etc/supervisor/conf.d nicht beschreibbar —"
+        warn "Queue Worker nicht eingerichtet. Ohne ihn uebernimmt das TMS keine Begriffe."
     fi
 
     # Ohne public/.htaccess reicht Apache nur vorhandene Dateien aus: "/" laeuft
@@ -557,8 +578,8 @@ TMSWORKER
     # aber in einem 404 von Apache, ohne dass Laravel je gefragt wird. Die Datei
     # gehoert ins Repository — hier nur als Selbstheilung fuer Installationen,
     # bei denen sie fehlt.
-    if [ ! -f "${TMS_DIR}/public/.htaccess" ]; then
-        cat > "${TMS_DIR}/public/.htaccess" <<'TMSHTACCESS'
+    if [ ! -f "${TMS_DIR}/public/.htaccess" ] \
+       && cat > "${TMS_DIR}/public/.htaccess" <<'TMSHTACCESS'
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
@@ -581,8 +602,11 @@ TMSWORKER
     RewriteRule ^ index.php [L]
 </IfModule>
 TMSHTACCESS
+    then
         chown www-data:www-data "${TMS_DIR}/public/.htaccess" 2>/dev/null || true
         warn "tms/public/.htaccess fehlte und wurde angelegt — ohne sie liefert jede TMS-Route 404."
+    elif [ ! -f "${TMS_DIR}/public/.htaccess" ]; then
+        warn "tms/public/.htaccess fehlt und konnte nicht angelegt werden — TMS-Routen liefern 404."
     fi
 
     # Die .htaccess ist wirkungslos, wenn mod_rewrite nicht geladen ist.
