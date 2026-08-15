@@ -103,10 +103,21 @@ export const useLocaleStore = defineStore('locale', () => {
    * Lädt die Sprachen. Idempotent — mehrfacher Aufruf lädt nur einmal,
    * `force` erzwingt das Neuladen (nach Änderungen in der Verwaltung).
    */
-  async function fetchLanguages(force = false) {
-    if (loading.value) return
-    if (loaded.value && !force) return
+  // Laufende Anfrage teilen: mehrere Aufrufer (App.vue beim Start, der
+  // Produkteditor beim Oeffnen) sollen dieselbe Anfrage abwarten. Ohne das
+  // kehrte ein zweiter Aufruf sofort zurueck, obwohl die Liste noch fehlte —
+  // der Editor lud seine Werte dann ohne Sprachen.
+  let inflight = null
 
+  async function fetchLanguages(force = false) {
+    if (loaded.value && !force) return
+    if (inflight) return inflight
+
+    inflight = load(force).finally(() => { inflight = null })
+    return inflight
+  }
+
+  async function load() {
     loading.value = true
     try {
       const { data } = await languagesApi.list()
