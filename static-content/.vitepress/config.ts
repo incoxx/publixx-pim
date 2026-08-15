@@ -21,6 +21,12 @@ export default defineConfig({
   base: DOCS_BASE_PATH,
   cleanUrls: true,
   lastUpdated: true,
+  // Standard ist Light Mode (unabhaengig von der OS-/Browser-Praeferenz). Der
+  // Dark-Mode-Umschalter bleibt verfuegbar; die Wahl wird wie ueblich in
+  // localStorage gemerkt.
+  appearance: {
+    initialValue: 'light',
+  },
 
   vite: {
     define: {
