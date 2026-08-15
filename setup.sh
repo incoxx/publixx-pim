@@ -1814,4 +1814,14 @@ if [ -n "$WEB_PATH" ]; then
     echo -e "  ${YELLOW}Hinweis: PIM nutzt den bestehenden VHost fuer ${SERVER_DOMAIN}.${NC}"
     echo -e "  ${YELLOW}Stelle sicher, dass ein VHost fuer diese Domain existiert.${NC}"
     echo ""
+    # Suchmaschinen lesen ausschliesslich <domain>/robots.txt. Im Unterverzeichnis-Modus
+    # gehoert dieser Pfad der uebergeordneten Website -- anyPIM kann ihn nicht bedienen,
+    # liefert seine eigene robots.txt nur unter ${WEB_PATH}/robots.txt aus.
+    echo -e "${BOLD}Suchmaschinen (optional):${NC}"
+    echo -e "  anyPIM liefert eine robots.txt unter ${APP_URL}/robots.txt aus."
+    echo -e "  Crawler lesen aber nur ${APP_PROTOCOL}://${SERVER_DOMAIN}/robots.txt."
+    echo -e "  Damit die Doku-Sitemap gefunden wird, diese Zeilen dort ergaenzen:"
+    echo -e "    ${CYAN}Allow: ${WEB_PATH}/help/${NC}"
+    echo -e "    ${CYAN}Sitemap: ${APP_URL}/help/sitemap.xml${NC}"
+    echo ""
 fi
