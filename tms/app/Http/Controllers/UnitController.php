@@ -233,6 +233,47 @@ class UnitController
     }
 
     /**
+     * POST /api/translate-missing — alle Begriffe ohne Übersetzung in einer
+     * Zielsprache zur maschinellen Übersetzung einplanen.
+     *
+     * Das ist der Weg, eine neu hinzugefügte Sprache auszurollen. Bewusst
+     * gedeckelt (`limit`) und mit `remaining` in der Antwort: der Aufrufer
+     * schleift so lange, bis nichts mehr offen ist, statt bei 500.000 Begriffen
+     * die Queue in einem Rutsch zu fluten. Der Aufruf ist idempotent —
+     * abgebrochene Läufe kann man einfach wiederholen.
+     */
+    public function translateMissing(Request $request): JsonResponse
+    {
+        $request->validate([
+            'lang' => 'required|string|max:5',
+            'limit' => 'sometimes|integer|min:1|max:5000',
+        ]);
+
+        $lang = $request->input('lang');
+        $limit = (int) $request->input('limit', 1000);
+
+        // Units ohne Übersetzung in dieser Sprache, Quellsprache ausgenommen —
+        // TranslateUnitJob würde sie ohnehin überspringen.
+        $query = TmsUnit::where('source_lang', '!=', $lang)
+            ->whereDoesntHave('translations', fn ($q) => $q->where('target_lang', $lang));
+
+        $total = (clone $query)->count();
+
+        $dispatched = 0;
+        $query->orderBy('id')->limit($limit)->pluck('id')->each(function ($id) use ($lang, &$dispatched) {
+            TranslateUnitJob::dispatch($id, [$lang]);
+            $dispatched++;
+        });
+
+        return response()->json([
+            'lang' => $lang,
+            'dispatched' => $dispatched,
+            'remaining' => max(0, $total - $dispatched),
+            'message' => "{$dispatched} Begriffe für '{$lang}' eingeplant.",
+        ], 202);
+    }
+
+    /**
      * POST /api/retranslate — trigger MT re-translation.
      */
     public function retranslate(Request $request): JsonResponse
@@ -248,7 +289,9 @@ class UnitController
 
         $dispatched = 0;
         foreach ($unitIds as $unitId) {
-            TranslateUnitJob::dispatch($unitId, $targetLangs);
+            // force: Retranslate ist eine bewusste Nutzeraktion und soll auch
+            // vorhandene maschinelle Übersetzungen erneuern (geprüfte nicht).
+            TranslateUnitJob::dispatch($unitId, $targetLangs, true);
             $dispatched++;
         }
 

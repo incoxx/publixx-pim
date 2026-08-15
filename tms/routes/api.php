@@ -34,4 +34,7 @@ Route::middleware(ValidateApiKey::class)->group(function () {
 
     // Retranslate
     Route::post('retranslate', [UnitController::class, 'retranslate']);
+
+    // Neue Zielsprache ausrollen: alles Fehlende einplanen (gedeckelt, wiederholbar)
+    Route::post('translate-missing', [UnitController::class, 'translateMissing']);
 });

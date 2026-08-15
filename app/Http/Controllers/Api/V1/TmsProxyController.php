@@ -100,6 +100,30 @@ class TmsProxyController extends Controller
     }
 
     /**
+     * POST /tms/translate-missing — eine neue Zielsprache ausrollen.
+     *
+     * Plant alle Begriffe ein, die in dieser Sprache noch fehlen. Gedeckelt;
+     * `remaining` in der Antwort sagt, wie viel noch offen ist.
+     */
+    public function translateMissing(Request $request): JsonResponse
+    {
+        $this->abortIfDisabled();
+        abort_unless(auth()->user()?->hasPermissionTo('translations.edit'), 403);
+
+        $request->validate([
+            'lang' => 'required|string|max:5',
+            'limit' => 'sometimes|integer|min:1|max:5000',
+        ]);
+
+        $data = $this->client->translateMissing(
+            $request->input('lang'),
+            (int) $request->input('limit', 1000),
+        );
+
+        return response()->json($data, 202);
+    }
+
+    /**
      * POST /tms/ingest — Ingest vom PIM ins TMS anstoßen.
      *
      * Läuft über die Queue: der Job iteriert über den kompletten

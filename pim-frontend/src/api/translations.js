@@ -25,6 +25,12 @@ export default {
     return client.post('/tms/retranslate', data)
   },
 
+  // Rollt eine Zielsprache aus: plant alle fehlenden Begriffe ein.
+  // Gedeckelt — die Antwort enthaelt `remaining`, der Aufrufer schleift.
+  translateMissing(lang, limit = 1000) {
+    return client.post('/tms/translate-missing', { lang, limit })
+  },
+
   triggerIngest() {
     return client.post('/tms/ingest')
   },

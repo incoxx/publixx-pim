@@ -135,6 +135,23 @@ class TmsClient
     }
 
     /**
+     * Plant alle Begriffe ohne Übersetzung in einer Zielsprache zur
+     * maschinellen Übersetzung ein — der Weg, eine neue Sprache auszurollen.
+     *
+     * Gedeckelt durch $limit; die Antwort enthält `remaining`, damit der
+     * Aufrufer bis zur Vollständigkeit schleifen kann.
+     *
+     * @return array{lang?: string, dispatched?: int, remaining?: int, message?: string}
+     */
+    public function translateMissing(string $lang, int $limit = 1000): array
+    {
+        return $this->post('/translate-missing', [
+            'lang' => $lang,
+            'limit' => $limit,
+        ]);
+    }
+
+    /**
      * Batch-import pre-translated items into TMS.
      */
     public function importTranslations(array $items): array

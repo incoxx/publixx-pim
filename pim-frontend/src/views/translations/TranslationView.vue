@@ -114,6 +114,33 @@ function addLog(type, message) {
   if (actionLog.value.length > 20) actionLog.value.pop()
 }
 
+const rolloutLoading = ref(false)
+
+/**
+ * Rollt die aktuell gewählte Sprache über den gesamten TM-Bestand aus.
+ * Das ist der Weg, eine neu hinzugefügte Sprache (z.B. Finnisch) zu füllen —
+ * bis dahin bleibt sie leer, weil der Ingest nur neue Begriffe übersetzt.
+ */
+async function rolloutLanguage() {
+  const lang = selectedLang.value
+  if (!confirm(`Alle fehlenden Begriffe für "${lang}" maschinell übersetzen lassen?\n\nDas verursacht Kosten beim MT-Anbieter.`)) return
+
+  rolloutLoading.value = true
+  addLog('info', `Rollout für "${lang}" gestartet…`)
+  try {
+    const total = await store.translateMissing(lang, (done, remaining) => {
+      addLog('info', `${done} eingeplant, noch ${remaining} offen…`)
+    })
+    addLog('success', `${total} Begriffe für "${lang}" eingeplant. Übersetzung läuft im Hintergrund.`)
+    await store.fetchStats()
+    loadMissing()
+  } catch (e) {
+    addLog('error', 'Rollout fehlgeschlagen: ' + (e.response?.data?.message || e.message))
+  } finally {
+    rolloutLoading.value = false
+  }
+}
+
 // Ingest und Sync laufen serverseitig über die Queue (HTTP 202) — sie können
 // je nach Katalogumfang mehrere Minuten dauern. Die Antwort bestätigt nur die
 // Einplanung; den Fortschritt sieht man über "Statistiken aktualisieren".
@@ -331,6 +358,18 @@ const paginationPages = computed(() => {
           <option value="auto">Automatisch</option>
           <option value="reviewed">Geprüft</option>
         </select>
+
+        <!-- Neue Zielsprache ausrollen: plant alle fehlenden Begriffe der
+             gewählten Sprache zur maschinellen Übersetzung ein. -->
+        <button
+          v-if="activeTab === 'missing'"
+          class="px-3 py-2 text-sm rounded-md bg-[var(--color-accent)] text-white disabled:opacity-50"
+          :disabled="rolloutLoading"
+          :title="`Alle fehlenden Begriffe für '${selectedLang}' übersetzen lassen`"
+          @click="rolloutLanguage"
+        >
+          {{ rolloutLoading ? 'Wird eingeplant…' : `Alle fehlenden übersetzen (${selectedLang})` }}
+        </button>
       </div>
 
       <!-- Table -->

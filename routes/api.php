@@ -1233,6 +1233,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::get('stats', [TmsProxyController::class, 'stats']);
         Route::get('missing', [TmsProxyController::class, 'missing']);
         Route::post('retranslate', [TmsProxyController::class, 'retranslate']);
+        Route::post('translate-missing', [TmsProxyController::class, 'translateMissing']);
         Route::post('ingest', [TmsProxyController::class, 'triggerIngest']);
         Route::post('sync', [TmsProxyController::class, 'syncToDatabase']);
         Route::delete('translations', [TmsProxyController::class, 'deleteTranslations']);
