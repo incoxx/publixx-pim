@@ -18,6 +18,7 @@ class LanguageResource extends JsonResource
             'name_en' => $this->name_en,
             'is_source' => $this->is_source,
             'is_active' => $this->is_active,
+            'fallback_language' => $this->fallback_language,
             'sort_order' => $this->sort_order,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

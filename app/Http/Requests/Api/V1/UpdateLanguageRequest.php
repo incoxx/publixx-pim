@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Rules\ValidFallbackLanguage;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -26,6 +27,7 @@ class UpdateLanguageRequest extends FormRequest
             'name_de' => 'sometimes|string|max:255',
             'name_en' => 'nullable|string|max:255',
             'is_active' => 'boolean',
+            'fallback_language' => ['nullable', 'string', 'size:2', new ValidFallbackLanguage($this->route('language')?->technical_name)],
             'sort_order' => 'integer',
         ];
     }

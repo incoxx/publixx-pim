@@ -14,11 +14,32 @@ const error = ref('')
 const showDialog = ref(false)
 const saving = ref(false)
 const editing = ref(null)
-const form = ref({ technical_name: '', name_de: '', name_en: '', is_active: true, sort_order: 0 })
+const form = ref({ technical_name: '', name_de: '', name_en: '', is_active: true, fallback_language: '', sort_order: 0 })
 const formError = ref('')
+
+/** Kette zur Anzeige in der Tabelle, z.B. "en → de". */
+function chainFor(row) {
+  const chain = []
+  const seen = new Set([row.technical_name])
+  let current = row.technical_name
+
+  while (chain.length < 5) {
+    const next = rows.value.find(r => r.technical_name === current)?.fallback_language
+    if (!next || seen.has(next)) break
+    chain.push(next)
+    seen.add(next)
+    current = next
+  }
+
+  return chain
+}
 
 const sorted = computed(() =>
   [...rows.value].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
+)
+
+const fallbackCandidates = computed(() =>
+  sorted.value.filter(r => r.technical_name !== form.value.technical_name),
 )
 
 async function load() {
@@ -42,6 +63,10 @@ function openCreate() {
     name_de: '',
     name_en: '',
     is_active: true,
+    // Englisch ist die uebliche Bruecke; sonst die Quellsprache
+    fallback_language: rows.value.some(r => r.technical_name === 'en')
+      ? 'en'
+      : (rows.value.find(r => r.is_source)?.technical_name || ''),
     sort_order: (rows.value.length ? Math.max(...rows.value.map(r => r.sort_order ?? 0)) : 0) + 1,
   }
   showDialog.value = true
@@ -55,6 +80,7 @@ function openEdit(row) {
     name_de: row.name_de,
     name_en: row.name_en || '',
     is_active: row.is_active !== false,
+    fallback_language: row.fallback_language || '',
     sort_order: row.sort_order ?? 0,
   }
   showDialog.value = true
@@ -144,6 +170,7 @@ onMounted(load)
             <th class="text-left px-3 py-2 font-medium">Bezeichnung</th>
             <th class="text-left px-3 py-2 font-medium">English</th>
             <th class="text-left px-3 py-2 font-medium">Rolle</th>
+            <th class="text-left px-3 py-2 font-medium">Anzeige-Fallback</th>
             <th class="text-left px-3 py-2 font-medium">Status</th>
             <th class="text-right px-3 py-2 font-medium">Reihenfolge</th>
             <th class="w-24"></th>
@@ -151,10 +178,10 @@ onMounted(load)
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="7" class="px-3 py-6 text-center text-[var(--color-text-secondary)]">Wird geladen…</td>
+            <td colspan="8" class="px-3 py-6 text-center text-[var(--color-text-secondary)]">Wird geladen…</td>
           </tr>
           <tr v-else-if="!sorted.length">
-            <td colspan="7" class="px-3 py-6 text-center text-[var(--color-text-secondary)]">Keine Sprachen gepflegt.</td>
+            <td colspan="8" class="px-3 py-6 text-center text-[var(--color-text-secondary)]">Keine Sprachen gepflegt.</td>
           </tr>
           <tr
             v-for="row in sorted"
@@ -169,6 +196,10 @@ onMounted(load)
                 Quellsprache
               </span>
               <span v-else class="text-xs text-[var(--color-text-secondary)]">Zielsprache</span>
+            </td>
+            <td class="px-3 py-2 text-xs text-[var(--color-text-secondary)]">
+              <span v-if="chainFor(row).length" class="font-mono">{{ chainFor(row).join(' → ') }}</span>
+              <span v-else>—</span>
             </td>
             <td class="px-3 py-2">
               <span v-if="row.is_active !== false" class="flex items-center gap-1 text-xs text-green-600">
@@ -242,6 +273,24 @@ onMounted(load)
               placeholder="Finnish"
               class="mt-1 w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md"
             />
+          </label>
+
+          <label class="block">
+            <span class="text-xs text-[var(--color-text-secondary)]">Anzeige-Fallback</span>
+            <select
+              v-model="form.fallback_language"
+              class="mt-1 w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md"
+            >
+              <option value="">— kein Fallback —</option>
+              <option v-for="c in fallbackCandidates" :key="c.id" :value="c.technical_name">
+                {{ c.name_de }} ({{ c.technical_name }})
+              </option>
+            </select>
+            <span class="text-[11px] text-[var(--color-text-secondary)]">
+              Fehlt im Produkteditor ein Wert in dieser Sprache, wird der Wert der
+              Fallback-Sprache ausgegraut angezeigt. Es wird nichts gespeichert —
+              erst ein Klick auf „Übernehmen" schreibt den Wert.
+            </span>
           </label>
 
           <div class="flex items-center gap-4">
