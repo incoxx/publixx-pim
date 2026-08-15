@@ -28,6 +28,7 @@ class Language extends Model
         'name_en',
         'is_source',
         'is_active',
+        'fallback_language',
         'sort_order',
     ];
 
@@ -51,6 +52,7 @@ class Language extends Model
     public static function flushCache(): void
     {
         Cache::forget(self::CACHE_KEY);
+        Cache::forget(self::CACHE_KEY . ':fallback');
     }
 
     /**
@@ -69,6 +71,59 @@ class Language extends Model
     public static function targetCodes(): array
     {
         return self::codes()['targets'];
+    }
+
+    /**
+     * Anzeige-Fallback-Kette einer Sprache, ohne die Sprache selbst.
+     *
+     * Rein fuer die Anzeige: der Produkteditor zeigt damit den Wert der
+     * naechstbesten Sprache ausgegraut an, wenn in der gewaehlten Sprache
+     * nichts gepflegt ist. Gespeichert wird nichts.
+     *
+     * Zyklen (fi -> en -> fi) werden abgebrochen statt endlos verfolgt.
+     *
+     * @return string[]  z.B. ['en', 'de'] fuer Finnisch
+     */
+    public static function fallbackChain(string $code): array
+    {
+        $map = self::fallbackMap();
+        $chain = [];
+        $seen = [$code => true];
+        $current = $code;
+
+        while (isset($map[$current]) && $map[$current] !== null) {
+            $next = $map[$current];
+
+            if (isset($seen[$next])) {
+                break; // Zyklus
+            }
+
+            $chain[] = $next;
+            $seen[$next] = true;
+            $current = $next;
+
+            if (count($chain) >= 10) {
+                break; // Reissleine
+            }
+        }
+
+        return $chain;
+    }
+
+    /**
+     * @return array<string, string|null>  code => fallback-code
+     */
+    private static function fallbackMap(): array
+    {
+        return Cache::remember(self::CACHE_KEY . ':fallback', 3600, function () {
+            try {
+                return static::query()
+                    ->pluck('fallback_language', 'technical_name')
+                    ->all();
+            } catch (\Throwable $e) {
+                return [];
+            }
+        });
     }
 
     /**

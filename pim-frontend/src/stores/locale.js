@@ -54,7 +54,49 @@ export const useLocaleStore = defineStore('locale', () => {
   const userPickedLocales = ref(false)
 
   function labelFor(code) {
-    return languages.value.find(l => l.code === code)?.label || code.toUpperCase()
+    return languages.value.find(l => l.code === code)?.label || String(code || '').toUpperCase()
+  }
+
+  /**
+   * Anzeige-Fallback-Kette einer Sprache, ohne die Sprache selbst.
+   *
+   * Rein für die Anzeige: fehlt im Produkteditor ein Wert, zeigt er den der
+   * nächstbesten Sprache ausgegraut an. Gespeichert wird dabei nichts —
+   * würde automatisch kopiert, wäre das Feld anschließend nicht mehr als
+   * "fehlend" erkennbar und Übersetzungs-Jobs würden es überspringen.
+   *
+   * Zyklen werden abgebrochen statt endlos verfolgt.
+   */
+  function fallbackChain(code) {
+    const chain = []
+    const seen = new Set([code])
+    let current = code
+
+    while (chain.length < 10) {
+      const next = languages.value.find(l => l.code === current)?.fallback_language
+      if (!next || seen.has(next)) break
+      chain.push(next)
+      seen.add(next)
+      current = next
+    }
+
+    return chain
+  }
+
+  /**
+   * Erster nicht-leerer Wert entlang der Fallback-Kette.
+   * @param {(code: string) => any} read  liefert den Wert einer Sprache
+   * @returns {{lang: string, value: any}|null}
+   */
+  function resolveFallback(code, read) {
+    for (const lang of fallbackChain(code)) {
+      const value = read(lang)
+      if (value !== null && value !== undefined && String(value).trim() !== '') {
+        return { lang, value }
+      }
+    }
+
+    return null
   }
 
   /**
@@ -78,6 +120,7 @@ export const useLocaleStore = defineStore('locale', () => {
           name_en: r.name_en,
           is_source: !!r.is_source,
           is_active: r.is_active !== false,
+          fallback_language: r.fallback_language || null,
           sort_order: r.sort_order ?? 0,
         }))
       }
@@ -143,7 +186,7 @@ export const useLocaleStore = defineStore('locale', () => {
   return {
     currentLocale, languages, allLanguages, loaded, loading,
     dataLocales, activeDataLocales, availableLocales, sourceLocale,
-    fetchLanguages, labelFor,
+    fetchLanguages, labelFor, fallbackChain, resolveFallback,
     setUiLocale, setActiveDataLocales, toggleDataLocale, getLocalizedValue,
   }
 })

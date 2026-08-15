@@ -565,6 +565,35 @@ function clearMasterNode() {
 const schema = ref(null)
 const attributeValues = ref({})       // non-translatable: { attrId: value }
 const translatedValues = ref({})      // translatable: { `${attrId}_${lang}`: value }
+
+/**
+ * Anzeige-Fallback: fehlt in der aktiven Sprache ein Wert, wird der Wert der
+ * Fallback-Sprache ausgegraut angezeigt (konfiguriert unter Übersetzungen →
+ * Sprachen).
+ *
+ * Bewusst NUR Anzeige. Würde automatisch kopiert, wäre das Feld anschließend
+ * nicht mehr als "fehlend" erkennbar: Übersetzungs-Jobs überspringen gefüllte
+ * Zielsprachen, und der XLIFF-Export markiert sie als übersetzt. Der englische
+ * Text ginge dann dauerhaft als finnische Übersetzung durch.
+ */
+function fallbackFor(attr) {
+  if (!attr?.is_translatable) return null
+
+  const own = translatedValues.value[`${attr.id}_${activeDataLang.value}`]
+  if (own !== null && own !== undefined && String(own).trim() !== '') return null
+
+  return localeStore.resolveFallback(
+    activeDataLang.value,
+    (lang) => translatedValues.value[`${attr.id}_${lang}`],
+  )
+}
+
+/** Übernimmt den Fallback-Wert ins Feld — erst dadurch wird er gespeichert. */
+function takeFallback(attr) {
+  const hint = fallbackFor(attr)
+  if (!hint) return
+  translatedValues.value[`${attr.id}_${activeDataLang.value}`] = hint.value
+}
 const multipliableValues = ref({})    // multipliable: { attrId: [{ value, multiplied_index }, ...] }
 const multipliableCompositeValues = ref({})  // multipliable composites: { attrId: [{ multiplied_index, children: { childId: value } }] }
 const unitValues = ref({})            // unit per attribute: { attrId: unitId }
@@ -4003,6 +4032,26 @@ onUnmounted(() => {
               <p v-if="attr.formatted_value ?? formattedValues[attr.id]" class="flex items-center gap-1 text-[11px] text-[var(--color-text-tertiary)] mt-1" :title="'Formatierte Vorschau (nur bei Export/Ansicht angewendet)'">
                 <Wand2 class="w-3 h-3 shrink-0" :stroke-width="1.75" />
                 {{ attr.formatted_value ?? formattedValues[attr.id] }}
+              </p>
+
+              <!-- Anzeige-Fallback: nur Orientierung, nichts ist gespeichert -->
+              <p
+                v-if="fallbackFor(attr)"
+                class="flex items-start gap-1.5 text-[11px] text-[var(--color-text-tertiary)] mt-1"
+              >
+                <Languages class="w-3 h-3 shrink-0 mt-0.5" :stroke-width="1.75" />
+                <span class="italic opacity-70 min-w-0 break-words">
+                  {{ fallbackFor(attr).lang.toUpperCase() }}: {{ fallbackFor(attr).value }}
+                </span>
+                <button
+                  v-if="!(attr._access === 'read_only' || attr.is_readonly || isTabReadOnly)"
+                  type="button"
+                  class="shrink-0 underline hover:text-[var(--color-accent)]"
+                  :title="`Wert aus ${fallbackFor(attr).lang.toUpperCase()} übernehmen und als ${activeDataLang.toUpperCase()} speichern`"
+                  @click="takeFallback(attr)"
+                >
+                  übernehmen
+                </button>
               </p>
             </div>
           </div>
