@@ -14,6 +14,7 @@ use App\Models\ProductRelationType;
 use App\Models\ProductType;
 use App\Models\UnitGroup;
 use App\Models\ValueList;
+use App\Models\Language;
 use App\Services\Tms\TmsClient;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -194,8 +195,10 @@ class IngestToTmsJob implements ShouldQueue, ShouldBeUnique
         }
 
         $sent = 0;
+        $targetLanguages = Language::targetCodes();
+
         foreach (array_chunk($valid, $batchSize) as $batch) {
-            $client->ingest($batch);
+            $client->ingest($batch, $targetLanguages);
             $sent += count($batch);
         }
 

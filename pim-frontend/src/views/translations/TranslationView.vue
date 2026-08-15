@@ -1,11 +1,13 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import { useTranslationsStore } from '@/stores/translations'
+import { useLocaleStore } from '@/stores/locale'
 import { Languages, RefreshCw, Download, Upload, Search, Globe, BarChart3, AlertCircle, Check, Loader2, Settings, X, Trash2 } from 'lucide-vue-next'
 import TranslationStatsCard from './TranslationStatsCard.vue'
 import TranslationUnitPanel from './TranslationUnitPanel.vue'
 
 const store = useTranslationsStore()
+const localeStore = useLocaleStore()
 
 const activeTab = ref('overview')
 const searchQuery = ref('')
@@ -43,15 +45,22 @@ const domainOptions = [
   { value: 'hierarchy_node', label: 'Hierarchie-Knoten' },
 ]
 
-const languageOptions = [
-  { value: 'en', label: 'Englisch' },
-  { value: 'fr', label: 'Französisch' },
-  { value: 'es', label: 'Spanisch' },
-  { value: 'it', label: 'Italienisch' },
-  { value: 'nl', label: 'Niederländisch' },
-]
+// Zielsprachen kommen aus der Sprachverwaltung, nicht mehr aus einer
+// hart kodierten Liste. Die Quellsprache ist kein Uebersetzungsziel.
+const languageOptions = computed(() =>
+  localeStore.availableLocales
+    .filter(l => !l.is_source)
+    .map(l => ({ value: l.code, label: l.label })),
+)
 
-onMounted(() => {
+onMounted(async () => {
+  await localeStore.fetchLanguages()
+
+  // Vorauswahl auf die erste tatsaechlich gepflegte Zielsprache
+  if (!languageOptions.value.some(o => o.value === selectedLang.value)) {
+    selectedLang.value = languageOptions.value[0]?.value || 'en'
+  }
+
   store.fetchStats()
 })
 

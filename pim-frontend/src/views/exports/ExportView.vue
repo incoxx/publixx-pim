@@ -1,10 +1,15 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { useLocaleStore } from '@/stores/locale'
 import {
   Download, FileSpreadsheet, FileJson, FileCode, FileText,
   Package, Tag, DollarSign, Link, Image, Layers,
   Radio, Archive,
 } from 'lucide-vue-next'
+
+const localeStore = useLocaleStore()
+// Sprachen aus der Verwaltung statt hart kodierter Liste
+const exportLanguages = computed(() => localeStore.dataLocales)
 import { resolveApiUrl } from '@/api/client'
 import exportsApi from '@/api/exports'
 import exportProfilesApi from '@/api/exportProfiles'
@@ -498,7 +503,7 @@ const streamUrl = computed(() => {
       <div>
         <p class="text-[12px] font-medium text-[var(--color-text-secondary)] mb-2">Sprachen</p>
         <div class="flex gap-3">
-          <label v-for="lang in ['de', 'en', 'fr', 'it', 'es']" :key="lang" class="flex items-center gap-1.5 text-xs cursor-pointer">
+          <label v-for="lang in exportLanguages" :key="lang" class="flex items-center gap-1.5 text-xs cursor-pointer">
             <input
               type="checkbox"
               :checked="selectedLanguages.includes(lang)"

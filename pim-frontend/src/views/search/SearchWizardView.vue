@@ -16,7 +16,6 @@ import { useServerQuickLookup } from '@/composables/useServerQuickLookup'
 import searchApi from '@/api/search'
 import searchProfilesApi from '@/api/searchProfiles'
 import { useColumnProfiles } from '@/composables/useColumnProfiles'
-import { translationLanguages } from '@/config/languages'
 import watchlistApi from '@/api/watchlist'
 import productsApi from '@/api/products'
 import hierarchiesApi from '@/api/hierarchies'
@@ -37,11 +36,14 @@ import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialo
 import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierarchyNodeDialog.vue'
 import QueryBuilderGroup from '@/components/search/QueryBuilderGroup.vue'
 
+const localeStore = useLocaleStore()
+// Sprachen aus der Verwaltung (Tabelle `languages`), nicht hart kodiert
+const translationLanguages = computed(() => localeStore.availableLocales)
+
 const { t, locale } = useI18n()
 const numberLocale = computed(() => (locale.value === 'de' ? 'de-DE' : 'en-US'))
 const { localizedName } = useLocalizedName()
 const router = useRouter()
-const localeStore = useLocaleStore()
 
 // Ansichtsmodus (Liste / Kacheln) mit localStorage-Persistenz
 const viewMode = ref(localStorage.getItem('viewMode:search') || 'list')
@@ -695,7 +697,7 @@ const guidedClauses = computed(() => {
     if (names.length) c.push(t('vom Typ {names}', { names: names.join(', ') }))
   }
   if (missingTranslationFilter.value.attribute_id && missingTranslationFilter.value.target_language) {
-    const lang = translationLanguages.find(l => l.code === missingTranslationFilter.value.target_language)
+    const lang = translationLanguages.value.find(l => l.code === missingTranslationFilter.value.target_language)
     c.push(t('ohne {lang}-Übersetzung', { lang: lang ? t(lang.label) : missingTranslationFilter.value.target_language }))
   }
   const q = searchInput.value.trim()

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Models\Language;
 use App\Services\Tms\TmsClient;
 use Illuminate\Console\Command;
 
@@ -25,7 +26,8 @@ class TmsStatusCommand extends Command
         $this->line('Konfiguration');
         $this->line('  TMS_ENABLED:          ' . (config('tms.enabled') ? 'true' : 'false'));
         $this->line('  TMS_BASE_URL:         ' . config('tms.base_url'));
-        $this->line('  TMS_TARGET_LANGUAGES: ' . implode(',', config('tms.target_languages', [])));
+        $this->line('  Quellsprache:         ' . Language::sourceCode());
+        $this->line('  Zielsprachen:         ' . implode(',', Language::targetCodes()) . '  (Tabelle `languages`)');
         $this->newLine();
 
         if (!$client->isEnabled()) {
@@ -33,7 +35,7 @@ class TmsStatusCommand extends Command
             return self::FAILURE;
         }
 
-        $stats = $client->getStats();
+        $stats = $client->getStats(Language::targetCodes());
 
         if (empty($stats)) {
             $this->error('Keine Antwort vom TMS.');
@@ -66,14 +68,14 @@ class TmsStatusCommand extends Command
 
         // Konfigurations-Drift zwischen PIM und TMS sichtbar machen: die
         // Sprachliste steht in beiden .env und laeuft sonst still auseinander.
-        $pimLangs = array_filter(config('tms.target_languages', []));
+        $pimLangs = Language::targetCodes();
         $tmsLangs = array_keys($stats['languages'] ?? []);
         $onlyPim = array_diff($pimLangs, $tmsLangs);
         $onlyTms = array_diff($tmsLangs, $pimLangs);
 
         if (!empty($onlyPim) || !empty($onlyTms)) {
             $this->newLine();
-            $this->warn('TMS_TARGET_LANGUAGES laeuft zwischen PIM und TMS auseinander:');
+            $this->warn('Sprachliste laeuft zwischen PIM und TMS auseinander:');
             if (!empty($onlyPim)) {
                 $this->line('  nur im PIM: ' . implode(',', $onlyPim) . ' — das TMS uebersetzt diese Sprachen nicht.');
             }

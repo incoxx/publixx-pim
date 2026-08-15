@@ -90,28 +90,45 @@ class Language extends Model
     private static function codes(): array
     {
         return Cache::remember(self::CACHE_KEY, 3600, function () {
-            // Fallback auf die Env, solange die Tabelle leer ist (frische
-            // Installation, Migration noch nicht gelaufen, Tests ohne Seed).
-            if (!static::query()->exists()) {
-                return [
-                    'source' => 'de',
-                    'targets' => array_values(array_filter(array_map(
-                        'trim',
-                        config('tms.target_languages', ['en', 'fr', 'es', 'it', 'nl']),
-                    ))),
-                ];
+            try {
+                // Leere Tabelle: frische Installation, Seed noch nicht gelaufen
+                if (!static::query()->exists()) {
+                    return self::codesFromConfig();
+                }
+
+                $source = static::query()->where('is_source', true)->value('technical_name') ?? 'de';
+
+                $targets = static::query()
+                    ->where('is_active', true)
+                    ->where('technical_name', '!=', $source)
+                    ->orderBy('sort_order')
+                    ->pluck('technical_name')
+                    ->all();
+
+                return ['source' => $source, 'targets' => $targets];
+            } catch (\Throwable $e) {
+                // Keine Tabelle, keine Verbindung — etwa waehrend `migrate`
+                // selbst oder in Unit-Tests ohne Datenbank. Die Sprachliste
+                // darf daran nicht scheitern, sonst steht der Ingest still.
+                return self::codesFromConfig();
             }
-
-            $source = static::query()->where('is_source', true)->value('technical_name') ?? 'de';
-
-            $targets = static::query()
-                ->where('is_active', true)
-                ->where('technical_name', '!=', $source)
-                ->orderBy('sort_order')
-                ->pluck('technical_name')
-                ->all();
-
-            return ['source' => $source, 'targets' => $targets];
         });
+    }
+
+    /**
+     * Rueckfallebene: die Env-Variable, aus der die Tabelle einmalig befuellt
+     * wurde. Danach ist die Tabelle massgeblich.
+     *
+     * @return array{source: string, targets: string[]}
+     */
+    private static function codesFromConfig(): array
+    {
+        return [
+            'source' => 'de',
+            'targets' => array_values(array_filter(array_map(
+                'trim',
+                config('tms.target_languages', ['en', 'fr', 'es', 'it', 'nl']),
+            ))),
+        ];
     }
 }

@@ -95,10 +95,17 @@ class UnitController
     /**
      * GET /api/stats — translation coverage per language.
      */
-    public function stats(): JsonResponse
+    public function stats(Request $request): JsonResponse
     {
         $totalUnits = TmsUnit::count();
-        $targetLangs = config('tms.target_languages', ['en', 'fr', 'es', 'it', 'nl']);
+
+        // Das PIM ist die Quelle der Wahrheit fuer die Sprachliste und gibt sie
+        // mit. Ohne Angabe greift die eigene Konfiguration — sonst wuerde die
+        // Statistik andere Sprachen zeigen als der Rest der Oberflaeche.
+        $requested = array_filter(array_map('trim', explode(',', (string) $request->query('langs'))));
+        $targetLangs = !empty($requested)
+            ? $requested
+            : config('tms.target_languages', ['en', 'fr', 'es', 'it', 'nl']);
 
         // Bezugsgröße je Zielsprache: Units, die in dieser Sprache bereits
         // vorliegen, sind keine offenen Übersetzungen. TranslateUnitJob

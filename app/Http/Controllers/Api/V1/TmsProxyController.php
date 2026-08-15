@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Jobs\IngestToTmsJob;
 use App\Jobs\SyncTmsTranslationsJob;
+use App\Models\Language;
 use App\Services\Tms\TmsClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -63,7 +64,7 @@ class TmsProxyController extends Controller
     {
         $this->abortIfDisabled();
 
-        $data = $this->client->getStats();
+        $data = $this->client->getStats(Language::targetCodes());
         return response()->json($data);
     }
 
@@ -95,7 +96,14 @@ class TmsProxyController extends Controller
             'target_langs.*' => 'string|max:5',
         ]);
 
-        $data = $this->client->retranslate($request->only('unit_ids', 'target_langs'));
+        // Ohne ausdrueckliche Angabe die Sprachliste des PIM verwenden, damit
+        // das TMS nicht auf seine eigene Konfiguration zurueckfaellt.
+        $payload = $request->only('unit_ids', 'target_langs');
+        if (empty($payload['target_langs'])) {
+            $payload['target_langs'] = Language::targetCodes();
+        }
+
+        $data = $this->client->retranslate($payload);
         return response()->json($data);
     }
 

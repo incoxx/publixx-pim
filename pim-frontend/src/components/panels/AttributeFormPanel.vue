@@ -4,9 +4,13 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { units as unitsApi } from '@/api/units'
 import attributesApi from '@/api/attributes'
-import { translationLanguages } from '@/config/languages'
+import { useLocaleStore } from '@/stores/locale'
 import PimForm from '@/components/shared/PimForm.vue'
 import PimCompositeChildPicker from '@/components/shared/PimCompositeChildPicker.vue'
+
+const localeStore = useLocaleStore()
+// Sprachen aus der Verwaltung (Tabelle `languages`), nicht hart kodiert
+const translationLanguages = computed(() => localeStore.availableLocales)
 
 const props = defineProps({
   attribute: { type: Object, default: null },

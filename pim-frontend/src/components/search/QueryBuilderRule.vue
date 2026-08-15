@@ -2,8 +2,12 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { X } from 'lucide-vue-next'
-import { translationLanguages } from '@/config/languages'
+import { useLocaleStore } from '@/stores/locale'
 import { useLocalizedName } from '@/composables/useLocalizedName'
+
+const localeStore = useLocaleStore()
+// Sprachen aus der Verwaltung (Tabelle `languages`), nicht hart kodiert
+const translationLanguages = computed(() => localeStore.availableLocales)
 
 const { t } = useI18n()
 const { localizedName } = useLocalizedName()

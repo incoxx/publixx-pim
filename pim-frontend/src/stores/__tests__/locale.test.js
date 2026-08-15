@@ -16,13 +16,16 @@ describe('Locale Store', () => {
       expect(store.currentLocale).toBe('de')
     })
 
-    it('has 3 available locales', () => {
-      expect(store.availableLocales).toHaveLength(3)
-      expect(store.availableLocales.map(l => l.code)).toEqual(['de', 'en', 'fr'])
+    // Die Sprachliste kommt jetzt aus der Tabelle `languages` (API), nicht
+    // mehr aus einer hart kodierten Liste. Vor dem Laden greift ein bewusst
+    // minimaler Fallback, damit die Oberflaeche bedienbar bleibt.
+    it('starts with the source language as fallback', () => {
+      expect(store.availableLocales.map(l => l.code)).toEqual(['de'])
+      expect(store.sourceLocale).toBe('de')
     })
 
-    it('all data locales are active by default', () => {
-      expect(store.activeDataLocales).toEqual(['de', 'en', 'fr'])
+    it('has no user selection before languages are loaded', () => {
+      expect(store.activeDataLocales).toEqual([])
     })
   })
 
@@ -40,6 +43,7 @@ describe('Locale Store', () => {
 
   describe('toggleDataLocale', () => {
     it('removes locale when active', () => {
+      store.activeDataLocales = ['de', 'en', 'fr']
       store.toggleDataLocale('fr')
       expect(store.activeDataLocales).toEqual(['de', 'en'])
     })

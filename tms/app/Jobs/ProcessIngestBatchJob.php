@@ -21,13 +21,21 @@ class ProcessIngestBatchJob implements ShouldQueue
     public int $tries = 3;
     public array $backoff = [5, 15, 60];
 
-    public function __construct(private readonly array $entities)
-    {
+    /**
+     * @param  string[]  $targetLanguages  Vom PIM vorgegebene Zielsprachen.
+     *                                     Leer = eigene Konfiguration nutzen.
+     */
+    public function __construct(
+        private readonly array $entities,
+        private readonly array $targetLanguages = [],
+    ) {
     }
 
     public function handle(): void
     {
-        $targetLangs = config('tms.target_languages', ['en', 'fr', 'es', 'it', 'nl']);
+        $targetLangs = !empty($this->targetLanguages)
+            ? $this->targetLanguages
+            : config('tms.target_languages', ['en', 'fr', 'es', 'it', 'nl']);
         $prefix = config('tms.cache_prefix', 'tms:t:');
         $ttl = config('tms.cache_ttl', 86400);
         $newUnits = 0;

@@ -63,20 +63,30 @@ class TmsClient
     /**
      * Send entities to TMS for ingestion.
      *
+     * Die Zielsprachen gehen im Payload mit. Das PIM ist die Quelle der
+     * Wahrheit (Tabelle `languages`); das TMS soll dafür nicht seine eigene
+     * TMS_TARGET_LANGUAGES lesen müssen — sonst laufen beide Seiten
+     * auseinander, sobald jemand nur eine der beiden .env pflegt.
+     *
      * @param  array  $entities
+     * @param  string[]  $targetLanguages  leer = das TMS nimmt seine Konfiguration
      */
-    public function ingest(array $entities): void
+    public function ingest(array $entities, array $targetLanguages = []): void
     {
         if (!$this->enabled || empty($entities)) {
             return;
         }
 
         try {
+            $payload = ['entities' => $entities];
+
+            if (!empty($targetLanguages)) {
+                $payload['target_languages'] = array_values($targetLanguages);
+            }
+
             $response = Http::timeout(30)
                 ->withToken($this->apiKey)
-                ->post("{$this->baseUrl}/ingest", [
-                    'entities' => $entities,
-                ]);
+                ->post("{$this->baseUrl}/ingest", $payload);
 
             if (!$response->successful()) {
                 Log::warning('TMS ingest failed', ['status' => $response->status()]);
@@ -112,10 +122,14 @@ class TmsClient
 
     /**
      * Get translation coverage stats.
+     *
+     * @param  string[]  $targetLanguages  leer = das TMS nimmt seine Konfiguration
      */
-    public function getStats(): array
+    public function getStats(array $targetLanguages = []): array
     {
-        return $this->get('/stats');
+        return $this->get('/stats', empty($targetLanguages)
+            ? []
+            : ['langs' => implode(',', $targetLanguages)]);
     }
 
     /**

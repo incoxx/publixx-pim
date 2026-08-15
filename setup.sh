@@ -271,6 +271,15 @@ TMS_DB_NAME="${DB_NAME}_tms"
 TMS_PORT=8001
 TMS_API_KEY=$(openssl rand -hex 32 2>/dev/null || cat /proc/sys/kernel/random/uuid | tr -d '-')
 
+# Startbelegung der Inhaltssprachen. Wandert per Migration in die Tabelle
+# `languages` und wird danach ueber die Oberflaeche gepflegt.
+echo ""
+ask "Zielsprachen (ISO-639-1, kommagetrennt) [en,fr,es,it,nl]: "
+read -r TMS_LANGUAGES
+TMS_LANGUAGES=${TMS_LANGUAGES:-en,fr,es,it,nl}
+TMS_LANGUAGES=$(echo "$TMS_LANGUAGES" | tr -d ' ' | tr 'A-Z' 'a-z')
+info "Quellsprache: de — Zielsprachen: ${TMS_LANGUAGES}"
+
 while true; do
     ask "MySQL Passwort: "
     read -rs DB_PASS
@@ -1006,7 +1015,12 @@ TMS_ENABLED=true
 TMS_BASE_URL=http://127.0.0.1:${TMS_PORT}/api
 TMS_API_KEY=${TMS_API_KEY}
 TMS_TIMEOUT=5
-TMS_TARGET_LANGUAGES=en,fr,es,it,nl
+
+# Startbelegung der Inhaltssprachen. Die Migration uebernimmt diese Liste
+# einmalig in die Tabelle `languages` — danach ist die Tabelle massgeblich
+# und wird ueber die Oberflaeche gepflegt (Uebersetzungen -> Sprachen).
+# Diese Variable dient dann nur noch als Rueckfallebene.
+TMS_TARGET_LANGUAGES=${TMS_LANGUAGES}
 
 # ─── Frontend (CORS) ────────────────────────────────────────────────
 FRONTEND_URL=${APP_URL}
@@ -1203,7 +1217,9 @@ CACHE_STORE=redis
 # Muss identisch mit TMS_API_KEY in der PIM-.env sein
 TMS_API_KEY=${TMS_API_KEY}
 
-TMS_TARGET_LANGUAGES=en,fr,es,it,nl
+# Rueckfallebene: das PIM schickt die Zielsprachen bei jedem Ingest mit
+# (Quelle der Wahrheit ist dort die Tabelle `languages`).
+TMS_TARGET_LANGUAGES=${TMS_LANGUAGES}
 TMS_PROVIDER_CHAIN=deepl,google
 TMS_CACHE_TTL=86400
 

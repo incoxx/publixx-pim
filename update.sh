@@ -724,6 +724,8 @@ else
 
     # --- tms/.env anlegen: DB-Zugang aus der PIM-.env uebernehmen ---
     if [ ! -f "${TMS_DIR}/.env" ]; then
+        PIM_TMS_LANGUAGES=$(read_env "$PIM_ENV" "TMS_TARGET_LANGUAGES")
+        PIM_TMS_LANGUAGES=${PIM_TMS_LANGUAGES:-en,fr,es,it,nl}
         PIM_DB_NAME=$(read_env "$PIM_ENV" "DB_DATABASE")
         PIM_DB_USER=$(read_env "$PIM_ENV" "DB_USERNAME")
         PIM_DB_PASS=$(read_env "$PIM_ENV" "DB_PASSWORD")
@@ -756,7 +758,9 @@ CACHE_STORE=redis
 
 TMS_API_KEY=${TMS_API_KEY}
 
-TMS_TARGET_LANGUAGES=en,fr,es,it,nl
+# Rueckfallebene: das PIM schickt die Zielsprachen bei jedem Ingest mit
+# (Quelle der Wahrheit ist dort die Tabelle `languages`, gepflegt in der GUI).
+TMS_TARGET_LANGUAGES=${PIM_TMS_LANGUAGES}
 TMS_PROVIDER_CHAIN=deepl,google
 TMS_CACHE_TTL=86400
 

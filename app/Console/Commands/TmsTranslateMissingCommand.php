@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Models\Language;
 use App\Services\Tms\TmsClient;
 use Illuminate\Console\Command;
 
@@ -12,15 +13,15 @@ use Illuminate\Console\Command;
  *
  * Typischer Ablauf beim Hinzufügen einer Sprache (z.B. Finnisch):
  *
- *   1. TMS_TARGET_LANGUAGES in .env UND tms/.env um 'fi' ergänzen
- *   2. php artisan config:cache  (in beiden Anwendungen)
+ *   1. Sprache in der Oberfläche anlegen (Übersetzungen → Sprachen)
+ *   2. php artisan tms:ingest              (legt fehlende Begriffe an)
  *   3. php artisan tms:translate-missing --lang=fi
  *   4. php artisan tms:sync
  */
 class TmsTranslateMissingCommand extends Command
 {
     protected $signature = 'tms:translate-missing
-        {--lang= : Zielsprache (z.B. fi). Ohne Angabe: alle aus TMS_TARGET_LANGUAGES}
+        {--lang= : Zielsprache (z.B. fi). Ohne Angabe: alle aktiven aus der Sprachverwaltung}
         {--batch=1000 : Begriffe pro Durchlauf}
         {--max-batches=1000 : Sicherheitsdeckel gegen Endlosschleifen}';
 
@@ -35,10 +36,11 @@ class TmsTranslateMissingCommand extends Command
 
         $langs = $this->option('lang')
             ? [trim($this->option('lang'))]
-            : array_filter(config('tms.target_languages', []));
+            : Language::targetCodes();
 
         if (empty($langs)) {
-            $this->error('Keine Zielsprache angegeben und TMS_TARGET_LANGUAGES ist leer.');
+            $this->error('Keine Zielsprache angegeben und keine aktive Zielsprache gepflegt.');
+            $this->line('Sprachen verwalten: Uebersetzungen -> Sprachen');
             return self::FAILURE;
         }
 
