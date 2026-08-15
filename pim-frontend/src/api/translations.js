@@ -31,6 +31,20 @@ export default {
     return client.post('/tms/translate-missing', { lang, limit })
   },
 
+  // Glossar-Austausch ohne MT-Anbieter: Datei raus, uebersetzt wieder rein
+  glossaryExportUrl(params) {
+    const qs = new URLSearchParams(params).toString()
+    return `/tms/glossary/export?${qs}`
+  },
+
+  importGlossary(file) {
+    const form = new FormData()
+    form.append('file', file)
+    return client.post('/tms/glossary/import', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+
   triggerIngest() {
     return client.post('/tms/ingest')
   },

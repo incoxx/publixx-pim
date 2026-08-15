@@ -7,9 +7,11 @@ namespace App\Http\Controllers\Api\V1;
 use App\Jobs\IngestToTmsJob;
 use App\Jobs\SyncTmsTranslationsJob;
 use App\Models\Language;
+use App\Services\Tms\GlossaryFileService;
 use App\Services\Tms\TmsClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TmsProxyController extends Controller
 {
@@ -129,6 +131,60 @@ class TmsProxyController extends Controller
         );
 
         return response()->json($data, 202);
+    }
+
+    /**
+     * GET /tms/glossary/export — Begriffe als XLSX oder CSV herausgeben.
+     *
+     * Für Übersetzung ohne MT-Anbieter: Datei an den Landesvertrieb oder eine
+     * Agentur, ausgefüllt zurück über /tms/glossary/import.
+     */
+    public function exportGlossary(Request $request, GlossaryFileService $service): StreamedResponse
+    {
+        $this->abortIfDisabled();
+
+        $request->validate([
+            'langs' => 'sometimes|nullable|string|max:200',
+            'status' => 'sometimes|in:all,missing,auto,reviewed',
+            'domain' => 'sometimes|nullable|string|max:50',
+            'format' => 'sometimes|in:xlsx,csv',
+        ]);
+
+        $langs = array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) $request->query('langs')),
+        )));
+
+        return $service->export(
+            $langs,
+            $request->query('status', 'all'),
+            $request->query('domain'),
+            $request->query('format', 'xlsx'),
+        );
+    }
+
+    /**
+     * POST /tms/glossary/import — ausgefüllte Datei zurückspielen.
+     */
+    public function importGlossary(Request $request, GlossaryFileService $service): JsonResponse
+    {
+        $this->abortIfDisabled();
+        abort_unless(auth()->user()?->hasPermissionTo('translations.edit'), 403);
+
+        $request->validate([
+            'file' => 'required|file|max:51200|mimes:xlsx,xls,csv,txt',
+        ]);
+
+        $result = $service->import($request->file('file')->getRealPath());
+
+        return response()->json($result + [
+            'message' => sprintf(
+                '%d Übersetzungen übernommen, %d unverändert, %d Begriffe nicht gefunden.',
+                $result['updated'],
+                $result['unchanged'],
+                $result['unknown'],
+            ),
+        ]);
     }
 
     /**

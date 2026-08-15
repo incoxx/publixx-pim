@@ -2,6 +2,8 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useTranslationsStore } from '@/stores/translations'
 import { useLocaleStore } from '@/stores/locale'
+import translationsApi from '@/api/translations'
+import { resolveApiUrl } from '@/api/client'
 import { Languages, RefreshCw, Download, Upload, Search, Globe, BarChart3, AlertCircle, Check, Loader2, Settings, X, Trash2 } from 'lucide-vue-next'
 import TranslationStatsCard from './TranslationStatsCard.vue'
 import TranslationUnitPanel from './TranslationUnitPanel.vue'
@@ -121,6 +123,50 @@ function addLog(type, message) {
   const time = new Date().toLocaleTimeString('de-DE')
   actionLog.value.unshift({ time, type, message })
   if (actionLog.value.length > 20) actionLog.value.pop()
+}
+
+const glossaryImportLoading = ref(false)
+const glossaryFileInput = ref(null)
+
+/**
+ * Glossar herausgeben, damit es ohne MT-Anbieter übersetzt werden kann —
+ * typischerweise durch den Landesvertrieb. Alle Sprachen nebeneinander,
+ * damit der Quervergleich möglich ist.
+ */
+function exportGlossary(format) {
+  const url = translationsApi.glossaryExportUrl({
+    langs: selectedLang.value,
+    status: activeTab.value === 'missing' ? 'missing' : 'all',
+    domain: selectedDomain.value || '',
+    format,
+  })
+  addLog('info', `Glossar-Export (${format.toUpperCase()}) wird erzeugt…`)
+  window.open(resolveApiUrl(url), '_blank')
+}
+
+async function onGlossaryFile(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  glossaryImportLoading.value = true
+  addLog('info', `Import von "${file.name}" läuft…`)
+  try {
+    const { data } = await store.importGlossary(file)
+    addLog('success', data.message || 'Import abgeschlossen.')
+    if (data.unknown > 0) {
+      addLog('error', `${data.unknown} Begriffe nicht gefunden — stammt die Datei aus einem älteren Export?`)
+    }
+    if (data.skipped_rows > 0) {
+      addLog('info', `${data.skipped_rows} Zeilen ohne Schlüssel übersprungen.`)
+    }
+    await store.fetchStats()
+    if (activeTab.value === 'missing') loadMissing()
+  } catch (e) {
+    addLog('error', 'Import fehlgeschlagen: ' + (e.response?.data?.message || e.message))
+  } finally {
+    glossaryImportLoading.value = false
+    event.target.value = ''
+  }
 }
 
 const rolloutLoading = ref(false)
@@ -379,6 +425,41 @@ const paginationPages = computed(() => {
         >
           {{ rolloutLoading ? 'Wird eingeplant…' : `Alle fehlenden übersetzen (${selectedLang})` }}
         </button>
+
+        <!-- Übersetzung ohne MT-Anbieter: Datei raus, ausgefüllt wieder rein -->
+        <button
+          class="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-[var(--color-border)] hover:bg-[var(--color-surface)]"
+          title="Begriffe als Excel-Datei herunterladen (alle Sprachen nebeneinander)"
+          @click="exportGlossary('xlsx')"
+        >
+          <Download class="w-4 h-4" /> Excel
+        </button>
+
+        <button
+          class="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-[var(--color-border)] hover:bg-[var(--color-surface)]"
+          title="Als CSV herunterladen"
+          @click="exportGlossary('csv')"
+        >
+          <Download class="w-4 h-4" /> CSV
+        </button>
+
+        <button
+          class="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-[var(--color-border)] hover:bg-[var(--color-surface)] disabled:opacity-50"
+          :disabled="glossaryImportLoading"
+          title="Ausgefüllte Datei zurückspielen — übernommene Werte gelten als geprüft"
+          @click="glossaryFileInput?.click()"
+        >
+          <Upload class="w-4 h-4" />
+          {{ glossaryImportLoading ? 'Wird eingelesen…' : 'Zurückspielen' }}
+        </button>
+
+        <input
+          ref="glossaryFileInput"
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          class="hidden"
+          @change="onGlossaryFile"
+        />
       </div>
 
       <!-- Table -->

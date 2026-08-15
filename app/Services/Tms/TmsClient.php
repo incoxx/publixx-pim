@@ -166,6 +166,44 @@ class TmsClient
     }
 
     /**
+     * Eine Seite des Glossars holen (Begriffe samt Übersetzungen und
+     * Verwendungsstellen) — Grundlage für den Datei-Export.
+     *
+     * @param  string[]  $langs
+     * @return array{data?: array, current_page?: int, last_page?: int, total?: int}
+     */
+    public function glossaryPage(array $langs, array $params = []): array
+    {
+        return $this->get('/glossary', array_merge($params, [
+            'langs' => implode(',', $langs),
+        ]));
+    }
+
+    /**
+     * Übersetzungen aus einer externen Datei zurückspielen.
+     *
+     * @param  array<int, array{hash: string, lang: string, translation: string}>  $items
+     */
+    public function glossaryImport(array $items): array
+    {
+        if (!$this->enabled || empty($items)) {
+            return [];
+        }
+
+        $total = ['updated' => 0, 'unchanged' => 0, 'unknown' => 0];
+
+        foreach (array_chunk($items, 1000) as $batch) {
+            $result = $this->post('/glossary', ['items' => $batch]);
+
+            foreach (['updated', 'unchanged', 'unknown'] as $key) {
+                $total[$key] += (int) ($result[$key] ?? 0);
+            }
+        }
+
+        return $total;
+    }
+
+    /**
      * Batch-import pre-translated items into TMS.
      */
     public function importTranslations(array $items): array

@@ -120,6 +120,10 @@ export const useTranslationsStore = defineStore('translations', () => {
     return total
   }
 
+  async function importGlossary(file) {
+    return translationsApi.importGlossary(file)
+  }
+
   async function triggerIngest() {
     return translationsApi.triggerIngest()
   }
@@ -139,6 +143,6 @@ export const useTranslationsStore = defineStore('translations', () => {
   return {
     units, unitsPagination, currentUnit, stats, missingUnits, missingPagination,
     unitsLoading, unitLoading, statsLoading, missingLoading, error,
-    fetchUnits, fetchUnit, fetchStats, fetchMissing, updateTranslation, retranslate, translateMissing, triggerIngest, syncToDatabase, deleteAllTranslations, purgeAllUnits,
+    fetchUnits, fetchUnit, fetchStats, fetchMissing, updateTranslation, retranslate, translateMissing, importGlossary, triggerIngest, syncToDatabase, deleteAllTranslations, purgeAllUnits,
   }
 })
