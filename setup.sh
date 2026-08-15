@@ -42,6 +42,16 @@
 #
 # Voraussetzung: Frisches Ubuntu 24.04 LTS mit Root-Zugang
 #
+# Protokoll:
+#   Die komplette Ausgabe landet zusaetzlich in
+#     /var/log/anypim-setup-JJJJMMTT-HHMMSS.log
+#   Am Ende werden alle Warnungen und Fehler noch einmal gebuendelt angezeigt.
+#   Gezielt nachsehen:
+#     grep -nE '\[✗\]|\[!\]' /var/log/anypim-setup-*.log
+#
+# Tipp: Bei Verbindung ueber SSH in tmux/screen starten, damit ein Abbruch der
+#       Verbindung die Installation nicht mittendrin killt.
+#
 
 set -euo pipefail
 
@@ -55,11 +65,53 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # ─── Hilfsfunktionen ────────────────────────────────────────────────────────
-info()    { echo -e "${GREEN}[✓]${NC} $1"; }
-warn()    { echo -e "${YELLOW}[!]${NC} $1"; }
-error()   { echo -e "${RED}[✗]${NC} $1"; exit 1; }
-step()    { echo -e "\n${BLUE}━━━ $1 ━━━${NC}\n"; }
-ask()     { echo -en "${CYAN}$1${NC}"; }
+# Warnungen und Fehler werden zusaetzlich gesammelt und am Ende gebuendelt
+# ausgegeben — bei einer Installation mit mehreren tausend Zeilen Ausgabe
+# (apt, composer, npm) geht eine einzelne Warnung sonst unter.
+LOG_FILE=""
+WARN_MESSAGES=()
+ERROR_MESSAGES=()
+
+info()         { echo -e "${GREEN}[✓]${NC} $1"; }
+warn()         { WARN_MESSAGES+=("$1"); echo -e "${YELLOW}[!]${NC} $1"; }
+error()        { ERROR_MESSAGES+=("$1"); echo -e "${RED}[✗]${NC} $1"; log_hint; exit 1; }
+error_noexit() { ERROR_MESSAGES+=("$1"); echo -e "${RED}[✗]${NC} $1"; }
+step()         { echo -e "\n${BLUE}━━━ $1 ━━━${NC}\n"; }
+ask()          { echo -en "${CYAN}$1${NC}"; }
+
+# Pfad zur Logdatei ausgeben (nur wenn die Protokollierung schon aktiv ist)
+log_hint() {
+    [ -n "$LOG_FILE" ] || return 0
+    echo -e "  Vollstaendiges Protokoll: ${CYAN}${LOG_FILE}${NC}"
+}
+
+# Gesammelte Warnungen/Fehler gebuendelt ausgeben
+print_summary() {
+    local n_warn=${#WARN_MESSAGES[@]}
+    local n_err=${#ERROR_MESSAGES[@]}
+    local m
+
+    echo ""
+    if [ "$n_err" -eq 0 ] && [ "$n_warn" -eq 0 ]; then
+        info "Meldungen: keine Warnungen, keine Fehler."
+    else
+        echo -e "${BOLD}Meldungen: ${n_err} Fehler, ${n_warn} Warnung(en)${NC}"
+        for m in ${ERROR_MESSAGES[@]+"${ERROR_MESSAGES[@]}"}; do
+            echo -e "  ${RED}[✗]${NC} ${m}"
+        done
+        for m in ${WARN_MESSAGES[@]+"${WARN_MESSAGES[@]}"}; do
+            echo -e "  ${YELLOW}[!]${NC} ${m}"
+        done
+    fi
+    log_hint
+}
+
+# Der tee-Subprozess der Protokollierung schreibt asynchron — kurz warten,
+# damit die letzten Zeilen noch in der Logdatei landen.
+flush_log() {
+    [ -n "$LOG_FILE" ] || return 0
+    sleep 0.3
+}
 
 # ─── Banner ──────────────────────────────────────────────────────────────────
 clear
@@ -87,6 +139,42 @@ echo -e "${NC}"
 if [ "$(id -u)" -ne 0 ]; then
     error "Dieses Script muss als root ausgefuehrt werden: sudo bash setup.sh"
 fi
+
+# ─── Protokoll-Datei einrichten ─────────────────────────────────────────────
+# Die gesamte Ausgabe (apt, MySQL, Composer, npm, Vite) wird parallel in eine
+# Logdatei geschrieben — der Terminal-Puffer reicht fuer eine komplette
+# Installation nicht aus. Das Ziel liegt bewusst unter /var/log und nicht im
+# Installationsverzeichnis: das existiert zu diesem Zeitpunkt noch nicht.
+# ANSI-Farbcodes werden entfernt, damit das Log mit grep/less lesbar bleibt.
+LOG_FILE_CANDIDATE="/var/log/anypim-setup-$(date +%Y%m%d-%H%M%S).log"
+
+if : > "$LOG_FILE_CANDIDATE" 2>/dev/null; then
+    LOG_FILE="$LOG_FILE_CANDIDATE"
+    exec > >(tee >(sed -u -E 's/\x1B\[[0-9;]*[a-zA-Z]//g' >> "$LOG_FILE")) 2>&1
+    info "Protokoll: ${LOG_FILE}"
+else
+    warn "Protokoll-Datei ${LOG_FILE_CANDIDATE} nicht beschreibbar — Setup laeuft ohne Log."
+fi
+
+# ─── Fehlerbehandlung ───────────────────────────────────────────────────────
+# Ohne diesen Trap bricht 'set -e' kommentarlos ab und man sieht nur die
+# Ausgabe des fehlgeschlagenen Befehls, nicht aber die Stelle im Script.
+setup_failed() {
+    local exit_code=$?
+    local failed_line=${BASH_LINENO[0]:-unbekannt}
+    echo ""
+    error_noexit "Setup fehlgeschlagen in Zeile ${failed_line} (Exit-Code: ${exit_code})"
+    # Reiner Hinweistext bewusst ohne error_noexit — er soll die Meldungsliste
+    # am Ende nicht aufblaehen.
+    echo -e "${RED}[✗]${NC} Der letzte Befehl ist fehlgeschlagen. Details siehe Ausgabe oberhalb."
+    print_summary
+    if [ -n "$LOG_FILE" ]; then
+        echo ""
+        echo -e "  Fehlersuche: ${CYAN}grep -nE '\\[✗\\]|\\[!\\]' ${LOG_FILE}${NC}"
+    fi
+    flush_log
+}
+trap setup_failed ERR
 
 # ─── Ubuntu-Check ────────────────────────────────────────────────────────────
 if ! grep -q "Ubuntu" /etc/os-release 2>/dev/null; then
@@ -1944,6 +2032,10 @@ fi
 #  FERTIG
 # ═════════════════════════════════════════════════════════════════════════════
 
+# Ab hier ist die Installation durch — ein Fehler in der Abschluss-Ausgabe
+# soll nicht mehr als "Setup fehlgeschlagen" gemeldet werden.
+trap - ERR
+
 # Installation erfolgreich -> gespeicherte Klartext-Passwoerter nicht mehr noetig.
 rm -f "$CONFIG_FILE"
 
@@ -2034,3 +2126,9 @@ if [ -n "$WEB_PATH" ]; then
     echo -e "    ${CYAN}Sitemap: ${APP_URL}/help/sitemap.xml${NC}"
     echo ""
 fi
+
+# Alle waehrend der Installation aufgelaufenen Warnungen/Fehler noch einmal
+# gebuendelt — sie liegen sonst tausende Zeilen weiter oben.
+print_summary
+echo ""
+flush_log

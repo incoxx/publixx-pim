@@ -456,6 +456,44 @@ php artisan tinker --execute="
 "
 ```
 
+### Translation Memory Not Reachable
+
+The UI shows: *"Das Translation Memory ist nicht erreichbar. Pruefen: laeuft der
+Dienst, stimmt TMS_API_KEY in .env und tms/.env?"*
+
+Almost always one of three causes: the shared secret differs between `.env` and
+`tms/.env`, the service is not listening on its port, or one side still runs
+with a stale config cache. `tms-activate.sh` handles all three in one pass —
+it aligns the key, fills in missing variables, starts the vhost and the queue
+worker, rebuilds both config caches and then measures the connection:
+
+```bash
+cd /var/www/publixx-pim
+
+# Diagnose only — changes nothing
+sudo bash tms-activate.sh --status
+
+# Repair and activate
+sudo bash tms-activate.sh
+
+# Also store machine-translation provider keys
+sudo bash tms-activate.sh --deepl-key=YOUR_KEY
+sudo bash tms-activate.sh --anthropic-key=YOUR_KEY --provider-chain=claude,deepl
+```
+
+Keys are only ever printed masked, and the full output is written to
+`storage/logs/tms-activate-*.log`. See `sudo bash tms-activate.sh --help` for
+all options.
+
+Reading the result of the connection test:
+
+| Response | Meaning |
+|---|---|
+| `/up` → 000 | Service not listening — check the vhost and `ss -ltnp \| grep 8001` |
+| `/api/stats` → 401 | Key mismatch, or the TMS config cache is stale |
+| `/api/stats` → 500 | `TMS_API_KEY` missing in `tms/.env` |
+| `/api/stats` → 200 | Connection is fine — coverage follows via `php artisan tms:status` |
+
 ### Apache Configuration Error
 
 ```bash
