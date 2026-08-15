@@ -100,6 +100,15 @@ class UnitController
         $totalUnits = TmsUnit::count();
         $targetLangs = config('tms.target_languages', ['en', 'fr', 'es', 'it', 'nl']);
 
+        // Bezugsgröße je Zielsprache: Units, die in dieser Sprache bereits
+        // vorliegen, sind keine offenen Übersetzungen. TranslateUnitJob
+        // überspringt source_lang === target_lang — würden sie mitgezählt,
+        // könnte z.B. die en-Abdeckung nie 100 % erreichen, sobald englische
+        // Quelltexte ingestiert wurden.
+        $unitsPerSourceLang = TmsUnit::selectRaw('source_lang, count(*) as cnt')
+            ->groupBy('source_lang')
+            ->pluck('cnt', 'source_lang');
+
         // Single grouped query instead of N queries per language
         $counts = TmsTranslation::selectRaw('target_lang, status, count(*) as cnt')
             ->whereIn('target_lang', $targetLangs)
@@ -109,17 +118,19 @@ class UnitController
         $stats = [];
         foreach ($targetLangs as $lang) {
             $langCounts = $counts->where('target_lang', $lang);
-            $translated = $langCounts->sum('cnt');
-            $reviewed = $langCounts->where('status', 'reviewed')->sum('cnt');
-            $auto = $langCounts->where('status', 'auto')->sum('cnt');
+            $translated = (int) $langCounts->sum('cnt');
+            $reviewed = (int) $langCounts->where('status', 'reviewed')->sum('cnt');
+            $auto = (int) $langCounts->where('status', 'auto')->sum('cnt');
+
+            $relevant = $totalUnits - (int) ($unitsPerSourceLang[$lang] ?? 0);
 
             $stats[$lang] = [
-                'total' => $totalUnits,
+                'total' => $relevant,
                 'translated' => $translated,
                 'reviewed' => $reviewed,
                 'auto' => $auto,
-                'missing' => $totalUnits - $translated,
-                'coverage' => $totalUnits > 0 ? round(($translated / $totalUnits) * 100, 1) : 0,
+                'missing' => max(0, $relevant - $translated),
+                'coverage' => $relevant > 0 ? round(($translated / $relevant) * 100, 1) : 0,
             ];
         }
 
@@ -162,18 +173,7 @@ class UnitController
         $count = $query->count();
         $query->delete();
 
-        // Flush Redis cache
-        $prefix = config('tms.cache_prefix', 'tms:t:');
-        try {
-            $keys = Redis::keys("{$prefix}*");
-            if (!empty($keys)) {
-                // Strip Redis prefix if present
-                $cleaned = array_map(fn ($k) => str_replace(config('database.redis.options.prefix', ''), '', $k), $keys);
-                Redis::del($cleaned);
-            }
-        } catch (\Throwable $e) {
-            // Cache flush is best-effort
-        }
+        $this->flushTranslationCache();
 
         return response()->json([
             'message' => "Deleted {$count} translations.",
@@ -193,22 +193,43 @@ class UnitController
         \Tms\Models\TmsUsage::query()->delete();
         TmsUnit::query()->delete();
 
-        // Flush Redis cache
-        $prefix = config('tms.cache_prefix', 'tms:t:');
-        try {
-            $keys = Redis::keys("{$prefix}*");
-            if (!empty($keys)) {
-                $cleaned = array_map(fn ($k) => str_replace(config('database.redis.options.prefix', ''), '', $k), $keys);
-                Redis::del($cleaned);
-            }
-        } catch (\Throwable $e) {
-            // Cache flush is best-effort
-        }
+        $this->flushTranslationCache();
 
         return response()->json([
             'message' => "{$count} Begriffe und alle zugehörigen Übersetzungen gelöscht.",
             'deleted' => $count,
         ]);
+    }
+
+    /**
+     * Leert den Übersetzungs-Cache in Redis.
+     *
+     * Nutzt SCAN statt KEYS: KEYS ist ein blockierender O(N)-Befehl über den
+     * gesamten Keyspace — in Redis-DB 4 liegen zusätzlich die Queue-Daten des
+     * TMS, ein Purge hätte damit den Worker mit ausgebremst.
+     */
+    private function flushTranslationCache(): void
+    {
+        $prefix = config('tms.cache_prefix', 'tms:t:');
+        $redisPrefix = (string) config('database.redis.options.prefix', '');
+
+        try {
+            $cursor = '0';
+
+            do {
+                [$cursor, $keys] = Redis::scan($cursor, ['match' => "{$prefix}*", 'count' => 500]);
+
+                if (!empty($keys)) {
+                    $cleaned = $redisPrefix === ''
+                        ? $keys
+                        : array_map(fn ($k) => str_replace($redisPrefix, '', $k), $keys);
+
+                    Redis::del($cleaned);
+                }
+            } while ($cursor !== '0' && $cursor !== 0);
+        } catch (\Throwable $e) {
+            // Cache flush is best-effort
+        }
     }
 
     /**

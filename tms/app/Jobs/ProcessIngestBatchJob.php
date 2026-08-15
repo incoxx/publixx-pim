@@ -42,6 +42,8 @@ class ProcessIngestBatchJob implements ShouldQueue
                 $text = $field['text'];
                 $lang = $field['lang'];
                 $fieldName = $field['field'];
+                // Hash-Vertrag mit dem PIM (App\Services\Tms\TmsHash) — nur
+                // gemeinsam aenderbar, siehe tests/Unit/HashContractTest.php
                 $hash = hash('sha256', $lang . '|' . $text);
 
                 // Derive domain from entity_type

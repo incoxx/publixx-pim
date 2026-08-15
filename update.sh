@@ -678,78 +678,273 @@ step "7/10 — TMS (Translation Memory Service)"
 
 TMS_DIR="${INSTALL_DIR}/tms"
 
-# Pruefen ob TMS in der PIM .env aktiviert ist
-TMS_ENABLED=$(grep '^TMS_ENABLED=' "${INSTALL_DIR}/.env" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || echo "false")
+# Liest einen Wert aus einer .env-Datei, ohne bei fehlendem Treffer zu scheitern
+# (wichtig wegen 'set -euo pipefail' — ein leeres grep liefert Exit 1).
+read_env() {
+    local file="$1" key="$2"
+    [ -f "$file" ] || { echo ""; return 0; }
+    grep -m1 "^${key}=" "$file" 2>/dev/null | cut -d'=' -f2- | tr -d '"'"'" || echo ""
+}
 
+# Setzt einen Wert in einer .env-Datei (ersetzt oder haengt an)
+set_env() {
+    local file="$1" key="$2" value="$3"
+    if grep -q "^${key}=" "$file" 2>/dev/null; then
+        sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+    else
+        echo "${key}=${value}" >> "$file"
+    fi
+}
+
+# Das TM ist fuer jede Installation relevant und wird deshalb IMMER eingerichtet
+# — unabhaengig von TMS_ENABLED. Der Flag steuert nur, ob das PIM den Dienst
+# benutzt, nicht ob er installiert und gestartet wird.
 if [ "$SKIP_TMS" = true ]; then
     info "TMS-Setup uebersprungen (--skip-tms)."
-elif [ "$TMS_ENABLED" != "true" ]; then
-    info "TMS nicht aktiviert (TMS_ENABLED=${TMS_ENABLED:-false}). Ueberspringe."
-    info "Zum Aktivieren: TMS_ENABLED=true in .env setzen."
-elif [ -d "$TMS_DIR" ] && [ -f "${TMS_DIR}/artisan" ]; then
-    cd "$TMS_DIR"
+elif [ ! -f "${TMS_DIR}/artisan" ]; then
+    warn "TMS-Verzeichnis nicht gefunden oder unvollstaendig — ueberspringe TMS."
+else
+    # Ab hier darf NICHTS das Update abbrechen: frueher hat 'set -e' hier in
+    # Schritt 7 zugeschlagen und die Schritte 8-10 (Caches, Services,
+    # Berechtigungen, Healthcheck) nie ausgefuehrt.
+    TMS_OK=true
 
-    # .env erstellen falls nicht vorhanden
+    PIM_ENV="${INSTALL_DIR}/.env"
+    TMS_API_KEY=$(read_env "$PIM_ENV" "TMS_API_KEY")
+    TMS_BASE_URL=$(read_env "$PIM_ENV" "TMS_BASE_URL")
+    TMS_PORT=$(echo "$TMS_BASE_URL" | grep -oP ':\K[0-9]+' | head -1 || true)
+    TMS_PORT=${TMS_PORT:-8001}
+
+    # --- API-Key: muss auf beiden Seiten identisch sein ---
+    if [ -z "$TMS_API_KEY" ] || [ "$TMS_API_KEY" = "change-me-to-a-secure-key" ]; then
+        TMS_API_KEY=$(openssl rand -hex 32 2>/dev/null || cat /proc/sys/kernel/random/uuid | tr -d '-')
+        set_env "$PIM_ENV" "TMS_API_KEY" "$TMS_API_KEY"
+        warn "TMS: Kein API-Key gesetzt — neuer Key generiert und in beide .env geschrieben."
+    fi
+
+    # --- tms/.env anlegen: DB-Zugang aus der PIM-.env uebernehmen ---
     if [ ! -f "${TMS_DIR}/.env" ]; then
-        if [ -f "${TMS_DIR}/.env.example" ]; then
-            cp "${TMS_DIR}/.env.example" "${TMS_DIR}/.env"
-            warn "TMS .env aus .env.example erstellt — bitte API-Keys konfigurieren!"
-        else
-            error "TMS .env.example nicht gefunden."
+        PIM_DB_NAME=$(read_env "$PIM_ENV" "DB_DATABASE")
+        PIM_DB_USER=$(read_env "$PIM_ENV" "DB_USERNAME")
+        PIM_DB_PASS=$(read_env "$PIM_ENV" "DB_PASSWORD")
+
+        cat > "${TMS_DIR}/.env" <<TMSENV
+APP_NAME=TMS
+APP_ENV=production
+APP_KEY=
+APP_DEBUG=false
+APP_URL=http://127.0.0.1:${TMS_PORT}
+
+LOG_CHANNEL=stack
+LOG_LEVEL=warning
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=${PIM_DB_NAME}_tms
+DB_USERNAME=${PIM_DB_USER}
+DB_PASSWORD=${PIM_DB_PASS}
+
+REDIS_CLIENT=predis
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+REDIS_CACHE_DB=4
+
+QUEUE_CONNECTION=redis
+CACHE_STORE=redis
+
+TMS_API_KEY=${TMS_API_KEY}
+
+TMS_TARGET_LANGUAGES=en,fr,es,it,nl
+TMS_PROVIDER_CHAIN=deepl,google
+TMS_CACHE_TTL=86400
+
+# ─── MT-Provider (optional — ohne Keys bleibt das TM rein manuell) ───
+DEEPL_API_KEY=
+DEEPL_API_URL=https://api-free.deepl.com/v2
+GOOGLE_TRANSLATE_API_KEY=
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=claude-sonnet-4-6
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o
+TMSENV
+        info "TMS: .env aus PIM-Konfiguration erzeugt."
+    else
+        # Bestehende .env: API-Key und Port nachziehen, Rest unangetastet lassen.
+        # Massgeblich ist die PIM-Seite — sie bestimmt, wohin der TmsClient
+        # spricht; laufen die Ports auseinander, ist der Dienst unerreichbar.
+        set_env "${TMS_DIR}/.env" "TMS_API_KEY" "$TMS_API_KEY"
+        set_env "${TMS_DIR}/.env" "APP_URL" "http://127.0.0.1:${TMS_PORT}"
+
+        # Alt-Installationen kamen aus .env.example mit APP_ENV=local/APP_DEBUG=true
+        if [ "$(read_env "${TMS_DIR}/.env" "APP_DEBUG")" = "true" ]; then
+            warn "TMS: APP_DEBUG=true in tms/.env — fuer Produktion auf false setzen."
         fi
     fi
 
-    # APP_KEY generieren falls leer
-    TMS_APP_KEY=$(grep '^APP_KEY=' "${TMS_DIR}/.env" | cut -d'=' -f2-)
-    if [ -z "$TMS_APP_KEY" ]; then
-        info "Generiere TMS APP_KEY..."
-        php artisan key:generate --force 2>&1
+    chown www-data:www-data "${TMS_DIR}/.env" 2>/dev/null || true
+    chmod 640 "${TMS_DIR}/.env" 2>/dev/null || true
+
+    # --- Datenbank anlegen, falls sie fehlt ---
+    TMS_DB=$(read_env "${TMS_DIR}/.env" "DB_DATABASE")
+    TMS_DB_USER=$(read_env "${TMS_DIR}/.env" "DB_USERNAME")
+    if [ -n "$TMS_DB" ] && command -v mysql > /dev/null 2>&1; then
+        if ! mysql -u root -e "USE \`${TMS_DB}\`" 2>/dev/null; then
+            if mysql -u root -e "CREATE DATABASE IF NOT EXISTS \`${TMS_DB}\` \
+                CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; \
+                GRANT ALL PRIVILEGES ON \`${TMS_DB}\`.* TO '${TMS_DB_USER}'@'localhost'; \
+                FLUSH PRIVILEGES;" 2>/dev/null; then
+                info "TMS: Datenbank '${TMS_DB}' angelegt."
+            else
+                warn "TMS: Datenbank '${TMS_DB}' konnte nicht angelegt werden (kein root-Zugang?)."
+            fi
+        fi
     fi
 
-    # Composer Install
-    if [ "$SKIP_COMPOSER" = false ]; then
+    # --- Storage-Verzeichnisse VOR dem ersten artisan-Aufruf ---
+    mkdir -p "${TMS_DIR}/storage/"{app,framework/{cache,sessions,views},logs} \
+             "${TMS_DIR}/bootstrap/cache"
+
+    # --- Composer ZUERST: tms/artisan laedt in Zeile 6 vendor/autoload.php.
+    #     Frueher lief key:generate davor und riss beim Erstlauf das ganze
+    #     Update mit runter. ---
+    if [ "$SKIP_COMPOSER" = false ] || [ ! -f "${TMS_DIR}/vendor/autoload.php" ]; then
         info "TMS: Installiere PHP-Abhaengigkeiten..."
-        php -d memory_limit=-1 -d error_reporting=E_ALL\&~E_DEPRECATED "$(which composer)" install \
-            --no-dev \
-            --optimize-autoloader \
-            --no-interaction \
-            --prefer-dist \
-            2>&1 | grep -v "^Deprecation Notice:"
-        info "TMS: Composer-Abhaengigkeiten aktualisiert."
+
+        # Ausgabe in eine Log-Datei statt durch eine Pipe: mit 'pipefail' haette
+        # ein 'grep -v', das alle Zeilen wegfiltert, Exit 1 geliefert und einen
+        # erfolgreichen Composer-Lauf als Fehlschlag gemeldet.
+        TMS_COMPOSER_LOG="${TMS_DIR}/storage/logs/composer.log"
+        if (cd "$TMS_DIR" && php -d memory_limit=-1 -d error_reporting=E_ALL\&~E_DEPRECATED \
+                "$(which composer)" install --no-dev --optimize-autoloader \
+                --no-interaction --prefer-dist > "$TMS_COMPOSER_LOG" 2>&1); then
+            grep -v "^Deprecation Notice:" "$TMS_COMPOSER_LOG" | tail -3 || true
+            info "TMS: Composer-Abhaengigkeiten aktualisiert."
+        else
+            warn "TMS: composer install fehlgeschlagen — Details: ${TMS_COMPOSER_LOG}"
+            tail -5 "$TMS_COMPOSER_LOG" 2>/dev/null || true
+            TMS_OK=false
+        fi
     fi
 
-    # Migrationen
-    info "TMS: Fuehre Migrationen aus..."
-    php artisan migrate --force 2>&1
-    info "TMS: Migrationen ausgefuehrt."
+    if [ "$TMS_OK" = true ] && [ ! -f "${TMS_DIR}/vendor/autoload.php" ]; then
+        warn "TMS: vendor/autoload.php fehlt — artisan nicht lauffaehig."
+        TMS_OK=false
+    fi
 
-    # Caches
-    php artisan config:cache 2>&1 || true
-    php artisan route:cache 2>&1 || true
-    info "TMS: Caches erstellt."
+    # --- APP_KEY erst jetzt, wenn vendor/ sicher vorhanden ist ---
+    if [ "$TMS_OK" = true ]; then
+        TMS_APP_KEY=$(read_env "${TMS_DIR}/.env" "APP_KEY")
+        if [ -z "$TMS_APP_KEY" ]; then
+            info "TMS: Generiere APP_KEY..."
+            (cd "$TMS_DIR" && php artisan key:generate --force 2>&1) \
+                || { warn "TMS: key:generate fehlgeschlagen."; TMS_OK=false; }
+        fi
+    fi
 
-    # Storage-Verzeichnisse sicherstellen
-    mkdir -p "${TMS_DIR}/storage/"{app,framework/{cache,sessions,views},logs}
-    chown -R www-data:www-data "${TMS_DIR}/storage" "${TMS_DIR}/bootstrap"
-    chmod -R 775 "${TMS_DIR}/storage"
+    # --- Migrationen ---
+    if [ "$TMS_OK" = true ]; then
+        info "TMS: Fuehre Migrationen aus..."
+        if (cd "$TMS_DIR" && php artisan migrate --force 2>&1); then
+            info "TMS: Migrationen ausgefuehrt."
+        else
+            warn "TMS: Migrationen fehlgeschlagen — DB-Zugang in tms/.env pruefen."
+            TMS_OK=false
+        fi
+    fi
 
-    # TMS Queue Worker neu starten
-    pkill -f "tms/artisan queue:work" > /dev/null 2>&1 || true
-    nohup php "${TMS_DIR}/artisan" queue:work --queue=tms,default --sleep=3 --tries=3 \
-        >> "${TMS_DIR}/storage/logs/queue-worker.log" 2>&1 &
-    info "TMS: Queue Worker gestartet (PID: $!)."
+    # --- Caches ---
+    if [ "$TMS_OK" = true ]; then
+        (cd "$TMS_DIR" && php artisan config:cache 2>&1) || true
+        (cd "$TMS_DIR" && php artisan route:cache 2>&1) || true
+        info "TMS: Caches erstellt."
+    fi
 
-    # TMS als PHP Built-in Server starten (Produktion: besser per Apache/Nginx)
-    TMS_PORT=$(grep '^APP_URL=' "${TMS_DIR}/.env" 2>/dev/null | grep -oP ':\K[0-9]+$' || echo "8001")
-    pkill -f "php.*-S.*:${TMS_PORT}.*tms/public" > /dev/null 2>&1 || true
-    nohup php -S "127.0.0.1:${TMS_PORT}" -t "${TMS_DIR}/public" \
-        >> "${TMS_DIR}/storage/logs/server.log" 2>&1 &
-    info "TMS: Server gestartet auf Port ${TMS_PORT} (PID: $!)."
+    chown -R www-data:www-data "${TMS_DIR}/storage" "${TMS_DIR}/bootstrap" 2>/dev/null || true
+    chmod -R 775 "${TMS_DIR}/storage" "${TMS_DIR}/bootstrap/cache" 2>/dev/null || true
+
+    # --- Dienste: Supervisor statt nohup, Apache statt 'php -S' ---
+    if [ "$TMS_OK" = true ]; then
+        # Altlasten aus frueheren Versionen dieses Skripts beenden
+        pkill -f "tms/artisan queue:work" > /dev/null 2>&1 || true
+        pkill -f "php.*-S.*127.0.0.1:${TMS_PORT}" > /dev/null 2>&1 || true
+
+        if command -v supervisorctl > /dev/null 2>&1; then
+            cat > /etc/supervisor/conf.d/anypim-tms-worker.conf <<TMSWORKER
+[program:anypim-tms-worker]
+process_name=%(program_name)s_%(process_num)02d
+command=php ${TMS_DIR}/artisan queue:work --queue=tms,default --sleep=3 --tries=3 --max-time=3600
+autostart=true
+autorestart=true
+numprocs=2
+user=www-data
+redirect_stderr=true
+stdout_logfile=${TMS_DIR}/storage/logs/queue-worker.log
+stopwaitsecs=3600
+TMSWORKER
+            supervisorctl reread > /dev/null 2>&1 || true
+            supervisorctl update > /dev/null 2>&1 || true
+            supervisorctl restart "anypim-tms-worker:*" > /dev/null 2>&1 \
+                || supervisorctl start "anypim-tms-worker:*" > /dev/null 2>&1 || true
+            info "TMS: Queue Worker via Supervisor gestartet."
+        else
+            warn "TMS: Supervisor nicht gefunden — Queue Worker nicht gestartet."
+        fi
+
+        # Apache VHost (nur Loopback). Ersetzt den frueheren php -S Dev-Server.
+        if command -v a2ensite > /dev/null 2>&1; then
+            cat > /etc/apache2/sites-available/anypim-tms.conf <<TMSVHOST
+# anyPIM — Translation Memory Service (nur ueber Loopback erreichbar)
+Listen 127.0.0.1:${TMS_PORT}
+
+<VirtualHost 127.0.0.1:${TMS_PORT}>
+    ServerName tms.localhost
+    DocumentRoot ${TMS_DIR}/public
+
+    <Directory ${TMS_DIR}/public>
+        AllowOverride All
+        Require ip 127.0.0.1
+        Options -Indexes +FollowSymLinks
+    </Directory>
+
+    ErrorLog \${APACHE_LOG_DIR}/anypim-tms-error.log
+    CustomLog \${APACHE_LOG_DIR}/anypim-tms-access.log combined
+</VirtualHost>
+TMSVHOST
+            a2ensite anypim-tms.conf > /dev/null 2>&1 || true
+
+            # Voller Neustart, kein reload: eine neue Listen-Direktive wird nur
+            # beim Neustart gebunden. configtest prueft nur die Syntax, nicht ob
+            # Port ${TMS_PORT} frei ist — bei Konflikt zurueckrollen, sonst
+            # nimmt der fehlgeschlagene Apache-Start das PIM mit.
+            if apache2ctl configtest 2>&1 | grep -q "Syntax OK" \
+               && systemctl restart apache2 2>/dev/null; then
+                info "TMS: Erreichbar via Apache auf 127.0.0.1:${TMS_PORT}."
+            else
+                a2dissite anypim-tms.conf > /dev/null 2>&1 || true
+                systemctl restart apache2 2>/dev/null || true
+                TMS_OK=false
+                warn "TMS: Apache VHost konnte nicht aktiviert werden (Port ${TMS_PORT} belegt?)."
+                warn "TMS: VHost deaktiviert, Apache neu gestartet."
+            fi
+        else
+            warn "TMS: Apache nicht gefunden — VHost nicht eingerichtet."
+        fi
+
+        info "TMS: Setup abgeschlossen."
+
+        PIM_TMS_ENABLED=$(read_env "$PIM_ENV" "TMS_ENABLED")
+        if [ "$PIM_TMS_ENABLED" != "true" ]; then
+            warn "TMS laeuft, ist im PIM aber deaktiviert (TMS_ENABLED=${PIM_TMS_ENABLED:-false})."
+            warn "Zum Aktivieren: TMS_ENABLED=true in ${PIM_ENV} setzen."
+        fi
+    else
+        warn "TMS: Setup unvollstaendig — Dienst wurde nicht gestartet."
+        warn "Das Update laeuft weiter. TMS-Log: ${TMS_DIR}/storage/logs/"
+    fi
 
     cd "$INSTALL_DIR"
-    info "TMS: Setup abgeschlossen."
-else
-    warn "TMS-Verzeichnis nicht gefunden oder unvollstaendig — ueberspringe TMS."
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════

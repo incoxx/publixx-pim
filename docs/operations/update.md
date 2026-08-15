@@ -20,7 +20,7 @@ sudo bash update.sh [options]
 | `--branch=NAME` | Use a different branch instead of `main` |
 | `--skip-frontend` | Skip frontend build (saves time for backend-only changes) |
 | `--skip-docs` | Skip documentation site rebuild (VitePress) |
-| `--skip-tms` | Skip TMS (Translation Management System) setup |
+| `--skip-tms` | Skip TMS (Translation Memory) setup. Not recommended — the TMS is set up on every run by default. |
 | `--skip-composer` | Skip Composer install |
 | `--seed` | Run seeders after migrations |
 | `--force` | No confirmation before update |
@@ -54,7 +54,7 @@ sudo bash update.sh --seed
 | 4/10 | Database migrations (`artisan migrate --force`) |
 | 5/10 | Frontend build (npm ci + build, subdirectory-aware) |
 | 6/10 | Documentation build (VitePress) |
-| 7/10 | TMS setup (if applicable) |
+| 7/10 | TMS setup (Translation Memory: composer, migrations, Apache vhost, supervisor worker — always runs unless --skip-tms) |
 | 8/10 | Recreate Laravel caches (config, route, view, event) |
 | 9/10 | File permissions + Horizon/queue worker + Apache restart |
 | 10/10 | Deactivate maintenance mode + healthcheck |

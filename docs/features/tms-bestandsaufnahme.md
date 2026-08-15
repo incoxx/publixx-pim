@@ -2,6 +2,11 @@
 
 **Stand:** 2026-08-15 · **Umfang:** `tms/` (eigenständiger Laravel-Service) + PIM-seitige Anbindung
 
+> **Status:** Die Befunde B-1, B-2, B-8, B-19, H-3 bis H-5, H-9 bis H-12, M-6, M-7,
+> M-15 bis M-16 und N-18 sind behoben. Siehe Abschnitt 5 am Ende.
+> Offen bleiben M-13, M-14, N-17 und die Frage, ob `name_en` weiter ingestiert
+> werden soll (Abschnitt 4).
+
 ---
 
 ## 1. Bestandsaufnahme
@@ -325,3 +330,64 @@ Surrogat-`id` einführen.
    Rückrichtung im Sync.
 3. **Zielbetriebsart des TMS-HTTP-Endpunkts** — eigener Apache-VHost/Port,
    Unix-Socket oder Einbettung ins PIM? Davon hängt die Umsetzung von H-5 ab.
+
+---
+
+## 5. Umsetzung
+
+### 5.1 Deployment
+
+| Befund | Änderung |
+|--------|----------|
+| B-1 | `setup.sh` richtet den TMS jetzt ein: eigene Datenbank `<pim-db>_tms` (Schritt 4), `tms/.env` aus der PIM-Konfiguration, Composer, Migrationen (Schritt 8), Apache-VHost auf `127.0.0.1:8001` und Supervisor-Worker (Schritt 10). |
+| B-2 | `update.sh` Schritt 7 neu aufgebaut: `composer install` läuft **vor** `key:generate` (`tms/artisan` lädt `vendor/autoload.php`), jeder Aufruf ist gegen `set -e`/`trap ERR` abgesichert. Ein TMS-Fehler beendet das Update nicht mehr — die Schritte 8–10 laufen weiter. |
+| H-3 | Beide Skripte legen die TMS-Datenbank an und übernehmen die MySQL-Zugangsdaten aus der PIM-`.env` (statt `root` mit leerem Passwort). |
+| H-4 | `TMS_API_KEY` wird einmal generiert und in **beide** `.env` geschrieben; `update.sh` zieht ihn bei jedem Lauf nach, ebenso den Port aus `TMS_BASE_URL`. |
+| H-5 | `php -S` und `nohup` sind ersetzt: HTTP über einen Apache-VHost (nur Loopback), Queue-Worker über Supervisor (`anypim-tms-worker`, 2 Prozesse, `autostart=true`). Beides übersteht jetzt einen Reboot. |
+| M-6 | `tms/.env.example` liefert `APP_ENV=production` / `APP_DEBUG=false`; `update.sh` warnt bei Alt-Installationen mit `APP_DEBUG=true`. |
+
+Der TMS wird jetzt bei **jedem** Lauf eingerichtet — `TMS_ENABLED` steuert nur
+noch, ob das PIM ihn benutzt, nicht mehr ob er installiert wird. Schlägt das
+Setup fehl, setzen die Skripte `TMS_ENABLED=false`, damit die Oberfläche nicht
+stumm ins Leere läuft.
+
+### 5.2 Code
+
+| Befund | Änderung |
+|--------|----------|
+| B-8 | Migration `2026_08_15_000001`: `provider` von `ENUM` auf `VARCHAR(20)`, damit neue Provider keine Migration mehr brauchen. `ImportTranslationsController` validiert gegen `ALLOWED_PROVIDERS`. |
+| H-9 / H-10 | `IngestToTmsJob::sendBatches()` filtert feldlose Entitäten **vor jedem** `ingest()`-Aufruf und reindiziert mit `array_values()`. |
+| H-11 | `UnitController::stats()` rechnet die Bezugsgröße je Sprache ohne die Units, deren Quellsprache die Zielsprache ist. |
+| H-12 | `triggerIngest`/`syncToDatabase` dispatchen in die Queue und antworten mit HTTP 202 statt synchron in den Request-Timeout zu laufen. |
+| M-7 | `SystemInfoController` prüft den TMS über `/up` und verifiziert zusätzlich den API-Key über `/stats` (erkennt den 401-Fall). |
+| M-15 | Cache-Flush nutzt `SCAN` statt des blockierenden `KEYS`. |
+| M-16 | `ResolveController` liest per `MGET` statt bis zu 4.000 einzelner `GET`. |
+| N-18 | Ungenutzter Import entfernt; Provider-Validierung im Proxy und im TMS angeglichen. |
+| — | **Zusätzlich beim Review gefunden:** der Exception-Handler in `tms/bootstrap/app.php` lieferte für `ValidationException` HTTP **500** statt 422 (`getStatusCode()` existiert dort nicht). Jeder fehlerhafte Payload sah für das PIM wie ein Serverfehler aus. Außerdem gab er bei 5xx die rohe Exception-Message aus (SQL-Fragmente, Provider-Antworten) — beides behoben. |
+
+### 5.3 Tests (B-19)
+
+Vorher: null Tests auf beiden Seiten.
+
+| Suite | Umfang |
+|-------|--------|
+| `tms/tests/` (neu: `phpunit.xml`, `TestCase`, SQLite in-memory) | 33 Tests — Provider-Kette inkl. Fallback, Ingest→Resolve-Roundtrip, API-Key-Middleware, Import-Validierung, Statistik |
+| `tests/Unit/Services/TmsClientTest.php` | 14 Tests — Feature-Flag, CSV-Parameter, Chunking, Fehlerbehandlung |
+| `tests/Unit/Services/TmsHashTest.php` + `tms/tests/Unit/HashContractTest.php` | Der Hash-Vertrag ist auf beiden Seiten mit **denselben** Literalen festgenagelt |
+| `tests/Unit/Jobs/IngestToTmsJobTest.php` | 8 Tests auf die Batch-Bildung |
+
+Der Hash-Vertrag liegt PIM-seitig jetzt in `App\Services\Tms\TmsHash` statt
+viermal dupliziert. Die TMS-Seite kann den Code nicht teilen (eigener Autoload),
+pinnt dieselben Werte aber in einer Spiegel-Testdatei.
+
+Die Regressionstests wurden gegen den alten Code gegengeprüft: 5 von 8
+Batch-Tests und beide 422-Tests schlagen dort fehl.
+
+### 5.4 Nicht verifiziert
+
+- `setup.sh` und `update.sh` sind nur syntaktisch (`bash -n`) und in einer
+  Simulation der Fehlerpfade geprüft — ein echter Lauf gegen einen frischen
+  Ubuntu-Server steht aus.
+- `SCAN`- und `MGET`-Pfad wurden gegen ein laufendes Redis verifiziert
+  (250 Übersetzungs-Keys gelöscht, Queue- und Cache-Keys unangetastet).
+- Die PIM-Feature-Tests brauchen MySQL und liefen in dieser Umgebung nicht.

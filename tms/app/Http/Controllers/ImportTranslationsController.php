@@ -7,12 +7,21 @@ namespace Tms\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redis;
+use Illuminate\Validation\Rule;
 use Tms\Models\TmsTranslation;
 use Tms\Models\TmsUnit;
 use Tms\Models\TmsUsage;
 
 class ImportTranslationsController
 {
+    /**
+     * Erlaubte Provider-Kennungen. Muss zu ProviderChain und den
+     * TranslationProvider::name()-Rueckgaben passen.
+     */
+    private const array ALLOWED_PROVIDERS = [
+        'deepl', 'google', 'claude', 'openai', 'human', 'import',
+    ];
+
     /**
      * POST /api/import-translations
      *
@@ -31,7 +40,7 @@ class ImportTranslationsController
             'items.*.entity_id' => 'required|string|max:36',
             'items.*.field_name' => 'nullable|string|max:50',
             'items.*.entity_label' => 'nullable|string|max:255',
-            'items.*.provider' => 'nullable|string|max:20',
+            'items.*.provider' => ['nullable', 'string', Rule::in(self::ALLOWED_PROVIDERS)],
         ]);
 
         $items = $request->input('items');
@@ -40,6 +49,8 @@ class ImportTranslationsController
         $imported = 0;
 
         foreach ($items as $item) {
+            // Hash-Vertrag mit dem PIM (App\Services\Tms\TmsHash) — nur
+            // gemeinsam aenderbar, siehe tests/Unit/HashContractTest.php
             $hash = hash('sha256', $item['source_lang'] . '|' . $item['source_text']);
 
             // Upsert TMS Unit

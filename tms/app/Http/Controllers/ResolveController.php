@@ -40,18 +40,27 @@ class ResolveController
         $result = [];
         $missingKeys = [];
 
-        // 1. Try Redis first
+        // 1. Redis zuerst — als ein einziges MGET statt bis zu 200×20 = 4.000
+        // einzelnen GET-Roundtrips (der Sync-Job ruft das pro 500er-Chunk auf).
+        $cacheKeys = [];
+        $keyIndex = [];
         foreach ($hashes as $hash) {
             $result[$hash] = [];
             foreach ($langs as $lang) {
-                $cacheKey = "{$prefix}{$hash}:{$lang}";
-                $cached = Redis::get($cacheKey);
+                $cacheKeys[] = "{$prefix}{$hash}:{$lang}";
+                $keyIndex[] = ['hash' => $hash, 'lang' => $lang];
+            }
+        }
 
-                if ($cached !== null && $cached !== false) {
-                    $result[$hash][$lang] = $cached === '__NULL__' ? null : $cached;
-                } else {
-                    $missingKeys[] = ['hash' => $hash, 'lang' => $lang];
-                }
+        $cachedValues = empty($cacheKeys) ? [] : Redis::mget($cacheKeys);
+
+        foreach ($keyIndex as $i => $key) {
+            $cached = $cachedValues[$i] ?? null;
+
+            if ($cached !== null && $cached !== false) {
+                $result[$key['hash']][$key['lang']] = $cached === '__NULL__' ? null : $cached;
+            } else {
+                $missingKeys[] = $key;
             }
         }
 

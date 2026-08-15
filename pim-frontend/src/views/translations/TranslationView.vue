@@ -114,12 +114,18 @@ function addLog(type, message) {
   if (actionLog.value.length > 20) actionLog.value.pop()
 }
 
+// Ingest und Sync laufen serverseitig über die Queue (HTTP 202) — sie können
+// je nach Katalogumfang mehrere Minuten dauern. Die Antwort bestätigt nur die
+// Einplanung; den Fortschritt sieht man über "Statistiken aktualisieren".
 async function triggerIngest() {
   ingestLoading.value = true
-  addLog('info', 'Ingest gestartet — sende PIM-Daten an TMS...')
+  addLog('info', 'Ingest wird eingeplant — sende PIM-Daten an TMS...')
   try {
     const { data } = await store.triggerIngest()
     addLog('success', data.message || `${data.total_sent} Entitäten gesendet.`)
+    if (data.queued) {
+      addLog('info', 'Läuft im Hintergrund. Fortschritt über "Statistiken aktualisieren" prüfen.')
+    }
   } catch (e) {
     addLog('error', 'Ingest fehlgeschlagen: ' + (e.response?.data?.message || e.message))
   } finally {
@@ -129,10 +135,13 @@ async function triggerIngest() {
 
 async function triggerSync() {
   syncLoading.value = true
-  addLog('info', 'Sync gestartet — hole Übersetzungen von TMS...')
+  addLog('info', 'Sync wird eingeplant — hole Übersetzungen von TMS...')
   try {
     const { data } = await store.syncToDatabase()
     addLog('success', data.message || `${data.total_updated} Datensätze aktualisiert.`)
+    if (data.queued) {
+      addLog('info', 'Läuft im Hintergrund. Fortschritt über "Statistiken aktualisieren" prüfen.')
+    }
   } catch (e) {
     addLog('error', 'Sync fehlgeschlagen: ' + (e.response?.data?.message || e.message))
   } finally {

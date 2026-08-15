@@ -100,17 +100,24 @@ class TmsProxyController extends Controller
     }
 
     /**
-     * POST /tms/ingest — run ingest from PIM to TMS (synchronous).
+     * POST /tms/ingest — Ingest vom PIM ins TMS anstoßen.
+     *
+     * Läuft über die Queue: der Job iteriert über den kompletten
+     * Metadaten-Bestand (u.a. alle Hierarchie-Knoten, Attribute und
+     * Wertelisten-Einträge) mit einem HTTP-Roundtrip je 200er-Batch und
+     * lief synchron zuverlässig in den Request-Timeout.
      */
     public function triggerIngest(): JsonResponse
     {
         $this->abortIfDisabled();
         abort_unless(auth()->user()?->hasPermissionTo('translations.edit'), 403);
 
-        $job = new IngestToTmsJob();
-        $result = $job->handle($this->client);
+        IngestToTmsJob::dispatch();
 
-        return response()->json($result);
+        return response()->json([
+            'queued' => true,
+            'message' => 'Ingest wurde eingeplant und läuft im Hintergrund.',
+        ], 202);
     }
 
     /**
@@ -144,17 +151,21 @@ class TmsProxyController extends Controller
     }
 
     /**
-     * POST /tms/sync — sync translations from TMS back into PIM database (synchronous).
+     * POST /tms/sync — Übersetzungen aus dem TMS zurück ins PIM schreiben.
+     *
+     * Läuft aus denselben Gründen wie triggerIngest() über die Queue.
      */
     public function syncToDatabase(): JsonResponse
     {
         $this->abortIfDisabled();
         abort_unless(auth()->user()?->hasPermissionTo('translations.edit'), 403);
 
-        $job = new SyncTmsTranslationsJob();
-        $result = $job->handle($this->client);
+        SyncTmsTranslationsJob::dispatch();
 
-        return response()->json($result);
+        return response()->json([
+            'queued' => true,
+            'message' => 'Sync wurde eingeplant und läuft im Hintergrund.',
+        ], 202);
     }
 
     private function abortIfDisabled(): void

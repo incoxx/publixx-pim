@@ -91,14 +91,24 @@ sudo bash setup.sh
 Step  1/10  System update (apt update/upgrade)
 Step  2/10  PHP 8.4 + extensions (mysql, redis, mbstring, xml, zip, gd, bcmath, curl, intl)
 Step  3/10  Apache + modules (rewrite, headers, ssl, alias)
-Step  4/10  MySQL 8 (create database + user)
+Step  4/10  MySQL 8 (create database + user, plus the <db>_tms database)
 Step  5/10  Redis (maxmemory 512mb, allkeys-lru)
 Step  6/10  Node.js 22 LTS
 Step  7/10  Composer 2
 Step  8/10  Laravel setup (.env, Composer install, migrations, seeder, storage link)
+            + TMS setup (tms/.env, Composer install, migrations)
 Step  9/10  Build frontend (npm ci + npm run build → public/)
-Step 10/10  Apache VHost, Supervisor/Horizon, Cron, permissions, firewall
+Step 10/10  Apache VHost (PIM + TMS), Supervisor/Horizon, TMS worker, Cron,
+            permissions, firewall
 ```
+
+The Translation Memory Service (TMS) is installed on every run — it is relevant
+for every customer. It gets its own database (`<pim-db>_tms`), its own Redis
+database (index 4), an Apache vhost bound to `127.0.0.1:8001`, and a Supervisor
+managed queue worker. The shared `TMS_API_KEY` is generated once and written to
+both `.env` and `tms/.env`. If the TMS setup fails, the installation continues
+and `TMS_ENABLED` is set to `false` so the UI does not silently run into a dead
+service.
 
 ### Services Running After Installation
 
@@ -109,7 +119,14 @@ Step 10/10  Apache VHost, Supervisor/Horizon, Cron, permissions, firewall
 | **Redis** | `systemctl` | Yes (systemd) |
 | **Supervisor** | `systemctl` | Yes (systemd) |
 | **Horizon** (queue worker) | `supervisorctl` | Yes (`autostart=true`) |
+| **TMS worker** (`anypim-tms-worker`) | `supervisorctl` | Yes (`autostart=true`, 2 processes) |
+| **TMS HTTP** (`anypim-tms` vhost) | `systemctl` (Apache) | Yes (systemd) |
 | **Laravel Scheduler** | Cron (`www-data`) | Yes (`* * * * *`) |
+
+The TMS is reachable on `127.0.0.1:8001` only — it is never exposed publicly.
+Check it with `supervisorctl status anypim-tms-worker:*` and
+`curl -s http://127.0.0.1:8001/up`. Its health is also reported in the PIM under
+*System → Status* as the "TMS" service.
 
 ---
 
@@ -133,7 +150,7 @@ sudo bash update.sh [options]
 | `--branch=NAME` | Use a different branch instead of `main` |
 | `--skip-frontend` | Skip frontend build (backend-only changes) |
 | `--skip-docs` | Skip documentation site rebuild |
-| `--skip-tms` | Skip TMS setup |
+| `--skip-tms` | Skip TMS (Translation Memory) setup. Not recommended — the TMS is set up on every run by default. |
 | `--skip-composer` | Skip Composer install |
 | `--seed` | Run seeders after migrations |
 | `--force` | No confirmation, execute immediately |
@@ -176,7 +193,7 @@ Step  3/10  Composer install (--no-dev, optimized autoloader)
 Step  4/10  Database migrations (artisan migrate --force)
 Step  5/10  Frontend build (npm ci + build, subdirectory-aware)
 Step  6/10  Documentation build (VitePress)
-Step  7/10  TMS setup (if applicable)
+Step  7/10  TMS setup (Translation Memory — always runs unless --skip-tms)
 Step  8/10  Recreate Laravel caches (config, route, view, event)
 Step  9/10  Permissions + Horizon/queue worker + Apache restart
 Step 10/10  Deactivate maintenance mode + healthcheck

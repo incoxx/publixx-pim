@@ -16,6 +16,7 @@ use App\Models\UnitGroup;
 use App\Models\ValueList;
 use App\Models\ValueListEntry;
 use App\Services\Tms\TmsClient;
+use App\Services\Tms\TmsHash;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -113,7 +114,7 @@ class SyncTmsTranslationsJob implements ShouldQueue, ShouldBeUnique
                     if (empty($sourceText)) {
                         continue;
                     }
-                    $hash = hash('sha256', 'de|' . $sourceText);
+                    $hash = TmsHash::for('de', $sourceText);
                     $hashMap[$hash][] = $record;
                     $uniqueHashes[$hash] = true;
                 }
@@ -161,7 +162,7 @@ class SyncTmsTranslationsJob implements ShouldQueue, ShouldBeUnique
                 if (empty($sourceText)) {
                     continue;
                 }
-                $hash = hash('sha256', 'de|' . $sourceText);
+                $hash = TmsHash::for('de', $sourceText);
                 $hashMap[$hash][] = $entry;
                 $uniqueHashes[$hash] = true;
             }
