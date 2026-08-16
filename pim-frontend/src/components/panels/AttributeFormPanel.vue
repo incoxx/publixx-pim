@@ -43,6 +43,15 @@ onMounted(() => {
 // Präfix, damit die dynamischen Felder nicht mit Attribut-Spalten kollidieren.
 const META_PREFIX = 'meta__'
 
+// Der Eingabetyp `number` in PimAttributeInput rundet (Math.round/parseInt) und
+// ist für Ganzzahlen gedacht. Das Backend akzeptiert für Metadaten jedes
+// is_numeric — deshalb auf `decimal` abbilden, sonst wird 1,8 zu 2.
+const META_INPUT_TYPES = { number: 'decimal' }
+
+function metaInputType(definition) {
+  return META_INPUT_TYPES[definition.value_type] || definition.value_type
+}
+
 function metaOptions(definition) {
   return (definition.options || []).map(option => {
     const [label, value] = option.split('::')
@@ -82,6 +91,14 @@ const dataTypeChangeWarning = computed(() => {
 
 // PimForm klont modelValue einmalig beim Mount — Metadatenwerte müssen deshalb
 // synchron vorliegen. Sie kommen über include=metadataValues aus der Liste mit.
+//
+// Sicherheitsnetz: Fehlt `metadata` am übergebenen Attribut ganz (Aufrufer ohne
+// den Include), ist der Ist-Zustand unbekannt. Dann darf beim Speichern kein
+// `metadata` mitgeschickt werden — sonst läse der Server jedes ungefüllte Feld
+// als "geleert" und würde sämtliche Werte löschen. Ohne den Key greift
+// serverseitig der array_key_exists-Guard und die Werte bleiben unangetastet.
+const metadataKnown = !props.attribute || props.attribute.metadata !== undefined
+
 const seededMetadata = Object.fromEntries(
   Object.entries(props.attribute?.metadata || {}).map(([tn, v]) => [META_PREFIX + tn, v])
 )
@@ -337,7 +354,7 @@ const fields = computed(() => {
     base.push({
       key: META_PREFIX + definition.technical_name,
       label: definition.name_de || definition.technical_name,
-      type: definition.value_type,
+      type: metaInputType(definition),
       options: metaOptions(definition),
       required: definition.is_required,
       hint: definition.description || undefined,
@@ -401,7 +418,9 @@ async function doSave(data) {
         metadata[definition.technical_name] = key in attrData ? attrData[key] : null
         delete attrData[key]
       }
-      attrData.metadata = metadata
+      if (metadataKnown) {
+        attrData.metadata = metadata
+      }
     }
 
     // SimpleSelect/SimpleMultiSelect: freie Optionen als Array übernehmen

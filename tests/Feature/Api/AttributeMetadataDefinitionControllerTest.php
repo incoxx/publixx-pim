@@ -7,6 +7,7 @@ namespace Tests\Feature\Api;
 use App\Models\Attribute;
 use App\Models\AttributeMetadataDefinition;
 use App\Models\AttributeMetadataValue;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -180,6 +181,47 @@ class AttributeMetadataDefinitionControllerTest extends TestCase
             ->assertJsonValidationErrors(['options']);
     }
 
+    /**
+     * Optionen werden als `Label::Wert` gepflegt, gespeichert wird nur der Wert-Anteil.
+     * Ein Diff über die Rohstrings würde hier nie greifen.
+     */
+    public function test_update_lehnt_entfernen_einer_benutzten_option_im_label_wert_format_ab(): void
+    {
+        $definition = AttributeMetadataDefinition::factory()->create([
+            'value_type' => 'select',
+            'options' => ['Rot::#FF0000', 'Grün::#00FF00'],
+        ]);
+        $attribute = Attribute::factory()->create();
+        AttributeMetadataValue::create([
+            'attribute_id' => $attribute->id,
+            'definition_id' => $definition->id,
+            'value' => '#FF0000',
+        ]);
+
+        $this->putJson("/api/v1/attribute-metadata-definitions/{$definition->id}", [
+            'options' => ['Grün::#00FF00'],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['options']);
+    }
+
+    public function test_update_erlaubt_umbenennen_eines_labels_bei_gleichem_wert(): void
+    {
+        $definition = AttributeMetadataDefinition::factory()->create([
+            'value_type' => 'select',
+            'options' => ['Rot::#FF0000'],
+        ]);
+        $attribute = Attribute::factory()->create();
+        AttributeMetadataValue::create([
+            'attribute_id' => $attribute->id,
+            'definition_id' => $definition->id,
+            'value' => '#FF0000',
+        ]);
+
+        $this->putJson("/api/v1/attribute-metadata-definitions/{$definition->id}", [
+            'options' => ['Signalrot::#FF0000'],
+        ])->assertOk();
+    }
+
     public function test_dependencies_meldet_anzahl_der_werte(): void
     {
         $definition = AttributeMetadataDefinition::factory()->create();
@@ -249,5 +291,97 @@ class AttributeMetadataDefinitionControllerTest extends TestCase
 
         $this->getJson('/api/v1/attribute-metadata-definitions')
             ->assertUnauthorized();
+    }
+
+    // ─── Berechtigungen ───────────────────────────────────────────────
+
+    /**
+     * Meldet den aktuellen Benutzer mit einer frisch gebauten Rolle an.
+     *
+     * @param array<int, string> $permissions
+     */
+    private function actingAsRole(string $roleName, array $permissions): void
+    {
+        foreach ($permissions as $name) {
+            Permission::findOrCreate($name, 'sanctum');
+        }
+
+        $role = Role::findOrCreate($roleName, 'sanctum');
+        $role->syncPermissions($permissions);
+
+        $user = User::factory()->create();
+        $user->syncRoles([$role]);
+        $this->actingAs($user);
+
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+    }
+
+    public function test_ohne_berechtigung_kein_zugriff(): void
+    {
+        $this->actingAsRole('Ohne Rechte', ['products.view']);
+
+        $definition = AttributeMetadataDefinition::factory()->create();
+
+        $this->getJson('/api/v1/attribute-metadata-definitions')->assertForbidden();
+        $this->postJson('/api/v1/attribute-metadata-definitions', [
+            'technical_name' => 'x', 'name_de' => 'X', 'value_type' => 'text',
+        ])->assertForbidden();
+        $this->putJson("/api/v1/attribute-metadata-definitions/{$definition->id}", ['name_de' => 'Y'])
+            ->assertForbidden();
+        $this->deleteJson("/api/v1/attribute-metadata-definitions/{$definition->id}")
+            ->assertForbidden();
+    }
+
+    public function test_lesende_rolle_darf_nur_lesen(): void
+    {
+        $this->actingAsRole('Nur Lesen', ['attribute-metadata.view']);
+
+        $definition = AttributeMetadataDefinition::factory()->create();
+
+        $this->getJson('/api/v1/attribute-metadata-definitions')->assertOk();
+        $this->getJson("/api/v1/attribute-metadata-definitions/{$definition->id}")->assertOk();
+
+        $this->postJson('/api/v1/attribute-metadata-definitions', [
+            'technical_name' => 'x', 'name_de' => 'X', 'value_type' => 'text',
+        ])->assertForbidden();
+        $this->putJson("/api/v1/attribute-metadata-definitions/{$definition->id}", ['name_de' => 'Y'])
+            ->assertForbidden();
+        $this->deleteJson("/api/v1/attribute-metadata-definitions/{$definition->id}")
+            ->assertForbidden();
+    }
+
+    public function test_pflegende_rolle_darf_anlegen_und_aendern_aber_nicht_loeschen(): void
+    {
+        $this->actingAsRole('Pflege', [
+            'attribute-metadata.view', 'attribute-metadata.create', 'attribute-metadata.edit',
+        ]);
+
+        $this->postJson('/api/v1/attribute-metadata-definitions', [
+            'technical_name' => 'datenherkunft', 'name_de' => 'Datenherkunft', 'value_type' => 'text',
+        ])->assertCreated();
+
+        $definition = AttributeMetadataDefinition::where('technical_name', 'datenherkunft')->firstOrFail();
+
+        $this->putJson("/api/v1/attribute-metadata-definitions/{$definition->id}", ['name_de' => 'Neu'])
+            ->assertOk();
+        $this->deleteJson("/api/v1/attribute-metadata-definitions/{$definition->id}")
+            ->assertForbidden();
+    }
+
+    /**
+     * Die Rollen-UI liest Labels und Gruppen aus GET /permissions. Fehlt der
+     * Eintrag dort, landen die Rechte unter "Sonstige" mit rohem Schluessel.
+     */
+    public function test_berechtigungskatalog_kennt_attribut_metadaten(): void
+    {
+        $response = $this->getJson('/api/v1/permissions')->assertOk();
+
+        $this->assertSame('Attribut-Metadaten', $response->json('labels.attribute-metadata'));
+
+        $konfiguration = collect($response->json('groups'))
+            ->firstWhere('label', 'Konfiguration');
+
+        $this->assertNotNull($konfiguration, 'Gruppe "Konfiguration" fehlt im Katalog.');
+        $this->assertContains('attribute-metadata', $konfiguration['entities']);
     }
 }

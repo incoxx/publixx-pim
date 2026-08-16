@@ -89,6 +89,11 @@ async function handleSubmit(data) {
   errors.value = {}
 
   const payload = { ...data }
+
+  // Geleertes Zahlenfeld liefert NaN, das als null serialisiert wird und an der
+  // integer-Regel scheitern würde.
+  payload.sort_order = Number.isFinite(payload.sort_order) ? payload.sort_order : 0
+
   if (needsOptions.value) {
     payload.options = optionsText.value
       .split('\n')

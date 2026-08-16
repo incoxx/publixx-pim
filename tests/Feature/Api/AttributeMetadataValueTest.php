@@ -220,6 +220,95 @@ class AttributeMetadataValueTest extends TestCase
             ->assertJsonValidationErrors(['metadata.datenherkunft']);
     }
 
+    public function test_array_bei_auswahlfeld_gibt_422_statt_500(): void
+    {
+        $attribute = Attribute::factory()->create();
+
+        $this->putJson("/api/v1/attributes/{$attribute->id}", [
+            'metadata' => ['datenherkunft' => ['ERP', 'Agentur']],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['metadata.datenherkunft']);
+    }
+
+    /**
+     * Ohne Formprüfung passiert ein Array die Validierung für text/textarea/boolean,
+     * normalize() liefert dann null und die gespeicherte Zeile verschwindet stillschweigend.
+     */
+    public function test_array_bei_textfeld_gibt_422_und_loescht_nichts(): void
+    {
+        $attribute = Attribute::factory()->create();
+        AttributeMetadataValue::create([
+            'attribute_id' => $attribute->id,
+            'definition_id' => $this->eigentuemer->id,
+            'value' => 'Produktmanagement',
+        ]);
+
+        $this->putJson("/api/v1/attributes/{$attribute->id}", [
+            'metadata' => ['dateneigentuemer' => ['a', 'b']],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['metadata.dateneigentuemer']);
+
+        $this->assertDatabaseHas('attribute_metadata_values', [
+            'attribute_id' => $attribute->id,
+            'definition_id' => $this->eigentuemer->id,
+            'value' => 'Produktmanagement',
+        ]);
+    }
+
+    public function test_verschachteltes_array_in_mehrfachauswahl_gibt_422(): void
+    {
+        AttributeMetadataDefinition::factory()->create([
+            'technical_name' => 'datenverbindung',
+            'name_de' => 'Datenverbindung',
+            'value_type' => 'multiselect',
+            'options' => ['SAP', 'Manuell'],
+        ]);
+
+        $attribute = Attribute::factory()->create();
+
+        $this->putJson("/api/v1/attributes/{$attribute->id}", [
+            'metadata' => ['datenverbindung' => [['SAP']]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['metadata.datenverbindung']);
+    }
+
+    public function test_skalar_bei_mehrfachauswahl_gibt_422(): void
+    {
+        AttributeMetadataDefinition::factory()->create([
+            'technical_name' => 'datenverbindung',
+            'name_de' => 'Datenverbindung',
+            'value_type' => 'multiselect',
+            'options' => ['SAP', 'Manuell'],
+        ]);
+
+        $attribute = Attribute::factory()->create();
+
+        $this->putJson("/api/v1/attributes/{$attribute->id}", [
+            'metadata' => ['datenverbindung' => 'SAP'],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['metadata.datenverbindung']);
+    }
+
+    public function test_option_im_label_wert_format_wird_als_wert_gespeichert(): void
+    {
+        AttributeMetadataDefinition::factory()->create([
+            'technical_name' => 'ampel',
+            'name_de' => 'Ampel',
+            'value_type' => 'select',
+            'options' => ['Rot::#FF0000', 'Grün::#00FF00'],
+        ]);
+
+        $attribute = Attribute::factory()->create();
+
+        $this->putJson("/api/v1/attributes/{$attribute->id}", [
+            'metadata' => ['ampel' => '#FF0000'],
+        ])->assertOk();
+
+        $this->getJson("/api/v1/attributes/{$attribute->id}?include=metadataValues")
+            ->assertOk()
+            ->assertJsonPath('data.metadata.ampel', '#FF0000');
+    }
+
     public function test_leeres_pflichtfeld_gibt_422(): void
     {
         $pflicht = AttributeMetadataDefinition::factory()->create([

@@ -126,6 +126,20 @@ Attribut-Payloads; eine zusätzliche Anforderung würde jedem Product Manager be
 eines Attributs einen Fehler bescheren. `attribute-metadata.view` steuert im Frontend
 lediglich die Sichtbarkeit des Menüpunkts.
 
+Drei Stellen müssen zusammenpassen, sonst driften Neu- und Bestandsinstallation
+auseinander oder die Rechte sind in der Rollen-UI nicht sinnvoll zuweisbar:
+
+| Stelle | Zweck |
+|---|---|
+| `database/migrations/2026_08_16_000003_add_attribute_metadata_permissions.php` | additiv für Bestandsinstallationen |
+| `database/seeders/RoleAndPermissionSeeder.php` | Neuinstallationen |
+| `app/Http/Controllers/Api/V1/PermissionController.php` | Label und Gruppe für den Rollen-Editor |
+
+Sysadmin und Admin erhalten die Rechte automatisch über `Permission::all()`, Viewer über
+den `%.view`-Filter im Seeder — dort ist nichts zu ergänzen. Ohne den Eintrag im
+`PermissionController` landen die Rechte in der Rollen-UI unter „Sonstige" mit rohem
+Schlüssel; ein Feature-Test sichert das ab.
+
 ## Frontend
 
 | Ort | Datei |

@@ -77,8 +77,13 @@ class UpdateAttributeMetadataDefinitionRequest extends FormRequest
      */
     private function stillUsedRemovedOptions(AttributeMetadataDefinition $definition, array $newOptions): array
     {
-        $old = $definition->options ?? [];
-        $removed = array_values(array_diff($old, $newOptions));
+        // Verglichen wird auf Ebene der gespeicherten Werte: Optionen werden als
+        // `Label::Wert` gepflegt, abgelegt wird nur der Wert-Anteil. Ein Diff über
+        // die Rohstrings würde bei diesem Format nie greifen.
+        $removed = array_values(array_diff(
+            AttributeMetadataDefinition::optionValues($definition->options),
+            AttributeMetadataDefinition::optionValues($newOptions)
+        ));
 
         if ($removed === []) {
             return [];

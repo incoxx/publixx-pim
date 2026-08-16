@@ -147,6 +147,21 @@ class AttributeMetadataService
     ): void {
         $label = $definition->name_de ?: $definition->technical_name;
 
+        // Formprüfung vor allen Typprüfungen: ohne sie würde ein Array in den
+        // (string)-Casts unten eine PHP-Warnung und damit einen 500er auslösen,
+        // und für text/textarea/boolean gäbe es gar keine Prüfung — normalize()
+        // liefert dort für Arrays null und würde die Zeile still löschen.
+        if (!$this->hasValidShape($definition, $value)) {
+            $validator->errors()->add(
+                $field,
+                $definition->isMultiValue()
+                    ? 'Das Metadatenfeld "' . $label . '" erwartet eine Liste einfacher Werte.'
+                    : 'Das Metadatenfeld "' . $label . '" erwartet einen einzelnen Wert.'
+            );
+
+            return;
+        }
+
         switch ($definition->value_type) {
             case 'number':
                 if (!is_numeric($value)) {
@@ -173,7 +188,7 @@ class AttributeMetadataService
                 break;
 
             case 'select':
-                if (!in_array((string) $value, $this->optionValues($definition), true)) {
+                if (!in_array((string) $value, $definition->allowedValues(), true)) {
                     $validator->errors()->add(
                         $field,
                         'Der Wert "' . $value . '" ist keine gültige Option für "' . $label . '".'
@@ -182,11 +197,7 @@ class AttributeMetadataService
                 break;
 
             case 'multiselect':
-                if (!is_array($value)) {
-                    $validator->errors()->add($field, 'Das Metadatenfeld "' . $label . '" erwartet eine Liste.');
-                    break;
-                }
-                $allowed = $this->optionValues($definition);
+                $allowed = $definition->allowedValues();
                 foreach ($value as $entry) {
                     if (!in_array((string) $entry, $allowed, true)) {
                         $validator->errors()->add(
@@ -200,20 +211,27 @@ class AttributeMetadataService
     }
 
     /**
-     * Zulässige Werte einer Auswahlliste (Format `Label::Wert` wie bei simple_options).
+     * Hat der Rohwert die für den Typ erwartete Grundform?
      *
-     * @return array<int, string>
+     * Mehrfachauswahl: Liste aus Skalaren. Alles andere: ein einzelner Skalar.
      */
-    private function optionValues(AttributeMetadataDefinition $definition): array
+    private function hasValidShape(AttributeMetadataDefinition $definition, mixed $value): bool
     {
-        return array_map(
-            static function (string $option): string {
-                $parts = explode('::', $option, 2);
+        if ($definition->isMultiValue()) {
+            if (!is_array($value)) {
+                return false;
+            }
 
-                return trim($parts[1] ?? $parts[0]);
-            },
-            $definition->options ?? []
-        );
+            foreach ($value as $entry) {
+                if (!is_scalar($entry)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return is_scalar($value);
     }
 
     /**

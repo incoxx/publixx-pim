@@ -45,7 +45,10 @@ export const useAttributeStore = defineStore('attributes', () => {
       const { data } = await attributesApi.list({
         perPage: meta.value.per_page,
         page: meta.value.current_page,
-        include: 'valueList,unitGroup,children',
+        // metadataValues gehört in den Default: ohne den Include verlieren die
+        // Zeilen ihr `metadata`, und das Attribut-Panel würde beim nächsten
+        // Speichern alle Metadatenwerte als "geleert" interpretieren.
+        include: 'valueList,unitGroup,children,metadataValues',
         ...options,
       })
       items.value = data.data

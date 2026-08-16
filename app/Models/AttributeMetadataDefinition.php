@@ -79,4 +79,36 @@ class AttributeMetadataDefinition extends Model
     {
         return in_array($this->value_type, self::MULTI_VALUE_TYPES, true);
     }
+
+    /**
+     * Extrahiert die speicherbaren Werte aus einer Optionsliste.
+     *
+     * Optionen werden im Format `Label::Wert` gepflegt (wie bei
+     * `attributes.simple_options`); gespeichert wird nur der Wert-Anteil.
+     * Ohne `::` ist die Option selbst der Wert.
+     *
+     * @param array<int, string>|null $options
+     * @return array<int, string>
+     */
+    public static function optionValues(?array $options): array
+    {
+        return array_map(
+            static function (string $option): string {
+                $parts = explode('::', $option, 2);
+
+                return trim($parts[1] ?? $parts[0]);
+            },
+            $options ?? []
+        );
+    }
+
+    /**
+     * Speicherbare Werte der eigenen Optionsliste.
+     *
+     * @return array<int, string>
+     */
+    public function allowedValues(): array
+    {
+        return self::optionValues($this->options);
+    }
 }
