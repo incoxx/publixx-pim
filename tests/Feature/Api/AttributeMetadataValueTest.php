@@ -9,6 +9,7 @@ use App\Models\AttributeMetadataDefinition;
 use App\Models\AttributeMetadataValue;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Attributes\AttributeMetadataService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -491,6 +492,35 @@ class AttributeMetadataValueTest extends TestCase
             ->assertJsonCount(2, 'data');
     }
 
+    /**
+     * "Alle N auswählen" muss dieselbe Treffermenge liefern wie die Liste —
+     * sonst trifft die anschliessende Massenbearbeitung zu viele Attribute.
+     */
+    public function test_all_ids_beruecksichtigt_metadaten_filter(): void
+    {
+        $treffer = $this->attributeWith($this->herkunft, 'ERP');
+        $this->attributeWith($this->herkunft, 'Agentur');
+        $this->attributeWith($this->herkunft, null);
+
+        $response = $this->postJson('/api/v1/attributes/all-ids', [
+            'filter' => ['meta:datenherkunft' => 'ERP'],
+        ])->assertOk();
+
+        $this->assertSame([$treffer->id], $response->json('ids'));
+    }
+
+    public function test_all_ids_beruecksichtigt_ohne_wert_filter(): void
+    {
+        $this->attributeWith($this->herkunft, 'ERP');
+        $ohneWert = $this->attributeWith($this->herkunft, null);
+
+        $response = $this->postJson('/api/v1/attributes/all-ids', [
+            'filter' => ['meta:datenherkunft' => '__none__'],
+        ])->assertOk();
+
+        $this->assertSame([$ohneWert->id], $response->json('ids'));
+    }
+
     // ─── Massenbearbeitung ────────────────────────────────────────────
 
     public function test_bulk_update_setzt_metadaten(): void
@@ -579,6 +609,92 @@ class AttributeMetadataValueTest extends TestCase
         $this->assertDatabaseHas('attribute_metadata_values', [
             'attribute_id' => $attribute->id,
             'value' => 'ERP',
+        ]);
+    }
+
+    /**
+     * `false` ist eine echte Angabe und bleibt erhalten; nur der leere String
+     * entfernt ein Ja/Nein-Metadatum ("— Wert entfernen —" im Bulk-Dialog).
+     */
+    public function test_boolean_false_wird_gespeichert(): void
+    {
+        AttributeMetadataDefinition::factory()->create([
+            'technical_name' => 'geprueft',
+            'name_de' => 'Geprüft',
+            'value_type' => 'boolean',
+        ]);
+
+        $attribute = Attribute::factory()->create();
+
+        $this->putJson("/api/v1/attributes/{$attribute->id}", [
+            'metadata' => ['geprueft' => false],
+        ])->assertOk();
+
+        $this->getJson("/api/v1/attributes/{$attribute->id}?include=metadataValues")
+            ->assertOk()
+            ->assertJsonPath('data.metadata.geprueft', false);
+    }
+
+    /**
+     * Direkt am Service, nicht über HTTP: Laravels globales
+     * ConvertEmptyStringsToNull macht aus '' im Request ohnehin null. Ein
+     * Aufrufer ohne diese Middleware (Importer, Konsolenbefehl) muss aber
+     * dieselbe Semantik bekommen — leer heisst löschen, auch bei Ja/Nein.
+     */
+    public function test_service_loescht_boolean_bei_leerem_string(): void
+    {
+        $definition = AttributeMetadataDefinition::factory()->create([
+            'technical_name' => 'geprueft',
+            'name_de' => 'Geprüft',
+            'value_type' => 'boolean',
+        ]);
+
+        $attribute = $this->attributeWith($definition, '1');
+
+        app(AttributeMetadataService::class)->sync($attribute, ['geprueft' => '']);
+
+        $this->assertDatabaseMissing('attribute_metadata_values', [
+            'attribute_id' => $attribute->id,
+            'definition_id' => $definition->id,
+        ]);
+    }
+
+    public function test_service_speichert_boolean_false_statt_zu_loeschen(): void
+    {
+        $definition = AttributeMetadataDefinition::factory()->create([
+            'technical_name' => 'geprueft',
+            'name_de' => 'Geprüft',
+            'value_type' => 'boolean',
+        ]);
+
+        $attribute = Attribute::factory()->create();
+
+        app(AttributeMetadataService::class)->sync($attribute, ['geprueft' => false]);
+
+        $this->assertDatabaseHas('attribute_metadata_values', [
+            'attribute_id' => $attribute->id,
+            'definition_id' => $definition->id,
+            'value' => '0',
+        ]);
+    }
+
+    public function test_bulk_update_entfernt_boolean_metadatum(): void
+    {
+        $definition = AttributeMetadataDefinition::factory()->create([
+            'technical_name' => 'geprueft',
+            'name_de' => 'Geprüft',
+            'value_type' => 'boolean',
+        ]);
+
+        $attribute = $this->attributeWith($definition, '1');
+
+        $this->putJson('/api/v1/attributes/bulk-update', [
+            'ids' => [$attribute->id],
+            'fields' => ['metadata' => ['geprueft' => '']],
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('attribute_metadata_values', [
+            'attribute_id' => $attribute->id,
         ]);
     }
 

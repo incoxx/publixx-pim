@@ -134,6 +134,11 @@ const metadataFilterDefinitions = computed(() =>
       { value: METADATA_ANY, label: 'mit Wert' },
     ]
 
+    if (d.value_type === 'boolean') {
+      // Gespeichert wird '1'/'0' — exakter Match wie bei jeder anderen Auswahl.
+      options.push({ value: '1', label: 'Ja' }, { value: '0', label: 'Nein' })
+    }
+
     // Auswahllisten bekommen ihre konkreten Werte direkt ins Dropdown.
     for (const raw of d.options || []) {
       const parts = raw.split('::')

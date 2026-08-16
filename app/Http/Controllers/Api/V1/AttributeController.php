@@ -370,6 +370,11 @@ class AttributeController extends Controller
             array_flip(self::ALLOWED_FILTERS)
         ));
 
+        // Muss dieselbe Filtermenge wie index() abbilden: sonst liefert
+        // "Alle N auswählen" bei aktivem Metadaten-Filter den gesamten Bestand,
+        // und die anschließende Massenbearbeitung trifft zu viele Attribute.
+        $this->applyMetadataFilters($query, $rawFilters);
+
         // Apply hierarchy node filter from POST body
         if ($request->input('filter.hierarchy_node_id')) {
             $nodeId = $request->input('filter.hierarchy_node_id');
@@ -559,11 +564,15 @@ class AttributeController extends Controller
             if ($metadata !== []) {
                 // Metadatenwerte hängen an eigenen Zeilen und lassen sich nicht per
                 // Massen-UPDATE setzen. Gechunkt, weil bis zu 5000 IDs erlaubt sind.
+                // Die Definitionen einmal auflösen und durchreichen — sonst käme
+                // je Attribut eine weitere Abfrage dazu.
+                $definitions = $this->metadataService->resolveDefinitions(array_keys($metadata));
+
                 Attribute::whereIn('id', $ids)
                     ->select('id')
-                    ->chunkById(500, function ($attributes) use ($metadata) {
+                    ->chunkById(500, function ($attributes) use ($metadata, $definitions) {
                         foreach ($attributes as $attribute) {
-                            $this->metadataService->sync($attribute, $metadata);
+                            $this->metadataService->sync($attribute, $metadata, $definitions);
                         }
                     });
             }

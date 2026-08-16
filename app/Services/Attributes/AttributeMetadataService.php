@@ -24,15 +24,20 @@ class AttributeMetadataService
      * Nicht enthaltene Definitionen bleiben unangetastet (partielles Update).
      * Ein leerer Wert löscht die Zeile — es entstehen keine Leerzeilen.
      *
+     * Bei Massenbearbeitungen sollten die Definitionen einmal über
+     * `resolveDefinitions()` aufgelöst und hier durchgereicht werden — sonst
+     * entsteht je Attribut eine zusätzliche Abfrage.
+     *
      * @param array<string, mixed> $metadata
+     * @param Collection<string, AttributeMetadataDefinition>|null $definitions
      */
-    public function sync(Attribute $attribute, array $metadata): void
+    public function sync(Attribute $attribute, array $metadata, ?Collection $definitions = null): void
     {
         if ($metadata === []) {
             return;
         }
 
-        $definitions = $this->definitionsFor(array_keys($metadata));
+        $definitions ??= $this->resolveDefinitions(array_keys($metadata));
 
         foreach ($metadata as $technicalName => $rawValue) {
             $definition = $definitions->get($technicalName);
@@ -95,7 +100,7 @@ class AttributeMetadataService
      */
     public function validate(array $metadata, Validator $validator, string $prefix = 'metadata'): void
     {
-        $definitions = $this->definitionsFor(array_keys($metadata));
+        $definitions = $this->resolveDefinitions(array_keys($metadata));
 
         foreach ($metadata as $technicalName => $value) {
             $field = $prefix . '.' . $technicalName;
@@ -125,10 +130,12 @@ class AttributeMetadataService
     }
 
     /**
+     * Löst technische Namen zu Definitionen auf, nach `technical_name` indiziert.
+     *
      * @param array<int, string> $technicalNames
      * @return Collection<string, AttributeMetadataDefinition>
      */
-    private function definitionsFor(array $technicalNames): Collection
+    public function resolveDefinitions(array $technicalNames): Collection
     {
         if ($technicalNames === []) {
             return collect();
@@ -259,8 +266,15 @@ class AttributeMetadataService
         }
 
         if ($definition->value_type === 'boolean') {
-            // Ein abgewähltes Kontrollkästchen ist eine echte Angabe ("nein"),
-            // kein leeres Feld — deshalb kein Löschen bei false.
+            // `false` ist eine echte Angabe ("nein") und wird gespeichert — ein
+            // abgewähltes Kontrollkästchen soll den Wert nicht löschen.
+            // Der leere String bedeutet dagegen ausdrücklich "kein Wert" und ist
+            // der einzige Weg, ein Ja/Nein-Metadatum wieder zu entfernen
+            // (Massenbearbeitung: "— Wert entfernen —").
+            if ($value === '') {
+                return null;
+            }
+
             $flag = filter_var($value, FILTER_VALIDATE_BOOLEAN);
 
             return ['value' => $flag ? '1' : '0', 'value_json' => null];

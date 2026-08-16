@@ -87,19 +87,25 @@ class AttributeMetadataDefinition extends Model
      * `attributes.simple_options`); gespeichert wird nur der Wert-Anteil.
      * Ohne `::` ist die Option selbst der Wert.
      *
-     * @param array<int, string>|null $options
+     * Nicht-Strings werden übersprungen: Die Methode wird auch aus
+     * `withValidator()` heraus mit noch unvalidierten Request-Daten aufgerufen —
+     * Laravel führt `after()`-Hooks selbst dann aus, wenn `options.*|string`
+     * bereits fehlgeschlagen ist. Ohne den Filter gäbe es dort einen
+     * TypeError (500) statt der erwarteten 422.
+     *
+     * @param array<int, mixed>|null $options
      * @return array<int, string>
      */
     public static function optionValues(?array $options): array
     {
-        return array_map(
+        return array_values(array_map(
             static function (string $option): string {
                 $parts = explode('::', $option, 2);
 
                 return trim($parts[1] ?? $parts[0]);
             },
-            $options ?? []
-        );
+            array_filter($options ?? [], 'is_string')
+        ));
     }
 
     /**

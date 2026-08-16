@@ -222,6 +222,32 @@ class AttributeMetadataDefinitionControllerTest extends TestCase
         ])->assertOk();
     }
 
+    /**
+     * Laravel fuehrt after()-Hooks auch aus, wenn `options.*|string` bereits
+     * fehlgeschlagen ist. Die Optionsauswertung darf dabei nicht in einen
+     * TypeError (500) laufen, sondern muss die 422 durchreichen.
+     */
+    public function test_update_mit_nicht_string_optionen_gibt_422(): void
+    {
+        $definition = AttributeMetadataDefinition::factory()->select()->create();
+
+        $this->putJson("/api/v1/attribute-metadata-definitions/{$definition->id}", [
+            'options' => [123, ['verschachtelt']],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['options.0']);
+    }
+
+    public function test_store_mit_nicht_string_optionen_gibt_422(): void
+    {
+        $this->postJson('/api/v1/attribute-metadata-definitions', [
+            'technical_name' => 'kaputt',
+            'name_de' => 'Kaputt',
+            'value_type' => 'select',
+            'options' => [123],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['options.0']);
+    }
+
     public function test_dependencies_meldet_anzahl_der_werte(): void
     {
         $definition = AttributeMetadataDefinition::factory()->create();
