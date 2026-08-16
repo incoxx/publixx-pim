@@ -26,7 +26,10 @@ class DeletionConstraintTest extends TestCase
         $this->user->assignRole($adminRole);
         $this->user->unsetRelation('roles');
         app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
-        Sanctum::actingAs($this->user);
+        // Die Abilities sind Pflicht: ohne sie liefert der Mock-Token von Sanctum
+        // fuer can('*') false, und RestrictScopedApiToken haelt ihn fuer einen
+        // eingeschraenkten Katalog-Embed-Token -> 403 auf allen Nicht-Katalog-Routen.
+        Sanctum::actingAs($this->user, ['*']);
     }
 
     // ─── Model Trait: checkDeletionConstraints ──────────────────

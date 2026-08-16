@@ -9,6 +9,7 @@ use App\Models\AttributeMetadataDefinition;
 use App\Models\AttributeMetadataValue;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Attributes\AttributeMetadataService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -390,6 +391,321 @@ class AttributeMetadataValueTest extends TestCase
         $this->getJson("/api/v1/attributes/{$attributeId}?include=metadataValues")
             ->assertOk()
             ->assertJsonPath('data.metadata.datenherkunft', 'Agentur');
+    }
+
+    // ─── Filtern ──────────────────────────────────────────────────────
+
+    /** Legt ein Attribut mit einem Metadatenwert an. */
+    private function attributeWith(AttributeMetadataDefinition $definition, ?string $value, ?array $json = null): Attribute
+    {
+        $attribute = Attribute::factory()->create();
+
+        if ($value !== null || $json !== null) {
+            AttributeMetadataValue::create([
+                'attribute_id' => $attribute->id,
+                'definition_id' => $definition->id,
+                'value' => $value,
+                'value_json' => $json,
+            ]);
+        }
+
+        return $attribute;
+    }
+
+    public function test_filter_nach_exaktem_metadatenwert(): void
+    {
+        $treffer = $this->attributeWith($this->herkunft, 'ERP');
+        $this->attributeWith($this->herkunft, 'Agentur');
+        $this->attributeWith($this->herkunft, null);
+
+        $this->getJson('/api/v1/attributes?filter[meta:datenherkunft]=ERP')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $treffer->id);
+    }
+
+    public function test_filter_ohne_wert_findet_luecken(): void
+    {
+        $this->attributeWith($this->herkunft, 'ERP');
+        $ohneWert = $this->attributeWith($this->herkunft, null);
+
+        $this->getJson('/api/v1/attributes?filter[meta:datenherkunft]=__none__')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $ohneWert->id);
+    }
+
+    public function test_filter_mit_beliebigem_wert(): void
+    {
+        $this->attributeWith($this->herkunft, 'ERP');
+        $this->attributeWith($this->herkunft, 'Agentur');
+        $this->attributeWith($this->herkunft, null);
+
+        $this->getJson('/api/v1/attributes?filter[meta:datenherkunft]=__any__')
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+    }
+
+    public function test_filter_auf_mehrfachauswahl(): void
+    {
+        $mehrfach = AttributeMetadataDefinition::factory()->create([
+            'technical_name' => 'datenverbindung',
+            'name_de' => 'Datenverbindung',
+            'value_type' => 'multiselect',
+            'options' => ['SAP', 'PIM-Sync', 'Manuell'],
+        ]);
+
+        $treffer = $this->attributeWith($mehrfach, null, ['SAP', 'Manuell']);
+        $this->attributeWith($mehrfach, null, ['PIM-Sync']);
+
+        $this->getJson('/api/v1/attributes?filter[meta:datenverbindung]=SAP')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $treffer->id);
+    }
+
+    public function test_mehrere_metadaten_filter_werden_kombiniert(): void
+    {
+        $treffer = Attribute::factory()->create();
+        AttributeMetadataValue::create([
+            'attribute_id' => $treffer->id, 'definition_id' => $this->herkunft->id, 'value' => 'ERP',
+        ]);
+        AttributeMetadataValue::create([
+            'attribute_id' => $treffer->id, 'definition_id' => $this->eigentuemer->id, 'value' => 'Marketing',
+        ]);
+
+        // Nur eine der beiden Bedingungen erfuellt
+        $this->attributeWith($this->herkunft, 'ERP');
+
+        $this->getJson('/api/v1/attributes?filter[meta:datenherkunft]=ERP&filter[meta:dateneigentuemer]=Marketing')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $treffer->id);
+    }
+
+    public function test_unbekannter_metadaten_filter_wird_ignoriert(): void
+    {
+        Attribute::factory()->count(2)->create();
+
+        $this->getJson('/api/v1/attributes?filter[meta:gibtesnicht]=x')
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+    }
+
+    /**
+     * "Alle N auswählen" muss dieselbe Treffermenge liefern wie die Liste —
+     * sonst trifft die anschliessende Massenbearbeitung zu viele Attribute.
+     */
+    public function test_all_ids_beruecksichtigt_metadaten_filter(): void
+    {
+        $treffer = $this->attributeWith($this->herkunft, 'ERP');
+        $this->attributeWith($this->herkunft, 'Agentur');
+        $this->attributeWith($this->herkunft, null);
+
+        $response = $this->postJson('/api/v1/attributes/all-ids', [
+            'filter' => ['meta:datenherkunft' => 'ERP'],
+        ])->assertOk();
+
+        $this->assertSame([$treffer->id], $response->json('ids'));
+    }
+
+    public function test_all_ids_beruecksichtigt_ohne_wert_filter(): void
+    {
+        $this->attributeWith($this->herkunft, 'ERP');
+        $ohneWert = $this->attributeWith($this->herkunft, null);
+
+        $response = $this->postJson('/api/v1/attributes/all-ids', [
+            'filter' => ['meta:datenherkunft' => '__none__'],
+        ])->assertOk();
+
+        $this->assertSame([$ohneWert->id], $response->json('ids'));
+    }
+
+    // ─── Massenbearbeitung ────────────────────────────────────────────
+
+    public function test_bulk_update_setzt_metadaten(): void
+    {
+        $a = Attribute::factory()->create();
+        $b = Attribute::factory()->create();
+
+        $this->putJson('/api/v1/attributes/bulk-update', [
+            'ids' => [$a->id, $b->id],
+            'fields' => ['metadata' => ['datenherkunft' => 'Agentur']],
+        ])->assertOk()
+            ->assertJsonPath('updated', 2);
+
+        foreach ([$a, $b] as $attribute) {
+            $this->assertDatabaseHas('attribute_metadata_values', [
+                'attribute_id' => $attribute->id,
+                'definition_id' => $this->herkunft->id,
+                'value' => 'Agentur',
+            ]);
+        }
+    }
+
+    public function test_bulk_update_ueberschreibt_bestehenden_wert(): void
+    {
+        $attribute = $this->attributeWith($this->herkunft, 'ERP');
+
+        $this->putJson('/api/v1/attributes/bulk-update', [
+            'ids' => [$attribute->id],
+            'fields' => ['metadata' => ['datenherkunft' => 'Marketing']],
+        ])->assertOk();
+
+        $this->assertSame(
+            1,
+            AttributeMetadataValue::where('attribute_id', $attribute->id)->count()
+        );
+        $this->assertDatabaseHas('attribute_metadata_values', [
+            'attribute_id' => $attribute->id,
+            'value' => 'Marketing',
+        ]);
+    }
+
+    public function test_bulk_update_mit_leerem_wert_loescht_metadaten(): void
+    {
+        $attribute = $this->attributeWith($this->eigentuemer, 'Produktmanagement');
+
+        $this->putJson('/api/v1/attributes/bulk-update', [
+            'ids' => [$attribute->id],
+            'fields' => ['metadata' => ['dateneigentuemer' => '']],
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('attribute_metadata_values', [
+            'attribute_id' => $attribute->id,
+        ]);
+    }
+
+    public function test_bulk_update_kombiniert_spalten_und_metadaten(): void
+    {
+        $attribute = Attribute::factory()->create(['is_searchable' => false]);
+
+        $this->putJson('/api/v1/attributes/bulk-update', [
+            'ids' => [$attribute->id],
+            'fields' => [
+                'is_searchable' => true,
+                'metadata' => ['datenherkunft' => 'ERP'],
+            ],
+        ])->assertOk();
+
+        $this->assertTrue($attribute->fresh()->is_searchable);
+        $this->assertDatabaseHas('attribute_metadata_values', [
+            'attribute_id' => $attribute->id,
+            'value' => 'ERP',
+        ]);
+    }
+
+    public function test_bulk_update_lehnt_ungueltigen_metadatenwert_ab(): void
+    {
+        $attribute = $this->attributeWith($this->herkunft, 'ERP');
+
+        $this->putJson('/api/v1/attributes/bulk-update', [
+            'ids' => [$attribute->id],
+            'fields' => ['metadata' => ['datenherkunft' => 'Zauberei']],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['fields.metadata.datenherkunft']);
+
+        // Bestehender Wert bleibt unangetastet
+        $this->assertDatabaseHas('attribute_metadata_values', [
+            'attribute_id' => $attribute->id,
+            'value' => 'ERP',
+        ]);
+    }
+
+    /**
+     * `false` ist eine echte Angabe und bleibt erhalten; nur der leere String
+     * entfernt ein Ja/Nein-Metadatum ("— Wert entfernen —" im Bulk-Dialog).
+     */
+    public function test_boolean_false_wird_gespeichert(): void
+    {
+        AttributeMetadataDefinition::factory()->create([
+            'technical_name' => 'geprueft',
+            'name_de' => 'Geprüft',
+            'value_type' => 'boolean',
+        ]);
+
+        $attribute = Attribute::factory()->create();
+
+        $this->putJson("/api/v1/attributes/{$attribute->id}", [
+            'metadata' => ['geprueft' => false],
+        ])->assertOk();
+
+        $this->getJson("/api/v1/attributes/{$attribute->id}?include=metadataValues")
+            ->assertOk()
+            ->assertJsonPath('data.metadata.geprueft', false);
+    }
+
+    /**
+     * Direkt am Service, nicht über HTTP: Laravels globales
+     * ConvertEmptyStringsToNull macht aus '' im Request ohnehin null. Ein
+     * Aufrufer ohne diese Middleware (Importer, Konsolenbefehl) muss aber
+     * dieselbe Semantik bekommen — leer heisst löschen, auch bei Ja/Nein.
+     */
+    public function test_service_loescht_boolean_bei_leerem_string(): void
+    {
+        $definition = AttributeMetadataDefinition::factory()->create([
+            'technical_name' => 'geprueft',
+            'name_de' => 'Geprüft',
+            'value_type' => 'boolean',
+        ]);
+
+        $attribute = $this->attributeWith($definition, '1');
+
+        app(AttributeMetadataService::class)->sync($attribute, ['geprueft' => '']);
+
+        $this->assertDatabaseMissing('attribute_metadata_values', [
+            'attribute_id' => $attribute->id,
+            'definition_id' => $definition->id,
+        ]);
+    }
+
+    public function test_service_speichert_boolean_false_statt_zu_loeschen(): void
+    {
+        $definition = AttributeMetadataDefinition::factory()->create([
+            'technical_name' => 'geprueft',
+            'name_de' => 'Geprüft',
+            'value_type' => 'boolean',
+        ]);
+
+        $attribute = Attribute::factory()->create();
+
+        app(AttributeMetadataService::class)->sync($attribute, ['geprueft' => false]);
+
+        $this->assertDatabaseHas('attribute_metadata_values', [
+            'attribute_id' => $attribute->id,
+            'definition_id' => $definition->id,
+            'value' => '0',
+        ]);
+    }
+
+    public function test_bulk_update_entfernt_boolean_metadatum(): void
+    {
+        $definition = AttributeMetadataDefinition::factory()->create([
+            'technical_name' => 'geprueft',
+            'name_de' => 'Geprüft',
+            'value_type' => 'boolean',
+        ]);
+
+        $attribute = $this->attributeWith($definition, '1');
+
+        $this->putJson('/api/v1/attributes/bulk-update', [
+            'ids' => [$attribute->id],
+            'fields' => ['metadata' => ['geprueft' => '']],
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('attribute_metadata_values', [
+            'attribute_id' => $attribute->id,
+        ]);
+    }
+
+    public function test_bulk_update_ohne_felder_gibt_422(): void
+    {
+        $attribute = Attribute::factory()->create();
+
+        $this->putJson('/api/v1/attributes/bulk-update', [
+            'ids' => [$attribute->id],
+            'fields' => ['nicht_erlaubt' => 'x'],
+        ])->assertUnprocessable();
     }
 
     // ─── Lebenszyklus ─────────────────────────────────────────────────

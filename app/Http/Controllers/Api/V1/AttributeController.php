@@ -9,6 +9,7 @@ use App\Http\Requests\Api\V1\UpdateAttributeRequest;
 use App\Http\Resources\Api\V1\AttributeResource;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Attribute;
+use App\Models\AttributeMetadataDefinition;
 use App\Models\HierarchyNode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +18,9 @@ use App\Models\AttributeViewAssignment;
 use App\Services\Attributes\AttributeMetadataService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator as ValidatorFacade;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class AttributeController extends Controller
 {
@@ -59,6 +62,7 @@ class AttributeController extends Controller
             array_flip(self::ALLOWED_FILTERS)
         ));
 
+        $this->applyMetadataFilters($query, $rawFilters);
         $this->applyHierarchyNodeFilter($query, $request);
         $this->applyAttributeViewFilter($query, $request);
 
@@ -223,6 +227,85 @@ class AttributeController extends Controller
         return $this->destroyWithConstraintCheck($request, $attribute);
     }
 
+    /** Präfix für Metadaten-Filter, z.B. filter[meta:datenherkunft]=ERP */
+    private const METADATA_FILTER_PREFIX = 'meta:';
+
+    /** Sonderwerte für Data-Quality-Auswertungen. */
+    private const METADATA_FILTER_EMPTY = '__none__';
+    private const METADATA_FILTER_ANY = '__any__';
+
+    /**
+     * Filtert nach Metadatenwerten (Data Quality & Ownership).
+     *
+     * `filter[meta:<technical_name>]=<Wert>` — exakter Wert.
+     * `__none__` liefert Attribute ohne Wert für diese Definition (Lückenanalyse),
+     * `__any__` alle mit irgendeinem Wert.
+     *
+     * Unbekannte technische Namen werden still ignoriert; ein veralteter
+     * Filter im Frontend soll die Liste nicht mit einem Fehler blockieren.
+     *
+     * @param array<string, mixed> $rawFilters
+     */
+    private function applyMetadataFilters($query, array $rawFilters): void
+    {
+        $wanted = [];
+        foreach ($rawFilters as $key => $value) {
+            if (!is_string($key) || !str_starts_with($key, self::METADATA_FILTER_PREFIX)) {
+                continue;
+            }
+
+            $technicalName = substr($key, strlen(self::METADATA_FILTER_PREFIX));
+            if ($technicalName === '' || $value === '' || $value === null || is_array($value)) {
+                continue;
+            }
+
+            $wanted[$technicalName] = (string) $value;
+        }
+
+        if ($wanted === []) {
+            return;
+        }
+
+        $definitions = AttributeMetadataDefinition::whereIn('technical_name', array_keys($wanted))
+            ->get()
+            ->keyBy('technical_name');
+
+        foreach ($wanted as $technicalName => $value) {
+            $definition = $definitions->get($technicalName);
+            if (!$definition instanceof AttributeMetadataDefinition) {
+                continue;
+            }
+
+            if ($value === self::METADATA_FILTER_EMPTY) {
+                $query->whereDoesntHave(
+                    'metadataValues',
+                    fn ($q) => $q->where('definition_id', $definition->id)
+                );
+
+                continue;
+            }
+
+            if ($value === self::METADATA_FILTER_ANY) {
+                $query->whereHas(
+                    'metadataValues',
+                    fn ($q) => $q->where('definition_id', $definition->id)
+                );
+
+                continue;
+            }
+
+            $query->whereHas('metadataValues', function ($q) use ($definition, $value) {
+                $q->where('definition_id', $definition->id);
+
+                if ($definition->isMultiValue()) {
+                    $q->whereJsonContains('value_json', $value);
+                } else {
+                    $q->where('value', $value);
+                }
+            });
+        }
+    }
+
     /**
      * Apply hierarchy node filter: find attributes assigned to a given node and all its descendants.
      */
@@ -286,6 +369,11 @@ class AttributeController extends Controller
             $rawFilters,
             array_flip(self::ALLOWED_FILTERS)
         ));
+
+        // Muss dieselbe Filtermenge wie index() abbilden: sonst liefert
+        // "Alle N auswählen" bei aktivem Metadaten-Filter den gesamten Bestand,
+        // und die anschließende Massenbearbeitung trifft zu viele Attribute.
+        $this->applyMetadataFilters($query, $rawFilters);
 
         // Apply hierarchy node filter from POST body
         if ($request->input('filter.hierarchy_node_id')) {
@@ -447,6 +535,7 @@ class AttributeController extends Controller
             'fields.is_primary' => 'boolean',
             'fields.attribute_type_id' => 'nullable|uuid|exists:attribute_types,id',
             'fields.status' => 'in:active,inactive',
+            'fields.metadata' => 'sometimes|array',
         ]);
 
         $fields = array_intersect_key(
@@ -454,16 +543,62 @@ class AttributeController extends Controller
             array_flip(self::BULK_ALLOWED_FIELDS)
         );
 
-        if (empty($fields)) {
+        $metadata = $request->input('fields.metadata');
+        $metadata = is_array($metadata) ? $metadata : [];
+
+        if (empty($fields) && $metadata === []) {
             return response()->json(['message' => 'No valid fields provided.'], 422);
         }
 
-        $count = Attribute::whereIn('id', $request->input('ids'))->update($fields);
+        if ($metadata !== []) {
+            $this->validateBulkMetadata($metadata);
+        }
+
+        $ids = $request->input('ids');
+
+        $count = DB::transaction(function () use ($ids, $fields, $metadata) {
+            $count = empty($fields)
+                ? count($ids)
+                : Attribute::whereIn('id', $ids)->update($fields);
+
+            if ($metadata !== []) {
+                // Metadatenwerte hängen an eigenen Zeilen und lassen sich nicht per
+                // Massen-UPDATE setzen. Gechunkt, weil bis zu 5000 IDs erlaubt sind.
+                // Die Definitionen einmal auflösen und durchreichen — sonst käme
+                // je Attribut eine weitere Abfrage dazu.
+                $definitions = $this->metadataService->resolveDefinitions(array_keys($metadata));
+
+                Attribute::whereIn('id', $ids)
+                    ->select('id')
+                    ->chunkById(500, function ($attributes) use ($metadata, $definitions) {
+                        foreach ($attributes as $attribute) {
+                            $this->metadataService->sync($attribute, $metadata, $definitions);
+                        }
+                    });
+            }
+
+            return $count;
+        });
 
         return response()->json([
             'message' => "{$count} Attribute aktualisiert.",
             'updated' => $count,
         ]);
+    }
+
+    /**
+     * Prüft die Metadaten einer Massenbearbeitung und wirft bei Fehlern 422.
+     *
+     * @param array<string, mixed> $metadata
+     */
+    private function validateBulkMetadata(array $metadata): void
+    {
+        $validator = ValidatorFacade::make([], []);
+        $this->metadataService->validate($metadata, $validator, 'fields.metadata');
+
+        if ($validator->errors()->isNotEmpty()) {
+            throw ValidationException::withMessages($validator->errors()->toArray());
+        }
     }
 
     public function bulkAssignViews(Request $request): JsonResponse

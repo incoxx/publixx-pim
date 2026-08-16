@@ -37,8 +37,59 @@ const viewsEnabled = ref(false)
 const viewsMode = ref('add')
 const selectedViewIds = ref([])
 
+// Metadaten (Data Quality & Ownership) — gleiches Muster wie `fields`:
+// { [technical_name]: { enabled, value } }
+const metaFields = ref({})
+
+function buildMetaFields() {
+  const next = {}
+  for (const d of store.metadataDefinitions) {
+    next[d.technical_name] = {
+      enabled: metaFields.value[d.technical_name]?.enabled ?? false,
+      value: metaFields.value[d.technical_name]?.value ?? (d.value_type === 'multiselect' ? [] : ''),
+    }
+  }
+  metaFields.value = next
+}
+
+// Direkt an die Definitionen gekoppelt (immediate), damit die Felder vor dem
+// ersten Rendern stehen — der Dialog kann bereits offen gemountet werden und
+// die Definitionen treffen asynchron ein.
+watch(() => store.metadataDefinitions, buildMetaFields, { immediate: true })
+
+/** Definition + zugehoeriges Formularfeld, nur vollstaendige Paare. */
+const metaRows = computed(() =>
+  store.metadataDefinitions
+    .filter(d => metaFields.value[d.technical_name])
+    .map(d => ({ definition: d, field: metaFields.value[d.technical_name] }))
+)
+
+/** Auswahloptionen im Format `Label::Wert` — gespeichert wird der Wert. */
+function metaOptions(definition) {
+  return (definition.options || []).map((raw) => {
+    const parts = raw.split('::')
+    const value = (parts[1] ?? parts[0]).trim()
+    return { value, label: parts.length > 1 ? `${parts[0].trim()} (${value})` : value }
+  })
+}
+
+function toggleMetaMultiValue(technicalName, optionValue) {
+  const current = metaFields.value[technicalName].value
+  const list = Array.isArray(current) ? [...current] : []
+  const idx = list.indexOf(optionValue)
+  if (idx === -1) list.push(optionValue)
+  else list.splice(idx, 1)
+  metaFields.value[technicalName].value = list
+}
+
 watch(() => props.open, async (isOpen) => {
-  if (isOpen && availableViews.value.length === 0) {
+  if (!isOpen) return
+
+  if (!store.metadataDefinitions.length) {
+    await store.fetchMetadataDefinitions()
+  }
+
+  if (availableViews.value.length === 0) {
     try {
       const { data } = await attributeViewsApi.list({ per_page: 200 })
       availableViews.value = data.data || data
@@ -65,9 +116,24 @@ const attributeTypeOptions = computed(() =>
   store.types.map(t => ({ value: t.id, label: t.name_de || t.technical_name }))
 )
 
+const enabledMetaFields = computed(() =>
+  Object.entries(metaFields.value).filter(([, f]) => f.enabled)
+)
+
 const hasEnabledFields = computed(() =>
   Object.values(fields.value).some(f => f.enabled) ||
+  enabledMetaFields.value.length > 0 ||
   (viewsEnabled.value && selectedViewIds.value.length > 0)
+)
+
+/** Angehakte Metadaten, deren Wert leer ist — die loeschen das Metadatum. */
+const clearingMetaLabels = computed(() =>
+  enabledMetaFields.value
+    .filter(([, f]) => f.value === '' || (Array.isArray(f.value) && f.value.length === 0))
+    .map(([technicalName]) => {
+      const d = store.metadataDefinitions.find(x => x.technical_name === technicalName)
+      return d?.name_de || technicalName
+    })
 )
 
 function resetFields() {
@@ -77,6 +143,8 @@ function resetFields() {
     else if (key === 'status') fields.value[key].value = 'active'
     else fields.value[key].value = false
   }
+  metaFields.value = {}
+  buildMetaFields()
   viewsEnabled.value = false
   viewsMode.value = 'add'
   selectedViewIds.value = []
@@ -88,9 +156,10 @@ async function apply() {
   error.value = null
   try {
     const hasFieldUpdates = Object.values(fields.value).some(f => f.enabled)
+    const hasMetaUpdates = enabledMetaFields.value.length > 0
     const hasViewUpdates = viewsEnabled.value && selectedViewIds.value.length > 0
 
-    if (hasFieldUpdates) {
+    if (hasFieldUpdates || hasMetaUpdates) {
       const updateFields = {}
       for (const [key, field] of Object.entries(fields.value)) {
         if (field.enabled) {
@@ -99,6 +168,15 @@ async function apply() {
             : field.value
         }
       }
+
+      // Angehakte Metadaten als Map technical_name => Wert. Ein leerer Wert
+      // wird bewusst mitgeschickt — er loescht das Metadatum serverseitig.
+      if (hasMetaUpdates) {
+        updateFields.metadata = Object.fromEntries(
+          enabledMetaFields.value.map(([technicalName, field]) => [technicalName, field.value])
+        )
+      }
+
       await store.bulkUpdate(props.selectedIds, updateFields)
     }
 
@@ -201,6 +279,93 @@ function close() {
                 <option value="inactive">Inaktiv</option>
               </select>
             </div>
+
+            <!-- Metadaten (Data Quality & Ownership) -->
+            <template v-if="metaRows.length">
+              <div class="border-t border-[var(--color-border)] my-2" />
+              <div class="text-xs font-semibold text-[var(--color-text-secondary)]">Metadaten</div>
+
+              <div
+                v-for="{ definition: d, field } in metaRows"
+                :key="d.technical_name"
+                class="flex items-start gap-3"
+              >
+                <input
+                  type="checkbox"
+                  v-model="field.enabled"
+                  class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)] focus:ring-[var(--color-accent)] mt-1"
+                />
+                <label class="text-xs text-[var(--color-text-secondary)] w-36 mt-1">
+                  {{ d.name_de || d.technical_name }}
+                </label>
+
+                <!-- Mehrfachauswahl -->
+                <div
+                  v-if="d.value_type === 'multiselect'"
+                  class="flex-1 max-h-24 overflow-y-auto border border-[var(--color-border)] rounded p-1"
+                  :class="!field.enabled ? 'opacity-40' : ''"
+                >
+                  <label
+                    v-for="o in metaOptions(d)"
+                    :key="o.value"
+                    class="flex items-center gap-2 px-1 py-0.5 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="field.value.includes(o.value)"
+                      :disabled="!field.enabled"
+                      class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]"
+                      @change="toggleMetaMultiValue(d.technical_name, o.value)"
+                    />
+                    <span class="text-xs text-[var(--color-text-secondary)]">{{ o.label }}</span>
+                  </label>
+                </div>
+
+                <!-- Einfachauswahl -->
+                <select
+                  v-else-if="d.value_type === 'select'"
+                  v-model="field.value"
+                  :disabled="!field.enabled"
+                  class="pim-input text-xs py-1 px-2 flex-1"
+                  :class="!field.enabled ? 'opacity-40' : ''"
+                >
+                  <option value="">— Wert entfernen —</option>
+                  <option v-for="o in metaOptions(d)" :key="o.value" :value="o.value">{{ o.label }}</option>
+                </select>
+
+                <!-- Ja/Nein -->
+                <select
+                  v-else-if="d.value_type === 'boolean'"
+                  v-model="field.value"
+                  :disabled="!field.enabled"
+                  class="pim-input text-xs py-1 px-2 flex-1"
+                  :class="!field.enabled ? 'opacity-40' : ''"
+                >
+                  <option value="">— Wert entfernen —</option>
+                  <option :value="true">Ja</option>
+                  <option :value="false">Nein</option>
+                </select>
+
+                <!-- Freitext / Zahl / Datum -->
+                <input
+                  v-else
+                  v-model="field.value"
+                  :type="d.value_type === 'number' ? 'number' : d.value_type === 'date' ? 'date' : 'text'"
+                  :step="d.value_type === 'number' ? 'any' : undefined"
+                  :disabled="!field.enabled"
+                  placeholder="leer lassen = Wert entfernen"
+                  class="pim-input text-xs py-1 px-2 flex-1"
+                  :class="!field.enabled ? 'opacity-40' : ''"
+                />
+              </div>
+
+              <p
+                v-if="clearingMetaLabels.length"
+                class="text-[10px] text-[var(--color-warning,#f59e0b)]"
+              >
+                Wird geleert und damit entfernt: {{ clearingMetaLabels.join(', ') }}
+              </p>
+            </template>
 
             <!-- Divider -->
             <div class="border-t border-[var(--color-border)] my-2" />
