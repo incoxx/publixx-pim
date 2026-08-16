@@ -50,6 +50,72 @@ class AttributeControllerTest extends TestCase
             ->assertJsonCount(1, 'data');
     }
 
+    public function test_index_filters_by_is_multipliable(): void
+    {
+        Attribute::factory()->create(['is_multipliable' => true]);
+        Attribute::factory()->create(['is_multipliable' => false]);
+
+        $this->getJson('/api/v1/attributes?filter[is_multipliable]=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+    }
+
+    public function test_index_filters_by_is_unique(): void
+    {
+        Attribute::factory()->create(['is_unique' => true]);
+        Attribute::factory()->create(['is_unique' => false]);
+
+        $this->getJson('/api/v1/attributes?filter[is_unique]=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+    }
+
+    /** Beschreibung wird als Teilstring gesucht, nicht als Praefix. */
+    public function test_index_filters_description_by_substring(): void
+    {
+        $treffer = Attribute::factory()->create(['description_de' => 'Ein Text mit Schlagwort in der Mitte']);
+        Attribute::factory()->create(['description_de' => 'Etwas ganz anderes']);
+
+        $this->getJson('/api/v1/attributes?filter[description_de]=Schlagwort')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $treffer->id);
+    }
+
+    public function test_index_filters_by_has_children(): void
+    {
+        $composite = Attribute::factory()->create(['data_type' => 'Composite']);
+        Attribute::factory()->create(['parent_attribute_id' => $composite->id]);
+        Attribute::factory()->create();
+
+        $this->getJson('/api/v1/attributes?filter[has_children]=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $composite->id);
+
+        $this->getJson('/api/v1/attributes?filter[has_children]=0')
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+    }
+
+    /**
+     * Der Sichten-Filter las frueher aus dem Query-String und griff deshalb in
+     * allIds() (POST-Body) gar nicht.
+     */
+    public function test_all_ids_beruecksichtigt_sichten_filter(): void
+    {
+        $view = \App\Models\AttributeView::factory()->create(['technical_name' => 'basis']);
+        $treffer = Attribute::factory()->create();
+        $treffer->attributeViews()->attach($view->id);
+        Attribute::factory()->create();
+
+        $response = $this->postJson('/api/v1/attributes/all-ids', [
+            'filter' => ['attribute_view' => 'basis'],
+        ])->assertOk();
+
+        $this->assertSame([$treffer->id], $response->json('ids'));
+    }
+
     public function test_store_creates_attribute(): void
     {
         $response = $this->postJson('/api/v1/attributes', [
