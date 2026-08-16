@@ -215,6 +215,12 @@ const routes = [
     meta: { title: 'Formatierungsregeln' },
   },
   {
+    path: '/attribute-metadata',
+    name: 'attribute-metadata',
+    component: () => import('@/views/attributeMetadata/AttributeMetadataView.vue'),
+    meta: { title: 'Metadaten' },
+  },
+  {
     path: '/dictionary',
     name: 'dictionary',
     component: () => import('@/views/dictionary/DictionaryAdminView.vue'),

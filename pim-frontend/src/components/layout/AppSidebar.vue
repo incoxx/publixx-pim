@@ -23,6 +23,7 @@ import {
   Wand2,
   Terminal,
   Folders,
+  Fingerprint,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 import { useAppearanceStore, SECTION_ICON_COLORS } from '@/stores/appearance'
@@ -213,6 +214,7 @@ const sections = computed(() => {
             { icon: Database, label: () => t('nav.valueLists'), to: '/value-lists', permission: 'value-lists.view' },
             { icon: Wand2, label: () => t('nav.formattingRules'), to: '/formatting-rules', permission: 'attribute-formatting-rules.view' },
             { icon: BookOpen, label: () => t('nav.dictionary'), to: '/dictionary', permission: 'dictionary.view' },
+            { icon: Fingerprint, label: () => t('nav.attributeMetadata'), to: '/attribute-metadata', permission: 'attribute-metadata.view' },
           ],
         },
         {

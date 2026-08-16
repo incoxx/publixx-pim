@@ -45,6 +45,13 @@ onUnmounted(() => {
       :class="field.fullWidth ? '' : 'max-w-lg'"
       :data-testid="'field-' + field.key"
     >
+      <h4
+        v-if="field.sectionLabel"
+        class="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)] pt-4 mt-2 mb-2 border-t border-[var(--color-border)]"
+      >
+        {{ field.sectionLabel }}
+      </h4>
+
       <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
         {{ field.label }}
         <span v-if="field.required" class="text-[var(--color-error)]">*</span>

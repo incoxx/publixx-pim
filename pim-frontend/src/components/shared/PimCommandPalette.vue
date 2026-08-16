@@ -12,7 +12,7 @@ import {
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages, LayoutTemplate,
   Factory, CalendarDays, ScrollText, Globe, ExternalLink,
   LayoutDashboard, ClipboardList, Code, ArrowRight, ArrowRightLeft,
-  FlaskConical, FileSpreadsheet, Plug, Wand2,
+  FlaskConical, FileSpreadsheet, Plug, Wand2, Fingerprint,
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -320,6 +320,14 @@ const allItems = computed(() => {
       keywords: ['formatierung', 'formatting', 'uppercase', 'regex', 'zahlenformat', 'number format', 'großbuchstaben'],
       section: 'config', action: () => router.push('/formatting-rules'),
       permission: 'attribute-formatting-rules.view',
+    },
+    {
+      id: 'cfg-attribute-metadata', icon: Fingerprint,
+      label: t('nav.attributeMetadata'),
+      description: t('cmd.desc.attributeMetadata'),
+      keywords: ['metadaten', 'metadata', 'datenherkunft', 'data origin', 'dateneigentümer', 'owner', 'ownership', 'governance', 'datenqualität', 'data quality', 'datenverbindung'],
+      section: 'config', action: () => router.push('/attribute-metadata'),
+      permission: 'attribute-metadata.view',
     },
     {
       id: 'cfg-dictionary', icon: BookOpen,

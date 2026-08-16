@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import attributesApi, { attributeTypes, valueLists, formattingRules, productTypes } from '@/api/attributes'
+import attributesApi, { attributeTypes, valueLists, formattingRules, productTypes, attributeMetadataDefinitions } from '@/api/attributes'
 import { unitGroups as unitGroupsApi } from '@/api/units'
 import { comparisonOperatorGroups as compOpGroupsApi } from '@/api/comparisonOperators'
 
@@ -13,6 +13,7 @@ export const useAttributeStore = defineStore('attributes', () => {
   const prodTypes = ref([])
   const unitGroupsList = ref([])
   const compOpGroupsList = ref([])
+  const metadataDefinitions = ref([])
   const loading = ref(false)
   const error = ref(null)
   const meta = ref({ current_page: 1, last_page: 1, total: 0, per_page: 50 })
@@ -105,6 +106,17 @@ export const useAttributeStore = defineStore('attributes', () => {
     }
   }
 
+  async function fetchMetadataDefinitions() {
+    try {
+      const { data } = await attributeMetadataDefinitions.list({ perPage: 200, sort: 'sort_order' })
+      metadataDefinitions.value = data.data || data
+    } catch (e) {
+      // Fehlende Leseberechtigung darf das Attribut-Formular nicht blockieren
+      console.error('Failed to fetch metadata definitions', e)
+      metadataDefinitions.value = []
+    }
+  }
+
   async function fetchUnitGroups() {
     try {
       const { data } = await unitGroupsApi.list({ include: 'units', perPage: 200 })
@@ -164,9 +176,9 @@ export const useAttributeStore = defineStore('attributes', () => {
   }
 
   return {
-    items, allItems, types, lists, formattingRulesList, prodTypes, unitGroupsList, compOpGroupsList, loading, error, meta,
+    items, allItems, types, lists, formattingRulesList, prodTypes, unitGroupsList, compOpGroupsList, metadataDefinitions, loading, error, meta,
     attributeTypeOptions, valueListOptions, formattingRuleOptions, unitGroupOptions, comparisonOperatorGroupOptions,
-    fetchAttributes, fetchAllAttributes, fetchTypes, fetchValueLists, fetchFormattingRules, fetchProductTypes, fetchUnitGroups, fetchComparisonOperatorGroups,
+    fetchAttributes, fetchAllAttributes, fetchTypes, fetchValueLists, fetchFormattingRules, fetchProductTypes, fetchUnitGroups, fetchComparisonOperatorGroups, fetchMetadataDefinitions,
     createAttribute, updateAttribute, copyAttribute, deleteAttribute, setPage, bulkUpdate, bulkDelete, bulkAssignViews,
   }
 })
