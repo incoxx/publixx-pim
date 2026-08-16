@@ -110,13 +110,29 @@ GET /api/v1/attributes?filter[meta:datenherkunft]=ERP
 
 | Wert | Bedeutung |
 |---|---|
-| konkreter Wert | exakter Treffer; bei `multiselect` „enthält" (`whereJsonContains`) |
+| konkreter Wert | bei gepflegten Optionen exakt, bei `multiselect` „enthält" (`whereJsonContains`), bei Freitext „beginnt mit" |
 | `__none__` | Attribute **ohne** Wert für diese Definition — der Data-Quality-Hebel |
 | `__any__` | Attribute mit irgendeinem Wert |
+
+Freitext beginnt-mit statt exakt, damit das Quick-Lookup-Feld in der Attributliste
+benutzbar ist; die Textspalten daneben (`technical_name`, `name_de`) verhalten sich
+genauso.
 
 Mehrere Metadaten-Filter werden UND-verknüpft. Ein unbekannter technischer Name wird
 still ignoriert, damit ein veralteter Filter im Frontend die Liste nicht mit einem Fehler
 blockiert.
+
+Metadaten stehen auch im **Quick Lookup** der Attributliste zur Verfügung. Dessen
+Konfiguration wird aus den sichtbaren Spalten abgeleitet (`quickLookupFor()` in
+`AttributeAdminView.vue`), damit jede Spalte — und damit jedes neu angelegte Metadatum —
+automatisch ein Eingabefeld bekommt.
+
+**Wichtig für neue Listenfilter:** `AttributeController::applyAllFilters()` ist der einzige
+Ort, an dem Filter angewendet werden; `index()` und `allIds()` rufen ihn gemeinsam auf.
+Wird ein Filter nur an einer der beiden Stellen ergänzt, markiert „Alle N auswählen" eine
+andere Menge als die Liste zeigt — und eine anschließende Massenoperation trifft die
+falschen Attribute. Ein datengetriebener Test in `AttributeMetadataValueTest` vergleicht
+beide Mengen je Filter.
 
 ### Massenbearbeitung
 

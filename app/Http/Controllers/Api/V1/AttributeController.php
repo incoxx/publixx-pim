@@ -38,9 +38,13 @@ class AttributeController extends Controller
 
     private const ALLOWED_FILTERS = [
         'status', 'data_type', 'attribute_type_id', 'is_translatable',
-        'is_searchable', 'is_mandatory', 'is_inheritable', 'is_variant_attribute',
-        'is_internal', 'is_primary', 'source_system',
+        'is_multipliable', 'is_searchable', 'is_mandatory', 'is_unique',
+        'is_inheritable', 'is_variant_attribute', 'is_internal', 'is_primary',
+        'source_system',
     ];
+
+    // Freitextspalten, die als Teilstring gesucht werden (LIKE %wert%).
+    private const ALLOWED_CONTAINS_FILTERS = ['description_de'];
 
     // Felder, die per Präfix-Suche (LIKE 'wert%') statt Exakt-Match gefiltert werden,
     // z.B. für das Quick-Lookup im Attribute-Menü.
@@ -53,18 +57,7 @@ class AttributeController extends Controller
         $query = Attribute::query()
             ->with($this->parseIncludes($request, self::ALLOWED_INCLUDES));
 
-        $rawFilters = $request->query('filter', []);
-
-        $this->applyPrefixFilters($query, $rawFilters, self::ALLOWED_PREFIX_FILTERS);
-
-        $this->applyFilters($query, array_intersect_key(
-            $rawFilters,
-            array_flip(self::ALLOWED_FILTERS)
-        ));
-
-        $this->applyMetadataFilters($query, $rawFilters);
-        $this->applyHierarchyNodeFilter($query, $request);
-        $this->applyAttributeViewFilter($query, $request);
+        $this->applyAllFilters($query, $request);
 
         $this->applySearch($query, $request, ['name_de', 'name_en', 'technical_name']);
         $this->applySorting($query, $request, 'position', 'asc');
@@ -299,19 +292,96 @@ class AttributeController extends Controller
 
                 if ($definition->isMultiValue()) {
                     $q->whereJsonContains('value_json', $value);
-                } else {
+                } elseif ($definition->options) {
+                    // Gepflegte Auswahlwerte sind endlich und werden exakt getroffen.
                     $q->where('value', $value);
+                } else {
+                    // Freitext als Präfix — wie die Textspalten daneben, sonst wäre
+                    // das Quick-Lookup-Feld praktisch unbenutzbar.
+                    $q->where('value', 'LIKE', addcslashes($value, '%_') . '%');
                 }
             });
         }
     }
 
     /**
-     * Apply hierarchy node filter: find attributes assigned to a given node and all its descendants.
+     * Wendet sämtliche Listenfilter an.
+     *
+     * Einziger Ort dafür — `index()` und `allIds()` müssen exakt dieselbe
+     * Treffermenge liefern, sonst markiert "Alle N auswählen" andere Attribute
+     * als die Liste zeigt und eine anschliessende Massenoperation trifft die
+     * falschen Zeilen. `input()` statt `query()`, damit Query-String (GET
+     * /attributes) und Request-Body (POST /attributes/all-ids) gleich behandelt
+     * werden.
      */
-    private function applyHierarchyNodeFilter($query, Request $request): void
+    private function applyAllFilters($query, Request $request): void
     {
-        $filters = $request->query('filter', []);
+        $rawFilters = $request->input('filter', []);
+
+        if (!is_array($rawFilters)) {
+            return;
+        }
+
+        $this->applyPrefixFilters($query, $rawFilters, self::ALLOWED_PREFIX_FILTERS);
+
+        $this->applyFilters($query, array_intersect_key(
+            $rawFilters,
+            array_flip(self::ALLOWED_FILTERS)
+        ));
+
+        $this->applyContainsFilters($query, $rawFilters);
+        $this->applyMetadataFilters($query, $rawFilters);
+        $this->applyHasChildrenFilter($query, $rawFilters);
+        $this->applyHierarchyNodeFilter($query, $rawFilters);
+        $this->applyAttributeViewFilter($query, $rawFilters);
+    }
+
+    /**
+     * Teilstring-Suche (LIKE %wert%) für Freitextspalten.
+     *
+     * Bewusst hier statt im geteilten Filterable-Trait: nur die Attributliste
+     * braucht es. Vorbild ist `Filterable::applyPrefixFilters()`.
+     *
+     * @param array<string, mixed> $rawFilters
+     */
+    private function applyContainsFilters($query, array $rawFilters): void
+    {
+        foreach (self::ALLOWED_CONTAINS_FILTERS as $field) {
+            $value = $rawFilters[$field] ?? null;
+
+            if (!is_string($value) || $value === '') {
+                continue;
+            }
+
+            $query->where($field, 'LIKE', '%' . addcslashes($value, '%_') . '%');
+        }
+    }
+
+    /**
+     * filter[has_children]=1|0 — Composites mit bzw. ohne Kind-Attribute.
+     *
+     * @param array<string, mixed> $rawFilters
+     */
+    private function applyHasChildrenFilter($query, array $rawFilters): void
+    {
+        $value = $rawFilters['has_children'] ?? null;
+
+        if ($value === null || $value === '') {
+            return;
+        }
+
+        filter_var($value, FILTER_VALIDATE_BOOLEAN)
+            ? $query->whereHas('childAttributes')
+            : $query->whereDoesntHave('childAttributes');
+    }
+
+    /**
+     * Apply hierarchy node filter: find attributes assigned to a given node and all its descendants.
+     *
+     * @param array<string, mixed> $filters
+     */
+    private function applyHierarchyNodeFilter($query, array $filters): void
+    {
         $nodeId = $filters['hierarchy_node_id'] ?? null;
 
         if ($nodeId) {
@@ -337,9 +407,9 @@ class AttributeController extends Controller
      * Attributsicht(en) zu beschraenken (siehe CollectionType.default_attribute_groups/
      * default_item_attribute_groups).
      */
-    private function applyAttributeViewFilter($query, Request $request): void
+    private function applyAttributeViewFilter($query, array $filters): void
     {
-        $viewNames = $request->query('filter', [])['attribute_view'] ?? null;
+        $viewNames = $filters['attribute_view'] ?? null;
 
         if (!$viewNames) {
             return;
@@ -361,36 +431,8 @@ class AttributeController extends Controller
 
         $query = Attribute::query();
 
-        $rawFilters = $request->input('filter', []);
-
-        $this->applyPrefixFilters($query, $rawFilters, self::ALLOWED_PREFIX_FILTERS);
-
-        $this->applyFilters($query, array_intersect_key(
-            $rawFilters,
-            array_flip(self::ALLOWED_FILTERS)
-        ));
-
-        // Muss dieselbe Filtermenge wie index() abbilden: sonst liefert
-        // "Alle N auswählen" bei aktivem Metadaten-Filter den gesamten Bestand,
-        // und die anschließende Massenbearbeitung trifft zu viele Attribute.
-        $this->applyMetadataFilters($query, $rawFilters);
-
-        // Apply hierarchy node filter from POST body
-        if ($request->input('filter.hierarchy_node_id')) {
-            $nodeId = $request->input('filter.hierarchy_node_id');
-            $node = HierarchyNode::find($nodeId);
-            if ($node) {
-                $nodeIds = HierarchyNode::where('hierarchy_id', $node->hierarchy_id)
-                    ->where('path', 'LIKE', $node->path . '%')
-                    ->pluck('id')
-                    ->push($node->id)
-                    ->unique();
-
-                $query->whereHas('hierarchyNodeAssignments', function ($q) use ($nodeIds) {
-                    $q->whereIn('hierarchy_node_id', $nodeIds);
-                });
-            }
-        }
+        // Dieselbe Filtermenge wie index() — siehe applyAllFilters().
+        $this->applyAllFilters($query, $request);
 
         if ($request->input('search')) {
             $search = $request->input('search');

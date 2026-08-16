@@ -521,6 +521,65 @@ class AttributeMetadataValueTest extends TestCase
         $this->assertSame([$ohneWert->id], $response->json('ids'));
     }
 
+    public function test_filter_auf_freitext_metadatum_trifft_per_praefix(): void
+    {
+        $treffer = $this->attributeWith($this->eigentuemer, 'Marketing Team');
+        $this->attributeWith($this->eigentuemer, 'Produktmanagement');
+
+        $this->getJson('/api/v1/attributes?filter[meta:dateneigentuemer]=Marke')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $treffer->id);
+    }
+
+    public function test_filter_auf_auswahl_metadatum_bleibt_exakt(): void
+    {
+        $this->attributeWith($this->herkunft, 'Agentur');
+
+        // "Agent" ist ein Praefix von "Agentur", darf bei gepflegten
+        // Auswahlwerten aber nicht treffen.
+        $this->getJson('/api/v1/attributes?filter[meta:datenherkunft]=Agent')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    }
+
+    /**
+     * Regressionsschutz gegen auseinanderlaufende Filter: was die Liste zeigt,
+     * muss "Alle N auswaehlen" auch markieren.
+     *
+     * @dataProvider filterProvider
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('filterProvider')]
+    public function test_index_und_all_ids_liefern_dieselbe_menge(string $key, string $value): void
+    {
+        $this->attributeWith($this->herkunft, 'ERP');
+        $this->attributeWith($this->herkunft, null);
+        Attribute::factory()->create(['is_unique' => true, 'description_de' => 'Enthaelt Suchwort mittendrin']);
+        Attribute::factory()->create(['is_multipliable' => true]);
+
+        $listIds = collect($this->getJson("/api/v1/attributes?filter[{$key}]={$value}")->json('data'))
+            ->pluck('id')->sort()->values()->all();
+
+        $allIds = collect($this->postJson('/api/v1/attributes/all-ids', [
+            'filter' => [$key => $value],
+        ])->json('ids'))->sort()->values()->all();
+
+        $this->assertSame($listIds, $allIds, "Filter {$key}={$value} liefert unterschiedliche Mengen.");
+    }
+
+    /** @return array<string, array{0: string, 1: string}> */
+    public static function filterProvider(): array
+    {
+        return [
+            'Metadatum exakt' => ['meta:datenherkunft', 'ERP'],
+            'Metadatum ohne Wert' => ['meta:datenherkunft', '__none__'],
+            'Einzigartig' => ['is_unique', '1'],
+            'Multipliziert' => ['is_multipliable', '1'],
+            'Beschreibung enthaelt' => ['description_de', 'Suchwort'],
+            'Kind-Attribute' => ['has_children', '0'],
+        ];
+    }
+
     // ─── Massenbearbeitung ────────────────────────────────────────────
 
     public function test_bulk_update_setzt_metadaten(): void

@@ -15,7 +15,7 @@ import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import AttributeFormPanel from '@/components/panels/AttributeFormPanel.vue'
 import AttributePagination from '@/components/attributes/AttributePagination.vue'
 import AttributeBulkUpdateDialog from '@/components/attributes/AttributeBulkUpdateDialog.vue'
-import attributesApi from '@/api/attributes'
+import attributesApi, { attributeViews as attributeViewsApi } from '@/api/attributes'
 import hierarchiesApi from '@/api/hierarchies'
 
 const { t } = useI18n()
@@ -169,25 +169,90 @@ function metadataTextValue(entry) {
 }
 
 // ─── Quick Lookup — filtert serverseitig über die komplette Treffermenge ────
-const quickLookupConfig = computed(() => ({
-  technical_name: { type: 'text', placeholder: 'Techn. Name...' },
-  name_de: { type: 'text', placeholder: 'Name...' },
-  data_type: { type: 'select', options: dataTypeOptions.filter(o => o.value !== '') },
-  'attribute_type.name_de': {
-    type: 'select',
-    options: store.types.map(t => ({ value: t.id, label: t.name_de || t.technical_name })),
-  },
-}))
+// Die Konfiguration wird aus den sichtbaren Spalten abgeleitet, nicht von Hand
+// gepflegt: so bekommt jede Spalte ein Eingabefeld, auch jedes neu angelegte
+// Metadatum, und es kann keine vergessen werden.
 
-// Spalten-Key → Backend-Filterfeld. technical_name/name_de werden per Präfix-Suche
-// (LIKE 'wert%'), data_type/attribute_type_id per Exakt-Match gefiltert (siehe
-// AttributeController::ALLOWED_FILTERS bzw. ALLOWED_PREFIX_FILTERS).
-const QUICK_LOOKUP_FIELD_MAP = {
-  technical_name: 'technical_name',
-  name_de: 'name_de',
-  data_type: 'data_type',
-  'attribute_type.name_de': 'attribute_type_id',
+const attributeViewOptions = ref([])
+
+const jaNeinOptions = [
+  { value: '1', label: 'Ja' },
+  { value: '0', label: 'Nein' },
+]
+
+// Ja/Nein-Spalten, die direkt auf ein gleichnamiges Backend-Filterfeld gehen
+const BOOLEAN_COLUMN_KEYS = [
+  'is_translatable', 'is_multipliable', 'is_searchable', 'is_mandatory',
+  'is_unique', 'is_inheritable', 'is_variant_attribute', 'is_internal',
+]
+
+/**
+ * Liefert fuer eine Spalte die Lookup-Eingabe samt Backend-Filterfeld —
+ * oder null, wenn die Spalte nicht filterbar ist.
+ */
+function quickLookupFor(column) {
+  const key = column.key
+
+  if (key.startsWith(METADATA_COLUMN_PREFIX)) {
+    const technicalName = key.slice(METADATA_COLUMN_PREFIX.length)
+    const entry = metadataFilterDefinitions.value.find(
+      e => e.key === METADATA_FILTER_PREFIX + technicalName
+    )
+    if (!entry) return null
+
+    // Optionen enthalten immer Alle/ohne Wert/mit Wert; alles darueber hinaus
+    // sind gepflegte Werte und rechtfertigen ein Dropdown.
+    return entry.options.length > 3
+      ? { filterKey: entry.key, type: 'select', options: entry.options.filter(o => o.value !== '') }
+      : { filterKey: entry.key, type: 'text', placeholder: 'beginnt mit…' }
+  }
+
+  switch (key) {
+    case 'technical_name':
+      return { filterKey: 'technical_name', type: 'text', placeholder: 'Techn. Name...' }
+    case 'name_de':
+      return { filterKey: 'name_de', type: 'text', placeholder: 'Name...' }
+    case 'description_de':
+      return { filterKey: 'description_de', type: 'text', placeholder: 'enthält…' }
+    case 'data_type':
+      return { filterKey: 'data_type', type: 'select', options: dataTypeOptions.filter(o => o.value !== '') }
+    case 'attribute_type.name_de':
+      return {
+        filterKey: 'attribute_type_id',
+        type: 'select',
+        options: store.types.map(t => ({ value: t.id, label: t.name_de || t.technical_name })),
+      }
+    case '_views':
+      return { filterKey: 'attribute_view', type: 'select', options: attributeViewOptions.value }
+    case '_children':
+      return { filterKey: 'has_children', type: 'select', options: jaNeinOptions }
+  }
+
+  if (BOOLEAN_COLUMN_KEYS.includes(key)) {
+    return { filterKey: key, type: 'select', options: jaNeinOptions }
+  }
+
+  return null
 }
+
+/** Spalten-Key → { filterKey, type, options, placeholder } */
+const quickLookupEntries = computed(() => {
+  const entries = {}
+  for (const column of visibleColumns.value) {
+    const entry = quickLookupFor(column)
+    if (entry) entries[column.key] = entry
+  }
+  return entries
+})
+
+const quickLookupConfig = computed(() =>
+  Object.fromEntries(
+    Object.entries(quickLookupEntries.value).map(([key, e]) => [
+      key,
+      { type: e.type, options: e.options, placeholder: e.placeholder },
+    ])
+  )
+)
 
 const quickLookupMappedFilters = ref({})
 
@@ -195,9 +260,9 @@ function applyQuickLookupFilters(rawFilters) {
   const mapped = {}
   for (const [colKey, value] of Object.entries(rawFilters)) {
     if (value === '' || value == null) continue
-    const field = QUICK_LOOKUP_FIELD_MAP[colKey]
-    if (!field) continue
-    mapped[field] = value
+    const entry = quickLookupEntries.value[colKey]
+    if (!entry) continue
+    mapped[entry.filterKey] = value
   }
   quickLookupMappedFilters.value = mapped
   store.setPage(1)
@@ -211,6 +276,20 @@ const hierarchies = ref([])
 const hierarchyNodes = ref([])
 const selectedHierarchyId = ref('')
 const showHierarchyPicker = ref(false)
+
+async function fetchAttributeViewOptions() {
+  try {
+    const { data } = await attributeViewsApi.list({ perPage: 200 })
+    attributeViewOptions.value = (data.data || data).map(v => ({
+      // Der Backend-Filter attribute_view erwartet technische Namen
+      value: v.technical_name,
+      label: v.name_de || v.technical_name,
+    }))
+  } catch (e) {
+    console.error('Failed to fetch attribute views', e)
+    attributeViewOptions.value = []
+  }
+}
 
 async function fetchHierarchies() {
   try {
@@ -485,6 +564,7 @@ onMounted(() => {
   store.fetchTypes()
   store.fetchValueLists()
   store.fetchMetadataDefinitions()
+  fetchAttributeViewOptions()
   fetchHierarchies()
   document.addEventListener('click', onClickOutside)
 })
@@ -703,7 +783,7 @@ onBeforeUnmount(() => {
               v-if="entry.freeText"
               type="text"
               class="pim-input text-xs mt-1"
-              placeholder="exakter Wert…"
+              placeholder="beginnt mit…"
               :value="metadataTextValue(entry)"
               @change="setFilter(entry.key, $event.target.value)"
             />
