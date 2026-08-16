@@ -36,7 +36,30 @@ onMounted(() => {
   if (!store.formattingRulesList.length) store.fetchFormattingRules()
   if (!store.unitGroupsList.length) store.fetchUnitGroups()
   if (!store.compOpGroupsList.length) store.fetchComparisonOperatorGroups()
+  if (!store.metadataDefinitions.length) store.fetchMetadataDefinitions()
 })
+
+// ─── Metadaten (Data Quality & Ownership) ────────────────────────────
+// Präfix, damit die dynamischen Felder nicht mit Attribut-Spalten kollidieren.
+const META_PREFIX = 'meta__'
+
+// Der Eingabetyp `number` in PimAttributeInput rundet (Math.round/parseInt) und
+// ist für Ganzzahlen gedacht. Das Backend akzeptiert für Metadaten jedes
+// is_numeric — deshalb auf `decimal` abbilden, sonst wird 1,8 zu 2.
+const META_INPUT_TYPES = { number: 'decimal' }
+
+function metaInputType(definition) {
+  return META_INPUT_TYPES[definition.value_type] || definition.value_type
+}
+
+function metaOptions(definition) {
+  return (definition.options || []).map(option => {
+    const [label, value] = option.split('::')
+    return value !== undefined
+      ? { value: value.trim(), label: `${label.trim()} (${value.trim()})` }
+      : { value: option, label: option }
+  })
+}
 
 const isEdit = computed(() => !!props.attribute)
 const originalDataType = props.attribute?.data_type || null
@@ -66,10 +89,25 @@ const dataTypeChangeWarning = computed(() => {
   return `Typwechsel von "${originalDataType}" zu "${newType}" kann zu Datenverlust führen, da bestehende Werte in einer anderen Spalte gespeichert werden.`
 })
 
+// PimForm klont modelValue einmalig beim Mount — Metadatenwerte müssen deshalb
+// synchron vorliegen. Sie kommen über include=metadataValues aus der Liste mit.
+//
+// Sicherheitsnetz: Fehlt `metadata` am übergebenen Attribut ganz (Aufrufer ohne
+// den Include), ist der Ist-Zustand unbekannt. Dann darf beim Speichern kein
+// `metadata` mitgeschickt werden — sonst läse der Server jedes ungefüllte Feld
+// als "geleert" und würde sämtliche Werte löschen. Ohne den Key greift
+// serverseitig der array_key_exists-Guard und die Werte bleiben unangetastet.
+const metadataKnown = !props.attribute || props.attribute.metadata !== undefined
+
+const seededMetadata = Object.fromEntries(
+  Object.entries(props.attribute?.metadata || {}).map(([tn, v]) => [META_PREFIX + tn, v])
+)
+
 const formData = ref(
   props.attribute
     ? {
         ...props.attribute,
+        ...seededMetadata,
         child_attribute_ids: (props.attribute.children || []).map(c => c.id),
       }
     : {
@@ -311,6 +349,19 @@ const fields = computed(() => {
     { key: 'description_de', label: 'Beschreibung', type: 'textarea' },
   )
 
+  // Metadatenfelder ganz am Ende — reaktiv, sobald die Definitionen geladen sind
+  for (const [index, definition] of store.metadataDefinitions.entries()) {
+    base.push({
+      key: META_PREFIX + definition.technical_name,
+      label: definition.name_de || definition.technical_name,
+      type: metaInputType(definition),
+      options: metaOptions(definition),
+      required: definition.is_required,
+      hint: definition.description || undefined,
+      sectionLabel: index === 0 ? 'Metadaten' : undefined,
+    })
+  }
+
   return base
 })
 
@@ -356,6 +407,22 @@ async function doSave(data) {
   errors.value = {}
   try {
     const { child_attribute_ids, ...attrData } = data
+
+    // Metadaten aus dem flachen Formular wieder in eine Map überführen.
+    // Iteration über die Definitionen (nicht über die Payload-Keys), damit ein
+    // geleertes Feld als null mitgeht und die Zeile serverseitig gelöscht wird.
+    if (store.metadataDefinitions.length) {
+      const metadata = {}
+      for (const definition of store.metadataDefinitions) {
+        const key = META_PREFIX + definition.technical_name
+        metadata[definition.technical_name] = key in attrData ? attrData[key] : null
+        delete attrData[key]
+      }
+      if (metadataKnown) {
+        attrData.metadata = metadata
+      }
+    }
+
     // SimpleSelect/SimpleMultiSelect: freie Optionen als Array übernehmen
     if (['SimpleSelect', 'SimpleMultiSelect'].includes(data.data_type)) {
       attrData.simple_options = simpleOptionsText.value
@@ -402,7 +469,9 @@ async function doSave(data) {
     if (e.response?.status === 422) {
       const serverErrors = e.response.data.errors || {}
       for (const [key, val] of Object.entries(serverErrors)) {
-        errors.value[key] = Array.isArray(val) ? val[0] : val
+        // Server meldet 'metadata.<technical_name>', das Formular kennt 'meta__<technical_name>'
+        const formKey = key.startsWith('metadata.') ? META_PREFIX + key.slice('metadata.'.length) : key
+        errors.value[formKey] = Array.isArray(val) ? val[0] : val
       }
     }
   } finally {

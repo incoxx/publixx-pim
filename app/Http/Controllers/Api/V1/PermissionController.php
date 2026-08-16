@@ -40,6 +40,7 @@ class PermissionController extends Controller
         'pdf-templates' => 'PDF-Vorlagen',
         'calendar' => 'Planungskalender',
         'dictionary' => 'Wörterbuch',
+        'attribute-metadata' => 'Attribut-Metadaten',
         'translations' => 'Übersetzungen',
         'journal' => 'Journal',
         'settings' => 'Einstellungen',
@@ -85,7 +86,8 @@ class PermissionController extends Controller
             'entities' => [
                 'manufacturers', 'product-types', 'relation-types',
                 'attribute-views', 'attribute-types', 'attributes',
-                'value-lists', 'dictionary', 'units', 'unit-groups', 'translations',
+                'value-lists', 'dictionary', 'attribute-metadata',
+                'units', 'unit-groups', 'translations',
             ],
         ],
         [

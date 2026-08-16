@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Services\Attributes\AttributeMetadataService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -60,6 +61,11 @@ class AttributeResource extends JsonResource
             'children' => AttributeResource::collection($this->whenLoaded('children')),
             'dictionary_entries' => DictionaryEntryResource::collection($this->whenLoaded('dictionaryEntries')),
             'attribute_views' => AttributeViewResource::collection($this->whenLoaded('attributeViews')),
+            // Metadaten als flache Map technical_name => Wert (Data Quality & Ownership)
+            'metadata' => $this->whenLoaded(
+                'metadataValues',
+                fn () => app(AttributeMetadataService::class)->toMap($this->resource)
+            ),
             'position' => $this->position,
             'source_system' => $this->source_system,
             'source_attribute_name' => $this->source_attribute_name,

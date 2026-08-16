@@ -269,6 +269,14 @@ class Attribute extends Model
         return $this->hasMany(ProductVariantAxis::class);
     }
 
+    /**
+     * Metadatenwerte (Data Quality & Ownership) dieser Attributdefinition.
+     */
+    public function metadataValues(): HasMany
+    {
+        return $this->hasMany(AttributeMetadataValue::class);
+    }
+
     public function dictionaryEntries(): BelongsToMany
     {
         return $this->belongsToMany(DictionaryEntry::class, 'attribute_dictionary_entry')

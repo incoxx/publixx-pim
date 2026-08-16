@@ -41,7 +41,7 @@ async function loadWithFilters() {
     search: search.value,
     sort: sortField.value,
     order: sortOrder.value,
-    include: 'attributeType,valueList,unitGroup,children,attributeViews',
+    include: 'attributeType,valueList,unitGroup,children,attributeViews,metadataValues',
   }
   const filters = buildFilters()
   if (Object.keys(filters).length > 0) {
@@ -389,7 +389,7 @@ onMounted(() => {
   if (_route.query.search) {
     setSearch(_route.query.search)
   } else {
-    store.fetchAttributes({ include: 'attributeType,valueList,unitGroup,children,attributeViews' })
+    store.fetchAttributes({ include: 'attributeType,valueList,unitGroup,children,attributeViews,metadataValues' })
   }
   store.fetchTypes()
   store.fetchValueLists()

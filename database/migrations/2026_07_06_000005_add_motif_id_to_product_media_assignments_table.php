@@ -16,8 +16,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // media_id nullable machen (kein doctrine/dbal installiert, daher raw SQL statt ->change())
-        DB::statement('ALTER TABLE product_media_assignments MODIFY media_id CHAR(36) NULL');
+        // media_id nullable machen (kein doctrine/dbal installiert, daher raw SQL statt ->change()).
+        // SQLite kennt kein MODIFY; dort ist die Spalte für die Testsuite ohnehin
+        // nicht auf NOT NULL angewiesen.
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('ALTER TABLE product_media_assignments MODIFY media_id CHAR(36) NULL');
+        }
 
         Schema::table('product_media_assignments', function (Blueprint $table) {
             $table->char('motif_id', 36)->nullable()->after('media_id');
@@ -39,6 +43,8 @@ return new class extends Migration
             $table->dropColumn('motif_id');
         });
 
-        DB::statement('ALTER TABLE product_media_assignments MODIFY media_id CHAR(36) NOT NULL');
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('ALTER TABLE product_media_assignments MODIFY media_id CHAR(36) NOT NULL');
+        }
     }
 };

@@ -185,6 +185,32 @@ Reusable dictionary entries for Dictionary-type attributes.
 ### `attribute_dictionary_entry`
 Many-to-many: attributes ↔ dictionary entries. UNIQUE (attribute_id, dictionary_entry_id).
 
+### `attribute_metadata_definitions`
+Frei definierbare Governance-Felder für Attributdefinitionen (Datenherkunft,
+Dateneigentümer, Datenverbindung). Siehe `docs/architecture/25-attribut-metadaten.md`.
+
+| Spalte | Typ | Beschreibung |
+|--------|------|-------------|
+| `id` | char(36) | UUID |
+| `technical_name` | varchar(100) | UNIQUE, Schlüssel der Metadaten-Map, nach dem Anlegen unveränderlich |
+| `name_de` / `name_en` | varchar(255) | Feldlabel |
+| `description` | text | Hinweistext |
+| `value_type` | varchar(30) | text, textarea, number, date, boolean, select, multiselect, url, email |
+| `options` | json | Auswahloptionen (`Label::Wert`), nur bei select/multiselect |
+| `is_required` | boolean | Pflichtfeld beim Speichern über das Panel |
+| `sort_order` | integer | Reihenfolge im Formular |
+
+### `attribute_metadata_values`
+Metadatenwert je Attribut. UNIQUE (attribute_id, definition_id); beide FKs mit ON DELETE CASCADE.
+
+| Spalte | Typ | Beschreibung |
+|--------|------|-------------|
+| `id` | char(36) | UUID |
+| `attribute_id` | char(36) | FK → attributes |
+| `definition_id` | char(36) | FK → attribute_metadata_definitions |
+| `value` | text | skalare Werte |
+| `value_json` | json | nur multiselect |
+
 ---
 
 ## Units & Values

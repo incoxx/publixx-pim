@@ -212,6 +212,32 @@ export const formattingRules = {
   },
 }
 
+export const attributeMetadataDefinitions = {
+  list(options = {}) {
+    return client.get('/attribute-metadata-definitions', { params: buildParams(options) })
+  },
+
+  get(id, options = {}) {
+    return client.get(`/attribute-metadata-definitions/${id}`, { params: buildParams(options) })
+  },
+
+  create(data) {
+    return client.post('/attribute-metadata-definitions', data)
+  },
+
+  update(id, data) {
+    return client.put(`/attribute-metadata-definitions/${id}`, data)
+  },
+
+  dependencies(id) {
+    return client.get(`/attribute-metadata-definitions/${id}/dependencies`)
+  },
+
+  delete(id, { force = false } = {}) {
+    return client.delete(`/attribute-metadata-definitions/${id}`, { params: force ? { force: true } : {} })
+  },
+}
+
 export const attributeViews = {
   list(params = {}) {
     return client.get('/attribute-views', { params: buildParams(params) })
