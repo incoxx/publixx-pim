@@ -6,10 +6,12 @@ import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { useFilters } from '@/composables/useFilters'
 import { useServerQuickLookup } from '@/composables/useServerQuickLookup'
+import { useColumnConfig } from '@/composables/useColumnConfig'
 import { Plus, Filter, X, Pencil, ListFilter, Copy, Trash2, MoreHorizontal, CheckCheck, Search, ChevronDown, ChevronRight } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
+import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import AttributeFormPanel from '@/components/panels/AttributeFormPanel.vue'
 import AttributePagination from '@/components/attributes/AttributePagination.vue'
 import AttributeBulkUpdateDialog from '@/components/attributes/AttributeBulkUpdateDialog.vue'
@@ -117,6 +119,49 @@ const attributeTypeOptions = computed(() => [
   { value: '', label: 'Alle Gruppen' },
   ...store.types.map(t => ({ value: t.id, label: t.name_de || t.technical_name })),
 ])
+
+// ─── Metadaten-Filter ────────────────────────────────
+// Backend: filter[meta:<technical_name>]=<Wert>, plus __none__/__any__.
+const METADATA_FILTER_PREFIX = 'meta:'
+const METADATA_NONE = '__none__'
+const METADATA_ANY = '__any__'
+
+const metadataFilterDefinitions = computed(() =>
+  store.metadataDefinitions.map((d) => {
+    const options = [
+      { value: '', label: 'Alle' },
+      { value: METADATA_NONE, label: 'ohne Wert' },
+      { value: METADATA_ANY, label: 'mit Wert' },
+    ]
+
+    // Auswahllisten bekommen ihre konkreten Werte direkt ins Dropdown.
+    for (const raw of d.options || []) {
+      const parts = raw.split('::')
+      const value = (parts[1] ?? parts[0]).trim()
+      options.push({ value, label: parts.length > 1 ? `${parts[0].trim()} (${value})` : value })
+    }
+
+    return {
+      key: METADATA_FILTER_PREFIX + d.technical_name,
+      label: d.name_de || d.technical_name,
+      // Freitext-Typen brauchen zusaetzlich ein Eingabefeld fuer den exakten Wert
+      freeText: !(d.options || []).length && d.value_type !== 'boolean',
+      options,
+    }
+  })
+)
+
+/** Ist der aktuelle Wert ein Sonderwert oder eine Auswahloption? */
+function metadataSelectValue(entry) {
+  const current = pendingFilterEntries.value[entry.key] ?? ''
+  return entry.options.some(o => o.value === current) ? current : ''
+}
+
+/** Freitext-Wert — nur wenn kein Sonderwert/keine Option aktiv ist. */
+function metadataTextValue(entry) {
+  const current = pendingFilterEntries.value[entry.key] ?? ''
+  return entry.options.some(o => o.value === current) ? '' : current
+}
 
 // ─── Quick Lookup — filtert serverseitig über die komplette Treffermenge ────
 const quickLookupConfig = computed(() => ({
@@ -297,7 +342,7 @@ function onBulkUpdated() {
 }
 
 // ─── Columns ─────────────────────────────────────────
-const columns = [
+const defaultColumns = [
   { key: 'technical_name', label: 'Techn. Name', sortable: true, mono: true },
   { key: 'name_de', label: 'Name (DE)', sortable: true },
   { key: 'data_type', label: 'Datentyp', sortable: true },
@@ -314,6 +359,47 @@ const columns = [
   { key: 'is_internal', label: 'Intern' },
   { key: 'description_de', label: 'Beschreibung' },
 ]
+
+// Metadaten (Data Quality & Ownership) als dynamische, standardmaessig
+// ausgeblendete Spalten. Die Werte liefert der Store-Include metadataValues.
+const METADATA_COLUMN_PREFIX = 'metadata.'
+
+/** Zeigt einen Metadatenwert lesbar an — Array, Ja/Nein, Label statt Rohwert. */
+function formatMetaValue(value, definition) {
+  if (value === null || value === undefined || value === '' ||
+      (Array.isArray(value) && value.length === 0)) {
+    return '—'
+  }
+
+  if (definition.value_type === 'boolean') {
+    return value ? 'Ja' : 'Nein'
+  }
+
+  const label = (raw) => {
+    const option = (definition.options || []).find(o => {
+      const parts = o.split('::')
+      return (parts[1] ?? parts[0]).trim() === String(raw)
+    })
+    if (!option) return String(raw)
+    const parts = option.split('::')
+    return parts.length > 1 ? parts[0].trim() : String(raw)
+  }
+
+  return Array.isArray(value) ? value.map(label).join(', ') : label(value)
+}
+
+const metadataColumns = computed(() =>
+  store.metadataDefinitions.map(d => ({
+    key: METADATA_COLUMN_PREFIX + d.technical_name,
+    label: d.name_de || d.technical_name,
+    render: (row) => formatMetaValue(row.metadata?.[d.technical_name], d),
+  }))
+)
+
+const {
+  visibleColumns, allColumns, visibleKeys,
+  toggleColumn, moveColumn, resetColumns,
+} = useColumnConfig('columns:attributes', defaultColumns, [], metadataColumns)
 
 const deleteTarget = ref(null)
 const deleting = ref(false)
@@ -393,6 +479,7 @@ onMounted(() => {
   }
   store.fetchTypes()
   store.fetchValueLists()
+  store.fetchMetadataDefinitions()
   fetchHierarchies()
   document.addEventListener('click', onClickOutside)
 })
@@ -416,6 +503,14 @@ onBeforeUnmount(() => {
           <ListFilter class="w-3.5 h-3.5" :stroke-width="1.75" />
           <span class="hidden sm:inline">Quick Lookup</span>
         </button>
+        <ColumnConfigPopover
+          :allColumns="allColumns"
+          :visibleKeys="visibleKeys"
+          @toggle="toggleColumn"
+          @move="moveColumn"
+          @reset="resetColumns"
+          @reorder="visibleKeys = $event"
+        />
         <button
           :class="[
             'pim-btn text-xs gap-1',
@@ -584,6 +679,33 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
+      <!-- Metadaten-Filter (Data Quality & Ownership) -->
+      <div v-if="metadataFilterDefinitions.length" class="border-t border-[var(--color-border)] pt-3 mt-1">
+        <div class="text-[12px] font-medium text-[var(--color-text-secondary)] mb-2">Metadaten</div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div v-for="entry in metadataFilterDefinitions" :key="entry.key">
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">
+              {{ entry.label }}
+            </label>
+            <select
+              class="pim-input text-xs"
+              :value="metadataSelectValue(entry)"
+              @change="setFilter(entry.key, $event.target.value)"
+            >
+              <option v-for="o in entry.options" :key="o.value" :value="o.value">{{ o.label }}</option>
+            </select>
+            <input
+              v-if="entry.freeText"
+              type="text"
+              class="pim-input text-xs mt-1"
+              placeholder="exakter Wert…"
+              :value="metadataTextValue(entry)"
+              @change="setFilter(entry.key, $event.target.value)"
+            />
+          </div>
+        </div>
+      </div>
+
       <!-- Hierarchy usage filter -->
       <div class="border-t border-[var(--color-border)] pt-3 mt-1">
         <button
@@ -652,7 +774,7 @@ onBeforeUnmount(() => {
 
     <PimTable
       ref="pimTableRef"
-      :columns="columns"
+      :columns="visibleColumns"
       :rows="store.items"
       :loading="store.loading"
       :sortField="sortField"

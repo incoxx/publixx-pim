@@ -12,6 +12,15 @@ export function useColumnConfig(storageKey, defaultColumns, extraColumns = [], d
   const staticColumns = [...defaultColumns, ...extraColumns]
   const defaultKeys = defaultColumns.map(c => c.key)
 
+  // Praefixe dynamisch geladener Spalten. Sie stehen beim Lesen aus dem
+  // localStorage noch nicht zur Verfuegung und muessen die Validierung
+  // trotzdem ueberleben, sonst verschwinden sie beim Neuladen der Seite.
+  const DYNAMIC_KEY_PREFIXES = ['attributes.', 'metadata.']
+
+  function isDynamicKey(key) {
+    return DYNAMIC_KEY_PREFIXES.some(prefix => key.startsWith(prefix))
+  }
+
   // allColumns is reactive to support dynamicColumns that load asynchronously
   const allColumns = computed(() => {
     const dynamic = isRef(dynamicColumns) ? dynamicColumns.value : dynamicColumns
@@ -27,7 +36,7 @@ export function useColumnConfig(storageKey, defaultColumns, extraColumns = [], d
         // Only validate against static columns at load time;
         // dynamic columns may not be loaded yet — keep their keys
         const staticKeys = new Set(staticColumns.map(c => c.key))
-        const validKeys = keys.filter(k => staticKeys.has(k) || k.startsWith('attributes.'))
+        const validKeys = keys.filter(k => staticKeys.has(k) || isDynamicKey(k))
         if (validKeys.length > 0) return validKeys
       }
     } catch (e) { console.warn('Failed to load column config:', e) }

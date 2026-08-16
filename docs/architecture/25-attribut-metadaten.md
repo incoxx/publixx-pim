@@ -102,6 +102,41 @@ GET /api/v1/attributes/{id}?include=metadataValues
 → { "data": { …, "metadata": { "datenherkunft": "ERP" } } }
 ```
 
+### Filtern
+
+```
+GET /api/v1/attributes?filter[meta:datenherkunft]=ERP
+```
+
+| Wert | Bedeutung |
+|---|---|
+| konkreter Wert | exakter Treffer; bei `multiselect` „enthält" (`whereJsonContains`) |
+| `__none__` | Attribute **ohne** Wert für diese Definition — der Data-Quality-Hebel |
+| `__any__` | Attribute mit irgendeinem Wert |
+
+Mehrere Metadaten-Filter werden UND-verknüpft. Ein unbekannter technischer Name wird
+still ignoriert, damit ein veralteter Filter im Frontend die Liste nicht mit einem Fehler
+blockiert.
+
+### Massenbearbeitung
+
+`PUT /api/v1/attributes/bulk-update` nimmt die Metadaten unter `fields.metadata`:
+
+```jsonc
+{
+  "ids": ["…", "…"],
+  "fields": {
+    "is_searchable": true,
+    "metadata": { "datenherkunft": "ERP", "dateneigentuemer": "" }
+  }
+}
+```
+
+Ein **leerer Wert löscht** das Metadatum auf allen gewählten Attributen — im Dialog wird
+das vor dem Anwenden ausdrücklich benannt. Ein Payload nur mit `metadata` ist zulässig.
+Die Werte lassen sich nicht per Massen-`UPDATE` setzen (eigene Zeilen), deshalb läuft der
+Abgleich je Attribut in Chunks à 500.
+
 ### Zwei Regeln, die man kennen muss
 
 1. **Abwesenheit ≠ Leerung.** Fehlt der `metadata`-Key im Payload, bleiben alle Werte
@@ -148,6 +183,16 @@ Schlüssel; ein Feature-Test sichert das ab.
 | Liste | `views/attributeMetadata/AttributeMetadataView.vue` |
 | Anlegen/Bearbeiten | `components/panels/AttributeMetadataFormPanel.vue` |
 | Wertepflege | `components/panels/AttributeFormPanel.vue` (Abschnitt *Metadaten*) |
+| Spalten in der Attributliste | `views/attributes/AttributeAdminView.vue` + `ColumnConfigPopover` |
+| Massenbearbeitung | `components/attributes/AttributeBulkUpdateDialog.vue` |
+
+Metadaten erscheinen als **dynamische, standardmäßig ausgeblendete Spalten** in der
+Attributliste und werden über das vorhandene `useColumnConfig` (localStorage) ein- und
+ausgeblendet. Die Spaltenschlüssel lauten `metadata.<technical_name>`; damit sie einen
+Reload überleben, kennt `useColumnConfig` neben `attributes.` auch das Präfix `metadata.`.
+Die Darstellung läuft über `col.render()` von `PimTable` — nur so werden Mehrfachauswahl
+(Liste), `boolean` (Ja/Nein) und leere Werte (`—`) korrekt angezeigt und bei
+`Label::Wert`-Optionen das Label statt des Rohwerts.
 
 Die Metadatenfelder werden als zusätzliche Einträge an das `fields`-Array von `PimForm`
 angehängt, mit Key-Präfix `meta__`. Beim Speichern werden sie über die Definitionen (nicht
@@ -165,8 +210,9 @@ Komponente wird von rund 20 Panels genutzt und würde dort Nutzereingaben übers
   Metadaten noch nicht. Ein Konfig-Transfer zwischen Installationen überträgt sie daher
   nicht. Zuschnitt für später: neue Sektion `attribute_metadata_definitions` vor
   `attributes` in `SECTION_ORDER`, plus ein `metadata`-Key je Attribut.
-- **Filter und Data-Quality-Report** (z. B. „alle Attribute ohne Eigentümer") sind noch
-  nicht umgesetzt; das Schema ist darauf vorbereitet.
+- **Ein zusammenfassender Data-Quality-Report** (Vollständigkeitsquote je Definition über
+  den gesamten Bestand) fehlt noch. Die Einzelabfrage „welche Attribute haben keinen
+  Eigentümer" ist über `filter[meta:…]=__none__` bereits möglich.
 - **`value_type: user`** (Eigentümer als echte PIM-Benutzerreferenz) fehlt bewusst: die
   Benutzerliste hängt an `users.view`, das die Read-Only-Rollen nicht haben. `select` mit
   gepflegten Optionen deckt den Fall ab.

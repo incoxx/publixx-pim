@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api;
 
+use App\Models\Permission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -142,7 +143,9 @@ class UserControllerTest extends TestCase
 
         // Editor mit users.edit, aber ohne Admin-Rolle.
         $editorRole = Role::findOrCreate('Editor', 'sanctum');
-        $editorRole->givePermissionTo(\Spatie\Permission\Models\Permission::findOrCreate('users.edit', 'sanctum'));
+        // App\Models\Permission (UUID-Schluessel), nicht Spaties Basis-Model:
+        // dessen Auto-Increment-Id landet als 0 in der char(36)-Spalte.
+        $editorRole->givePermissionTo(Permission::findOrCreate('users.edit', 'sanctum'));
         $editor = User::factory()->create();
         $editor->assignRole($editorRole);
         $this->actingAs($editor);
