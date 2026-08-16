@@ -15,7 +15,12 @@ class GoogleTranslateProvider implements TranslationProvider
         $this->apiKey = config('tms.providers.google.api_key', '');
     }
 
-    public function translate(string $text, string $sourceLang, string $targetLang): TranslationResult
+    public function translate(
+        string $text,
+        string $sourceLang,
+        string $targetLang,
+        ?TermContext $context = null,
+    ): TranslationResult
     {
         if (empty($this->apiKey)) {
             throw new \RuntimeException('Google Translate API key not configured.');

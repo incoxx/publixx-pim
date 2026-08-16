@@ -34,7 +34,12 @@ class ProviderChain
      * Translate text using the first available provider.
      * Falls back to the next provider on error.
      */
-    public function translate(string $text, string $sourceLang, string $targetLang): ?TranslationResult
+    public function translate(
+        string $text,
+        string $sourceLang,
+        string $targetLang,
+        ?TermContext $context = null,
+    ): ?TranslationResult
     {
         foreach ($this->providers as $provider) {
             if (!$provider->supports($sourceLang, $targetLang)) {
@@ -42,7 +47,7 @@ class ProviderChain
             }
 
             try {
-                return $provider->translate($text, $sourceLang, $targetLang);
+                return $provider->translate($text, $sourceLang, $targetLang, $context);
             } catch (\Throwable $e) {
                 Log::warning("MT provider '{$provider->name()}' failed: {$e->getMessage()}");
                 continue;

@@ -133,6 +133,15 @@ class TmsClient
     }
 
     /**
+     * Terminologie-Angaben eines Begriffs pflegen (nicht uebersetzen,
+     * Bedeutung, Wortart, Synonym-Verweis).
+     */
+    public function updateUnitMetadata(string $unitId, array $data): array
+    {
+        return $this->patch("/units/{$unitId}", $data);
+    }
+
+    /**
      * Get translation coverage stats.
      *
      * @param  string[]  $targetLanguages  leer = das TMS nimmt seine Konfiguration
@@ -328,6 +337,40 @@ class TmsClient
         } catch (\Throwable $e) {
             Log::warning("TMS PUT {$path} error", ['error' => $e->getMessage()]);
             return [];
+        }
+    }
+
+    /**
+     * Anders als die uebrigen Helfer gibt PATCH den Fehlertext weiter: das TMS
+     * lehnt unzulaessige Synonym-Verweise mit 422 und einer Begruendung ab,
+     * die in der Oberflaeche sichtbar sein muss.
+     */
+    private function patch(string $path, array $data = []): array
+    {
+        if (!$this->enabled) {
+            return [];
+        }
+
+        try {
+            $response = Http::timeout($this->timeout)
+                ->withToken($this->apiKey)
+                ->patch("{$this->baseUrl}{$path}", $data);
+
+            if ($response->successful()) {
+                return $response->json() ?? [];
+            }
+
+            Log::warning("TMS PATCH {$path} failed", ['status' => $response->status()]);
+
+            return [
+                'error' => true,
+                'status' => $response->status(),
+                'message' => $response->json('message') ?? 'Aenderung wurde vom TMS abgelehnt.',
+            ];
+        } catch (\Throwable $e) {
+            Log::warning("TMS PATCH {$path} error", ['error' => $e->getMessage()]);
+
+            return ['error' => true, 'message' => $e->getMessage()];
         }
     }
 }

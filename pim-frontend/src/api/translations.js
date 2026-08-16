@@ -13,6 +13,11 @@ export default {
     return client.put(`/tms/units/${unitId}/translations/${lang}`, data)
   },
 
+  // Terminologie-Angaben: nicht uebersetzen, Bedeutung, Wortart, Synonym
+  updateUnitMetadata(unitId, data) {
+    return client.patch(`/tms/units/${unitId}`, data)
+  },
+
   getStats() {
     return client.get('/tms/stats')
   },

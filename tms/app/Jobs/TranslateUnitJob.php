@@ -15,6 +15,7 @@ use Tms\Models\TmsMtLog;
 use Tms\Models\TmsTranslation;
 use Tms\Models\TmsUnit;
 use Tms\Services\TranslationProviders\ProviderChain;
+use Tms\Services\TranslationProviders\TermContext;
 
 class TranslateUnitJob implements ShouldQueue
 {
@@ -45,8 +46,16 @@ class TranslateUnitJob implements ShouldQueue
             return;
         }
 
+        // Zweite Sperre neben dem Ingest: der Rollout einer neuen Sprache und
+        // der Retranslate-Knopf planen ebenfalls Jobs ein, und ein Kennzeichen
+        // kann gesetzt worden sein, nachdem der Job in der Queue lag.
+        if (!$unit->needsTranslation()) {
+            return;
+        }
+
         $prefix = config('tms.cache_prefix', 'tms:t:');
         $ttl = config('tms.cache_ttl', 86400);
+        $context = null;
 
         foreach ($this->targetLangs as $targetLang) {
             // Skip if source and target are the same
@@ -75,7 +84,8 @@ class TranslateUnitJob implements ShouldQueue
                 $result = $providerChain->translate(
                     $unit->source_text,
                     $unit->source_lang,
-                    $targetLang
+                    $targetLang,
+                    $context ??= $this->buildContext($unit),
                 );
 
                 if ($result === null) {
@@ -110,5 +120,29 @@ class TranslateUnitJob implements ShouldQueue
                 Log::error("TranslateUnitJob failed for unit {$unit->id} to {$targetLang}: {$e->getMessage()}");
             }
         }
+    }
+
+    /**
+     * Kontext fuer die KI-Provider — einmal je Job, nicht je Zielsprache.
+     *
+     * Die Verwendungsstellen kommen aus tms_usages und stehen damit ohne
+     * Pflegeaufwand zur Verfuegung: sie sagen der Maschine, worum es geht,
+     * auch wenn niemand eine Definition hinterlegt hat.
+     */
+    private function buildContext(TmsUnit $unit): TermContext
+    {
+        $usedIn = $unit->usages()
+            ->whereNotNull('entity_label')
+            ->distinct()
+            ->limit(5)
+            ->pluck('entity_label')
+            ->all();
+
+        return new TermContext(
+            definition: $unit->definition,
+            wordClass: $unit->word_class,
+            domain: $unit->domain,
+            usedIn: $usedIn,
+        );
     }
 }

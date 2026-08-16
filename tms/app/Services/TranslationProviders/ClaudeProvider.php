@@ -17,7 +17,12 @@ class ClaudeProvider implements TranslationProvider
         $this->model = config('tms.providers.claude.model', 'claude-sonnet-4-6');
     }
 
-    public function translate(string $text, string $sourceLang, string $targetLang): TranslationResult
+    public function translate(
+        string $text,
+        string $sourceLang,
+        string $targetLang,
+        ?TermContext $context = null,
+    ): TranslationResult
     {
         if (empty($this->apiKey)) {
             throw new \RuntimeException('Anthropic API key not configured.');
@@ -40,9 +45,12 @@ class ClaudeProvider implements TranslationProvider
                     [
                         'role' => 'user',
                         'content' => "Translate the following text from {$sourceName} to {$targetName}. "
-                            . "This is a PIM (Product Information Management) metadata term. "
+                            . "This is a PIM (Product Information Management) metadata term — "
+                            . "a short label without sentence context, so use the context below "
+                            . "when deciding between possible readings. "
                             . "Return ONLY the translated text, nothing else.\n\n"
-                            . "Text: {$text}",
+                            . "Text: {$text}"
+                            . ($context?->toPromptSection() ?? ''),
                     ],
                 ],
             ]);

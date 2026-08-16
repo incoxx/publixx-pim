@@ -60,6 +60,37 @@ class TmsProxyController extends Controller
     }
 
     /**
+     * PATCH /tms/units/{id} — Terminologie-Angaben pflegen.
+     */
+    public function updateUnitMetadata(Request $request, string $id): JsonResponse
+    {
+        $this->abortIfDisabled();
+        abort_unless(auth()->user()?->hasPermissionTo('translations.edit'), 403);
+
+        $request->validate([
+            'do_not_translate' => 'sometimes|boolean',
+            'definition' => 'sometimes|nullable|string|max:2000',
+            'word_class' => 'sometimes|nullable|string|max:20',
+            'preferred_unit_id' => 'sometimes|nullable|string|size:36',
+        ]);
+
+        $data = $this->client->updateUnitMetadata($id, $request->only([
+            'do_not_translate', 'definition', 'word_class', 'preferred_unit_id',
+        ]));
+
+        // Ablehnungen des TMS (z.B. Synonym-Kette) mit ihrem Grund
+        // durchreichen, statt sie als Erfolg auszugeben.
+        if (!empty($data['error'])) {
+            return response()->json(
+                ['message' => $data['message'] ?? 'Aenderung wurde abgelehnt.'],
+                (int) ($data['status'] ?? 422),
+            );
+        }
+
+        return response()->json($data);
+    }
+
+    /**
      * GET /tms/stats — translation coverage statistics.
      */
     public function stats(): JsonResponse

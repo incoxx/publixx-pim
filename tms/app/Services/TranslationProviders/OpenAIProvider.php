@@ -17,7 +17,12 @@ class OpenAIProvider implements TranslationProvider
         $this->model = config('tms.providers.openai.model', 'gpt-4o');
     }
 
-    public function translate(string $text, string $sourceLang, string $targetLang): TranslationResult
+    public function translate(
+        string $text,
+        string $sourceLang,
+        string $targetLang,
+        ?TermContext $context = null,
+    ): TranslationResult
     {
         if (empty($this->apiKey)) {
             throw new \RuntimeException('OpenAI API key not configured.');
@@ -44,7 +49,8 @@ class OpenAIProvider implements TranslationProvider
                     ],
                     [
                         'role' => 'user',
-                        'content' => "Translate from {$sourceName} to {$targetName}:\n\n{$text}",
+                        'content' => "Translate from {$sourceName} to {$targetName}:\n\n{$text}"
+                            . ($context?->toPromptSection() ?? ''),
                     ],
                 ],
             ]);

@@ -116,7 +116,13 @@ class ProcessIngestBatchJob implements ShouldQueue
                     [$lang], // Quellsprache nie in sich selbst uebersetzen
                 ));
 
-                if (!empty($missingLangs) && !isset($alreadyQueued[$unit->id])) {
+                // Terminologie-Kennzeichen respektieren: "nicht uebersetzen"
+                // (DIN, IP65, Markennamen) und Synonyme, die die Uebersetzung
+                // ihrer Vorzugsbenennung erben, kosten sonst je Zielsprache
+                // einen MT-Aufruf fuer ein Ergebnis, das niemand will.
+                if (!empty($missingLangs)
+                    && !isset($alreadyQueued[$unit->id])
+                    && $unit->needsTranslation()) {
                     $alreadyQueued[$unit->id] = true;
                     TranslateUnitJob::dispatch($unit->id, $missingLangs);
                     $queuedForTranslation++;

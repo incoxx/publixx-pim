@@ -1,7 +1,8 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { X, Save, RefreshCw, Loader2 } from 'lucide-vue-next'
+import { X, Save, RefreshCw, Loader2, Check } from 'lucide-vue-next'
 import { useTranslationsStore } from '@/stores/translations'
+import translationsApi from '@/api/translations'
 
 const props = defineProps({
   unit: { type: Object, required: true },
@@ -73,6 +74,75 @@ onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown)
 })
 
+// ─── Terminologie ────────────────────────────────────────────────────────
+// Alle Angaben sind freiwillig. Gepflegt wird dort, wo es sich lohnt: bei
+// mehrdeutigen Begriffen und bei allem, was gar nicht übersetzt werden darf.
+
+const WORD_CLASSES = [
+  { value: '', label: '— keine Angabe —' },
+  { value: 'noun', label: 'Substantiv' },
+  { value: 'verb', label: 'Verb' },
+  { value: 'adjective', label: 'Adjektiv' },
+  { value: 'adverb', label: 'Adverb' },
+  { value: 'abbreviation', label: 'Abkürzung' },
+  { value: 'proper_noun', label: 'Eigenname' },
+]
+
+const metaSaving = ref(false)
+const metaSaved = ref(false)
+const doNotTranslate = ref(props.unit.do_not_translate ?? false)
+const definition = ref(props.unit.definition ?? '')
+const wordClass = ref(props.unit.word_class ?? '')
+
+// Synonym-Suche: die Vorzugsbenennung wird über die normale Begriffssuche
+// ausgewählt, damit man sie nicht als UUID eintippen muss.
+const synonymSearch = ref('')
+const synonymResults = ref([])
+const synonymSearching = ref(false)
+
+async function searchPreferred() {
+  const q = synonymSearch.value.trim()
+  if (q.length < 2) {
+    synonymResults.value = []
+    return
+  }
+  synonymSearching.value = true
+  try {
+    const { data } = await translationsApi.getUnits({ search: q, per_page: 10 })
+    // Der Begriff selbst und bereits vorhandene Synonyme kommen nicht infrage.
+    synonymResults.value = (data.data || []).filter(
+      u => u.id !== props.unit.id && !u.preferred_unit_id,
+    )
+  } catch {
+    synonymResults.value = []
+  } finally {
+    synonymSearching.value = false
+  }
+}
+
+async function saveMeta(patch) {
+  metaSaving.value = true
+  metaSaved.value = false
+  saveError.value = null
+  try {
+    await store.updateUnitMetadata(props.unit.id, patch)
+    metaSaved.value = true
+    emit('updated')
+  } catch (e) {
+    saveError.value = e.response?.data?.message || 'Fehler beim Speichern'
+    // Zustand zurückdrehen, damit die Anzeige nicht lügt
+    doNotTranslate.value = props.unit.do_not_translate ?? false
+  } finally {
+    metaSaving.value = false
+  }
+}
+
+function setPreferred(unitId) {
+  synonymSearch.value = ''
+  synonymResults.value = []
+  saveMeta({ preferred_unit_id: unitId })
+}
+
 const statusLabels = { pending: 'Ausstehend', auto: 'Automatisch', reviewed: 'Geprüft' }
 const statusColors = {
   pending: 'bg-gray-500/10 text-gray-600',
@@ -126,6 +196,106 @@ const providerLabels = { deepl: 'DeepL', google: 'Google', claude: 'Claude', hum
           <div>
             <span class="text-[var(--color-text-tertiary)]">Zeichen:</span>
             <span class="ml-1 text-[var(--color-text-secondary)]">{{ unit.char_count }}</span>
+          </div>
+        </div>
+
+        <!-- Terminologie -->
+        <div class="border border-[var(--color-border)] rounded-md p-3 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide">Terminologie</div>
+            <span v-if="metaSaving" class="text-xs text-[var(--color-text-tertiary)]">speichert…</span>
+            <span v-else-if="metaSaved" class="flex items-center gap-1 text-xs text-green-600">
+              <Check class="w-3 h-3" /> gespeichert
+            </span>
+          </div>
+
+          <!-- Nicht übersetzen -->
+          <label class="flex items-start gap-2 cursor-pointer">
+            <input
+              v-model="doNotTranslate"
+              type="checkbox"
+              class="mt-0.5"
+              @change="saveMeta({ do_not_translate: doNotTranslate })"
+            />
+            <span class="text-sm text-[var(--color-text-primary)]">
+              Nicht übersetzen
+              <span class="block text-xs text-[var(--color-text-tertiary)]">
+                Für Normangaben, Einheiten und Markennamen (DIN, IP65). Der Begriff bleibt in allen Sprachen unverändert und verursacht keine Übersetzungskosten.
+              </span>
+            </span>
+          </label>
+
+          <!-- Bedeutung -->
+          <div>
+            <label class="block text-xs text-[var(--color-text-tertiary)] mb-1">
+              Bedeutung
+              <span class="normal-case">— erklärt mehrdeutige Begriffe und geht als Kontext an die Übersetzung</span>
+            </label>
+            <textarea
+              v-model="definition"
+              rows="2"
+              placeholder="z.B. Blatt eines Sägewerkzeugs, nicht Papier"
+              class="w-full px-3 py-2 text-sm bg-[var(--color-bg)] border border-[var(--color-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
+              @blur="definition !== (unit.definition ?? '') && saveMeta({ definition: definition || null })"
+            />
+          </div>
+
+          <!-- Wortart -->
+          <div>
+            <label class="block text-xs text-[var(--color-text-tertiary)] mb-1">Wortart</label>
+            <select
+              v-model="wordClass"
+              class="w-full px-3 py-2 text-sm bg-[var(--color-bg)] border border-[var(--color-border)] rounded-md"
+              @change="saveMeta({ word_class: wordClass || null })"
+            >
+              <option v-for="wc in WORD_CLASSES" :key="wc.value" :value="wc.value">{{ wc.label }}</option>
+            </select>
+          </div>
+
+          <!-- Synonym -->
+          <div>
+            <label class="block text-xs text-[var(--color-text-tertiary)] mb-1">Synonym von</label>
+
+            <div v-if="unit.preferred_unit" class="flex items-center justify-between gap-2 px-3 py-2 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-md">
+              <span class="text-sm text-[var(--color-text-primary)] truncate">
+                {{ unit.preferred_unit.source_text }}
+              </span>
+              <button
+                class="text-xs text-[var(--color-text-tertiary)] hover:text-red-600 shrink-0"
+                @click="saveMeta({ preferred_unit_id: null })"
+              >
+                lösen
+              </button>
+            </div>
+
+            <div v-else-if="unit.synonyms?.length" class="text-xs text-[var(--color-text-tertiary)] px-3 py-2 bg-[var(--color-bg)] rounded-md">
+              Vorzugsbenennung für: {{ unit.synonyms.map(s => s.source_text).join(', ') }}
+            </div>
+
+            <div v-else>
+              <input
+                v-model="synonymSearch"
+                type="text"
+                placeholder="Vorzugsbenennung suchen…"
+                class="w-full px-3 py-2 text-sm bg-[var(--color-bg)] border border-[var(--color-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
+                @input="searchPreferred"
+              />
+              <div v-if="synonymSearching" class="text-xs text-[var(--color-text-tertiary)] mt-1">sucht…</div>
+              <ul v-else-if="synonymResults.length" class="mt-1 border border-[var(--color-border)] rounded-md divide-y divide-[var(--color-border)] max-h-40 overflow-y-auto">
+                <li
+                  v-for="r in synonymResults"
+                  :key="r.id"
+                  class="px-3 py-2 text-sm cursor-pointer hover:bg-[var(--color-bg)]"
+                  @click="setPreferred(r.id)"
+                >
+                  {{ r.source_text }}
+                  <span class="text-xs text-[var(--color-text-tertiary)]">· {{ r.domain }}</span>
+                </li>
+              </ul>
+              <p class="text-xs text-[var(--color-text-tertiary)] mt-1">
+                Ein Synonym erbt die Übersetzungen seiner Vorzugsbenennung und wird nicht eigenständig übersetzt.
+              </p>
+            </div>
           </div>
         </div>
 

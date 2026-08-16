@@ -23,7 +23,12 @@ class DeepLProvider implements TranslationProvider
         $this->apiUrl = rtrim(config('tms.providers.deepl.api_url', 'https://api-free.deepl.com/v2'), '/');
     }
 
-    public function translate(string $text, string $sourceLang, string $targetLang): TranslationResult
+    public function translate(
+        string $text,
+        string $sourceLang,
+        string $targetLang,
+        ?TermContext $context = null,
+    ): TranslationResult
     {
         if (empty($this->apiKey)) {
             throw new \RuntimeException('DeepL API key not configured.');

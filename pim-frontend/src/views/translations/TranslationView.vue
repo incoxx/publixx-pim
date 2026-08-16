@@ -75,6 +75,15 @@ function translationOf(unit) {
 function statusOf(unit) {
   const t = translationOf(unit)
 
+  // Terminologie-Kennzeichen zuerst: sonst stuende bei diesen Begriffen
+  // dauerhaft "Fehlend", obwohl sie bewusst keine eigene Uebersetzung haben.
+  if (unit.do_not_translate) {
+    return { label: 'Nicht übersetzen', done: true, class: 'bg-gray-500/10 text-gray-600' }
+  }
+  if (unit.preferred_unit_id) {
+    return { label: 'Synonym', done: true, class: 'bg-violet-500/10 text-violet-600' }
+  }
+
   if (!t) {
     return { label: 'Fehlend', done: false, class: 'bg-amber-500/10 text-amber-600' }
   }
@@ -522,7 +531,9 @@ const paginationPages = computed(() => {
                 {{ unit.domain || '—' }}
               </td>
               <td class="px-4 py-3 max-w-[300px] truncate" :class="translationOf(unit) ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'">
-                {{ translationOf(unit)?.translation || '—' }}
+                <template v-if="translationOf(unit)">{{ translationOf(unit).translation }}</template>
+                <template v-else-if="unit.do_not_translate">{{ unit.source_text }}</template>
+                <template v-else>—</template>
               </td>
               <td class="px-4 py-3">
                 <span

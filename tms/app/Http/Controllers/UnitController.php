@@ -7,6 +7,7 @@ namespace Tms\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redis;
+use Illuminate\Validation\Rule;
 use Tms\Jobs\TranslateUnitJob;
 use Tms\Models\TmsTranslation;
 use Tms\Models\TmsUnit;
@@ -42,7 +43,11 @@ class UnitController
             $lang = $request->query('lang', 'en');
 
             if ($status === 'missing') {
-                $query->whereDoesntHave('translations', fn ($q) => $q->where('target_lang', $lang));
+                // Ohne diese beiden Bedingungen bliebe die Liste dauerhaft mit
+                // Begriffen gefuellt, die gar nicht uebersetzt werden sollen.
+                $query->whereDoesntHave('translations', fn ($q) => $q->where('target_lang', $lang))
+                    ->where('do_not_translate', false)
+                    ->whereNull('preferred_unit_id');
             } elseif ($status === 'auto') {
                 $query->whereHas('translations', fn ($q) => $q->where('target_lang', $lang)->where('status', 'auto'));
             } elseif ($status === 'reviewed') {
@@ -61,7 +66,7 @@ class UnitController
      */
     public function show(string $id): JsonResponse
     {
-        $unit = TmsUnit::with(['translations', 'usages'])->findOrFail($id);
+        $unit = TmsUnit::with(['translations', 'usages', 'preferredUnit', 'synonyms'])->findOrFail($id);
 
         return response()->json($unit);
     }
@@ -101,6 +106,64 @@ class UnitController
     }
 
     /**
+     * PATCH /api/units/{id} — Terminologie-Angaben pflegen.
+     *
+     * Alle Felder sind einzeln optional: die Oberflaeche schickt nur, was
+     * geaendert wurde.
+     */
+    public function updateMetadata(Request $request, string $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'do_not_translate' => 'sometimes|boolean',
+            'definition' => 'sometimes|nullable|string|max:2000',
+            'word_class' => ['sometimes', 'nullable', Rule::in(TmsUnit::WORD_CLASSES)],
+            'preferred_unit_id' => 'sometimes|nullable|string|size:36',
+        ]);
+
+        $unit = TmsUnit::findOrFail($id);
+
+        if (array_key_exists('preferred_unit_id', $validated) && $validated['preferred_unit_id'] !== null) {
+            $preferred = TmsUnit::find($validated['preferred_unit_id']);
+
+            // Ein Synonym zeigt genau eine Ebene tief auf seine
+            // Vorzugsbenennung. Ketten und Ringe wuerden effectiveTranslation()
+            // in eine Endlosschleife schicken.
+            if (!$preferred || $preferred->id === $unit->id) {
+                return response()->json([
+                    'message' => 'Vorzugsbenennung nicht gefunden oder identisch mit dem Begriff selbst.',
+                ], 422);
+            }
+            if ($preferred->isSynonym()) {
+                return response()->json([
+                    'message' => 'Die gewaehlte Vorzugsbenennung ist selbst ein Synonym. Bitte den Hauptbegriff waehlen.',
+                ], 422);
+            }
+            if ($unit->synonyms()->exists()) {
+                return response()->json([
+                    'message' => 'Dieser Begriff ist selbst Vorzugsbenennung fuer andere und kann kein Synonym werden.',
+                ], 422);
+            }
+            if ($preferred->source_lang !== $unit->source_lang) {
+                return response()->json([
+                    'message' => 'Synonyme muessen dieselbe Quellsprache haben.',
+                ], 422);
+            }
+        }
+
+        $unit->fill($validated)->save();
+
+        // Die Kennzeichen aendern, was resolve() ausliefert (Quelltext bei
+        // "nicht uebersetzen", Uebersetzung der Vorzugsbenennung bei
+        // Synonymen). Der Cache wird deshalb verworfen — eine seltene
+        // Pflegeaktion, daher bewusst grob statt schluesselgenau.
+        $this->flushTranslationCache();
+
+        return response()->json(
+            $unit->load(['translations', 'usages', 'preferredUnit', 'synonyms'])
+        );
+    }
+
+    /**
      * GET /api/stats — translation coverage per language.
      */
     public function stats(Request $request): JsonResponse
@@ -124,6 +187,15 @@ class UnitController
             ->groupBy('source_lang')
             ->pluck('cnt', 'source_lang');
 
+        // Terminologie-Kennzeichen aus der Bezugsgroesse nehmen: "nicht
+        // uebersetzen" gilt in jeder Sprache als erledigt (der Quelltext steht
+        // ueberall gleich), Synonyme erben die Uebersetzung ihrer
+        // Vorzugsbenennung. Blieben sie drin, koennte die Abdeckung nie 100 %
+        // erreichen und die Liste "Fehlend" waere dauerhaft verstopft.
+        $exempt = TmsUnit::where('do_not_translate', true)
+            ->orWhereNotNull('preferred_unit_id')
+            ->count();
+
         // Single grouped query instead of N queries per language
         $counts = TmsTranslation::selectRaw('target_lang, status, count(*) as cnt')
             ->whereIn('target_lang', $targetLangs)
@@ -137,7 +209,7 @@ class UnitController
             $reviewed = (int) $langCounts->where('status', 'reviewed')->sum('cnt');
             $auto = (int) $langCounts->where('status', 'auto')->sum('cnt');
 
-            $relevant = $totalUnits - (int) ($unitsPerSourceLang[$lang] ?? 0);
+            $relevant = $totalUnits - (int) ($unitsPerSourceLang[$lang] ?? 0) - $exempt;
 
             $stats[$lang] = [
                 'total' => $relevant,
@@ -151,6 +223,7 @@ class UnitController
 
         return response()->json([
             'total_units' => $totalUnits,
+            'exempt_units' => $exempt,
             'languages' => $stats,
         ]);
     }
@@ -164,6 +237,8 @@ class UnitController
         $perPage = min((int) $request->query('per_page', '50'), 200);
 
         $units = TmsUnit::whereDoesntHave('translations', fn ($q) => $q->where('target_lang', $lang))
+            ->where('do_not_translate', false)
+            ->whereNull('preferred_unit_id')
             ->orderBy('source_text')
             ->paginate($perPage);
 

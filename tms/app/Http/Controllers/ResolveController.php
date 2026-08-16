@@ -68,8 +68,13 @@ class ResolveController
         if (!empty($missingKeys)) {
             $missingHashes = array_unique(array_column($missingKeys, 'hash'));
 
+            // preferredUnit mitladen: Synonyme erben deren Uebersetzung, sonst
+            // laege pro Begriff eine weitere Abfrage an.
             $units = TmsUnit::whereIn('text_hash', $missingHashes)
-                ->with(['translations' => fn ($q) => $q->whereIn('target_lang', $langs)])
+                ->with([
+                    'translations' => fn ($q) => $q->whereIn('target_lang', $langs),
+                    'preferredUnit.translations' => fn ($q) => $q->whereIn('target_lang', $langs),
+                ])
                 ->get()
                 ->keyBy('text_hash');
 
@@ -77,8 +82,9 @@ class ResolveController
                 $hash = $key['hash'];
                 $lang = $key['lang'];
                 $unit = $units->get($hash);
-                $translation = $unit?->translations->firstWhere('target_lang', $lang);
-                $text = $translation?->translation;
+                // Beruecksichtigt "nicht uebersetzen" (Quelltext gilt) und
+                // Synonyme (Uebersetzung der Vorzugsbenennung).
+                $text = $unit?->effectiveTranslation($lang);
 
                 $result[$hash][$lang] = $text;
 

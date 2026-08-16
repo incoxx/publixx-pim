@@ -23,6 +23,9 @@ Route::middleware(ValidateApiKey::class)->group(function () {
     Route::get('units/{id}', [UnitController::class, 'show']);
     Route::put('units/{id}/translations/{lang}', [UnitController::class, 'updateTranslation']);
 
+    // Terminologie-Angaben: nicht uebersetzen, Bedeutung, Wortart, Synonym
+    Route::patch('units/{id}', [UnitController::class, 'updateMetadata']);
+
     // Stats & Missing
     Route::get('stats', [UnitController::class, 'stats']);
     Route::get('missing', [UnitController::class, 'missing']);

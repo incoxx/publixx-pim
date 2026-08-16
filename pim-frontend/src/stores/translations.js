@@ -86,6 +86,13 @@ export const useTranslationsStore = defineStore('translations', () => {
     }
   }
 
+  async function updateUnitMetadata(unitId, data) {
+    await translationsApi.updateUnitMetadata(unitId, data)
+    if (currentUnit.value?.id === unitId) {
+      await fetchUnit(unitId)
+    }
+  }
+
   async function retranslate(unitIds, targetLangs = null) {
     const payload = { unit_ids: unitIds }
     if (targetLangs) payload.target_langs = targetLangs
@@ -143,6 +150,6 @@ export const useTranslationsStore = defineStore('translations', () => {
   return {
     units, unitsPagination, currentUnit, stats, missingUnits, missingPagination,
     unitsLoading, unitLoading, statsLoading, missingLoading, error,
-    fetchUnits, fetchUnit, fetchStats, fetchMissing, updateTranslation, retranslate, translateMissing, importGlossary, triggerIngest, syncToDatabase, deleteAllTranslations, purgeAllUnits,
+    fetchUnits, fetchUnit, fetchStats, fetchMissing, updateTranslation, updateUnitMetadata, retranslate, translateMissing, importGlossary, triggerIngest, syncToDatabase, deleteAllTranslations, purgeAllUnits,
   }
 })
