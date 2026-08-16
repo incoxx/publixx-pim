@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use App\Models\AttributeViewAssignment;
+use App\Services\Attributes\AttributeMetadataService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -24,8 +25,13 @@ class AttributeController extends Controller
     private const ALLOWED_INCLUDES = [
         'attributeType', 'unitGroup', 'defaultUnit', 'valueList', 'formattingRule',
         'children', 'parent', 'comparisonOperatorGroup', 'attributeViews',
-        'dictionaryEntries',
+        'dictionaryEntries', 'metadataValues',
     ];
+
+    public function __construct(
+        private readonly AttributeMetadataService $metadataService,
+    ) {
+    }
 
     private const ALLOWED_FILTERS = [
         'status', 'data_type', 'attribute_type_id', 'is_translatable',
@@ -78,7 +84,17 @@ class AttributeController extends Controller
             }
         }
 
-        $attribute = Attribute::create($validated);
+        $metadata = $this->extractMetadata($validated);
+
+        $attribute = DB::transaction(function () use ($validated, $metadata) {
+            $attribute = Attribute::create($validated);
+
+            if ($metadata !== null) {
+                $this->metadataService->sync($attribute, $metadata);
+            }
+
+            return $attribute;
+        });
 
         return (new AttributeResource($attribute))
             ->response()
@@ -117,9 +133,40 @@ class AttributeController extends Controller
             }
         }
 
-        $attribute->update($validated);
+        $metadata = $this->extractMetadata($validated);
+
+        DB::transaction(function () use ($attribute, $validated, $metadata) {
+            $attribute->update($validated);
+
+            if ($metadata !== null) {
+                $this->metadataService->sync($attribute, $metadata);
+            }
+        });
 
         return new AttributeResource($attribute->fresh());
+    }
+
+    /**
+     * Trennt die Metadaten-Map aus den validierten Daten heraus.
+     *
+     * Liefert `null`, wenn der Payload gar keinen `metadata`-Key enthält — dann
+     * bleiben die gespeicherten Werte unangetastet. Das ist wichtig, weil
+     * `PUT /attributes/{id}` auch mit Teil-Payloads aufgerufen wird
+     * (z.B. nur `parent_attribute_id` beim Composite-Handling).
+     *
+     * @param array<string, mixed> $validated
+     * @return array<string, mixed>|null
+     */
+    private function extractMetadata(array &$validated): ?array
+    {
+        if (!array_key_exists('metadata', $validated)) {
+            return null;
+        }
+
+        $metadata = $validated['metadata'];
+        unset($validated['metadata']);
+
+        return is_array($metadata) ? $metadata : [];
     }
 
     public function copy(Attribute $attribute): JsonResponse
@@ -148,7 +195,13 @@ class AttributeController extends Controller
                 $data['name_en'] .= ' (Copy)';
             }
 
-            return Attribute::create($data);
+            $copy = Attribute::create($data);
+
+            // Governance-Metadaten gehören fachlich zur Kopie dazu;
+            // replicate() erfasst nur Spalten, keine Relationen.
+            $this->metadataService->copyValues($attribute, $copy);
+
+            return $copy;
         });
 
         return (new AttributeResource($copy))
@@ -279,6 +332,7 @@ class AttributeController extends Controller
 
         $count = DB::transaction(function () use ($ids) {
             // Delete related data first
+            DB::table('attribute_metadata_values')->whereIn('attribute_id', $ids)->delete();
             DB::table('product_attribute_values')->whereIn('attribute_id', $ids)->delete();
             DB::table('hierarchy_node_attribute_values')->whereIn('attribute_id', $ids)->delete();
             DB::table('media_attribute_values')->whereIn('attribute_id', $ids)->delete();

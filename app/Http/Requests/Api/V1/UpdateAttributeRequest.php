@@ -6,6 +6,7 @@ namespace App\Http\Requests\Api\V1;
 
 use App\Models\Attribute;
 use App\Models\AttributeFormattingRule;
+use App\Services\Attributes\AttributeMetadataService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -67,6 +68,8 @@ class UpdateAttributeRequest extends FormRequest
             'source_attribute_name' => 'nullable|string|max:255',
             'source_attribute_key' => 'nullable|string|max:255',
             'status' => 'in:active,inactive',
+            // Metadaten als Map technical_name => Wert; Detailprüfung in withValidator()
+            'metadata' => 'sometimes|nullable|array',
         ];
     }
 
@@ -76,6 +79,12 @@ class UpdateAttributeRequest extends FormRequest
      */
     public function withValidator($validator): void
     {
+        $validator->after(function ($validator) {
+            if (is_array($this->input('metadata'))) {
+                app(AttributeMetadataService::class)->validate($this->input('metadata'), $validator);
+            }
+        });
+
         $validator->after(function ($validator) {
             if (!$this->has('formatting_rule_id') || empty($this->input('formatting_rule_id'))) {
                 return;

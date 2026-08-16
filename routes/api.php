@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\ArtisanCockpitController;
 use App\Http\Controllers\Api\V1\AssetCatalogController;
 use App\Http\Controllers\Api\V1\AttributeController;
 use App\Http\Controllers\Api\V1\AttributeFormattingRuleController;
+use App\Http\Controllers\Api\V1\AttributeMetadataDefinitionController;
 use App\Http\Controllers\Api\V1\AttributeMappingController;
 use App\Http\Controllers\Api\V1\AttributeTypeController;
 use App\Http\Controllers\Api\V1\AttributeViewController;
@@ -480,6 +481,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::apiResource('attribute-formatting-rules', AttributeFormattingRuleController::class);
     Route::get('attribute-formatting-rules/{attribute_formatting_rule}/dependencies', [AttributeFormattingRuleController::class, 'dependencies']);
+
+    // =====================================================================
+    // Attribut-Metadaten (Data Quality & Ownership)
+    // =====================================================================
+    Route::apiResource('attribute-metadata-definitions', AttributeMetadataDefinitionController::class);
+    Route::get('attribute-metadata-definitions/{attribute_metadata_definition}/dependencies', [AttributeMetadataDefinitionController::class, 'dependencies']);
 
     // =====================================================================
     // Dictionary Entries

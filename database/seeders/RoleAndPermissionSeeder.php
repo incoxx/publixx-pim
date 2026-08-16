@@ -36,6 +36,8 @@ class RoleAndPermissionSeeder extends Seeder
             'value-lists.view', 'value-lists.create', 'value-lists.edit', 'value-lists.delete',
             // Attribut-Formatierungsregeln
             'attribute-formatting-rules.view', 'attribute-formatting-rules.create', 'attribute-formatting-rules.edit', 'attribute-formatting-rules.delete',
+            // Attribut-Metadaten
+            'attribute-metadata.view', 'attribute-metadata.create', 'attribute-metadata.edit', 'attribute-metadata.delete',
             // Attributsichten
             'attribute-views.view', 'attribute-views.create', 'attribute-views.edit', 'attribute-views.delete',
             // Medien
@@ -186,6 +188,7 @@ class RoleAndPermissionSeeder extends Seeder
             'units.view', 'units.create', 'units.edit', 'units.delete',
             'value-lists.view', 'value-lists.create', 'value-lists.edit', 'value-lists.delete',
             'attribute-formatting-rules.view', 'attribute-formatting-rules.create', 'attribute-formatting-rules.edit', 'attribute-formatting-rules.delete',
+            'attribute-metadata.view', 'attribute-metadata.create', 'attribute-metadata.edit', 'attribute-metadata.delete',
             'attribute-views.view', 'attribute-views.create', 'attribute-views.edit', 'attribute-views.delete',
             'relation-types.view', 'relation-types.create', 'relation-types.edit', 'relation-types.delete',
             'manufacturers.view', 'manufacturers.create', 'manufacturers.edit', 'manufacturers.delete',
@@ -229,6 +232,7 @@ class RoleAndPermissionSeeder extends Seeder
             'units.view',
             'value-lists.view',
             'attribute-formatting-rules.view',
+            'attribute-metadata.view',
             'attribute-views.view',
             'relation-types.view',
             'manufacturers.view',
@@ -285,6 +289,7 @@ class RoleAndPermissionSeeder extends Seeder
             'unit-groups.view',
             'value-lists.view',
             'attribute-formatting-rules.view',
+            'attribute-metadata.view',
             // KI-Assistent, semantische Suche, Excel-Designer (voll — Export-Werkzeug)
             'copilot.use',
             'semantic-search.view',
@@ -310,6 +315,7 @@ class RoleAndPermissionSeeder extends Seeder
             'unit-groups.view',
             'value-lists.view',
             'attribute-formatting-rules.view',
+            'attribute-metadata.view',
             'media.view',
             'search.view',
             // KI-Assistent + semantische Suche
@@ -362,6 +368,7 @@ class RoleAndPermissionSeeder extends Seeder
             'relation-types.view',
             'value-lists.view',
             'attribute-formatting-rules.view',
+            'attribute-metadata.view',
             // Übersetzungen
             'translations.view', 'translations.edit',
             'languages.view', 'languages.create', 'languages.update', 'languages.delete',
