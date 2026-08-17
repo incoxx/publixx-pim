@@ -501,7 +501,7 @@ function loadFromHistory(item) {
               URL Parameter
             </div>
             <div class="space-y-2">
-              <div v-for="(p, i) in urlParams" :key="p.name" class="flex items-center gap-2">
+              <div v-for="p in urlParams" :key="p.name" class="flex items-center gap-2">
                 <span class="text-xs font-mono text-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] px-2 py-1 rounded min-w-[80px]">
                   {{ '{' + p.name + '}' }}
                 </span>

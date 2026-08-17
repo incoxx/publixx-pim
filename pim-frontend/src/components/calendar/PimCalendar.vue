@@ -224,7 +224,7 @@ watch(() => props.view, () => emitRange(), { immediate: true })
       </div>
       <div class="grid grid-cols-7">
         <div
-          v-for="(day, idx) in calendarDays"
+          v-for="day in calendarDays"
           :key="day.date.toISOString()"
           class="calendar-day-cell border-b border-r border-[var(--color-border)] min-h-[90px] p-1 cursor-pointer hover:bg-[var(--color-bg-hover)] transition-colors"
           :class="{

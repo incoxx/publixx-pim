@@ -86,7 +86,7 @@ function close() {
               <tr class="bg-base-200 border-b border-base-300">
                 <th class="px-4 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-base-content/50 w-[200px]">Attribut</th>
                 <th
-                  v-for="(prod, idx) in compareData.products"
+                  v-for="prod in compareData.products"
                   :key="prod.id"
                   class="px-4 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-primary"
                 >

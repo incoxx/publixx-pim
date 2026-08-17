@@ -234,6 +234,9 @@ const widgets = [
 ]
 
 // ── Code-Beispiele je Betriebsmodus ──
+// Hinweis: Der Schraegstrich in den schliessenden Script-Tags ist als Unicode-Escape
+// (Backslash + u002F) kodiert. Ein literales Script-Ende wuerde den SFC-Script-Block
+// hier vorzeitig beenden; Backslash + / waere gleichwertig, meldet aber no-useless-escape.
 const widgetCodeExamples = computed(() => {
   const initApi = mode.value === 'reverse_proxy' ? reverseProxyPath.value || '/pim-api' : apiBase
   const examples = [
@@ -242,11 +245,11 @@ const widgetCodeExamples = computed(() => {
       title: '1. Bundle & Styles einbinden',
       code: `<!-- Direkt von dieser anyPIM-Instanz einbinden (empfohlen, immer aktuell): -->
 <link rel="stylesheet" href="${assetCssUrl}">
-<script src="${assetJsUrl}"><\/script>
+<script src="${assetJsUrl}"><\u002Fscript>
 
 <!-- Alternative: herunterladen (Buttons unten) und selbst hosten, z.B.: -->
 <!-- <link rel="stylesheet" href="/fileadmin/catalog-embed/catalog-embed.css"> -->
-<!-- <script src="/fileadmin/catalog-embed/catalog-embed.umd.js"><\/script> -->`,
+<!-- <script src="/fileadmin/catalog-embed/catalog-embed.umd.js"><\u002Fscript> -->`,
     },
     {
       key: 'markup',
@@ -284,14 +287,14 @@ const widgetCodeExamples = computed(() => {
     locale: 'de',
     perPage: 24,
   })
-<\/script>`
+<\u002Fscript>`
         : `<script>
   PublixxCatalog.init({
     api: '${initApi}',
     locale: 'de',
     perPage: 24,
   })
-<\/script>`,
+<\u002Fscript>`,
     },
     {
       key: 'theme',

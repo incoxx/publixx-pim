@@ -44,6 +44,9 @@ async function loadPresets() {
 async function createTemplate() {
   if (!newName.value.trim()) return
   try {
+    // Hinweis: Der Schraegstrich im schliessenden Script-Tag ist als Unicode-Escape
+    // (Backslash + u002F) kodiert. Ein literales Script-Ende wuerde den SFC-Script-Block
+    // hier vorzeitig beenden; Backslash + / waere gleichwertig, meldet aber no-useless-escape.
     const defaultHtml = `<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -101,14 +104,14 @@ async function createTemplate() {
   <div data-catalog="product-detail"></div>
   <div data-catalog="compare"></div>
 
-  <script src="../dist/catalog-embed.umd.js"><\/script>
+  <script src="../dist/catalog-embed.umd.js"><\u002Fscript>
   <script>
     PublixxCatalog.init({
       api: 'http://localhost:8000/api/v1',
       locale: 'de',
       perPage: 12,
     })
-  <\/script>
+  <\u002Fscript>
 </body>
 </html>`
 

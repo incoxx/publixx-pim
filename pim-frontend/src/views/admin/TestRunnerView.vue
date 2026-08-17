@@ -115,7 +115,7 @@ function formatDuration(ms) {
             <Zap class="w-4 h-4 text-amber-500 shrink-0" />
             <div>
               <div class="text-[10px] text-[var(--color-text-secondary)]">Schnell</div>
-              <div class="text-sm font-semibold text-[var(--color-text-primary)]">< 10 Sek.</div>
+              <div class="text-sm font-semibold text-[var(--color-text-primary)]">&lt; 10 Sek.</div>
             </div>
           </div>
           <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--color-bg)]/60 border border-[var(--color-border)]">

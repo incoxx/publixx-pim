@@ -38,6 +38,22 @@ export default [
     },
   },
   {
+    // Build-/Test-Konfiguration laeuft im Node-Kontext: Vite bundelt diese Dateien
+    // vor dem Ausfuehren und stellt dabei process, __dirname und __filename bereit.
+    // ESLint sieht davon nichts und braucht die Globals deshalb explizit.
+    files: ['*.config.js', 'vite-plugins/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        process: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        console: 'readonly',
+      },
+    },
+  },
+  {
     // vitest.config.js hat "globals: true" -- describe/it/expect/vi etc. sind
     // zur Laufzeit ohne Import verfuegbar. ESLint weiss das nicht von selbst.
     files: ['src/**/__tests__/**/*.js', 'src/**/*.test.js'],
