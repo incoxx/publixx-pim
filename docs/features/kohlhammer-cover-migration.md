@@ -568,9 +568,97 @@ Preiszusatzfelder (Preis-Metadaten).
 | Schritt | Inhalt |
 |---------|--------|
 | **2** | Cover-Verbindung herstellen und `CoverProfiler` laufen lassen: `SELECT DISTINCT` auf `PRODUKTTYP`, `TEXTTYPECODE`, `SUBJECTSCHEMENAME`/`-IDENTIFIER`, `DL_TYP_BEZ`, `CONTRIBUTORROLE`, `PRICETYPECODE`, `RELATIONCODE` + Mengengerüst + Zeichensatzprüfung |
-| **3** | Attributkatalog ableiten: Excel-Importvorlage (Sheets 01–07) für Produkttypen (inkl. `contributor`, `adresse`), Attributgruppen, Einheiten, Wertelisten, Attribute, Hierarchien |
-| **4** | Beziehungstypen inkl. Beziehungsattribute anlegen (7.3/7.4); Migration `product_types.is_master_data` |
+| **3** | Schema-Seeder auf leerer Instanz fahren (Abschnitt 10) und Manifest um die Profiling-Ergebnisse ergänzen |
+| **4** | Migration `product_types.is_master_data`; Attribut-zu-Knoten-Zuordnungen nach dem Hierarchie-Import |
 | **5** | Feature **Preis-Metadaten** umsetzen ([`plan-preis-metadaten.md`](plan-preis-metadaten.md)) |
 | **6** | **Cover-Connector** bauen ([`kohlhammer-cover-connector.md`](kohlhammer-cover-connector.md)) — Verbindung, Reader, Phasen, Delta, Protokollierung |
 | **7** | Testmigration einer Produkttyp-Scheibe (z. B. nur Bücher) mit `--dry-run`, Abgleich PIMCORE ↔ anyPIM |
 | **8** | Vollmigration + Verprobung der Exporte (BMEcat/publixx) gegen die heutigen PIMCORE-Exporte |
+
+---
+
+## 10. Schema-Seeder für eine leere anyPIM-Instanz
+
+Die Konfiguration lässt sich zum größten Teil **aus den PIMCORE-Importskripten
+ableiten** — die Feldlisten stehen dort als statische `setPartData()`-Blöcke und
+`ObjectMetadata`-Definitionen im Code. Daraus ist ein Manifest entstanden, das ein
+idempotenter Seeder auf eine leere Instanz anwendet.
+
+### 10.1 Kein SQL, sondern Manifest + Seeder
+
+Ausdrücklich **keine SQL-Dumps**: Die anyPIM-Tabellen selbst sind kundenneutral und
+kommen aus den Migrationen — angelegt wird nur die kundenspezifische *Konfiguration*.
+Dafür ist ein Seeder das richtige Werkzeug, denn er löst UUID-Fremdschlüssel über
+technische Namen auf, ist mehrfach ausführbar und durchläuft die Model-Events
+(Suchindex, Audit). Ein SQL-Skript müsste UUIDs hart verdrahten und wäre nach der
+ersten Schemaänderung unbrauchbar.
+
+```
+database/seeders/
+├── KohlhammerSchemaSeeder.php
+└── data/kohlhammer/
+    ├── attributes.php     121 Attribute
+    └── structure.php      Gruppen, Produkttypen, Beziehungstypen, Preisarten,
+                           Preis-Metadaten, Wertelisten, Hierarchien, Kernfelder
+```
+
+```bash
+php artisan migrate
+php artisan db:seed --class=KohlhammerSchemaSeeder
+```
+
+Der Seeder ist **nicht** in `DatabaseSeeder` eingehängt — er ist kundenspezifisch und
+wird gezielt aufgerufen.
+
+### 10.2 Was der Lauf anlegt
+
+| Objekt | Anzahl | Herkunft |
+|---|---|---|
+| Attributgruppen | 20 | fachliche Gliederung aus Abschnitt 5 |
+| Attribute | 121 | 85 Produktfelder + 2 abgeleitete + 21 Adresse/E-Mail + 3 Contributor + 4 Bearbeiter + 9 Beziehungsattribute |
+| Produkttypen | 6 | `titel`, `zeitschrift-heft/-online/-ebook` (ZSEH/ZSOP/ZEBU), `contributor`, `adresse` |
+| Beziehungstypen | 7 | ein Typ je PIMCORE-Relationsfeld, inkl. erlaubter Quell-/Zielprodukttypen |
+| Preisarten | 4 | die in `import_sf_price.php` belegten Kombinationen |
+| Preis-Metadaten | 11 | `SF_PRODUCTPRICE`-Restspalten (übersprungen, solange das Feature fehlt) |
+| Wertelisten | 21 | Container; nur `onix-contributor-role` ist bereits belegt |
+| Hierarchien | 6 | Wurzeln für Master, WK, Lizenz, Vorschau, Buchinfo, Zeitschriften |
+| Einheiten | 2 Gruppen | `length` (mm/cm), `weight` (g/kg) für die Maßattribute |
+
+Jedes Attribut trägt `source_system = 'COVER'` und in `source_attribute_name` die
+COVER-Spalte. Damit ist das Manifest zugleich die **Feldkarte des Cover-Connectors** —
+Schema und Import lesen dieselbe Quelle.
+
+Verifiziert auf leerer SQLite-Instanz: erster Lauf legt 121 Attribute an, zweiter
+Lauf 0 — der Seeder ist idempotent und kann nach jeder Manifest-Erweiterung erneut
+laufen.
+
+### 10.3 Was sich *nicht* aus dem Code ableiten lässt
+
+Das ist die ehrliche Grenze des Verfahrens. Aus PIMCORE kommt die **Struktur**, nicht
+die **Wertebereiche** — dort ist praktisch alles ein Textfeld:
+
+| Nicht ableitbar | Konsequenz |
+|---|---|
+| Datentypen (String/Number/Date/Flag/Selection) | im Manifest **kuratiert** gesetzt, am Bestand zu verifizieren |
+| Wertelisteninhalte (Produktform, Sprache, Status, …) | Container leer angelegt, Einträge kommen aus dem Profiling |
+| Die tatsächlichen `PRODUKTTYP`-Codes | nur ZSEH/ZSOP/ZEBU sind im Code belegt, Rest per `SELECT DISTINCT` |
+| `TEXTTYPECODE`, `SUBJECTSCHEMENAME`, `DL_TYP_BEZ` | in PIMCORE datengetrieben zur Laufzeit angelegt — Attribute entstehen erst nach dem Profiling |
+| Weitere `PRICETYPECODE`/`PRICESTATUS`-Kombinationen | nur vier sind im Code belegt |
+| Einheiten der Maßfelder | als mm/g angenommen (ONIX-üblich), am Bestand zu prüfen |
+| Wertebereich der Kennzeichen-Felder | als `Flag` gesetzt; ob `J`/`N`, `0`/`1` oder anderes, zeigt das Profiling |
+| Kategoriebäume | Struktur steht im Code, Knoten kommen aus `SF_WK_KATEGORIEN` |
+
+Der Ablauf ist deshalb zweistufig: **Seeder jetzt** (Struktur), **Profiling danach**
+(Wertebereiche), dann Manifest ergänzen und Seeder erneut laufen lassen.
+
+### 10.4 Bekannte Einschränkungen
+
+- **`product_types.is_master_data`** existiert noch nicht. Der Seeder prüft die Spalte
+  und warnt, statt zu scheitern — bis zur Migration erscheinen `contributor` und
+  `adresse` im normalen Produktkatalog (siehe 7.4).
+- **Preis-Metadaten** werden übersprungen, solange
+  `price_metadata_definitions` fehlt. Der Rest läuft durch, damit eine leere Instanz
+  auch ohne das Feature aufsetzbar ist.
+- **Attribut-zu-Knoten-Zuordnungen** (`HierarchyNodeAttributeAssignment`) legt der
+  Seeder nicht an — sie brauchen die Hierarchieknoten, die erst der Import erzeugt.
+  Als Zwischenlösung tragen die Produkttypen ihre `default_attribute_groups`.
