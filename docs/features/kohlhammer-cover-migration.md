@@ -1,8 +1,15 @@
 # Kohlhammer / COVER → anyPIM — Migrationsanalyse
 
-> **Stand:** Schritt 1 — Analyse der bestehenden PIMCORE-Importstrecke
+> **Stand:** Schritt 1 — Analyse der bestehenden PIMCORE-Importstrecke, Grundsatzentscheidungen getroffen
 > **Quellrepo:** `incoxx/kohlhammer-pimcore`, Verzeichnis `src/AppBundle/Backend/Import/`
 > **Zielsystem:** anyPIM (`incoxx/publixx-pim`)
+>
+> **Getroffene Entscheidungen** (Details in Abschnitt 7.0, 7.2, 7.4):
+> 1. Übernahme über einen **Cover-Connector** auf eine beliebige MySQL-Datenbank —
+>    Konzept in [`kohlhammer-cover-connector.md`](kohlhammer-cover-connector.md)
+> 2. Zusätzliche Preisspalten aus COVER über ein neues Feature **Preis-Metadaten** —
+>    Plan in [`plan-preis-metadaten.md`](plan-preis-metadaten.md)
+> 3. Nicht-Produkt-Stammobjekte (Autoren, Adressen) als **eigene Produkttypen**
 
 ---
 
@@ -296,11 +303,11 @@ Zeitschriften).
 | `DataObject\Produkt` | `Product` + `ProductType` | ✅ vorhanden |
 | ~92 Produktfelder | `Attribute` + `ProductAttributeValue` | ✅ vorhanden |
 | Ordnerablage `/produkte/{PRODUKTTYP}` | `ProductType` bzw. Master-Hierarchie | ✅ vorhanden |
-| Fieldcollection `Preis` | `PriceType` + `ProductPrice` | ✅ vorhanden (Staffel über `scale_from/to`) |
-| Fieldcollection `Bearbeiter` | vermehrbares Attribut oder Beziehung | ⚠️ Modellentscheidung nötig |
+| Fieldcollection `Preis` | `PriceType` + `ProductPrice` | ✅ vorhanden — Zusatzspalten über **Preis-Metadaten** (neu, siehe 7.2) |
+| Fieldcollection `Bearbeiter` | vermehrbare Attributgruppe | ✅ vorhanden |
 | Classificationstore `Othertext` | `Attribute` (Datentyp String/Text) je `TEXTTYPECODE` | ✅ vorhanden |
 | Classificationstore `Subject` | `Attribute` + `ValueList`/`ValueListEntry` | ✅ vorhanden |
-| Classificationstore `Dienstleister` | Beziehung oder Attribut je `DL_TYP_BEZ` | ⚠️ Modellentscheidung nötig |
+| Classificationstore `Dienstleister` | Beziehung Titel → `adresse` mit Beziehungsattribut `dl-typ` | ✅ vorhanden |
 | Dynamisches Anlegen von Gruppen/Keys zur Laufzeit | kein Gegenstück — anyPIM-Attribute sind kuratiert | ⚠️ bewusst anders (Vorteil: Datenqualität) |
 | `Kategorie`-Baum (`REFCODE`) | `Hierarchy` (`output`) + `HierarchyNode` | ✅ vorhanden |
 | `CATEGORIES` (Mehrfachzuordnung) | `OutputHierarchyProductAssignment` | ✅ vorhanden |
@@ -309,25 +316,59 @@ Zeitschriften).
 | Relationen `SERIES`/`SETS`/`RELATIONS`/`BUNDLE` | `ProductRelationType` + `ProductRelation` | ✅ vorhanden |
 | `ObjectMetadata` an Relationen | `ProductRelationAttributeValue` | ✅ **vorhanden** — Schlüsselbaustein |
 | Rückrelationen `REVERSESERIES`/`REVERSESETS` | `is_bidirectional` am Beziehungstyp | ✅ vorhanden (redundante Gegenspeicherung entfällt) |
-| **`DataObject\Contributor` (Autoren)** | **kein eigenes Objekt** | ❌ **Lücke — siehe 7.4** |
-| `DataObject\Adresse` | `Manufacturer` / `Organization` decken es nur teilweise | ❌ Lücke |
-| `DataObject\Email` | — | ❌ Lücke (an Adresse hängbar) |
-| `DataObject\Keyword` | `ValueList` + `ValueListEntry` bzw. Dictionary | ✅ vorhanden |
-| `Zeitschrift`/`Jahrgang`/`Heft` | Hierarchie **oder** Produkte + Beziehungen | ⚠️ Modellentscheidung nötig |
+| **`DataObject\Contributor` (Autoren)** | **Produkttyp `contributor`** + Beziehung mit Rolle | ✅ **entschieden — siehe 7.4** |
+| `DataObject\Adresse` | **Produkttyp `adresse`** | ✅ entschieden — siehe 7.0 |
+| `DataObject\Email` | Attribute `email` / `tel_art` am Produkttyp `adresse` | ✅ entschieden — siehe 7.0 |
+| `DataObject\Keyword` | `ValueList` + `ValueListEntry` | ✅ vorhanden — kein Produkttyp, siehe 7.0 |
+| `Zeitschrift`/`Jahrgang`/`Heft` | Output-Hierarchie mit Knotenattributen und Knotenmedien | ✅ entschieden — siehe 7.7 |
 | Assets `BILD_K`/`BILD_G` | `Media` + `ProductMediaAssignment` + `MediaUsageType` | ✅ vorhanden |
-| Delta-Import über `LASTCHANGE` | `ImportJob`, `ConnectorProductChecksum` | ✅ Bausteine vorhanden |
+| Delta-Import über `LASTCHANGE` | Cover-Connector: `LASTCHANGE` + `ConnectorProductChecksum` | ✅ entschieden — eigenes Konzept |
 
 **Kernbefund:** anyPIM deckt den Produkt-, Preis-, Hierarchie-, Medien- und
 Beziehungsteil vollständig ab — inklusive des kritischen Konstrukts
 *Beziehungsattribute* (`ProductRelationAttributeValue`), das die Pimcore-
 `ObjectMetadata` 1:1 ersetzen kann.
 
-**Die eine echte Lücke sind die Nicht-Produkt-Stammobjekte:**
-`Contributor` (Autoren), `Adresse`, `Email`.
+**Die einzige echte Lücke waren die Nicht-Produkt-Stammobjekte** (`Contributor`,
+`Adresse`, `Email`). Sie wird über eigene Produkttypen geschlossen (7.0/7.4) — ohne
+Schemaänderung am Kernmodell. Offen bleibt einzig die kleine Ergänzung
+`product_types.is_master_data`, damit Stammdaten-Produkte nicht im Produktkatalog
+auftauchen.
+
+Zwei Punkte brauchen echte Neuentwicklung:
+- **Preis-Metadaten** — für die COVER-Rabatt- und Steuerspalten
+  ([`plan-preis-metadaten.md`](plan-preis-metadaten.md))
+- **Cover-Connector** — Lesezugriff auf eine beliebige MySQL-Datenbank
+  ([`kohlhammer-cover-connector.md`](kohlhammer-cover-connector.md))
 
 ---
 
 ## 7. Mappingvorschlag
+
+### 7.0 Welche PIMCORE-Klassen werden Produkttypen — und welche nicht
+
+Die Frage, ob **alle** Pimcore-Klassen als eigene Produkttypen abgebildet werden,
+lässt sich nicht pauschal mit Ja beantworten: Ein Teil der Klassen bildet Bäume ab,
+und für Bäume hat anyPIM mit Hierarchien das deutlich stärkere Konstrukt.
+
+| PIMCORE-Klasse | Abbildung in anyPIM | Begründung |
+|---|---|---|
+| `Produkt` (7) | **Produkttypen** — je `PRODUKTTYP` einer (`buch`, `zseh`, `zsop`, `zebu`, …) | echte Produkte |
+| `Contributor` (10) | **Produkttyp `contributor`** | braucht Beziehungen mit Rolle + eigene Attribute |
+| `Adresse` (12) | **Produkttyp `adresse`** | eigenständig nötig, weil `SF_PRODUCTDIENSTLEISTER` direkt auf `ADR_NR` verweist — nicht auf den Contributor |
+| `Email` (13) | **kein eigener Typ** → Attribute `email`, `tel_art` am Produkttyp `adresse` | Schlüssel ist `ADR_NR-PERSON_NR`, also identisch zur Adresse. Ein eigenes Objekt brächte nur eine Beziehung ohne Mehrwert (Mengengerüst prüfen, siehe Connector-Konzept, Abschnitt 6 Punkt 3) |
+| `Keyword` (11) | **kein Produkttyp** → `ValueList` `keywords` + vermehrbares Selection-Attribut | reines Vokabular ohne eigene Daten. `ValueListEntry` kann bereits mehrsprachig und über `parent_entry_id` hierarchisch (Thesaurus) |
+| `Kategorie` (34) | **Output-Hierarchien** `kohlhammer-wk`, `kohlhammer-lizenz` | Baumstruktur, Mehrfachzuordnung, Knotenattribute und Vererbung sind Kernfunktionen der Hierarchie — als Produkttyp ginge das alles verloren |
+| `Vorschau` | **Output-Hierarchien** (Vorschau, Buchinfo, Lizenz) | dito |
+| `Zeitschrift` / `-jahrgang` / `-jahrgangheft` | **eine Output-Hierarchie `zeitschriften` mit drei Ebenen** | siehe 7.7 |
+
+**Faustregel:** Alles, was eigene Felder trägt und in Beziehungen steht, wird
+Produkttyp. Alles, was primär eine Baumstruktur mit Produktzuordnung ist, wird
+Hierarchie. Reines Vokabular wird Werteliste.
+
+Ergänzend als Produkttyp denkbar, sobald Bedarf besteht: `dienstleister` — heute
+reicht eine Beziehung Titelprodukt → `adresse` mit dem Beziehungsattribut `dl-typ`
+(aus `DL_TYP_BEZ`).
 
 ### 7.1 Produkt
 
@@ -356,8 +397,16 @@ Y/M/D-Tripeln zusammensetzen), `PREISBIND`/`SPERRKZ` als `Flag`, `PRODUCTFORM`/
 | `CURRENCYCODE` | `currency` |
 | `COUNTRYCODE` | `country` |
 | `PRICEEFFECTIVEFROM/UNTIL` | `valid_from` / `valid_to` |
-| `MINIMUMORDERQUANTITY` / `BATCHQUANTITY` | `scale_from` / `scale_to` |
-| `DISCOUNTPERCENT`, `DISCOUNTGROUP`, `TAXRATE*` | zusätzliche Preisfelder oder Produktattribute (Klärung nötig — anyPIM `product_prices` kennt diese Spalten heute nicht) |
+| `MINIMUMORDERQUANTITY` | `scale_from` |
+| `DISCOUNTPERCENT`, `DISCOUNTGROUP`, `BATCHQUANTITY`, `TAXRATE*1/2` | **Preis-Metadaten** (neues Feature, siehe [`plan-preis-metadaten.md`](plan-preis-metadaten.md)) |
+
+**Wichtig — Preisart muss Land und Status enthalten:** `product_prices` trägt den
+Unique-Index `(product_id, price_type_id, currency, valid_from, scale_from)`. Weder
+`country`/`price_region_id` noch ein Status sind darin enthalten. Würde man
+`LP-Deutschland` und `LP-Österreich` auf eine gemeinsame Preisart `LP` + Land
+abbilden, kollidierten beide (gleiche Währung, gleiches Gültigkeitsdatum). Die
+COVER-Preisarten werden deshalb 1:1 als `price_types` übernommen
+(`lp_de_02`, `lp_at_02`, `lp_ch_02`, `ca_de_01`, …).
 
 Die abgeleiteten Kopffelder (`LPPRICE`, `CAPRICE`, …) entfallen — anyPIM kann den
 Listenpreis direkt über `PriceType` selektieren.
@@ -373,50 +422,50 @@ Ein `ProductRelationType` je Pimcore-Relationsfeld, Kantenfelder als Attribute m
 | `SETS` / `REVERSESETS` | `set` (bidirektional) | `set-number` |
 | `RELATIONS` | `related-product` | `relation-code`, `product-form` |
 | `BUNDLE` | `bundle-item` | `ausleitung`, `anteil` |
-| `CONTRIBUTORS` | `contributor` | `contributor-role`, `contributor-sort`, `contributor-address-ref` |
+| `CONTRIBUTORS` | `contributor` | `contributor-role`, `contributor-sort` |
+| `SF_PRODUCTDIENSTLEISTER` | `dienstleister` (Ziel: Produkttyp `adresse`) | `dl-typ` (`DL_TYP_BEZ`) |
+
+Die Metaspalte `adressid` (`ADR_NR-PERSON_NR`) entfällt: In PIMCORE ist sie ein
+String-Fremdschlüssel, weil es keine Relation Contributor→Adresse gibt. In anyPIM
+wird daraus eine echte Beziehung `contributor` → `adresse` (Typ `contributor-address`).
 
 `title`/`isbn` in den Pimcore-Metadaten sind **Denormalisierungen des Zielobjekts**
 und werden nicht migriert — anyPIM liest sie über die Beziehung.
 
-### 7.4 Autoren / Mitwirkende — die zentrale Modellentscheidung
+### 7.4 Autoren / Mitwirkende — entschieden: eigener Produkttyp
 
-Pimcore kennt `Contributor` als eigene Objektklasse. anyPIM kennt heute nur
-`Product`. Drei Wege:
+**Entscheidung:** Contributor werden als **Produkte eines eigenen Produkttyps**
+geführt (ursprüngliche Variante A). Damit stehen Attribute, Medien, Suche, Vererbung,
+Export und vor allem **Beziehungen mit Beziehungsattributen** ohne Schemaänderung zur
+Verfügung.
 
-**Variante A — Contributor als Produkt eigenen Typs** *(Empfehlung)*
+| | Festlegung |
+|---|---|
+| Produkttyp | `contributor` (`has_prices=false`, `has_variants=false`, `has_ean=false`, `has_media=true`) |
+| `products.sku` | `CTR-{ADR_NR}[-{PERSON_NR}]`, ersatzweise normalisierter Name, wenn keine Adresse hinterlegt ist |
+| `products.name` | Anzeigename (`KEYNAMES`, `NAMESBEFOREKEY`) |
+| Verknüpfung | `ProductRelationType` `contributor`, Quelle = Titelprodukt, Ziel = Contributor |
+| Beziehungsattribute | `contributor-role` (Selection, Werteliste ONIX-Liste 17), `contributor-sort` (Number) |
 
-- `ProductType` `contributor` (`has_prices=false`, `has_variants=false`, `has_media=true`)
-- `products.sku` = `ADR_NR[-PERSON_NR]` (stabil aus COVER), `products.name` = Anzeigename
-- Personendaten (`VORNAME`, `NACHNAME`, `TITEL_ETIKETT`, `ANREDE_ETIKETT`, `PLZ`, `ORT`,
-  `STRASSE`, `LAND_CODE`, `EMAIL`) als Attribute dieses Typs → deckt `Adresse` und
-  `Email` gleich mit ab
-- Verknüpfung über `ProductRelationType` `contributor` mit den Beziehungsattributen
-  `contributor-role` (Werteliste ONIX-17), `contributor-sort`
-- `allowed_source_product_type_ids` / `allowed_target_product_type_ids` verhindern,
-  dass Contributor-Objekte im normalen Produktkatalog auftauchen
-- **Pro:** keine Schema-Änderung, alle vorhandenen Mechanismen (Attribute, Vererbung,
-  Medien, Suche, Export, Beziehungsattribute) greifen sofort
-- **Contra:** „Produkt" ist semantisch unscharf; UI-Filterung über Produkttyp nötig
+Die slash-separierten Mehrfachrollen aus PIMCORE (`role="A01/B01"`) werden in **je
+eine Beziehung pro Rolle** aufgelöst.
 
-**Variante B — eigene Entität `Contributor` (+ `ContributorRole`)**
+`allowed_source_product_type_ids` / `allowed_target_product_type_ids` am
+Beziehungstyp verhindern, dass Contributor versehentlich als Zubehör oder Set-Teil
+verknüpft werden.
 
-- Neue Tabellen `contributors`, `product_contributors` (mit `role`, `sort_order`)
-- **Pro:** fachlich sauber, klare API
-- **Contra:** eigenes CRUD, eigene UI, eigene Export-/Import-/Suchanbindung —
-  deutlich größerer Aufwand, und der Attributmechanismus fehlt
+#### Zwei Punkte, die dabei zu lösen sind
 
-**Variante C — generische Stammdatenobjekte („Entity"/„Objekt")**
+**1. SKU-Kollisionen.** `products.sku` ist systemweit eindeutig. `RECORDIDENTIFIER`
+(Titel) und `ADR_NR` (Adresse) stammen aus verschiedenen Nummernkreisen und können
+sich theoretisch überschneiden. Deshalb **Präfixe** je Stammdatentyp: `CTR-`, `ADR-`.
 
-- Ein generisches Objektmodell analog Pimcore-DataObjects, produkttypunabhängig
-- **Pro:** deckt Contributor, Adresse, Email, Dienstleister und künftige Fälle ab
-- **Contra:** größter Eingriff ins Kernmodell von anyPIM
-
-> **Empfehlung:** Variante A für die Migration. Sie ist ohne Schema-Änderung
-> umsetzbar, und ein späterer Wechsel auf B/C ist eine reine Umhängung der
-> Beziehungen, weil die Rollen-/Sortierinformation bereits auf der Kante liegt.
-
-Die slash-separierten Mehrfachrollen (`"A01/B01"`) werden dabei in **je eine
-Beziehung pro Rolle** aufgelöst.
+**2. Stammdaten-Produkte gehören nicht in den Produktkatalog.** `product_types` hat
+heute keine Kennzeichnung „kein verkaufbares Produkt". Ohne sie tauchen Contributor
+und Adressen in Produktlisten, Suchindex, Dashboards und Exporten auf. Vorschlag:
+eine schmale Migration mit `product_types.is_master_data BOOLEAN DEFAULT false` und
+ein Standardfilter in Produktliste, Suche und Export. Das ist deutlich billiger als
+eine eigene Entität und hält die Trennung trotzdem sauber.
 
 ### 7.5 Kategorien & Bäume
 
@@ -440,9 +489,9 @@ Ausnahme und muss übernommen oder mit Kohlhammer geklärt werden.
 |---------|--------|
 | Classificationstore `Othertext` (`TEXTTYPECODE`) | je Textart ein `Attribute` (`String`, `is_translatable=true`), Gruppe `texte` |
 | Classificationstore `Subject` (Gruppe 23) | je `SUBJECTSCHEMENAME` ein `Attribute` (`Selection`) + `ValueList` (Code → Klartext) |
-| Classificationstore `Dienstleister` | je `DL_TYP_BEZ` ein Attribut mit Adressreferenz, alternativ Beziehung auf Contributor-/Adressprodukt |
+| Classificationstore `Dienstleister` | Beziehung `dienstleister` auf den Produkttyp `adresse`, Typ über das Beziehungsattribut `dl-typ` |
 | `Keyword` + Relation `KEYWORDS` | `ValueList` `keywords` + vermehrbares `Selection`-Attribut |
-| Fieldcollection `Bearbeiter` | vermehrbare Attributgruppe (`rolle`, `benutzer_id`, `name`, `kz_haupt_lektor`) oder Beziehung auf Personenobjekt |
+| Fieldcollection `Bearbeiter` | vermehrbare Attributgruppe (`rolle`, `benutzer_id`, `name`, `kz_haupt_lektor`) — `BENUTZER_ID` verweist auf interne Bearbeiter, nicht auf `SF_ADRESSEN` |
 
 Statt der Pimcore-Praxis „Key bei Bedarf zur Laufzeit anlegen" wird der
 Attributkatalog **einmalig aus dem Bestand generiert** (`SELECT DISTINCT
@@ -450,18 +499,26 @@ TEXTTYPECODE`, `SUBJECTSCHEMENAME`, `DL_TYP_BEZ`) und danach kuratiert gepflegt.
 Unbekannte Codes im laufenden Import gehören dann in ein Fehlerprotokoll
 (`ImportJobError`), nicht in ein automatisch angelegtes Attribut.
 
-### 7.7 Zeitschriften
+### 7.7 Zeitschriften — entschieden: Hierarchie
 
 Zeitschrift → Jahrgang → Heft ist in Pimcore eine dreistufige Objekthierarchie mit
 Rückverweis auf die Produkte (`COVER_ZSEH`, `COVER_ZSOP`) und Cover-Assets.
 
-Zwei Optionen:
-- **Hierarchie:** Output-Hierarchie `zeitschriften` mit Ebenen ISSN / Jahrgang / Heft,
-  Produkte per `OutputHierarchyProductAssignment` — schlanker, gut für Navigation
-- **Produkte:** Heft als eigener Produkttyp mit Beziehungen zu den ZSEH/ZSOP-Produkten
-  — nötig, falls Hefte eigene Attribute, Preise oder Medien brauchen
+Abbildung als **eine Output-Hierarchie `zeitschriften` mit drei Ebenen**. Der Grund,
+dass dafür kein Produkttyp nötig ist: anyPIM-Hierarchieknoten können selbst Daten
+tragen —
 
-Vorschlag: Hierarchie, solange Hefte keine eigenen Preise führen.
+- `HierarchyNodeAttributeValue` → `ISSN`, `ISSN_JG`, `ISSN_JG_HEFT`, `JAHRGANG`,
+  `HEFTNUMMER`, `TITEL`
+- `HierarchyNodeMediaAssignment` → Cover-Bild des Hefts
+- `OutputHierarchyProductAssignment` → die ZSEH-/ZSOP-Produkte am Heftknoten
+
+Damit bleibt die Baumsemantik erhalten (Navigation, Vererbung, Mehrfachzuordnung),
+ohne dass Hefte als Scheinprodukte im Katalog liegen.
+
+**Wechselkriterium:** Sobald Hefte eigene Preise, Varianten oder einen eigenen
+Bestellvorgang brauchen, wird `zeitschriftenheft` doch ein Produkttyp. Solange sie
+nur strukturieren und ein Cover tragen, ist die Hierarchie richtig.
 
 ### 7.8 Medien
 
@@ -475,27 +532,34 @@ Vorschlag: Hierarchie, solange Hefte keine eigenen Preise führen.
 
 ## 8. Offene Punkte / Klärungsbedarf
 
-1. **Übernahmeweg:** Direktzugriff auf die COVER-Spiegeltabellen (wie heute) oder
-   Zwischenformat (CSV/JSON/BMEcat)? Davon hängt ab, ob ein eigener
-   *Cover-Connector* (`app/Services/Connectors/`) oder ein Import-Profil gebaut wird.
-2. **Einmalmigration oder Dauerbetrieb?** Läuft Pimcore parallel weiter oder wird es
-   abgelöst? Bei Dauerbetrieb braucht es das Delta-/Idempotenzverhalten von `go.sh`
-   inkl. Zeitplan.
-3. **Löschabgleich:** In COVER entfernte Sätze werden heute nicht bereinigt. Soll
-   anyPIM das ändern (Soft-Delete/`discontinued`)?
-4. **Contributor-Modell:** Variante A/B/C (Abschnitt 7.4) — Entscheidung nötig, bevor
-   der Attributkatalog steht.
-5. **Preisfelder:** `DISCOUNTPERCENT`, `DISCOUNTGROUP`, `TAXRATE*1/2` haben in
-   `product_prices` heute kein Ziel — Schema erweitern oder als Produktattribute führen?
-6. **Wertelisten:** Sollen die ONIX-Codelisten (Produktform, Sprache, Publishing
+Erledigt: Übernahmeweg (Cover-Connector), Contributor-Modell (Produkttyp),
+Preiszusatzfelder (Preis-Metadaten).
+
+1. **Einmalmigration oder Dauerbetrieb?** Läuft PIMCORE parallel weiter oder wird es
+   abgelöst? Bei Dauerbetrieb braucht der Connector einen Zeitplan (`ScheduledAction`).
+2. **Löschabgleich:** In COVER entfernte Sätze werden heute nicht bereinigt. Der
+   Connector sieht `--reconcile` mit `status = 'discontinued'` vor — bitte fachlich
+   bestätigen.
+3. **`is_master_data`-Kennzeichen:** Kleine Migration an `product_types`, damit
+   Contributor und Adressen nicht im Produktkatalog, Suchindex und den Exporten
+   auftauchen (siehe 7.4). Freigabe nötig, weil es das Kernschema berührt.
+4. **Wertelisten:** Sollen die ONIX-Codelisten (Produktform, Sprache, Publishing
    Status, Contributor-Rolle) als gepflegte Wertelisten mit Klartext angelegt werden?
-7. **Sprachen:** COVER liefert im Kern deutsch; die Lizenzkategorien tragen englische
+5. **Sprachen:** COVER liefert im Kern deutsch; die Lizenzkategorien tragen englische
    Bezeichnungen (`KAT_2_BEZ_ENGL`). Welche Sprachen führt anyPIM produktiv?
-8. **Mengengerüst:** Anzahl Produkte, Contributor, Adressen, Preise, Texte — bestimmt
-   Chunking und Laufzeitbudget des Importers.
+6. **Mengengerüst:** Anzahl Produkte, Contributor, Adressen, Preise, Texte — bestimmt
+   Chunking und Laufzeitbudget des Connectors.
+7. **E-Mail-Kardinalität:** Gibt es je `ADR_NR`/`PERSON_NR` mehr als eine Zeile in
+   `SF_EMAILADRESSEN` (`TEL_ART`)? Entscheidet über einfaches vs. vermehrbares
+   Attribut. Der heutige Pimcore-Import vergleicht dort nur über `ADR_NR` und ist
+   deshalb kein verlässlicher Beleg.
+8. **Zeichensatz der Quelle:** vermutlich `latin1` (die Skripte nutzen
+   `utf8_encode`/`utf8_decode`) — vor dem ersten Lauf verifizieren.
 9. **Vorschau-/Buchinfo-Bäume:** Werden diese fachlich noch gebraucht (nicht Teil von
    `go.sh`) oder sind sie Altlast?
 10. **Mediando-Skripte:** aktiv oder abgekündigt?
+11. **Netzweg und Lesebenutzer:** Direktverbindung, SSH-Tunnel oder VPN; read-only
+    MySQL-Benutzer muss von Cover/Kohlhammer bereitgestellt werden.
 
 ---
 
@@ -503,9 +567,10 @@ Vorschlag: Hierarchie, solange Hefte keine eigenen Preise führen.
 
 | Schritt | Inhalt |
 |---------|--------|
-| **2** | Ist-Datenprofil auf den `SF_`-Tabellen: `SELECT DISTINCT` auf `PRODUKTTYP`, `TEXTTYPECODE`, `SUBJECTSCHEMENAME`/`-IDENTIFIER`, `DL_TYP_BEZ`, `CONTRIBUTORROLE`, `PRICETYPECODE`, `RELATIONCODE` + Mengengerüst |
-| **3** | Attributkatalog ableiten: Excel-Importvorlage (Sheets 01–07) für Produkttypen, Attributgruppen, Einheiten, Wertelisten, Attribute, Hierarchien |
-| **4** | Entscheidung Contributor-Modell (7.4) und Anlage der Beziehungstypen inkl. Beziehungsattribute |
-| **5** | Cover-Importer bauen — als Connector oder Artisan-Command, mit Delta über `LASTCHANGE`, Chunking, `ImportJob`/`ImportJobError`-Protokollierung |
-| **6** | Testmigration einer Produkttyp-Scheibe (z. B. nur Bücher), Abgleich Pimcore ↔ anyPIM |
-| **7** | Vollmigration + Verprobung der Exporte (BMEcat/publixx) gegen die heutigen Pimcore-Exporte |
+| **2** | Cover-Verbindung herstellen und `CoverProfiler` laufen lassen: `SELECT DISTINCT` auf `PRODUKTTYP`, `TEXTTYPECODE`, `SUBJECTSCHEMENAME`/`-IDENTIFIER`, `DL_TYP_BEZ`, `CONTRIBUTORROLE`, `PRICETYPECODE`, `RELATIONCODE` + Mengengerüst + Zeichensatzprüfung |
+| **3** | Attributkatalog ableiten: Excel-Importvorlage (Sheets 01–07) für Produkttypen (inkl. `contributor`, `adresse`), Attributgruppen, Einheiten, Wertelisten, Attribute, Hierarchien |
+| **4** | Beziehungstypen inkl. Beziehungsattribute anlegen (7.3/7.4); Migration `product_types.is_master_data` |
+| **5** | Feature **Preis-Metadaten** umsetzen ([`plan-preis-metadaten.md`](plan-preis-metadaten.md)) |
+| **6** | **Cover-Connector** bauen ([`kohlhammer-cover-connector.md`](kohlhammer-cover-connector.md)) — Verbindung, Reader, Phasen, Delta, Protokollierung |
+| **7** | Testmigration einer Produkttyp-Scheibe (z. B. nur Bücher) mit `--dry-run`, Abgleich PIMCORE ↔ anyPIM |
+| **8** | Vollmigration + Verprobung der Exporte (BMEcat/publixx) gegen die heutigen PIMCORE-Exporte |
