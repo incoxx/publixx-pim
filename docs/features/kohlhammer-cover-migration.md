@@ -602,6 +602,11 @@ database/seeders/
                            Preis-Metadaten, Wertelisten, Hierarchien, Kernfelder
 ```
 
+Als lesbare Übersicht liegt dasselbe Modell zusätzlich als Arbeitsmappe bei:
+[`kohlhammer-datenmodell.xlsx`](kohlhammer-datenmodell.xlsx) — ein Tab je Produkttyp,
+dazu Beziehungen, Preise, Hierarchien, Wertelisten und die nicht übernommenen Felder.
+Die Mappe wird aus dem Manifest generiert und nicht von Hand gepflegt.
+
 ```bash
 php artisan migrate
 php artisan db:seed --class=KohlhammerSchemaSeeder
@@ -615,7 +620,7 @@ wird gezielt aufgerufen.
 | Objekt | Anzahl | Herkunft |
 |---|---|---|
 | Attributgruppen | 20 | fachliche Gliederung aus Abschnitt 5 |
-| Attribute | 121 | 85 Produktfelder + 2 abgeleitete + 21 Adresse/E-Mail + 3 Contributor + 4 Bearbeiter + 9 Beziehungsattribute |
+| Attribute | 121 | 82 Produktfelder + 2 abgeleitete + 21 Adresse/E-Mail + 3 Contributor + 4 Bearbeiter + 9 Beziehungsattribute |
 | Produkttypen | 6 | `titel`, `zeitschrift-heft/-online/-ebook` (ZSEH/ZSOP/ZEBU), `contributor`, `adresse` |
 | Beziehungstypen | 7 | ein Typ je PIMCORE-Relationsfeld, inkl. erlaubter Quell-/Zielprodukttypen |
 | Preisarten | 4 | die in `import_sf_price.php` belegten Kombinationen |
@@ -623,6 +628,10 @@ wird gezielt aufgerufen.
 | Wertelisten | 21 | Container; nur `onix-contributor-role` ist bereits belegt |
 | Hierarchien | 6 | Wurzeln für Master, WK, Lizenz, Vorschau, Buchinfo, Zeitschriften |
 | Einheiten | 2 Gruppen | `length` (mm/cm), `weight` (g/kg) für die Maßattribute |
+
+82 statt 85 Produktattribute, weil `RECORDIDENTIFIER`, `PRODUCTEAN` und `PRODUKTTYP`
+auf feste Produktspalten gehen (`sku`, `ean`, `product_type_id`) statt auf Attribute.
+`DISTINCTIVETITLE` und `PUBLISHINGSTATUS` sind beides — Kernspalte *und* Attribut.
 
 Jedes Attribut trägt `source_system = 'COVER'` und in `source_attribute_name` die
 COVER-Spalte. Damit ist das Manifest zugleich die **Feldkarte des Cover-Connectors** —
