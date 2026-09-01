@@ -74,6 +74,7 @@ use App\Http\Controllers\Api\V1\MediaLanguageController;
 use App\Http\Controllers\Api\V1\MediaMotifController;
 use App\Http\Controllers\Api\V1\MediaRenditionPresetController;
 use App\Http\Controllers\Api\V1\MediaUsageTypeController;
+use App\Http\Controllers\Api\V1\TagController;
 use App\Http\Controllers\Api\V1\MeilisearchAdminController;
 use App\Http\Controllers\Api\V1\MessengerController;
 use App\Http\Controllers\Api\V1\MessengerConversationController;
@@ -701,6 +702,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // media/file/{filename} and media/thumb/{medium} are registered outside auth group (public access)
     Route::get('media/{medium}/attribute-values', [MediaAttributeValueController::class, 'index']);
     Route::put('media/{medium}/attribute-values', [MediaAttributeValueController::class, 'bulkUpdate']);
+
+    // Tags: mehrsprachige Stichworte für Produkte und Medien
+    Route::apiResource('tags', TagController::class);
+    Route::get('tags/{tag}/dependencies', [TagController::class, 'dependencies']);
+    Route::put('products/{product}/tags', [TagController::class, 'syncProductTags']);
+    Route::put('media/{medium}/tags', [TagController::class, 'syncMediaTags']);
 
     Route::apiResource('media-usage-types', MediaUsageTypeController::class);
     Route::get('media-usage-types/{media_usage_type}/dependencies', [MediaUsageTypeController::class, 'dependencies']);

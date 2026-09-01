@@ -437,6 +437,12 @@ const routes = [
     meta: { title: 'Bildtypen' },
   },
   {
+    path: '/tags',
+    name: 'tags',
+    component: () => import('@/views/tags/TagView.vue'),
+    meta: { title: 'Tags' },
+  },
+  {
     path: '/languages',
     name: 'languages',
     component: () => import('@/views/languages/LanguageView.vue'),

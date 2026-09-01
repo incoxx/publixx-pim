@@ -72,6 +72,17 @@ class Product extends Model
         return $this->belongsTo(ProductType::class);
     }
 
+    /**
+     * Mehrsprachige Stichworte (Tags), global gepflegt über die Tag-Stammdaten.
+     */
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'product_tag')
+            ->withPivot('sort_order')
+            ->withTimestamps()
+            ->orderByPivot('sort_order');
+    }
+
     public function referenceProfile(): BelongsTo
     {
         return $this->belongsTo(ProductReferenceProfile::class, 'reference_profile_id');

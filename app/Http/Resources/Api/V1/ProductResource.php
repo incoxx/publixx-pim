@@ -38,6 +38,7 @@ class ProductResource extends JsonResource
             'manufacturer_id' => $this->manufacturer_id,
             'product_type' => new ProductTypeResource($this->whenLoaded('productType')),
             'manufacturer' => new ManufacturerResource($this->whenLoaded('manufacturer')),
+            'tags' => TagResource::collection($this->whenLoaded('tags')),
             'attribute_values' => ProductAttributeValueResource::collection($this->whenLoaded('attributeValues')),
             'variants' => ProductResource::collection($this->whenLoaded('variants')),
             'media' => MediaResource::collection($this->whenLoaded('media')),

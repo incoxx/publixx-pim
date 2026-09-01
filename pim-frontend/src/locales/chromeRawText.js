@@ -138,6 +138,10 @@ const en = {
   'Slot P': 'Slot P',
   'Slot leeren': 'Clear slot',
   'Einstellungen > System öffnen': 'Open Settings > System',
+  // --- PimCommandPalette.vue: eindeutige Labels für Einträge, deren Menü-Label
+  // ohne Gruppenkontext mehrdeutig wäre ('Cache', 'Export / Import') ---
+  'Content-Cache': 'Content cache',
+  'Content Export / Import': 'Content export / import',
 };
 
 // de = Identitaet, gleicher Grund wie in productEditorRawText.js: verhindert,
