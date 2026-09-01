@@ -7,7 +7,10 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Attribute;
 use App\Models\HierarchyNode;
+use App\Models\Manufacturer;
+use App\Models\ProductType;
 use App\Models\SearchProfile;
+use App\Models\Tag;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -39,6 +42,13 @@ class SearchProfileController extends Controller
             'status_filter' => 'nullable|string|in:active,draft,inactive,discontinued',
             'category_ids' => 'nullable|array',
             'category_ids.*' => 'string|uuid',
+            'product_type_ids' => 'nullable|array',
+            'product_type_ids.*' => 'string|uuid',
+            'manufacturer_ids' => 'nullable|array',
+            'manufacturer_ids.*' => 'string|uuid',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'string|uuid',
+            'tag_match' => 'nullable|string|in:any,all',
             'attribute_filters' => 'nullable|array',
             'attribute_filter_groups' => 'nullable|array',
             'include_descendants' => 'nullable|boolean',
@@ -50,7 +60,9 @@ class SearchProfileController extends Controller
 
         $profile = SearchProfile::create($validated);
 
-        return response()->json(['data' => $profile], 201);
+        // refresh(), damit Datenbank-Defaults (z.B. tag_match) in der Antwort stehen
+        // und der Client sie nicht als null in seinen Zustand uebernimmt.
+        return response()->json(['data' => $profile->refresh()], 201);
     }
 
     public function update(Request $request, SearchProfile $searchProfile): JsonResponse
@@ -65,6 +77,13 @@ class SearchProfileController extends Controller
             'status_filter' => 'nullable|string|in:active,draft,inactive,discontinued',
             'category_ids' => 'nullable|array',
             'category_ids.*' => 'string|uuid',
+            'product_type_ids' => 'nullable|array',
+            'product_type_ids.*' => 'string|uuid',
+            'manufacturer_ids' => 'nullable|array',
+            'manufacturer_ids.*' => 'string|uuid',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'string|uuid',
+            'tag_match' => 'nullable|string|in:any,all',
             'attribute_filters' => 'nullable|array',
             'attribute_filter_groups' => 'nullable|array',
             'include_descendants' => 'nullable|boolean',
@@ -103,6 +122,29 @@ class SearchProfileController extends Controller
             $validNodeIds = HierarchyNode::whereIn('id', $profile->category_ids)->pluck('id')->toArray();
             if (count($validNodeIds) !== count($profile->category_ids)) {
                 $profile->category_ids = array_values($validNodeIds);
+                $dirty = true;
+            }
+        }
+
+        // Gelöschte Produkttypen/Hersteller/Tags würden sonst als unsichtbarer
+        // Filter im Profil stehen bleiben und die Treffermenge stillschweigend
+        // einschränken — gleiche Behandlung wie bei den Kategorien oben.
+        $referenceLists = [
+            'product_type_ids' => ProductType::class,
+            'manufacturer_ids' => Manufacturer::class,
+            'tag_ids' => Tag::class,
+        ];
+
+        foreach ($referenceLists as $field => $model) {
+            $ids = $profile->{$field} ?? [];
+            if (empty($ids)) {
+                continue;
+            }
+            $validIds = $model::whereIn('id', $ids)->pluck('id')->toArray();
+            if (count($validIds) !== count($ids)) {
+                // Reihenfolge der Auswahl beibehalten
+                $validSet = array_flip($validIds);
+                $profile->{$field} = array_values(array_filter($ids, fn ($id) => isset($validSet[$id])));
                 $dirty = true;
             }
         }

@@ -106,6 +106,10 @@ async function loadProfile(id) {
   searchMode.value = profile.search_mode || 'like'
   statusFilter.value = profile.status_filter || ''
   selectedCategories.value = profile.category_ids || []
+  selectedProductTypes.value = profile.product_type_ids || []
+  selectedManufacturers.value = profile.manufacturer_ids || []
+  selectedTags.value = profile.tag_ids || []
+  tagMatch.value = profile.tag_match || 'any'
   attributeFilters.value = profile.attribute_filters || {}
   attributeFilterGroups.value = profile.attribute_filter_groups || { operator: 'AND', rules: [] }
   if (profile.sort_field) sortField.value = profile.sort_field
@@ -122,6 +126,10 @@ async function saveProfile({ name, is_shared }) {
       search_mode: searchMode.value,
       status_filter: statusFilter.value || null,
       category_ids: selectedCategories.value,
+      product_type_ids: selectedProductTypes.value,
+      manufacturer_ids: selectedManufacturers.value,
+      tag_ids: selectedTags.value,
+      tag_match: tagMatch.value,
       attribute_filters: attributeFilters.value,
       attribute_filter_groups: attributeFilterGroups.value.rules?.length ? attributeFilterGroups.value : null,
       sort_field: sortField.value,
@@ -142,6 +150,10 @@ async function updateProfile({ id, name, is_shared }) {
       search_mode: searchMode.value,
       status_filter: statusFilter.value || null,
       category_ids: selectedCategories.value,
+      product_type_ids: selectedProductTypes.value,
+      manufacturer_ids: selectedManufacturers.value,
+      tag_ids: selectedTags.value,
+      tag_match: tagMatch.value,
       attribute_filters: attributeFilters.value,
       attribute_filter_groups: attributeFilterGroups.value.rules?.length ? attributeFilterGroups.value : null,
       sort_field: sortField.value,
@@ -1240,6 +1252,11 @@ const apiCallDisplay = computed(() => {
 
   if (selectedManufacturers.value.length > 0) {
     params.manufacturer_ids = selectedManufacturers.value
+  }
+
+  if (selectedTags.value.length > 0) {
+    params.tag_ids = selectedTags.value
+    params.tag_match = tagMatch.value
   }
 
   if (selectedCategories.value.length > 0) {
