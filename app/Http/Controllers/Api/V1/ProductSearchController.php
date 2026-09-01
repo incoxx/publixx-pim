@@ -46,6 +46,28 @@ class ProductSearchController extends Controller
     }
 
     /**
+     * Tag-Filter. `tag_match=any` (Standard) liefert Produkte mit mindestens einem
+     * der Tags, `tag_match=all` nur solche mit allen ausgewählten.
+     */
+    private function applyTagFilter($query, array $validated): void
+    {
+        $tagIds = array_values(array_filter($validated['tag_ids'] ?? []));
+        if (empty($tagIds)) {
+            return;
+        }
+
+        if (($validated['tag_match'] ?? 'any') === 'all') {
+            foreach ($tagIds as $tagId) {
+                $query->whereHas('tags', fn ($q) => $q->where('tags.id', $tagId));
+            }
+
+            return;
+        }
+
+        $query->whereHas('tags', fn ($q) => $q->whereIn('tags.id', $tagIds));
+    }
+
+    /**
      * POST /api/v1/products/search
      */
     public function search(Request $request): JsonResponse
@@ -64,6 +86,9 @@ class ProductSearchController extends Controller
             'product_type_ids.*' => 'string|uuid',
             'manufacturer_ids' => 'nullable|array',
             'manufacturer_ids.*' => 'string|uuid',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'string|uuid',
+            'tag_match' => 'nullable|string|in:any,all',
             'sku' => 'nullable|string|max:255',
             'name' => 'nullable|string|max:255',
             'ean' => 'nullable|string|max:255',
@@ -99,7 +124,8 @@ class ProductSearchController extends Controller
         $language = $validated['language'] ?? 'de';
 
         $query = Product::query()
-            ->with(['productType', 'manufacturer'])
+            // tags mitgeladen, damit die Trefferliste eine Tag-Spalte anzeigen kann
+            ->with(['productType', 'manufacturer', 'tags'])
             ->where('product_type_ref', 'product');
 
         // ── Status filter ──
@@ -118,6 +144,9 @@ class ProductSearchController extends Controller
         if (!empty($manufacturerIds)) {
             $query->whereIn('manufacturer_id', $manufacturerIds);
         }
+
+        // ── Tag filter ──
+        $this->applyTagFilter($query, $validated);
 
         // ── Quick-Lookup-Präfixfilter (sku/name/ean) ──
         $this->applyQuickLookupPrefixFilters($query, $validated);
@@ -240,6 +269,9 @@ class ProductSearchController extends Controller
             'product_type_ids.*' => 'string|uuid',
             'manufacturer_ids' => 'nullable|array',
             'manufacturer_ids.*' => 'string|uuid',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'string|uuid',
+            'tag_match' => 'nullable|string|in:any,all',
             'sku' => 'nullable|string|max:255',
             'name' => 'nullable|string|max:255',
             'ean' => 'nullable|string|max:255',
@@ -271,6 +303,7 @@ class ProductSearchController extends Controller
             $query->whereIn('manufacturer_id', $manufacturerIds);
         }
 
+        $this->applyTagFilter($query, $validated);
         $this->applyQuickLookupPrefixFilters($query, $validated);
 
         $searchTerm = $validated['search'] ?? null;
@@ -336,6 +369,9 @@ class ProductSearchController extends Controller
             'product_type_ids.*' => 'string|uuid',
             'manufacturer_ids' => 'nullable|array',
             'manufacturer_ids.*' => 'string|uuid',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'string|uuid',
+            'tag_match' => 'nullable|string|in:any,all',
             'sku' => 'nullable|string|max:255',
             'name' => 'nullable|string|max:255',
             'ean' => 'nullable|string|max:255',
@@ -365,6 +401,7 @@ class ProductSearchController extends Controller
             $query->whereIn('manufacturer_id', $validated['manufacturer_ids']);
         }
 
+        $this->applyTagFilter($query, $validated);
         $this->applyQuickLookupPrefixFilters($query, $validated);
 
         if ($searchTerm = $validated['search'] ?? null) {

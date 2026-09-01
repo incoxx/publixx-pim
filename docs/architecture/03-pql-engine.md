@@ -120,10 +120,32 @@ PQL fields are mapped to PIM attributes:
 "status"              → products.status (base field, not in EAV)
 "sku"                 → products.sku
 "hierarchy"           → products_search_index.hierarchy_path
+"tags"                → product_tag → tags (EXISTS subquery, not a column)
 "specs.weight.value"  → Hierarchical attribute, dot notation resolved
 ```
 
 Base data fields (sku, ean, status, name) are mapped directly to `products` / `products_search_index`. Attribute fields go through the EAV table `product_attribute_values`.
+
+### Tags
+
+`tags` is an assignment, not a column, and resolves to an EXISTS subquery over
+`product_tag` joined with `tags`. Values are matched against `technical_name`,
+`name_de` and `name_en`, so both the technical name and any display name work:
+
+```sql
+SELECT * WHERE tags = "neuheit"                  -- has this tag
+SELECT * WHERE tags = "Neuheit"                  -- same tag via display name
+SELECT * WHERE tags IN ("neuheit", "aktion")     -- has any of them
+SELECT * WHERE tags != "auslauf"                 -- does not have this tag
+SELECT * WHERE tags LIKE "%aussen%"              -- partial match on the name
+SELECT * WHERE tags EXISTS                       -- has any tag at all
+SELECT * WHERE tags NOT EXISTS                   -- has no tag
+```
+
+EXISTS instead of a JOIN keeps a product with several matching tags from
+appearing more than once in the result. `FUZZY` and `SOUNDS LIKE` are rejected
+for `tags` with a hint: both post-filter in PHP over a column of the result row,
+which an assignment does not have.
 
 ---
 

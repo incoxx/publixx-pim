@@ -42,6 +42,11 @@ final class PqlSqlGenerator
     ];
 
     /**
+     * PQL-Feldname fuer Tags (Zuordnung ueber product_tag, keine Produktspalte).
+     */
+    private const TAG_FIELD = 'tags';
+
+    /**
      * @var array<string, array<string, mixed>> Resolved fields from validator
      */
     private array $resolvedFields = [];
@@ -220,6 +225,14 @@ final class PqlSqlGenerator
     private function applyComparison(Builder $query, ComparisonNode $node): void
     {
         $field = $node->field;
+
+        // Tags liegen in einer Zuordnungstabelle, nicht in einer Spalte — vor der
+        // Spaltenaufloesung abfangen, sonst entsteht ein Verweis auf psi.tags.
+        if ($field === self::TAG_FIELD) {
+            $this->applyTagComparison($query, $node);
+            return;
+        }
+
         $column = $this->resolveColumnForWhere($query, $field);
 
         if ($node->isExistenceCheck()) {
@@ -604,6 +617,91 @@ final class PqlSqlGenerator
         }
 
         return $this->resolveColumnForWhere($query, $field);
+    }
+
+    // ─── Tags ─────────────────────────────────────────────────
+
+    /**
+     * WHERE auf Tags. Unterstuetzt =, !=, IN, NOT IN, LIKE und EXISTS/NOT EXISTS.
+     * Verglichen wird gegen den technischen Namen und die Anzeigenamen, damit
+     * sowohl `tags = "neuheit"` als auch `tags = "Neuheit"` funktioniert.
+     */
+    private function applyTagComparison(Builder $query, ComparisonNode $node): void
+    {
+        if ($node->isExistenceCheck()) {
+            // tags EXISTS = Produkt hat ueberhaupt einen Tag
+            $this->applyTagExists($query, null, $node->operator === 'NOT EXISTS');
+            return;
+        }
+
+        if ($node->isIn()) {
+            $values = array_map(static fn ($v) => (string) $v, (array) $node->value);
+            $this->applyTagExists(
+                $query,
+                function ($sub) use ($values): void {
+                    $sub->where(function ($group) use ($values): void {
+                        foreach ($values as $value) {
+                            $group->orWhere(fn ($col) => $this->matchTagValue($col, '=', $value));
+                        }
+                    });
+                },
+                $node->negated,
+            );
+            return;
+        }
+
+        if ($node->isLike()) {
+            $pattern = (string) $node->value;
+            $this->applyTagExists(
+                $query,
+                fn ($sub) => $sub->where(fn ($col) => $this->matchTagValue($col, 'LIKE', $pattern)),
+                $node->negated,
+            );
+            return;
+        }
+
+        // =, != (weitere Operatoren lehnt der Validator fuer String-Felder ab)
+        $value = (string) $node->value;
+        $negated = $node->negated || in_array($node->operator, ['!=', '<>'], true);
+        $this->applyTagExists(
+            $query,
+            fn ($sub) => $sub->where(fn ($col) => $this->matchTagValue($col, '=', $value)),
+            $negated,
+        );
+    }
+
+    /**
+     * EXISTS-Unterabfrage auf die Tag-Zuordnung des Produkts.
+     *
+     * @param (callable(Builder): void)|null $condition Zusaetzliche Bedingung auf tags
+     */
+    private function applyTagExists(Builder $query, ?callable $condition, bool $negated): void
+    {
+        $build = function ($sub) use ($condition): void {
+            $sub->select(DB::raw('1'))
+                ->from('product_tag as pt')
+                ->join('tags as tg', 'tg.id', '=', 'pt.tag_id')
+                ->whereColumn('pt.product_id', 'p.id');
+            if ($condition !== null) {
+                $condition($sub);
+            }
+        };
+
+        if ($negated) {
+            $query->whereNotExists($build);
+        } else {
+            $query->whereExists($build);
+        }
+    }
+
+    /**
+     * Vergleich gegen technischen Namen und Anzeigenamen eines Tags.
+     */
+    private function matchTagValue(Builder $group, string $operator, string $value): void
+    {
+        $group->where('tg.technical_name', $operator, $value)
+            ->orWhere('tg.name_de', $operator, $value)
+            ->orWhere('tg.name_en', $operator, $value);
     }
 
     private function getEavAlias(): string
