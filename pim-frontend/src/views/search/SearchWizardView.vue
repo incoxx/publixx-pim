@@ -9,7 +9,7 @@ import {
   Regex, AudioLines, Languages, Download, GitCompareArrows, Pencil, Settings,
   Package, Sliders, GitBranch, Image, FolderTree, FileSpreadsheet, FileText, Code2, ListFilter,
   Trash2, CheckCheck, FileOutput, LayoutGrid, List,
-  Factory, Type, Plus,
+  Factory, Type, Plus, Tag,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useServerQuickLookup } from '@/composables/useServerQuickLookup'
@@ -600,15 +600,25 @@ watch(guidedMode, (v) => localStorage.setItem('search:mode', v ? 'guided' : 'exp
 
 const isProductGuided = computed(() => guidedMode.value && searchCategory.value === 'products')
 
-const guidedIntents = [
-  { key: 'merkmal', title: 'mit einem bestimmten Merkmal', sub: 'Attribut · Wert', icon: Sliders },
-  { key: 'kategorie', title: 'aus einer Kategorie', sub: 'Hierarchie-Knoten', icon: FolderTree },
-  { key: 'hersteller', title: 'von einem Hersteller', sub: 'Marke / Lieferant', icon: Factory },
-  { key: 'typ', title: 'eines bestimmten Produkttyps', sub: 'z. B. BMEcat, Schulung', icon: Package },
-  { key: 'translation', title: 'mit fehlender Übersetzung', sub: 'Datenqualität', icon: Languages },
-  { key: 'name', title: 'mit einem Namen oder einer SKU', sub: 'Volltext', icon: Type },
-  { key: 'muster', title: 'nach einem Muster (REGEXP)', sub: 'für Profis', icon: Regex },
-]
+// Computed statt Konstante: der Tag-Baustein entfaellt ohne tags.view — ein
+// Baustein, der beim Anklicken eine leere Liste zeigt, waere eine Sackgasse.
+const guidedIntents = computed(() => {
+  const intents = [
+    { key: 'merkmal', title: 'mit einem bestimmten Merkmal', sub: 'Attribut · Wert', icon: Sliders },
+    { key: 'kategorie', title: 'aus einer Kategorie', sub: 'Hierarchie-Knoten', icon: FolderTree },
+    { key: 'hersteller', title: 'von einem Hersteller', sub: 'Marke / Lieferant', icon: Factory },
+    { key: 'typ', title: 'eines bestimmten Produkttyps', sub: 'z. B. BMEcat, Schulung', icon: Package },
+  ]
+  if (authStore.hasPermission('tags.view')) {
+    intents.push({ key: 'tags', title: 'mit bestimmten Tags', sub: 'Stichworte', icon: Tag })
+  }
+  intents.push(
+    { key: 'translation', title: 'mit fehlender Übersetzung', sub: 'Datenqualität', icon: Languages },
+    { key: 'name', title: 'mit einem Namen oder einer SKU', sub: 'Volltext', icon: Type },
+    { key: 'muster', title: 'nach einem Muster (REGEXP)', sub: 'für Profis', icon: Regex },
+  )
+  return intents
+})
 
 const openIntents = ref([]) // manuell aufgeklappte Bausteine
 
@@ -618,6 +628,7 @@ function intentHasValue(key) {
     case 'kategorie': return selectedCategories.value.length > 0
     case 'hersteller': return selectedManufacturers.value.length > 0
     case 'typ': return selectedProductTypes.value.length > 0
+    case 'tags': return selectedTags.value.length > 0
     case 'translation': return !!(missingTranslationFilter.value.attribute_id && missingTranslationFilter.value.target_language)
     case 'name': return !!searchInput.value.trim() && searchMode.value !== 'regex'
     case 'muster': return !!searchInput.value.trim() && searchMode.value === 'regex'
@@ -648,6 +659,7 @@ function closeIntent(key) {
     case 'kategorie': selectedCategories.value = []; break
     case 'hersteller': selectedManufacturers.value = []; break
     case 'typ': selectedProductTypes.value = []; break
+    case 'tags': selectedTags.value = []; tagMatch.value = 'any'; break
     case 'translation': missingTranslationFilter.value = { attribute_id: null, target_language: null }; break
     case 'name': searchInput.value = ''; break
     case 'muster': searchInput.value = ''; searchMode.value = 'like'; break
@@ -716,6 +728,20 @@ const guidedClauses = computed(() => {
   if (selectedProductTypes.value.length) {
     const names = selectedProductTypes.value.map(id => attrStore.prodTypes.find(p => p.id === id)).map(p => localizedName(p) || p?.technical_name).filter(Boolean)
     if (names.length) c.push(t('vom Typ {names}', { names: names.join(', ') }))
+  }
+  if (selectedTags.value.length) {
+    const names = selectedTags.value
+      .map(id => tagList.value.find(candidate => candidate.id === id))
+      .map(tag => (tag ? (localizedName(tag) || tag.technical_name) : null))
+      .filter(Boolean)
+    if (names.length) {
+      const list = names.map(n => `"${n}"`).join(', ')
+      // Bei einem Tag ist die any/all-Unterscheidung bedeutungslos und der Satz
+      // liest sich sonst umstaendlich ("mit einem der Tags \"X\"").
+      if (names.length === 1) c.push(t('mit Tag {list}', { list }))
+      else if (tagMatch.value === 'all') c.push(t('mit allen Tags {list}', { list }))
+      else c.push(t('mit einem der Tags {list}', { list }))
+    }
   }
   if (missingTranslationFilter.value.attribute_id && missingTranslationFilter.value.target_language) {
     const lang = translationLanguages.value.find(l => l.code === missingTranslationFilter.value.target_language)
@@ -1457,6 +1483,33 @@ const apiCallDisplay = computed(() => {
               <label v-for="pt in attrStore.prodTypes" :key="pt.id" class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs">
                 <input type="checkbox" :checked="isProductTypeSelected(pt.id)" @change="toggleProductType(pt.id)" class="rounded border-[var(--color-border)]" />
                 <span class="text-[var(--color-text-primary)]">{{ localizedName(pt) || pt.technical_name }}</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Tags -->
+          <div v-if="isIntentOpen('tags')" class="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5"><Tag class="w-3.5 h-3.5" :stroke-width="1.75" />Tags</span>
+              <div class="flex items-center gap-2">
+                <select v-if="selectedTags.length > 1" v-model="tagMatch" class="pim-select text-[10px] h-6">
+                  <option value="any">eines davon</option>
+                  <option value="all">alle</option>
+                </select>
+                <button class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]" @click="closeIntent('tags')" title="Entfernen"><X class="w-4 h-4" :stroke-width="2" /></button>
+              </div>
+            </div>
+            <div v-if="tagList.length === 0" class="text-xs text-[var(--color-text-tertiary)] py-2 text-center">Keine Tags angelegt</div>
+            <div v-else class="max-h-44 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5 bg-[var(--color-surface)]">
+              <label
+                v-for="tag in tagList"
+                :key="tag.id"
+                class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs"
+                :title="tag.technical_name"
+              >
+                <input type="checkbox" :checked="isTagSelected(tag.id)" @change="toggleTag(tag.id)" class="rounded border-[var(--color-border)]" />
+                <span class="text-[var(--color-text-primary)]">{{ localizedName(tag) || tag.technical_name }}</span>
+                <span v-if="tag.is_active === false" class="text-[10px] text-[var(--color-text-tertiary)] italic">inaktiv</span>
               </label>
             </div>
           </div>

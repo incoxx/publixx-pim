@@ -12,6 +12,16 @@
  */
 
 const en = {
+  // --- Tags (Filter-Panel, geführter Modus, Klartext-Suchsatz) ---
+  'Tags': 'Tags',
+  'Stichworte': 'Keywords',
+  'mit bestimmten Tags': 'with certain tags',
+  'Keine Tags angelegt': 'No tags created',
+  'eines davon': 'any of them',
+  'alle': 'all of them',
+  'mit Tag {list}': 'tagged {list}',
+  'mit einem der Tags {list}': 'with any of the tags {list}',
+  'mit allen Tags {list}': 'with all of the tags {list}',
   'inaktiv': 'inactive',
   // --- Allgemein / Toolbar ---
   '(ohne Name)': '(no name)',
