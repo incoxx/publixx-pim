@@ -24,6 +24,7 @@ import {
   Terminal,
   Folders,
   Fingerprint,
+  Tag,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 import { useAppearanceStore, SECTION_ICON_COLORS } from '@/stores/appearance'
@@ -247,6 +248,8 @@ const sections = computed(() => {
             { icon: Folders, label: () => t('Collection-Typen'), to: '/collection-types', module: 'collections', permission: 'collection-types.view' },
           ],
         },
+        // Eigener Punkt statt in einer Gruppe: Tags gelten für Produkte und Medien gleichermaßen.
+        { icon: Tag, label: () => t('nav.tags'), to: '/tags', permission: 'tags.view' },
       ],
     },
     {

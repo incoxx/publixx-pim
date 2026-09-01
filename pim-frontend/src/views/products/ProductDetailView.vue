@@ -38,11 +38,13 @@ import attributeMappingsApi from '@/api/attributeMappings'
 import watchlistApi from '@/api/watchlist'
 import searchProfilesApi from '@/api/searchProfiles'
 import manufacturersApi from '@/api/manufacturers'
+import { tags as tagsApi } from '@/api/tags'
 import { triggerDownload, blobErrorMessage } from '@/utils/download'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import ProductNotesTab from '@/components/products/ProductNotesTab.vue'
 import ProductConformanceTab from '@/components/products/ProductConformanceTab.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
+import PimTagInput from '@/components/shared/PimTagInput.vue'
 import PimMultipliableInput from '@/components/shared/PimMultipliableInput.vue'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
@@ -388,6 +390,24 @@ async function loadFilterOptions() {
 }
 
 const product = computed(() => store.current)
+
+// ─── Tags ────────────────────────────────────────────
+// Tags haengen an einer Zuordnungstabelle, nicht am Produktdatensatz. Sie werden
+// daher beim Speichern ueber eine eigene Route gesetzt — und nur dann, wenn sie
+// wirklich geaendert wurden, damit ein normales Speichern keinen Zusatz-Request
+// ausloest.
+const productTags = ref([])
+const tagsDirty = ref(false)
+
+watch(() => product.value?.tags, (tags) => {
+  productTags.value = [...(tags || [])]
+  tagsDirty.value = false
+}, { immediate: true })
+
+function onTagsChanged(tags) {
+  productTags.value = tags
+  tagsDirty.value = true
+}
 
 // ─── Workflow (dynamic FK-based) ─────────────────────
 const workflowUsers = ref([])
@@ -3282,7 +3302,20 @@ async function save() {
       updateData.workflow_team_id = product.value.workflow_team_id || null
     }
     updateData.project_ids = selectedProjectIds.value
+
+    // Tags vor dem Speichern festhalten: store.update schreibt die Antwort in
+    // store.current zurueck und stoesst damit den Watcher oben an, der
+    // productTags/tagsDirty zuruecksetzt.
+    const tagsWereDirty = tagsDirty.value
+    const tagsToSync = tagsWereDirty ? [...productTags.value] : []
+
     await store.update(product.value.id, updateData)
+
+    if (tagsWereDirty) {
+      await tagsApi.syncProduct(product.value.id, tagsToSync.map(t => t.id))
+      if (product.value) product.value.tags = [...tagsToSync]
+      tagsDirty.value = false
+    }
 
     // Build attribute values payload with language support
     const values = []
@@ -3992,6 +4025,16 @@ onUnmounted(() => {
                 <option value="">— Kein Hersteller —</option>
                 <option v-for="m in manufacturers" :key="m.id" :value="m.id">{{ m.name }}</option>
               </select>
+            </div>
+          </div>
+          <div v-if="authStore.hasPermission('tags.view')" class="md:flex md:items-start md:gap-4">
+            <label class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 md:mt-1.5 mb-1 block">Tags</label>
+            <div class="md:flex-1 md:min-w-0">
+              <PimTagInput
+                :modelValue="productTags"
+                :disabled="isTabReadOnly"
+                @update:modelValue="onTagsChanged"
+              />
             </div>
           </div>
           <!-- Primärattribute -->

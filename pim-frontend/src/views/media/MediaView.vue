@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Upload, Image, ImageOff, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw, ExternalLink, Package, FolderTree, Eye, Filter, Archive, ToggleLeft, ToggleRight, Table, Layers, Images, ArrowUp, ArrowDown, Video, Music } from 'lucide-vue-next'
+import { Upload, Image, ImageOff, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw, ExternalLink, Package, FolderTree, Eye, Filter, Archive, ToggleLeft, ToggleRight, Table, Layers, Images, ArrowUp, ArrowDown, ArrowUpDown, Video, Music } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
 import { mediaLanguages as mediaLanguagesApi } from '@/api/mediaLanguages'
@@ -159,11 +159,33 @@ const sortFieldOptions = [
   { value: 'created_at', label: t('Hochgeladen') },
   { value: 'title_de', label: t('Titel') },
   { value: 'file_name', label: t('Dateiname') },
+  { value: 'media_type', label: t('Typ') },
+  { value: 'usage_purpose', label: t('Verwendung') },
   { value: 'file_size', label: t('Dateigröße') },
 ]
 
 function toggleSortOrder() {
   sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+}
+
+// Sortierbare Spalten der Listenansicht (Reihenfolge = Grid-Spalten des Kopfs)
+const listSortColumns = [
+  { field: 'title_de', label: t('Titel') },
+  { field: 'file_name', label: t('Dateiname') },
+  { field: 'media_type', label: t('Typ') },
+  { field: 'usage_purpose', label: t('Verwendung') },
+  { field: 'file_size', label: t('Größe'), align: 'right' },
+]
+
+// Spaltenkopf in der Listenansicht: gleiches Feld -> Richtung umkehren,
+// neues Feld -> aufsteigend starten.
+function setSort(field) {
+  if (sortField.value === field) {
+    toggleSortOrder()
+  } else {
+    sortField.value = field
+    sortOrder.value = 'asc'
+  }
 }
 
 // Build filter options
@@ -1467,11 +1489,21 @@ onMounted(() => {
             @change="toggleSelectAll"
           />
           <span></span>
-          <span>Titel</span>
-          <span>Dateiname</span>
-          <span>Typ</span>
-          <span>Verwendung</span>
-          <span class="text-right">Größe</span>
+          <button
+            v-for="col in listSortColumns"
+            :key="col.field"
+            type="button"
+            class="flex items-center gap-1 uppercase tracking-wider cursor-pointer select-none
+                   hover:text-[var(--color-text-primary)] transition-colors duration-150"
+            :class="col.align === 'right' ? 'justify-end' : ''"
+            :title="t('Nach dieser Spalte sortieren')"
+            @click="setSort(col.field)"
+          >
+            <span>{{ col.label }}</span>
+            <ArrowUp v-if="sortField === col.field && sortOrder === 'asc'" class="w-3 h-3 text-[var(--color-accent)]" />
+            <ArrowDown v-else-if="sortField === col.field && sortOrder === 'desc'" class="w-3 h-3 text-[var(--color-accent)]" />
+            <ArrowUpDown v-else class="w-3 h-3 opacity-30" />
+          </button>
           <span></span>
         </div>
 

@@ -80,6 +80,18 @@ class Media extends Model
     }
 
     /**
+     * Mehrsprachige Stichworte (Tags), global gepflegt über die Tag-Stammdaten.
+     * Ergänzt die freien `keywords` (JSON-Strings), ersetzt sie aber nicht.
+     */
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'media_tag')
+            ->withPivot('sort_order')
+            ->withTimestamps()
+            ->orderByPivot('sort_order');
+    }
+
+    /**
      * Motiv, zu dem diese Rendition gehört (NULL = eigenständiges Medium,
      * "einfache Lösung" ohne Motiv-Gruppierung).
      */

@@ -27,6 +27,7 @@ class MediaResource extends JsonResource
             'alt_text_de' => $this->alt_text_de,
             'alt_text_en' => $this->alt_text_en,
             'keywords' => $this->keywords ?? [],
+            'tags' => TagResource::collection($this->whenLoaded('tags')),
             'width' => $this->width,
             'height' => $this->height,
             'asset_folder_id' => $this->asset_folder_id,

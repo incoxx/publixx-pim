@@ -7,9 +7,13 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Attribute;
 use App\Models\HierarchyNode;
+use App\Models\Manufacturer;
+use App\Models\ProductType;
 use App\Models\SearchProfile;
+use App\Models\Tag;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 class SearchProfileController extends Controller
 {
@@ -21,8 +25,9 @@ class SearchProfileController extends Controller
 
         $profiles = SearchProfile::visibleTo($request->user()->id)
             ->orderBy('name')
-            ->get()
-            ->map(fn ($p) => $this->stripStaleReferences($p));
+            ->get();
+
+        $this->stripStaleReferences($profiles);
 
         return response()->json(['data' => $profiles]);
     }
@@ -39,6 +44,13 @@ class SearchProfileController extends Controller
             'status_filter' => 'nullable|string|in:active,draft,inactive,discontinued',
             'category_ids' => 'nullable|array',
             'category_ids.*' => 'string|uuid',
+            'product_type_ids' => 'nullable|array',
+            'product_type_ids.*' => 'string|uuid',
+            'manufacturer_ids' => 'nullable|array',
+            'manufacturer_ids.*' => 'string|uuid',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'string|uuid',
+            'tag_match' => 'nullable|string|in:any,all',
             'attribute_filters' => 'nullable|array',
             'attribute_filter_groups' => 'nullable|array',
             'include_descendants' => 'nullable|boolean',
@@ -50,7 +62,9 @@ class SearchProfileController extends Controller
 
         $profile = SearchProfile::create($validated);
 
-        return response()->json(['data' => $profile], 201);
+        // refresh(), damit Datenbank-Defaults (z.B. tag_match) in der Antwort stehen
+        // und der Client sie nicht als null in seinen Zustand uebernimmt.
+        return response()->json(['data' => $profile->refresh()], 201);
     }
 
     public function update(Request $request, SearchProfile $searchProfile): JsonResponse
@@ -65,6 +79,13 @@ class SearchProfileController extends Controller
             'status_filter' => 'nullable|string|in:active,draft,inactive,discontinued',
             'category_ids' => 'nullable|array',
             'category_ids.*' => 'string|uuid',
+            'product_type_ids' => 'nullable|array',
+            'product_type_ids.*' => 'string|uuid',
+            'manufacturer_ids' => 'nullable|array',
+            'manufacturer_ids.*' => 'string|uuid',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'string|uuid',
+            'tag_match' => 'nullable|string|in:any,all',
             'attribute_filters' => 'nullable|array',
             'attribute_filter_groups' => 'nullable|array',
             'include_descendants' => 'nullable|boolean',
@@ -92,41 +113,71 @@ class SearchProfileController extends Controller
     }
 
     /**
-     * Strip stale category/attribute references from a search profile
-     * so deleted entities don't cause broken filters in the frontend.
+     * Entfernt Verweise auf geloeschte Entitaeten aus den Profilen, damit ein
+     * geloeschter Knoten/Typ/Hersteller/Tag/Attribut nicht als unsichtbarer
+     * Filter stehen bleibt und die Treffermenge stillschweigend einschraenkt.
+     *
+     * Bewusst ueber die gesamte Collection statt je Profil: pro Profil je eine
+     * Existenzabfrage pro Feld waere ein N+1 auf einer Listen-Route. So bleibt
+     * es bei einer Abfrage je Feld, unabhaengig von der Anzahl der Profile.
+     *
+     * @param \Illuminate\Support\Collection<int, SearchProfile> $profiles
      */
-    private function stripStaleReferences(SearchProfile $profile): SearchProfile
+    private function stripStaleReferences(Collection $profiles): void
     {
-        $dirty = false;
+        $idFields = [
+            'category_ids' => HierarchyNode::class,
+            'product_type_ids' => ProductType::class,
+            'manufacturer_ids' => Manufacturer::class,
+            'tag_ids' => Tag::class,
+        ];
 
-        if (!empty($profile->category_ids)) {
-            $validNodeIds = HierarchyNode::whereIn('id', $profile->category_ids)->pluck('id')->toArray();
-            if (count($validNodeIds) !== count($profile->category_ids)) {
-                $profile->category_ids = array_values($validNodeIds);
-                $dirty = true;
-            }
+        $validIds = [];
+        foreach ($idFields as $field => $model) {
+            $ids = $profiles->flatMap(fn ($p) => $p->{$field} ?? [])->unique()->values();
+            $validIds[$field] = $ids->isEmpty()
+                ? []
+                : array_flip($model::whereIn('id', $ids)->pluck('id')->all());
         }
 
-        if (!empty($profile->attribute_filters)) {
-            $filterAttrIds = array_keys($profile->attribute_filters);
-            $validAttrIds = Attribute::whereIn('id', $filterAttrIds)->pluck('id')->toArray();
-            if (count($validAttrIds) !== count($filterAttrIds)) {
-                $validSet = array_flip($validAttrIds);
-                $cleaned = array_filter(
-                    $profile->attribute_filters,
-                    fn ($v, $k) => isset($validSet[$k]),
+        $attributeIds = $profiles->flatMap(fn ($p) => array_keys($p->attribute_filters ?? []))->unique()->values();
+        $validAttributeIds = $attributeIds->isEmpty()
+            ? []
+            : array_flip(Attribute::whereIn('id', $attributeIds)->pluck('id')->all());
+
+        foreach ($profiles as $profile) {
+            $dirty = false;
+
+            foreach (array_keys($idFields) as $field) {
+                $ids = $profile->{$field} ?? [];
+                if (empty($ids)) {
+                    continue;
+                }
+                // Reihenfolge der Auswahl beibehalten
+                $kept = array_values(array_filter($ids, fn ($id) => isset($validIds[$field][$id])));
+                if (count($kept) !== count($ids)) {
+                    $profile->{$field} = $kept;
+                    $dirty = true;
+                }
+            }
+
+            $filters = $profile->attribute_filters ?? [];
+            if (!empty($filters)) {
+                $kept = array_filter(
+                    $filters,
+                    fn ($value, $key) => isset($validAttributeIds[$key]),
                     ARRAY_FILTER_USE_BOTH,
                 );
-                $profile->attribute_filters = $cleaned;
-                $dirty = true;
+                if (count($kept) !== count($filters)) {
+                    $profile->attribute_filters = $kept;
+                    $dirty = true;
+                }
+            }
+
+            // Bereinigung persistieren, damit sie sich nicht ansammelt
+            if ($dirty) {
+                $profile->saveQuietly();
             }
         }
-
-        // Persist cleanup so stale data doesn't accumulate
-        if ($dirty) {
-            $profile->saveQuietly();
-        }
-
-        return $profile;
     }
 }

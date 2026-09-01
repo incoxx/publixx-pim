@@ -38,6 +38,7 @@ class ProductController extends Controller
         'productType', 'attributeValues', 'variants', 'media',
         'prices', 'relations', 'parentProduct', 'masterHierarchyNode', 'masterHierarchyNode.hierarchy',
         'manufacturer', 'workflow', 'currentWorkflowStatus', 'workflowAssignee', 'workflowTeam', 'projects',
+        'tags',
     ];
 
     private const ALLOWED_FILTERS = [

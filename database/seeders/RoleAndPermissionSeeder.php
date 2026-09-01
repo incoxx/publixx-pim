@@ -54,6 +54,8 @@ class RoleAndPermissionSeeder extends Seeder
             'media-countries.view', 'media-countries.create', 'media-countries.edit', 'media-countries.delete',
             // Hersteller
             'manufacturers.view', 'manufacturers.create', 'manufacturers.edit', 'manufacturers.delete',
+            // Tags (mehrsprachige Stichworte für Produkte und Medien)
+            'tags.view', 'tags.create', 'tags.edit', 'tags.delete',
             // Relationstypen
             'relation-types.view', 'relation-types.create', 'relation-types.edit', 'relation-types.delete',
             // Import
@@ -192,6 +194,7 @@ class RoleAndPermissionSeeder extends Seeder
             'attribute-views.view', 'attribute-views.create', 'attribute-views.edit', 'attribute-views.delete',
             'relation-types.view', 'relation-types.create', 'relation-types.edit', 'relation-types.delete',
             'manufacturers.view', 'manufacturers.create', 'manufacturers.edit', 'manufacturers.delete',
+            'tags.view', 'tags.create', 'tags.edit', 'tags.delete',
             'price-types.view', 'price-types.create', 'price-types.edit', 'price-types.delete',
             'price-regions.view', 'price-regions.create', 'price-regions.edit', 'price-regions.delete',
             'media-usage-types.view', 'media-usage-types.create', 'media-usage-types.edit', 'media-usage-types.delete',
@@ -236,6 +239,7 @@ class RoleAndPermissionSeeder extends Seeder
             'attribute-views.view',
             'relation-types.view',
             'manufacturers.view',
+            'tags.view', 'tags.create', 'tags.edit',
             'media-usage-types.view',
             'media-languages.view',
             'media-countries.view',
@@ -285,6 +289,7 @@ class RoleAndPermissionSeeder extends Seeder
             'price-types.view',
             'price-regions.view',
             'relation-types.view',
+            'tags.view',
             'units.view',
             'unit-groups.view',
             'value-lists.view',
@@ -311,6 +316,7 @@ class RoleAndPermissionSeeder extends Seeder
             'prices.view',
             'price-types.view',
             'price-regions.view',
+            'tags.view',
             'units.view',
             'unit-groups.view',
             'value-lists.view',
@@ -350,6 +356,8 @@ class RoleAndPermissionSeeder extends Seeder
             'media-usage-types.view',
             'media-languages.view',
             'media-countries.view',
+            // Tags vergeben und bei Bedarf neue anlegen
+            'tags.view', 'tags.create', 'tags.edit',
             // Strukturierter Content: Seiten pflegen (Vollzugriff), Typen lesen
             'content.view', 'content.create', 'content.edit', 'content.delete',
             'content-types.view',

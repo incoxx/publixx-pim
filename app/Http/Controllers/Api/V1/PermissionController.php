@@ -26,6 +26,7 @@ class PermissionController extends Controller
         'value-lists' => 'Wertelisten',
         'media' => 'Medien',
         'media-usage-types' => 'Bildtypen',
+        'tags' => 'Tags',
         'prices' => 'Preise',
         'price-types' => 'Preistypen',
         'manufacturers' => 'Hersteller',
@@ -87,7 +88,7 @@ class PermissionController extends Controller
                 'manufacturers', 'product-types', 'relation-types',
                 'attribute-views', 'attribute-types', 'attributes',
                 'value-lists', 'dictionary', 'attribute-metadata',
-                'units', 'unit-groups', 'translations',
+                'tags', 'units', 'unit-groups', 'translations',
             ],
         ],
         [

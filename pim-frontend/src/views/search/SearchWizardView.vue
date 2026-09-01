@@ -35,6 +35,7 @@ import { useLicenseStore } from '@/stores/license'
 import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialog.vue'
 import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierarchyNodeDialog.vue'
 import QueryBuilderGroup from '@/components/search/QueryBuilderGroup.vue'
+import { tags as tagsApi } from '@/api/tags'
 
 const localeStore = useLocaleStore()
 // Sprachen aus der Verwaltung (Tabelle `languages`), nicht hart kodiert
@@ -105,6 +106,10 @@ async function loadProfile(id) {
   searchMode.value = profile.search_mode || 'like'
   statusFilter.value = profile.status_filter || ''
   selectedCategories.value = profile.category_ids || []
+  selectedProductTypes.value = profile.product_type_ids || []
+  selectedManufacturers.value = profile.manufacturer_ids || []
+  selectedTags.value = profile.tag_ids || []
+  tagMatch.value = profile.tag_match || 'any'
   attributeFilters.value = profile.attribute_filters || {}
   attributeFilterGroups.value = profile.attribute_filter_groups || { operator: 'AND', rules: [] }
   if (profile.sort_field) sortField.value = profile.sort_field
@@ -121,6 +126,10 @@ async function saveProfile({ name, is_shared }) {
       search_mode: searchMode.value,
       status_filter: statusFilter.value || null,
       category_ids: selectedCategories.value,
+      product_type_ids: selectedProductTypes.value,
+      manufacturer_ids: selectedManufacturers.value,
+      tag_ids: selectedTags.value,
+      tag_match: tagMatch.value,
       attribute_filters: attributeFilters.value,
       attribute_filter_groups: attributeFilterGroups.value.rules?.length ? attributeFilterGroups.value : null,
       sort_field: sortField.value,
@@ -141,6 +150,10 @@ async function updateProfile({ id, name, is_shared }) {
       search_mode: searchMode.value,
       status_filter: statusFilter.value || null,
       category_ids: selectedCategories.value,
+      product_type_ids: selectedProductTypes.value,
+      manufacturer_ids: selectedManufacturers.value,
+      tag_ids: selectedTags.value,
+      tag_match: tagMatch.value,
       attribute_filters: attributeFilters.value,
       attribute_filter_groups: attributeFilterGroups.value.rules?.length ? attributeFilterGroups.value : null,
       sort_field: sortField.value,
@@ -214,6 +227,7 @@ const defaultSearchColumns = [
 ]
 const extraSearchColumns = [
   { key: 'ean', label: t('EAN'), mono: true },
+  { key: 'tags', label: t('Tags'), render: (row) => (row.tags || []).map(tag => localizedName(tag) || tag.technical_name).join(', ') || '—' },
   { key: 'manufacturer.name', label: t('Hersteller') },
   { key: 'created_at', label: t('Erstellt'), sortable: true },
 ]
@@ -329,6 +343,10 @@ const missingTranslationFilter = ref({ attribute_id: null, target_language: null
 const selectedProductTypes = ref([])
 const selectedManufacturers = ref([])
 const manufacturerList = ref([])
+// Tags: Mehrfachauswahl, tagMatch entscheidet zwischen "eines davon" und "alle"
+const selectedTags = ref([])
+const tagMatch = ref('any')
+const tagList = ref([])
 
 // Quick Lookup — filtert serverseitig über die komplette Treffermenge, nicht nur
 // die aktuell angezeigte Seite. quickLookupMappedFilters wird in buildSearchParams()
@@ -520,7 +538,8 @@ function collectFilterAttributeIds(group) {
 
 // --- Computed ---
 const activeFilterCount = computed(() => {
-  let count = selectedCategories.value.length + selectedProductTypes.value.length + selectedManufacturers.value.length
+  let count = selectedCategories.value.length + selectedProductTypes.value.length
+    + selectedManufacturers.value.length + selectedTags.value.length
   if (statusFilter.value) count++
   if (missingTranslationFilter.value.attribute_id && missingTranslationFilter.value.target_language) count++
   // Count query builder rules
@@ -644,6 +663,8 @@ function resetGuided() {
   selectedCategories.value = []
   selectedManufacturers.value = []
   selectedProductTypes.value = []
+  selectedTags.value = []
+  tagMatch.value = 'any'
   missingTranslationFilter.value = { attribute_id: null, target_language: null }
   attributeFilterGroups.value = { operator: 'AND', rules: [] }
   searchInput.value = ''
@@ -751,6 +772,16 @@ onMounted(async () => {
     manufacturerList.value = data.data || data
   } catch (e) { /* ignore */ }
 
+  // Load tags for filter — bewusst inklusive inaktiver Tags: ein gespeichertes
+  // Suchprofil kann einen inzwischen deaktivierten Tag referenzieren. Fehlt der
+  // in der Liste, filtert das Profil weiter, ohne dass ein Haken sichtbar waere.
+  if (authStore.hasPermission('tags.view')) {
+    try {
+      const { data } = await tagsApi.list({ perPage: 200, sort: 'name_de', order: 'asc' })
+      tagList.value = data.data || data
+    } catch (e) { /* ignore */ }
+  }
+
   // Load search profiles & column profiles
   loadProfiles()
   loadColumnProfiles()
@@ -777,6 +808,19 @@ function toggleManufacturer(id) {
   } else {
     selectedManufacturers.value.splice(idx, 1)
   }
+}
+
+function toggleTag(id) {
+  const idx = selectedTags.value.indexOf(id)
+  if (idx === -1) {
+    selectedTags.value.push(id)
+  } else {
+    selectedTags.value.splice(idx, 1)
+  }
+}
+
+function isTagSelected(id) {
+  return selectedTags.value.includes(id)
 }
 
 function isManufacturerSelected(id) {
@@ -1018,6 +1062,11 @@ function buildSearchParams() {
   if (quickLookupMappedFilters.value.manufacturer_id) manufacturerIds.add(quickLookupMappedFilters.value.manufacturer_id)
   if (manufacturerIds.size > 0) params.manufacturer_ids = [...manufacturerIds]
 
+  if (selectedTags.value.length > 0) {
+    params.tag_ids = [...selectedTags.value]
+    params.tag_match = tagMatch.value
+  }
+
   if (statusFilter.value) {
     params.status = statusFilter.value
   } else if (quickLookupMappedFilters.value.status) {
@@ -1205,6 +1254,11 @@ const apiCallDisplay = computed(() => {
 
   if (selectedManufacturers.value.length > 0) {
     params.manufacturer_ids = selectedManufacturers.value
+  }
+
+  if (selectedTags.value.length > 0) {
+    params.tag_ids = selectedTags.value
+    params.tag_match = tagMatch.value
   }
 
   if (selectedCategories.value.length > 0) {
@@ -1718,6 +1772,42 @@ const apiCallDisplay = computed(() => {
                 class="rounded border-[var(--color-border)]"
               />
               <span class="text-[var(--color-text-primary)]">{{ m.name }}</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Tag filter -->
+        <div v-if="authStore.hasPermission('tags.view')">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-[12px] font-medium text-[var(--color-text-secondary)]">
+              Tags
+              <span v-if="selectedTags.length > 0" class="pim-badge bg-[var(--color-accent-light)] text-[var(--color-accent)] text-[10px] px-1.5 ml-1">
+                {{ selectedTags.length }}
+              </span>
+            </p>
+            <select v-if="selectedTags.length > 1" v-model="tagMatch" class="pim-select text-[10px] h-6">
+              <option value="any">eines davon</option>
+              <option value="all">alle</option>
+            </select>
+          </div>
+          <div v-if="tagList.length === 0" class="border border-[var(--color-border)] rounded-lg p-3 text-center">
+            <p class="text-xs text-[var(--color-text-tertiary)]">Keine Tags angelegt</p>
+          </div>
+          <div v-else class="max-h-36 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5">
+            <label
+              v-for="tag in tagList"
+              :key="tag.id"
+              class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs"
+              :title="tag.technical_name"
+            >
+              <input
+                type="checkbox"
+                :checked="isTagSelected(tag.id)"
+                @change="toggleTag(tag.id)"
+                class="rounded border-[var(--color-border)]"
+              />
+              <span class="text-[var(--color-text-primary)]">{{ localizedName(tag) || tag.technical_name }}</span>
+              <span v-if="tag.is_active === false" class="text-[10px] text-[var(--color-text-tertiary)] italic">inaktiv</span>
             </label>
           </div>
         </div>

@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductType;
 use App\Models\Role;
+use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -413,5 +414,106 @@ class ProductSearchControllerTest extends TestCase
         $response->assertOk()->assertJsonCount(1, 'data');
         $this->assertSame($sichtbar->id, $response->json('data.0.id'));
         $this->assertSame($sichtbar->technical_name, $response->json('data.0.technical_name'));
+    }
+
+    // ── Tag-Filter ────────────────────────────────────────────────────
+
+    public function test_tag_filter_liefert_produkte_mit_einem_der_tags(): void
+    {
+        $this->login();
+
+        $neuheit = Tag::factory()->create(['name_de' => 'Neuheit']);
+        $aktion = Tag::factory()->create(['name_de' => 'Aktion']);
+
+        $mitNeuheit = Product::factory()->create(['sku' => 'TAG-1']);
+        $mitAktion = Product::factory()->create(['sku' => 'TAG-2']);
+        Product::factory()->create(['sku' => 'TAG-3']);
+
+        $mitNeuheit->tags()->attach($neuheit->id, ['sort_order' => 0]);
+        $mitAktion->tags()->attach($aktion->id, ['sort_order' => 0]);
+
+        $response = $this->postJson('/api/v1/products/search', [
+            'tag_ids' => [$neuheit->id, $aktion->id],
+        ]);
+
+        $response->assertOk();
+        $skus = collect($response->json('data'))->pluck('sku')->sort()->values()->all();
+        $this->assertSame(['TAG-1', 'TAG-2'], $skus);
+    }
+
+    public function test_tag_filter_mit_match_all_verlangt_alle_tags(): void
+    {
+        $this->login();
+
+        $neuheit = Tag::factory()->create();
+        $aktion = Tag::factory()->create();
+
+        $beide = Product::factory()->create(['sku' => 'BEIDE']);
+        $nurEiner = Product::factory()->create(['sku' => 'EINER']);
+
+        $beide->tags()->attach([$neuheit->id, $aktion->id]);
+        $nurEiner->tags()->attach($neuheit->id);
+
+        $response = $this->postJson('/api/v1/products/search', [
+            'tag_ids' => [$neuheit->id, $aktion->id],
+            'tag_match' => 'all',
+        ]);
+
+        $response->assertOk()->assertJsonCount(1, 'data');
+        $this->assertSame('BEIDE', $response->json('data.0.sku'));
+    }
+
+    public function test_treffer_enthalten_ihre_tags(): void
+    {
+        $this->login();
+
+        $tag = Tag::factory()->create(['name_de' => 'Neuheit']);
+        Product::factory()->create(['sku' => 'MIT-TAG'])->tags()->attach($tag->id);
+
+        $response = $this->postJson('/api/v1/products/search', ['sku' => 'MIT-TAG']);
+
+        $response->assertOk()
+            ->assertJsonPath('data.0.tags.0.name_de', 'Neuheit');
+    }
+
+    public function test_count_beruecksichtigt_den_tag_filter(): void
+    {
+        $this->login();
+
+        $tag = Tag::factory()->create();
+        Product::factory()->create()->tags()->attach($tag->id);
+        Product::factory()->create();
+
+        $this->postJson('/api/v1/products/search/count', ['tag_ids' => [$tag->id]])
+            ->assertOk()
+            ->assertJsonPath('count', 1);
+    }
+
+    public function test_all_ids_beruecksichtigt_den_tag_filter(): void
+    {
+        $this->login();
+
+        $tag = Tag::factory()->create();
+        $mitTag = Product::factory()->create();
+        $mitTag->tags()->attach($tag->id);
+        Product::factory()->create();
+
+        $response = $this->postJson('/api/v1/products/search/ids', ['tag_ids' => [$tag->id]]);
+
+        $response->assertOk();
+        $this->assertSame([$mitTag->id], $response->json('data'));
+    }
+
+    public function test_ohne_tag_filter_bleiben_alle_produkte_sichtbar(): void
+    {
+        $this->login();
+
+        $tag = Tag::factory()->create();
+        Product::factory()->create()->tags()->attach($tag->id);
+        Product::factory()->create();
+
+        $this->postJson('/api/v1/products/search', [])
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
     }
 }

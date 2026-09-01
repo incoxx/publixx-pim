@@ -36,6 +36,10 @@ final class PqlValidator
         'category_id'  => ['table' => 'products', 'column' => 'master_hierarchy_node_id', 'data_type' => 'String'],
         'product_type' => ['table' => 'products_search_index', 'column' => 'product_type', 'data_type' => 'String'],
         'list_price'   => ['table' => 'products_search_index', 'column' => 'list_price', 'data_type' => 'Number'],
+        // Tags sind keine Spalte, sondern eine Zuordnung (product_tag → tags). Der
+        // Generator loest das Feld ueber eine EXISTS-Unterabfrage auf; hier steht es
+        // nur, damit die Validierung es kennt und numerische Operatoren ablehnt.
+        'tags'         => ['table' => 'tags', 'column' => 'technical_name', 'data_type' => 'String'],
     ];
 
     /**
@@ -117,11 +121,13 @@ final class PqlValidator
 
         if ($node instanceof FuzzyNode) {
             $this->validateFieldName($node->field, $availableFields, $errors, $resolvedFields);
+            $this->rejectUnsupportedTagOperator($node->field, 'FUZZY', $errors);
             return;
         }
 
         if ($node instanceof SoundsLikeNode) {
             $this->validateFieldName($node->field, $availableFields, $errors, $resolvedFields);
+            $this->rejectUnsupportedTagOperator($node->field, 'SOUNDS LIKE', $errors);
             return;
         }
 
@@ -167,6 +173,26 @@ final class PqlValidator
         } else {
             $resolvedFields[$field] = $resolution;
         }
+    }
+
+    /**
+     * FUZZY und SOUNDS LIKE filtern in PHP ueber einen Spaltenwert der Ergebniszeile.
+     * Tags stehen dort nicht (Zuordnungstabelle), die Bedingung wuerde also still
+     * ins Leere laufen — deshalb hier mit klarer Meldung ablehnen.
+     *
+     * @param array<array{position: int, field: string, error: string}> &$errors
+     */
+    private function rejectUnsupportedTagOperator(string $field, string $operator, array &$errors): void
+    {
+        if ($field !== 'tags') {
+            return;
+        }
+
+        $errors[] = [
+            'position' => 0,
+            'field' => $field,
+            'error' => "{$operator} wird für 'tags' nicht unterstützt. Nutzen Sie tags = \"…\", tags IN (…) oder tags LIKE \"%…%\".",
+        ];
     }
 
     /**

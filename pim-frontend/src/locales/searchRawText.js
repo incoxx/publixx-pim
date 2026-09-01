@@ -12,6 +12,7 @@
  */
 
 const en = {
+  'inaktiv': 'inactive',
   // --- Allgemein / Toolbar ---
   '(ohne Name)': '(no name)',
   'Filter': 'Filter',
