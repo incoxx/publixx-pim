@@ -1494,7 +1494,7 @@ onMounted(() => {
             :key="col.field"
             type="button"
             class="flex items-center gap-1 uppercase tracking-wider cursor-pointer select-none
-                   hover:text-[var(--color-text)] transition-colors duration-150"
+                   hover:text-[var(--color-text-primary)] transition-colors duration-150"
             :class="col.align === 'right' ? 'justify-end' : ''"
             :title="t('Nach dieser Spalte sortieren')"
             @click="setSort(col.field)"

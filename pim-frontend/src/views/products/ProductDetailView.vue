@@ -3302,14 +3302,18 @@ async function save() {
       updateData.workflow_team_id = product.value.workflow_team_id || null
     }
     updateData.project_ids = selectedProjectIds.value
-    await store.update(product.value.id, updateData)
 
     // Tags vor dem Speichern festhalten: store.update schreibt die Antwort in
-    // store.current zurueck und stoesst damit den Watcher oben an.
-    if (tagsDirty.value) {
-      const tagIds = productTags.value.map(t => t.id)
-      await tagsApi.syncProduct(product.value.id, tagIds)
-      if (product.value) product.value.tags = [...productTags.value]
+    // store.current zurueck und stoesst damit den Watcher oben an, der
+    // productTags/tagsDirty zuruecksetzt.
+    const tagsWereDirty = tagsDirty.value
+    const tagsToSync = tagsWereDirty ? [...productTags.value] : []
+
+    await store.update(product.value.id, updateData)
+
+    if (tagsWereDirty) {
+      await tagsApi.syncProduct(product.value.id, tagsToSync.map(t => t.id))
+      if (product.value) product.value.tags = [...tagsToSync]
       tagsDirty.value = false
     }
 

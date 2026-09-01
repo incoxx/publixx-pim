@@ -772,10 +772,12 @@ onMounted(async () => {
     manufacturerList.value = data.data || data
   } catch (e) { /* ignore */ }
 
-  // Load tags for filter (nur aktive — inaktive werden nicht mehr vergeben)
+  // Load tags for filter — bewusst inklusive inaktiver Tags: ein gespeichertes
+  // Suchprofil kann einen inzwischen deaktivierten Tag referenzieren. Fehlt der
+  // in der Liste, filtert das Profil weiter, ohne dass ein Haken sichtbar waere.
   if (authStore.hasPermission('tags.view')) {
     try {
-      const { data } = await tagsApi.list({ perPage: 200, sort: 'name_de', order: 'asc', filters: { is_active: 1 } })
+      const { data } = await tagsApi.list({ perPage: 200, sort: 'name_de', order: 'asc' })
       tagList.value = data.data || data
     } catch (e) { /* ignore */ }
   }
@@ -1805,6 +1807,7 @@ const apiCallDisplay = computed(() => {
                 class="rounded border-[var(--color-border)]"
               />
               <span class="text-[var(--color-text-primary)]">{{ localizedName(tag) || tag.technical_name }}</span>
+              <span v-if="tag.is_active === false" class="text-[10px] text-[var(--color-text-tertiary)] italic">inaktiv</span>
             </label>
           </div>
         </div>

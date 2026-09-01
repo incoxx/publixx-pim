@@ -13,6 +13,7 @@ use App\Models\SearchProfile;
 use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -193,5 +194,35 @@ class SearchProfileControllerTest extends TestCase
         $namen = collect($this->getJson('/api/v1/search-profiles')->json('data'))->pluck('name')->all();
 
         $this->assertSame(['Geteilt'], $namen);
+    }
+
+    public function test_bereinigung_skaliert_nicht_mit_der_anzahl_der_profile(): void
+    {
+        $tag = Tag::factory()->create();
+        $geloescht = Tag::factory()->create();
+        $geloeschteId = $geloescht->id;
+        $geloescht->delete();
+
+        // Zehn Profile mit je einem gültigen und einem gelöschten Tag
+        foreach (range(1, 10) as $i) {
+            SearchProfile::create([
+                'name' => "Profil {$i}",
+                'user_id' => $this->user->id,
+                'tag_ids' => [$tag->id, $geloeschteId],
+            ]);
+        }
+
+        DB::enableQueryLog();
+        $this->getJson('/api/v1/search-profiles')->assertOk();
+        $abfragen = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        // Eine Abfrage je Referenzfeld, nicht je Profil. Die Aktualisierungen der
+        // zehn bereinigten Profile sind unvermeidbar, die Prüfabfragen nicht.
+        $pruefungen = collect($abfragen)->filter(
+            fn ($q) => str_contains($q['query'], 'select') && str_contains($q['query'], '"tags"'),
+        );
+
+        $this->assertCount(1, $pruefungen, 'Tag-Existenzprüfung darf nur einmal laufen, nicht je Profil');
     }
 }

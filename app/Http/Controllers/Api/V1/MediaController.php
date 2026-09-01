@@ -53,7 +53,7 @@ class MediaController extends Controller
     {
         $this->authorize('viewAny', Media::class);
 
-        $query = Media::query()->with('pdfDocument:id,media_id,status')->withCount('revisions');
+        $query = Media::query()->with(['pdfDocument:id,media_id,status', 'tags'])->withCount('revisions');
         $this->applyMediaFilters($query, $request);
         $this->hideRestrictedMedia($query, $request->user());
         $this->applySorting($query, $request, 'created_at', 'desc');
@@ -766,7 +766,7 @@ class MediaController extends Controller
     {
         $this->authorize('view', $medium);
 
-        return new MediaResource($medium);
+        return new MediaResource($medium->load('tags'));
     }
 
     public function update(UpdateMediaRequest $request, Media $medium): MediaResource
@@ -775,7 +775,7 @@ class MediaController extends Controller
 
         $medium->update($request->validated());
 
-        return new MediaResource($medium->fresh());
+        return new MediaResource($medium->fresh()->load('tags'));
     }
 
     public function dependencies(Media $medium): JsonResponse

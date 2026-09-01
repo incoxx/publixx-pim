@@ -142,6 +142,7 @@ const en = {
   // ohne Gruppenkontext mehrdeutig wäre ('Cache', 'Export / Import') ---
   'Content-Cache': 'Content cache',
   'Content Export / Import': 'Content export / import',
+  'Sprachen': 'Languages',
 };
 
 // de = Identitaet, gleicher Grund wie in productEditorRawText.js: verhindert,

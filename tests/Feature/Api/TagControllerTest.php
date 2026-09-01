@@ -239,4 +239,33 @@ class TagControllerTest extends TestCase
         $this->getJson('/api/v1/tags')->assertForbidden();
         $this->postJson('/api/v1/tags', ['name_de' => 'Test'])->assertForbidden();
     }
+
+    public function test_medien_liefern_ihre_tags_beim_lesen_mit(): void
+    {
+        $medium = Media::factory()->create();
+        $tag = Tag::factory()->create(['name_de' => 'Freigegeben']);
+
+        $this->putJson("/api/v1/media/{$medium->id}/tags", ['tag_ids' => [$tag->id]])->assertOk();
+
+        // Ohne Eager Loading wären die Tags nur schreibbar, aber nie lesbar
+        $this->getJson("/api/v1/media/{$medium->id}")
+            ->assertOk()
+            ->assertJsonPath('data.tags.0.name_de', 'Freigegeben');
+
+        $this->getJson('/api/v1/media')
+            ->assertOk()
+            ->assertJsonPath('data.0.tags.0.name_de', 'Freigegeben');
+    }
+
+    public function test_produkte_liefern_ihre_tags_beim_lesen_mit(): void
+    {
+        $product = Product::factory()->create();
+        $tag = Tag::factory()->create(['name_de' => 'Neuheit']);
+
+        $this->putJson("/api/v1/products/{$product->id}/tags", ['tag_ids' => [$tag->id]])->assertOk();
+
+        $this->getJson("/api/v1/products/{$product->id}?include=tags")
+            ->assertOk()
+            ->assertJsonPath('data.tags.0.name_de', 'Neuheit');
+    }
 }

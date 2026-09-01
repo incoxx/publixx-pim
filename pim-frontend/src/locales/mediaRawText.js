@@ -67,6 +67,7 @@ const en = {
   'Datei fehlt': 'File missing',
   'Details': 'Details',
   'Größe': 'Size',
+  'Nach dieser Spalte sortieren': 'Sort by this column',
   'Verwendung': 'Usage',
   'Keine Medien vorhanden': 'No media available',
   'Dateien hierhin ziehen oder "Hochladen" klicken': 'Drag files here or click "Upload"',
