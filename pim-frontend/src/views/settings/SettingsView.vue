@@ -826,7 +826,7 @@ const themeForm = ref({
   default_locale: 'de',
   popup_max_width: '4xl',
   facet_attribute_ids: [],
-  catalog_tag_facet: false,
+  catalog_tag_facet: true,
   detail_layout: 'classic',
   card_attribute_ids: [],
   primary_card_attribute_id: null,
@@ -935,7 +935,7 @@ async function loadThemeSettings() {
         color_search_text: d.color_search_text || '',
         popup_max_width: d.popup_max_width || '4xl',
         facet_attribute_ids: d.facet_attribute_ids || [],
-    catalog_tag_facet: d.catalog_tag_facet ?? false,
+    catalog_tag_facet: d.catalog_tag_facet ?? true,
         detail_layout: d.detail_layout || 'classic',
         card_attribute_ids: d.card_attribute_ids || [],
         primary_card_attribute_id: d.primary_card_attribute_id || null,
@@ -990,6 +990,7 @@ async function saveThemeSettings() {
     payload.card_show_price = !!payload.card_show_price
     payload.catalog_pdf_enabled = !!payload.catalog_pdf_enabled
     payload.catalog_compare_enabled = !!payload.catalog_compare_enabled
+    payload.catalog_tag_facet = !!payload.catalog_tag_facet
     payload.catalog_excel_export_enabled = !!payload.catalog_excel_export_enabled
     payload.catalog_share_wishlist_enabled = !!payload.catalog_share_wishlist_enabled
     payload.catalog_compare_max_products = parseInt(payload.catalog_compare_max_products) || 3
@@ -1079,7 +1080,7 @@ function applyPayloadToForm(payload) {
     color_mobile_menu_text: d.color_mobile_menu_text || '',
     popup_max_width: d.popup_max_width || '4xl',
     facet_attribute_ids: d.facet_attribute_ids || [],
-    catalog_tag_facet: d.catalog_tag_facet ?? false,
+    catalog_tag_facet: d.catalog_tag_facet ?? true,
     detail_layout: d.detail_layout || 'classic',
     card_attribute_ids: d.card_attribute_ids || [],
     primary_card_attribute_id: d.primary_card_attribute_id || null,

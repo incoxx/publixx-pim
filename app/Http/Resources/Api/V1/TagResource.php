@@ -14,6 +14,15 @@ class TagResource extends JsonResource
         return [
             'id' => $this->id,
             'technical_name' => $this->technical_name,
+            'tag_group_id' => $this->tag_group_id,
+            // Nur wenn geladen — die Gruppe wird nicht überall gebraucht
+            'group' => $this->whenLoaded('group', fn () => [
+                'id' => $this->group->id,
+                'technical_name' => $this->group->technical_name,
+                'name_de' => $this->group->name_de,
+                'name_en' => $this->group->name_en,
+                'sort_order' => $this->group->sort_order,
+            ]),
             'name_de' => $this->name_de,
             'name_en' => $this->name_en,
             'name_json' => $this->name_json,

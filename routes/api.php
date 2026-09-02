@@ -75,6 +75,7 @@ use App\Http\Controllers\Api\V1\MediaMotifController;
 use App\Http\Controllers\Api\V1\MediaRenditionPresetController;
 use App\Http\Controllers\Api\V1\MediaUsageTypeController;
 use App\Http\Controllers\Api\V1\TagController;
+use App\Http\Controllers\Api\V1\TagGroupController;
 use App\Http\Controllers\Api\V1\MeilisearchAdminController;
 use App\Http\Controllers\Api\V1\MessengerController;
 use App\Http\Controllers\Api\V1\MessengerConversationController;
@@ -704,6 +705,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::put('media/{medium}/attribute-values', [MediaAttributeValueController::class, 'bulkUpdate']);
 
     // Tags: mehrsprachige Stichworte für Produkte und Medien
+    Route::apiResource('tag-groups', TagGroupController::class);
+    Route::get('tag-groups/{tag_group}/dependencies', [TagGroupController::class, 'dependencies']);
     Route::apiResource('tags', TagController::class);
     Route::get('tags/{tag}/dependencies', [TagController::class, 'dependencies']);
     Route::put('products/{product}/tags', [TagController::class, 'syncProductTags']);

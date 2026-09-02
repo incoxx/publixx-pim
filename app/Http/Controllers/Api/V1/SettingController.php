@@ -64,7 +64,7 @@ class SettingController extends Controller
         'color_search_text' => null,
         'popup_max_width' => '4xl',
         'facet_attribute_ids' => [],
-        'catalog_tag_facet' => false,
+        'catalog_tag_facet' => true,
         'detail_layout' => 'classic',
         'card_attribute_ids' => [],
         'card_show_sku' => false,

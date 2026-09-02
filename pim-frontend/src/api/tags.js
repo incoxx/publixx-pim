@@ -29,4 +29,22 @@ export const tags = {
   },
 }
 
+export const tagGroups = {
+  list(params = {}) {
+    return client.get('/tag-groups', { params: buildParams(params) })
+  },
+  create(data) {
+    return client.post('/tag-groups', data)
+  },
+  update(id, data) {
+    return client.put(`/tag-groups/${id}`, data)
+  },
+  dependencies(id) {
+    return client.get(`/tag-groups/${id}/dependencies`)
+  },
+  delete(id, { force = false } = {}) {
+    return client.delete(`/tag-groups/${id}`, { params: force ? { force: true } : {} })
+  },
+}
+
 export default tags

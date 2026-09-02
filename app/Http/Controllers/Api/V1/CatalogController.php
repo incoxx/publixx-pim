@@ -23,6 +23,7 @@ use App\Models\ProductPrice;
 use App\Models\Setting;
 use App\Models\WebsiteProfile;
 use App\Models\SearchProfile;
+use App\Models\TagGroup;
 use App\Models\ValueListEntry;
 use App\Models\PdfTemplate;
 use App\Services\Inheritance\HierarchyInheritanceService;
@@ -209,7 +210,7 @@ class CatalogController extends BaseController
                     // Tags sind keine Attribute — ohne diese Abzweigung würde auf
                     // product_attribute_values mit attribute_id='tags' gejoint und
                     // die Trefferliste bliebe leer.
-                    if ($attrId === self::TAG_FACET_KEY) {
+                    if ($this->isTagFacetKey($attrId)) {
                         $this->applyTagFacetFilter($query, (string) $filterValue, 'products.id');
                         continue;
                     }
@@ -1290,57 +1291,79 @@ class CatalogController extends BaseController
      * Returns available facet filters based on configured attributes.
      */
     /**
-     * Baut die Tag-Facette: Zähler je Tag über die aktuell gefilterte Produktmenge.
+     * Baut die Tag-Facetten: eine Filtergruppe je Tag-Gruppe, dazu eine Gruppe
+     * "Tags" für ungruppierte Tags. Ohne angelegte Gruppen entsteht genau eine
+     * Facette — das bisherige Verhalten.
      *
-     * Gibt bewusst dasselbe Schema aus wie die Attribut-Facetten
-     * (attribute_id/label/data_type/values), damit das Facetten-Widget im Katalog
-     * unverändert rendert — data_type 'ValueList' liefert die Checkbox-Liste
-     * inklusive Suche und "mehr anzeigen".
+     * Schlüssel ist `tags` für ungruppierte bzw. `tags:<gruppen-id>` je Gruppe.
+     * Dadurch verknüpfen sich mehrere Gruppen UND, Werte innerhalb einer Gruppe
+     * ODER — genau wie bei den Attribut-Facetten. Ausgabeschema unverändert,
+     * das Facetten-Widget rendert die Gruppen ohne Anpassung.
      *
      * @param  array<string, mixed>  $filters
-     * @return array<string, mixed>|null  null, wenn es nichts zu filtern gibt
+     * @return array<int, array<string, mixed>>
      */
-    private function buildTagFacet($activeProductQuery, $categoryProductQuery, array $filters, $attributes, string $lang): ?array
+    private function buildTagFacets($activeProductQuery, $categoryProductQuery, array $filters, $attributes, string $lang): array
     {
-        $filteredProductQuery = clone $activeProductQuery;
+        $groups = TagGroup::orderBy('sort_order')->orderBy('name_de')->get();
+        $facets = [];
 
-        if ($categoryProductQuery !== null) {
-            $filteredProductQuery->whereIn('id', $categoryProductQuery);
+        // Erst die Gruppen in Pflege-Reihenfolge, dann die ungruppierten Tags
+        $buckets = $groups->map(fn ($group) => ['group' => $group, 'key' => self::TAG_FACET_KEY.':'.$group->id])
+            ->push(['group' => null, 'key' => self::TAG_FACET_KEY]);
+
+        foreach ($buckets as $bucket) {
+            $group = $bucket['group'];
+            $facetKey = $bucket['key'];
+
+            $filteredProductQuery = clone $activeProductQuery;
+            if ($categoryProductQuery !== null) {
+                $filteredProductQuery->whereIn('id', $categoryProductQuery);
+            }
+            $this->applyOtherFacetFilters($filteredProductQuery, $filters, $attributes, $facetKey);
+
+            $counts = DB::table('product_tag')
+                ->join('tags', 'tags.id', '=', 'product_tag.tag_id')
+                ->whereIn('product_tag.product_id', $filteredProductQuery)
+                ->where('tags.is_active', true)
+                ->when(
+                    $group !== null,
+                    fn ($q) => $q->where('tags.tag_group_id', $group->id),
+                    fn ($q) => $q->whereNull('tags.tag_group_id'),
+                )
+                ->groupBy('tags.id', 'tags.name_de', 'tags.name_en')
+                ->orderByDesc(DB::raw('COUNT(*)'))
+                ->limit(50)
+                ->get(['tags.id', 'tags.name_de', 'tags.name_en', DB::raw('COUNT(*) as product_count')]);
+
+            if ($counts->isEmpty()) {
+                continue;
+            }
+
+            $facets[] = [
+                'attribute_id' => $facetKey,
+                'label' => $group !== null
+                    ? ($lang === 'en' && $group->name_en ? $group->name_en : $group->name_de)
+                    // "Tags" ist in beiden Sprachen dasselbe Wort
+                    : 'Tags',
+                'data_type' => 'ValueList',
+                'values' => $counts->map(fn ($row) => [
+                    'value' => $lang === 'en' && $row->name_en ? $row->name_en : $row->name_de,
+                    'value_id' => $row->id,
+                    'count' => (int) $row->product_count,
+                ])->all(),
+            ];
         }
 
-        $this->applyOtherFacetFilters($filteredProductQuery, $filters, $attributes, self::TAG_FACET_KEY);
+        return $facets;
+    }
 
-        $counts = DB::table('product_tag')
-            ->join('tags', 'tags.id', '=', 'product_tag.tag_id')
-            ->whereIn('product_tag.product_id', $filteredProductQuery)
-            ->where('tags.is_active', true)
-            ->groupBy('tags.id', 'tags.name_de', 'tags.name_en')
-            ->orderByDesc(DB::raw('COUNT(*)'))
-            ->limit(50)
-            ->get([
-                'tags.id',
-                'tags.name_de',
-                'tags.name_en',
-                DB::raw('COUNT(*) as product_count'),
-            ]);
-
-        if ($counts->isEmpty()) {
-            return null;
-        }
-
-        $values = $counts->map(fn ($row) => [
-            'value' => $lang === 'en' && $row->name_en ? $row->name_en : $row->name_de,
-            'value_id' => $row->id,
-            'count' => (int) $row->product_count,
-        ])->all();
-
-        return [
-            'attribute_id' => self::TAG_FACET_KEY,
-            // "Tags" ist in beiden Sprachen dasselbe Wort — kein Sprachzweig nötig
-            'label' => 'Tags',
-            'data_type' => 'ValueList',
-            'values' => $values,
-        ];
+    /**
+     * Erkennt die Tag-Facetten-Schlüssel: `tags` (ungruppiert) und `tags:<gruppen-id>`.
+     */
+    private function isTagFacetKey(string $key): bool
+    {
+        return $key === self::TAG_FACET_KEY || str_starts_with($key, self::TAG_FACET_KEY.':');
     }
 
     /**
@@ -1383,7 +1406,7 @@ class CatalogController extends BaseController
                     continue;
                 }
 
-                if ($filterAttrId === self::TAG_FACET_KEY) {
+                if ($this->isTagFacetKey((string) $filterAttrId)) {
                     $this->applyTagFacetFilter($query, (string) $filterValue, 'id');
                     continue;
                 }
@@ -1454,7 +1477,7 @@ class CatalogController extends BaseController
 
         // Frueher Ausstieg nur, wenn es ueberhaupt nichts zu berechnen gibt — die
         // Tag-Facette braucht keine konfigurierten Attribut-Facetten.
-        if (empty($facetAttributeIds) && empty($themePayload['catalog_tag_facet'])) {
+        if (empty($facetAttributeIds) && ! ($themePayload['catalog_tag_facet'] ?? true)) {
             return response()->json(['facets' => []]);
         }
 
@@ -1735,11 +1758,13 @@ class CatalogController extends BaseController
         // Tag-Facette (optional, über die Katalog-Einstellungen aktivierbar). Sie folgt
         // denselben Regeln wie die Attribut-Facetten: nur aktive Produkte ohne Teile,
         // Kategorie-/Suchprofil-Grenzen, und Smart Graying über applyOtherFacetFilters().
-        if (!empty($themePayload['catalog_tag_facet'])) {
-            $tagFacet = $this->buildTagFacet($activeProductQuery, $categoryProductQuery, $filters, $attributes, $lang);
-            if ($tagFacet !== null) {
-                $facets[] = $tagFacet;
-            }
+        // Standardmaessig an: ohne getaggte Produkte entstehen keine Facetten — ein Katalog ohne Tags sieht also unveraendert aus. Aus
+        // bleibt sie nur, wenn sie in den Einstellungen ausdruecklich abgewaehlt wird.
+        if ($themePayload['catalog_tag_facet'] ?? true) {
+            $facets = array_merge(
+                $facets,
+                $this->buildTagFacets($activeProductQuery, $categoryProductQuery, $filters, $attributes, $lang),
+            );
         }
 
         return response()->json(['facets' => $facets]);

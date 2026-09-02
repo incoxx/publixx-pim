@@ -12,6 +12,7 @@ use App\Models\ProductAttributeValue;
 use App\Models\ProductSearchIndex;
 use App\Models\Role;
 use App\Models\Tag;
+use App\Models\TagGroup;
 use App\Models\User;
 use App\Models\WebsiteProfile;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -535,8 +536,31 @@ class CatalogControllerTest extends TestCase
 
     // ── Tag-Facette im Katalog ───────────────────────────────────────
 
-    public function test_tag_facette_bleibt_aus_ohne_einstellung(): void
+    public function test_tag_facette_erscheint_ohne_zutun_sobald_produkte_getaggt_sind(): void
     {
+        $tag = Tag::factory()->create(['name_de' => 'Neuheit']);
+        $this->createIndexedProduct()->tags()->attach($tag->id);
+
+        $this->getJson('/api/v1/catalog/facets')
+            ->assertOk()
+            ->assertJsonPath('facets.0.attribute_id', 'tags')
+            ->assertJsonPath('facets.0.values.0.value', 'Neuheit');
+    }
+
+    public function test_tag_facette_bleibt_aus_solange_kein_produkt_getaggt_ist(): void
+    {
+        // Ein Katalog ohne Tags sieht unveraendert aus — die Facette taucht nicht
+        // als leere Gruppe auf.
+        $this->createIndexedProduct();
+
+        $this->getJson('/api/v1/catalog/facets')
+            ->assertOk()
+            ->assertJsonPath('facets', []);
+    }
+
+    public function test_tag_facette_laesst_sich_ausdruecklich_abschalten(): void
+    {
+        $this->createActiveProfile(['catalog_tag_facet' => false]);
         $tag = Tag::factory()->create();
         $this->createIndexedProduct()->tags()->attach($tag->id);
 
@@ -667,5 +691,92 @@ class CatalogControllerTest extends TestCase
 
         $response->assertOk();
         $this->assertCount(1, $response->json());
+    }
+
+    public function test_tag_facette_laesst_sich_ueber_die_katalog_einstellungen_schalten(): void
+    {
+        // Beweist den kompletten Weg: Schalter in den Einstellungen speichern →
+        // Facette erscheint im Katalog. Der Payload-Merge hat schon Felder verschluckt.
+        $tag = Tag::factory()->create(['name_de' => 'Neuheit']);
+        $this->createIndexedProduct()->tags()->attach($tag->id);
+
+        $this->actingAs($this->user)
+            ->putJson('/api/v1/settings/catalog-theme', ['catalog_tag_facet' => true])
+            ->assertOk();
+
+        \Illuminate\Support\Once::flush();
+
+        $this->getJson('/api/v1/catalog/facets')
+            ->assertOk()
+            ->assertJsonPath('facets.0.attribute_id', 'tags')
+            ->assertJsonPath('facets.0.values.0.value', 'Neuheit');
+    }
+
+    public function test_tag_gruppen_ergeben_je_eine_eigene_filtergruppe(): void
+    {
+        $saison = TagGroup::factory()->create(['name_de' => 'Saison', 'sort_order' => 1]);
+        $zustand = TagGroup::factory()->create(['name_de' => 'Zustand', 'sort_order' => 2]);
+
+        $winter = Tag::factory()->create(['name_de' => 'Winter', 'tag_group_id' => $saison->id]);
+        $neu = Tag::factory()->create(['name_de' => 'Neu', 'tag_group_id' => $zustand->id]);
+        $ohneGruppe = Tag::factory()->create(['name_de' => 'Sonstiges']);
+
+        $this->createIndexedProduct()->tags()->attach([$winter->id, $neu->id, $ohneGruppe->id]);
+
+        $response = $this->getJson('/api/v1/catalog/facets');
+
+        $response->assertOk()
+            // Gruppen in Pflege-Reihenfolge, ungruppierte zuletzt
+            ->assertJsonPath('facets.0.label', 'Saison')
+            ->assertJsonPath('facets.0.values.0.value', 'Winter')
+            ->assertJsonPath('facets.1.label', 'Zustand')
+            ->assertJsonPath('facets.2.label', 'Tags')
+            ->assertJsonPath('facets.2.values.0.value', 'Sonstiges');
+    }
+
+    public function test_leere_tag_gruppen_erscheinen_nicht(): void
+    {
+        TagGroup::factory()->create(['name_de' => 'Leer']);
+        $tag = Tag::factory()->create();
+        $this->createIndexedProduct()->tags()->attach($tag->id);
+
+        $response = $this->getJson('/api/v1/catalog/facets');
+
+        $response->assertOk()->assertJsonCount(1, 'facets');
+        $this->assertSame('Tags', $response->json('facets.0.label'));
+    }
+
+    public function test_zwei_tag_gruppen_verknuepfen_sich_und(): void
+    {
+        $saison = TagGroup::factory()->create(['name_de' => 'Saison']);
+        $zustand = TagGroup::factory()->create(['name_de' => 'Zustand']);
+        $winter = Tag::factory()->create(['tag_group_id' => $saison->id]);
+        $neu = Tag::factory()->create(['tag_group_id' => $zustand->id]);
+
+        $beides = $this->createIndexedProduct(['name' => 'Beides']);
+        $beides->tags()->attach([$winter->id, $neu->id]);
+        $this->createIndexedProduct(['name' => 'Nur Winter'])->tags()->attach($winter->id);
+
+        $response = $this->getJson(
+            "/api/v1/catalog/products?filters[tags:{$saison->id}]={$winter->id}&filters[tags:{$zustand->id}]={$neu->id}"
+        );
+
+        $response->assertOk();
+        $this->assertSame(['Beides'], collect($response->json())->pluck('name')->all());
+    }
+
+    public function test_gruppen_facette_zeigt_trotz_eigener_auswahl_alle_werte(): void
+    {
+        $saison = TagGroup::factory()->create(['name_de' => 'Saison']);
+        $winter = Tag::factory()->create(['tag_group_id' => $saison->id]);
+        $sommer = Tag::factory()->create(['tag_group_id' => $saison->id]);
+
+        $this->createIndexedProduct()->tags()->attach($winter->id);
+        $this->createIndexedProduct()->tags()->attach($sommer->id);
+
+        // Smart Graying muss auch für die Gruppen-Schlüssel greifen
+        $this->getJson("/api/v1/catalog/facets?filters[tags:{$saison->id}]={$winter->id}")
+            ->assertOk()
+            ->assertJsonCount(2, 'facets.0.values');
     }
 }

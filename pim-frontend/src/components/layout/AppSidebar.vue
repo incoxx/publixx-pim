@@ -250,6 +250,7 @@ const sections = computed(() => {
         },
         // Eigener Punkt statt in einer Gruppe: Tags gelten für Produkte und Medien gleichermaßen.
         { icon: Tag, label: () => t('nav.tags'), to: '/tags', permission: 'tags.view' },
+        { icon: Tags, label: () => t('Tag-Gruppen'), to: '/tag-groups', permission: 'tags.view' },
       ],
     },
     {

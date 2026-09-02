@@ -14,6 +14,7 @@ use App\Models\HierarchyNode;
 use App\Models\HierarchyNodeAttributeAssignment;
 use App\Models\HierarchyNodeMediaAssignment;
 use App\Models\Media;
+use App\Models\TagGroup;
 use App\Models\MediaAttributeValue;
 use App\Models\ValueListEntry;
 use App\Models\MediaCountry;
@@ -744,10 +745,7 @@ class AssetCatalogController extends BaseController
             }
         }
 
-        $tagFacet = $this->buildTagFacet($baseQuery, $filters, $lang);
-        if ($tagFacet !== null) {
-            $facets[] = $tagFacet;
-        }
+        $facets = array_merge($facets, $this->buildTagFacets($baseQuery, $filters, $lang));
 
         return response()->json(['facets' => $facets]);
     }
@@ -1180,9 +1178,16 @@ class AssetCatalogController extends BaseController
         $this->applyBaseAssetFilters($baseQuery, $request);
 
         $filters = $request->query('filters', []);
-        $tagFacet = $this->buildTagFacet($baseQuery, is_array($filters) ? $filters : [], $lang);
 
-        return $tagFacet !== null ? [$tagFacet] : [];
+        return $this->buildTagFacets($baseQuery, is_array($filters) ? $filters : [], $lang);
+    }
+
+    /**
+     * Erkennt die Tag-Facetten-Schlüssel: `tags` (ungruppiert) und `tags:<gruppen-id>`.
+     */
+    private function isTagFacetKey(string $key): bool
+    {
+        return $key === self::TAG_FACET_KEY || str_starts_with($key, self::TAG_FACET_KEY.':');
     }
 
     /**
@@ -1204,44 +1209,64 @@ class AssetCatalogController extends BaseController
     }
 
     /**
-     * Baut die Tag-Facette des Asset-Katalogs: Zähler je Tag über die aktuell
-     * gefilterte Asset-Menge. Gibt dasselbe Schema aus wie die Attribut-Facetten,
-     * damit AssetCatalogFacets.vue unverändert rendert.
+     * Baut die Tag-Facetten des Asset-Katalogs: eine Filtergruppe je Tag-Gruppe,
+     * dazu "Tags" für ungruppierte. Gleiche Schlüssel-Konvention wie im
+     * Produktkatalog (`tags` bzw. `tags:<gruppen-id>`).
      *
-     * Anders als im Produktkatalog braucht es keine Freischaltung: die Facette
-     * erscheint genau dann, wenn überhaupt Assets getaggt sind.
+     * Anders als im Produktkatalog braucht es keine Freischaltung: die Facetten
+     * erscheinen genau dann, wenn Assets getaggt sind.
      *
      * @param  array<string, mixed>  $filters
-     * @return array<string, mixed>|null
+     * @return array<int, array<string, mixed>>
      */
-    private function buildTagFacet($baseQuery, array $filters, string $lang): ?array
+    private function buildTagFacets($baseQuery, array $filters, string $lang): array
     {
-        $filteredMediaQuery = clone $baseQuery;
-        $this->applyFacetFilters($filteredMediaQuery, array_diff_key($filters, [self::TAG_FACET_KEY => true]));
+        $groups = TagGroup::orderBy('sort_order')->orderBy('name_de')->get();
+        $facets = [];
 
-        $counts = DB::table('media_tag')
-            ->join('tags', 'tags.id', '=', 'media_tag.tag_id')
-            ->whereIn('media_tag.media_id', $filteredMediaQuery->select('id'))
-            ->where('tags.is_active', true)
-            ->groupBy('tags.id', 'tags.name_de', 'tags.name_en')
-            ->orderByDesc(DB::raw('COUNT(*)'))
-            ->limit(50)
-            ->get(['tags.id', 'tags.name_de', 'tags.name_en', DB::raw('COUNT(*) as asset_count')]);
+        $buckets = $groups->map(fn ($group) => ['group' => $group, 'key' => self::TAG_FACET_KEY.':'.$group->id])
+            ->push(['group' => null, 'key' => self::TAG_FACET_KEY]);
 
-        if ($counts->isEmpty()) {
-            return null;
+        foreach ($buckets as $bucket) {
+            $group = $bucket['group'];
+            $facetKey = $bucket['key'];
+
+            $filteredMediaQuery = clone $baseQuery;
+            $this->applyFacetFilters($filteredMediaQuery, array_diff_key($filters, [$facetKey => true]));
+
+            $counts = DB::table('media_tag')
+                ->join('tags', 'tags.id', '=', 'media_tag.tag_id')
+                ->whereIn('media_tag.media_id', $filteredMediaQuery->select('id'))
+                ->where('tags.is_active', true)
+                ->when(
+                    $group !== null,
+                    fn ($q) => $q->where('tags.tag_group_id', $group->id),
+                    fn ($q) => $q->whereNull('tags.tag_group_id'),
+                )
+                ->groupBy('tags.id', 'tags.name_de', 'tags.name_en')
+                ->orderByDesc(DB::raw('COUNT(*)'))
+                ->limit(50)
+                ->get(['tags.id', 'tags.name_de', 'tags.name_en', DB::raw('COUNT(*) as asset_count')]);
+
+            if ($counts->isEmpty()) {
+                continue;
+            }
+
+            $facets[] = [
+                'attribute_id' => $facetKey,
+                'label' => $group !== null
+                    ? ($lang === 'en' && $group->name_en ? $group->name_en : $group->name_de)
+                    : 'Tags',
+                'data_type' => 'ValueList',
+                'values' => $counts->map(fn ($row) => [
+                    'value' => $lang === 'en' && $row->name_en ? $row->name_en : $row->name_de,
+                    'value_id' => $row->id,
+                    'count' => (int) $row->asset_count,
+                ])->all(),
+            ];
         }
 
-        return [
-            'attribute_id' => self::TAG_FACET_KEY,
-            'label' => 'Tags',
-            'data_type' => 'ValueList',
-            'values' => $counts->map(fn ($row) => [
-                'value' => $lang === 'en' && $row->name_en ? $row->name_en : $row->name_de,
-                'value_id' => $row->id,
-                'count' => (int) $row->asset_count,
-            ])->all(),
-        ];
+        return $facets;
     }
 
     /**
@@ -1261,7 +1286,7 @@ class AssetCatalogController extends BaseController
                 continue;
             }
 
-            if ($filterAttrId === self::TAG_FACET_KEY) {
+            if ($this->isTagFacetKey((string) $filterAttrId)) {
                 $this->applyTagFacetFilter($query, (string) $filterValue);
                 continue;
             }
