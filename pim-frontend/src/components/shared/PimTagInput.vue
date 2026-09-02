@@ -20,6 +20,8 @@ const props = defineProps({
   /** Zugeordnete Tags als Objekte ({ id, technical_name, name_de, ... }) */
   modelValue: { type: Array, default: () => [] },
   disabled: { type: Boolean, default: false },
+  /** Im Filter-Kontext sinnlos: dort wird ausgewählt, nicht gepflegt. */
+  allowCreate: { type: Boolean, default: true },
   placeholder: { type: String, default: 'Tag hinzufügen…' },
 })
 
@@ -28,44 +30,55 @@ const emit = defineEmits(['update:modelValue'])
 const authStore = useAuthStore()
 const { localizedName } = useLocalizedName()
 
-// Bewusst bei jedem Mount neu laden statt modulweit zu cachen: sonst fehlt ein
-// Tag, der zwischenzeitlich in der Tag-Verwaltung angelegt wurde, bis zum
-// Seiten-Reload. Die Liste ist kurz (nur aktive Tags).
+// Vorschlaege kommen serverseitig gefiltert: die API deckelt per_page auf 100,
+// eine clientseitige Liste haette ab dem 101. Tag Werte verschwiegen — und
+// "anlegen" fuer einen laengst vorhandenen Tag angeboten (Dublette mit gleichem
+// Namen, nur anderem technischen Namen).
 const options = ref([])
 const loading = ref(false)
 const creating = ref(false)
 const input = ref('')
 const open = ref(false)
+let searchDebounce = null
+let requestSeq = 0
 
-const canCreate = computed(() => authStore.hasPermission('tags.create'))
+const canCreate = computed(() => props.allowCreate && authStore.hasPermission('tags.create'))
 
 function tagLabel(tag) {
   return localizedName(tag) || tag?.technical_name || ''
 }
 
-async function loadOptions() {
+async function loadOptions(term = '') {
   loading.value = true
+  const seq = ++requestSeq
   try {
-    const { data } = await tagsApi.list({ perPage: 200, sort: 'name_de', order: 'asc', filters: { is_active: 1 } })
+    const { data } = await tagsApi.list({
+      perPage: 100,
+      sort: 'name_de',
+      order: 'asc',
+      filters: { is_active: 1 },
+      search: term.trim() || undefined,
+    })
+    // Verspaetete Antwort einer aelteren Eingabe darf die neuere nicht ueberschreiben
+    if (seq !== requestSeq) return
     options.value = data.data || data || []
   } catch {
-    options.value = []
+    if (seq === requestSeq) options.value = []
   } finally {
-    loading.value = false
+    if (seq === requestSeq) loading.value = false
   }
+}
+
+function onInput() {
+  open.value = true
+  clearTimeout(searchDebounce)
+  searchDebounce = setTimeout(() => loadOptions(input.value), 250)
 }
 
 const assignedIds = computed(() => new Set(props.modelValue.map(t => t.id)))
 
-const suggestions = computed(() => {
-  const term = input.value.trim().toLowerCase()
-  return options.value
-    .filter(t => !assignedIds.value.has(t.id))
-    .filter(t => !term
-      || tagLabel(t).toLowerCase().includes(term)
-      || (t.technical_name || '').toLowerCase().includes(term))
-    .slice(0, 8)
-})
+const suggestions = computed(() =>
+  options.value.filter(t => !assignedIds.value.has(t.id)).slice(0, 8))
 
 /** Genauer Treffer verhindert, dass „anlegen" für einen vorhandenen Tag erscheint. */
 const exactMatch = computed(() => {
@@ -103,7 +116,6 @@ async function createTag() {
   try {
     const { data } = await tagsApi.create({ name_de: name })
     const tag = data.data || data
-    options.value = [...options.value, tag]
     add(tag)
   } catch {
     // Fehler (z.B. doppelter Name) bleibt im Feld stehen, damit nichts verloren geht
@@ -119,7 +131,7 @@ function onBlur() {
 
 onMounted(loadOptions)
 
-defineExpose({ suggestions, exactMatch, showCreateOption, add, remove, createTag, onEnter })
+defineExpose({ suggestions, exactMatch, showCreateOption, add, remove, createTag, onEnter, loadOptions })
 </script>
 
 <template>
@@ -144,7 +156,7 @@ defineExpose({ suggestions, exactMatch, showCreateOption, add, remove, createTag
         class="pim-input text-xs w-full"
         :placeholder="placeholder"
         @focus="open = true"
-        @input="open = true"
+        @input="onInput"
         @keydown.enter.prevent="onEnter"
         @blur="onBlur"
       />

@@ -106,6 +106,9 @@ final class PqlValidator
         if ($node instanceof SearchFieldsNode) {
             foreach ($node->fields as $field => $boost) {
                 $this->validateFieldName($field, $availableFields, $errors, $resolvedFields);
+                // SEARCH_FIELDS gewichtet Volltextspalten — 'tags' hat keine, die
+                // Bedingung liefe sonst leer durch und gaebe alle Produkte zurueck.
+                $this->rejectUnsupportedTagOperator($field, 'SEARCH_FIELDS', $errors);
             }
             // Also validate the inner condition field (if it references a specific field)
             if ($node->condition instanceof FuzzyNode || $node->condition instanceof SoundsLikeNode) {

@@ -351,7 +351,13 @@ export function createOfflineApi(dataPath, options = {}) {
           // Value list filter (comma-separated IDs)
           const selectedIds = filterValue.split(',').filter(Boolean).map(v => decodeURIComponent(v))
           if (selectedIds.length === 0) continue
-          if (!selectedIds.includes(String(val))) return false
+          // Mehrfachwerte (Tags, MultiSelection, DelimitedValue) liegen als Array
+          // vor — String(['a','b']) waere 'a,b' und haette nie gematcht.
+          if (Array.isArray(val)) {
+            if (!val.some(v => selectedIds.includes(String(v)))) return false
+          } else if (!selectedIds.includes(String(val))) {
+            return false
+          }
         }
       }
       return true

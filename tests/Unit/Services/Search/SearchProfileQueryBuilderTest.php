@@ -9,7 +9,10 @@ use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Models\Manufacturer;
+use App\Models\ProductType;
 use App\Models\SearchProfile;
+use App\Models\Tag;
 use App\Services\Search\SearchProfileQueryBuilder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -217,5 +220,81 @@ class SearchProfileQueryBuilderTest extends TestCase
         $query = Product::query();
         $this->assertTrue($this->builder->applyById($query, $profile->id));
         $this->assertSame([$aktiv->id], $query->pluck('id')->all());
+    }
+
+    // ── Filter, die das Profil seit der Erweiterung mitspeichert ──────
+    // Ohne diese Zweige liefern Katalog-Basisfilter, Export, Report, API-Designer
+    // und der anyPIM-Connector eine weitere Menge als die Suche beim Speichern.
+
+    public function test_produkttyp_filter_wird_angewendet(): void
+    {
+        $typ = ProductType::factory()->create();
+        $treffer = Product::factory()->create(['product_type_id' => $typ->id]);
+        Product::factory()->create();
+
+        $profile = $this->createProfile(['product_type_ids' => [$typ->id]]);
+
+        $ergebnis = $this->builder->forProducts($profile)->get();
+
+        $this->assertCount(1, $ergebnis);
+        $this->assertSame($treffer->id, $ergebnis->first()->id);
+    }
+
+    public function test_hersteller_filter_wird_angewendet(): void
+    {
+        $hersteller = Manufacturer::create(['name' => 'Testhersteller']);
+        $treffer = Product::factory()->create(['manufacturer_id' => $hersteller->id]);
+        Product::factory()->create();
+
+        $profile = $this->createProfile(['manufacturer_ids' => [$hersteller->id]]);
+
+        $ergebnis = $this->builder->forProducts($profile)->get();
+
+        $this->assertCount(1, $ergebnis);
+        $this->assertSame($treffer->id, $ergebnis->first()->id);
+    }
+
+    public function test_tag_filter_liefert_produkte_mit_einem_der_tags(): void
+    {
+        $neuheit = Tag::factory()->create();
+        $aktion = Tag::factory()->create();
+
+        $ersteres = Product::factory()->create();
+        $zweiteres = Product::factory()->create();
+        $ersteres->tags()->attach($neuheit->id);
+        $zweiteres->tags()->attach($aktion->id);
+        Product::factory()->create();
+
+        $profile = $this->createProfile(['tag_ids' => [$neuheit->id, $aktion->id], 'tag_match' => 'any']);
+
+        $this->assertCount(2, $this->builder->forProducts($profile)->get());
+    }
+
+    public function test_tag_filter_mit_match_all_verlangt_alle_tags(): void
+    {
+        $neuheit = Tag::factory()->create();
+        $aktion = Tag::factory()->create();
+
+        $beide = Product::factory()->create();
+        $beide->tags()->attach([$neuheit->id, $aktion->id]);
+        Product::factory()->create()->tags()->attach($neuheit->id);
+
+        $profile = $this->createProfile(['tag_ids' => [$neuheit->id, $aktion->id], 'tag_match' => 'all']);
+
+        $ergebnis = $this->builder->forProducts($profile)->get();
+
+        $this->assertCount(1, $ergebnis);
+        $this->assertSame($beide->id, $ergebnis->first()->id);
+    }
+
+    public function test_ein_produkt_mit_mehreren_treffer_tags_erscheint_nur_einmal(): void
+    {
+        $neuheit = Tag::factory()->create();
+        $aktion = Tag::factory()->create();
+        Product::factory()->create()->tags()->attach([$neuheit->id, $aktion->id]);
+
+        $profile = $this->createProfile(['tag_ids' => [$neuheit->id, $aktion->id]]);
+
+        $this->assertCount(1, $this->builder->forProducts($profile)->get());
     }
 }

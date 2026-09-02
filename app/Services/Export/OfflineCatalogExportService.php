@@ -201,6 +201,7 @@ class OfflineCatalogExportService
                             ->with([
                                 'searchIndex',
                                 'masterHierarchyNode',
+                                'tags',
                                 'attributeValues' => fn ($q) => $q->where(function ($q2) use ($lang) {
                                     $q2->whereNull('language')->orWhere('language', $lang);
                                 }),
@@ -585,6 +586,7 @@ class OfflineCatalogExportService
         return $query->with([
                 'searchIndex',
                 'masterHierarchyNode',
+                'tags',
                 'attributeValues' => fn ($q) => $q->where(function ($q2) use ($lang) {
                     $q2->whereNull('language')->orWhere('language', $lang);
                 }),
@@ -734,6 +736,16 @@ class OfflineCatalogExportService
                 } else {
                     $facetValues[$attr->id] = $av->value_string;
                 }
+            }
+        }
+
+        // Tags gehoeren zur Facettenmenge, kommen aber nicht aus attributeValues.
+        // Ohne diesen Eintrag steht die Tag-Facette zwar in facets.json, das
+        // Offline-Filter findet aber zu jedem Produkt null und liefert 0 Treffer.
+        if (!empty($themePayload['catalog_tag_facet'])) {
+            $tagIds = $product->tags->pluck('id')->all();
+            if (!empty($tagIds)) {
+                $facetValues['tags'] = $tagIds;
             }
         }
 
@@ -1069,7 +1081,7 @@ class OfflineCatalogExportService
     private function buildFacets(array $themePayload, string $lang): array
     {
         $facetAttributeIds = $themePayload['facet_attribute_ids'] ?? [];
-        if (empty($facetAttributeIds)) {
+        if (empty($facetAttributeIds) && empty($themePayload['catalog_tag_facet'])) {
             Log::channel('export')->info('Facets: keine facet_attribute_ids konfiguriert');
             return ['facets' => []];
         }
@@ -1300,6 +1312,33 @@ class OfflineCatalogExportService
             'types' => collect($facets)->groupBy('data_type')->map->count()->toArray(),
             'labels' => collect($facets)->pluck('label')->toArray(),
         ]);
+
+        // Tag-Facette, sofern im Katalog aktiviert — sonst fehlte sie im Offline-Bundle,
+        // obwohl der Online-Katalog sie zeigt. Ohne aktive Filter im Bundle genuegt
+        // die reine Zaehlung ueber dieselbe Produktmenge.
+        if (!empty($themePayload['catalog_tag_facet'])) {
+            $tagCounts = DB::table('product_tag')
+                ->join('tags', 'tags.id', '=', 'product_tag.tag_id')
+                ->whereIn('product_tag.product_id', $activeProductQuery)
+                ->where('tags.is_active', true)
+                ->groupBy('tags.id', 'tags.name_de', 'tags.name_en')
+                ->orderByDesc(DB::raw('COUNT(*)'))
+                ->limit(50)
+                ->get(['tags.id', 'tags.name_de', 'tags.name_en', DB::raw('COUNT(*) as product_count')]);
+
+            if ($tagCounts->isNotEmpty()) {
+                $facets[] = [
+                    'attribute_id' => 'tags',
+                    'label' => 'Tags',
+                    'data_type' => 'ValueList',
+                    'values' => $tagCounts->map(fn ($row) => [
+                        'value' => $lang === 'en' && $row->name_en ? $row->name_en : $row->name_de,
+                        'value_id' => $row->id,
+                        'count' => (int) $row->product_count,
+                    ])->all(),
+                ];
+            }
+        }
 
         return ['facets' => $facets];
     }

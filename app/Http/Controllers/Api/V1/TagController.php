@@ -14,6 +14,7 @@ use App\Models\Tag;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class TagController extends Controller
@@ -94,6 +95,7 @@ class TagController extends Controller
     public function syncProductTags(Request $request, Product $product): JsonResponse
     {
         $this->authorize('update', $product);
+        $this->authorize('viewAny', Tag::class);
 
         return $this->syncTags($request, $product, 'tags');
     }
@@ -104,8 +106,69 @@ class TagController extends Controller
     public function syncMediaTags(Request $request, Media $medium): JsonResponse
     {
         $this->authorize('update', $medium);
+        $this->authorize('viewAny', Tag::class);
 
         return $this->syncTags($request, $medium, 'tags');
+    }
+
+    /**
+     * POST /products/bulk-tags — Tags für viele Produkte auf einmal setzen.
+     *
+     * `mode` entscheidet über die Semantik, weil bei einer Massenoperation alle
+     * drei Fälle vorkommen und stillschweigendes Überschreiben teuer wäre:
+     *  - add     (Standard): Tags ergänzen, bestehende bleiben
+     *  - remove:            nur die genannten Tags entfernen
+     *  - replace:           genau diese Tags setzen, alle anderen entfernen
+     */
+    public function bulkAssignProducts(Request $request): JsonResponse
+    {
+        // Tags vergeben heißt Produkte ändern — dieselbe Berechtigung wie die
+        // übrigen Massenoperationen (BulkUpdateController).
+        $this->authorize('bulkUpdate', Product::class);
+        $this->authorize('viewAny', Tag::class);
+
+        $validated = $request->validate([
+            // Obergrenze wie beim BulkUpdateController: "Alle Seiten auswählen"
+            // kann sonst den kompletten Katalog in einen Request kippen.
+            'product_ids' => 'required|array|min:1|max:5000',
+            // Bewusst ohne exists: die Regel läuft je Element einmal gegen die
+            // Datenbank — bei 5000 IDs also 5000 Abfragen. Unbekannte IDs fallen
+            // ohnehin durch das whereIn unten raus.
+            'product_ids.*' => 'uuid|distinct',
+            'tag_ids' => 'required|array|min:1|max:50',
+            'tag_ids.*' => 'uuid|distinct|exists:tags,id',
+            'mode' => 'sometimes|string|in:add,remove,replace',
+        ]);
+
+        $productIds = $validated['product_ids'];
+        $tagIds = $validated['tag_ids'];
+        $mode = $validated['mode'] ?? 'add';
+
+        // Chunking: Massenoperationen laufen auch über mehrere tausend Produkte,
+        // die IDs dürfen nicht als eine einzige riesige IN-Liste in die Query.
+        $affected = 0;
+
+        DB::transaction(function () use ($productIds, $tagIds, $mode, &$affected) {
+            foreach (array_chunk($productIds, 500) as $chunk) {
+                foreach (Product::whereIn('id', $chunk)->get() as $product) {
+                    match ($mode) {
+                        // syncWithoutDetaching statt sync: bestehende Tags bleiben
+                        'add' => $product->tags()->syncWithoutDetaching($tagIds),
+                        'remove' => $product->tags()->detach($tagIds),
+                        'replace' => $product->tags()->sync($tagIds),
+                    };
+                    $affected++;
+                }
+            }
+        });
+
+        // Tatsächlich geänderte Produkte melden, nicht die übergebenen IDs —
+        // inzwischen gelöschte IDs sollen die Rückmeldung nicht aufblähen.
+        return response()->json([
+            'message' => $affected.' Produkt(e) aktualisiert.',
+            'products_count' => $affected,
+            'mode' => $mode,
+        ]);
     }
 
     /**

@@ -3311,12 +3311,6 @@ async function save() {
 
     await store.update(product.value.id, updateData)
 
-    if (tagsWereDirty) {
-      await tagsApi.syncProduct(product.value.id, tagsToSync.map(t => t.id))
-      if (product.value) product.value.tags = [...tagsToSync]
-      tagsDirty.value = false
-    }
-
     // Build attribute values payload with language support
     const values = []
 
@@ -3411,6 +3405,19 @@ async function save() {
 
     // Save output hierarchy (channel) attribute values
     await saveOutputHierarchyAttributes()
+
+    // Tags zuletzt und mit eigenem Fehlerpfad: sie haengen an einer eigenen Route,
+    // und ein Fehler dort (z.B. ein zwischenzeitlich geloeschter Tag) darf nicht
+    // das Speichern der Attributwerte mitreissen.
+    if (tagsWereDirty) {
+      try {
+        await tagsApi.syncProduct(product.value.id, tagsToSync.map(t => t.id))
+        if (product.value) product.value.tags = [...tagsToSync]
+        tagsDirty.value = false
+      } catch (e) {
+        toastStore.showToast(e.response?.data?.message || t('Tags konnten nicht gespeichert werden'), 'error')
+      }
+    }
   } finally {
     saving.value = false
   }

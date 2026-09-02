@@ -708,6 +708,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('tags/{tag}/dependencies', [TagController::class, 'dependencies']);
     Route::put('products/{product}/tags', [TagController::class, 'syncProductTags']);
     Route::put('media/{medium}/tags', [TagController::class, 'syncMediaTags']);
+    // Massenzuordnung aus Profisuche und Merkliste
+    Route::post('products/bulk-tags', [TagController::class, 'bulkAssignProducts']);
 
     Route::apiResource('media-usage-types', MediaUsageTypeController::class);
     Route::get('media-usage-types/{media_usage_type}/dependencies', [MediaUsageTypeController::class, 'dependencies']);

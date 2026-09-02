@@ -268,4 +268,192 @@ class TagControllerTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.tags.0.name_de', 'Neuheit');
     }
+
+    // ── Massenzuordnung ──────────────────────────────────────────────
+
+    public function test_massenzuordnung_ergaenzt_tags_und_laesst_bestehende_stehen(): void
+    {
+        $bestehend = Tag::factory()->create();
+        $neu = Tag::factory()->create();
+
+        $erstes = Product::factory()->create();
+        $zweites = Product::factory()->create();
+        $erstes->tags()->attach($bestehend->id);
+
+        $this->postJson('/api/v1/products/bulk-tags', [
+            'product_ids' => [$erstes->id, $zweites->id],
+            'tag_ids' => [$neu->id],
+        ])->assertOk()->assertJsonPath('products_count', 2);
+
+        $this->assertEqualsCanonicalizing(
+            [$bestehend->id, $neu->id],
+            $erstes->fresh()->tags->pluck('id')->all(),
+        );
+        $this->assertSame([$neu->id], $zweites->fresh()->tags->pluck('id')->all());
+    }
+
+    public function test_massenzuordnung_ist_wiederholbar_ohne_duplikate(): void
+    {
+        $tag = Tag::factory()->create();
+        $product = Product::factory()->create();
+
+        foreach (range(1, 2) as $ignored) {
+            $this->postJson('/api/v1/products/bulk-tags', [
+                'product_ids' => [$product->id],
+                'tag_ids' => [$tag->id],
+            ])->assertOk();
+        }
+
+        $this->assertSame(1, $product->fresh()->tags->count());
+    }
+
+    public function test_massenzuordnung_entfernt_nur_die_genannten_tags(): void
+    {
+        $bleibt = Tag::factory()->create();
+        $weg = Tag::factory()->create();
+        $product = Product::factory()->create();
+        $product->tags()->attach([$bleibt->id, $weg->id]);
+
+        $this->postJson('/api/v1/products/bulk-tags', [
+            'product_ids' => [$product->id],
+            'tag_ids' => [$weg->id],
+            'mode' => 'remove',
+        ])->assertOk();
+
+        $this->assertSame([$bleibt->id], $product->fresh()->tags->pluck('id')->all());
+    }
+
+    public function test_massenzuordnung_ersetzt_alle_tags_im_replace_modus(): void
+    {
+        $alt = Tag::factory()->create();
+        $neu = Tag::factory()->create();
+        $product = Product::factory()->create();
+        $product->tags()->attach($alt->id);
+
+        $this->postJson('/api/v1/products/bulk-tags', [
+            'product_ids' => [$product->id],
+            'tag_ids' => [$neu->id],
+            'mode' => 'replace',
+        ])->assertOk();
+
+        $this->assertSame([$neu->id], $product->fresh()->tags->pluck('id')->all());
+    }
+
+    public function test_massenzuordnung_validiert_eingaben(): void
+    {
+        $this->postJson('/api/v1/products/bulk-tags', [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['product_ids', 'tag_ids']);
+
+        $product = Product::factory()->create();
+        $tag = Tag::factory()->create();
+
+        $this->postJson('/api/v1/products/bulk-tags', [
+            'product_ids' => [$product->id],
+            'tag_ids' => [$tag->id],
+            'mode' => 'loeschen',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['mode']);
+    }
+
+    public function test_massenzuordnung_braucht_produkt_bearbeiten_recht(): void
+    {
+        $product = Product::factory()->create();
+        $tag = Tag::factory()->create();
+
+        $this->actingAs(User::factory()->create());
+
+        $this->postJson('/api/v1/products/bulk-tags', [
+            'product_ids' => [$product->id],
+            'tag_ids' => [$tag->id],
+        ])->assertForbidden();
+
+        $this->assertSame(0, $product->fresh()->tags->count());
+    }
+
+    public function test_massenzuordnung_lehnt_uebergrosse_auswahl_ab(): void
+    {
+        $tag = Tag::factory()->create();
+        $zuViele = array_map(fn () => (string) \Illuminate\Support\Str::uuid(), range(1, 5001));
+
+        $this->postJson('/api/v1/products/bulk-tags', [
+            'product_ids' => $zuViele,
+            'tag_ids' => [$tag->id],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['product_ids']);
+    }
+
+    public function test_massenzuordnung_meldet_nur_tatsaechlich_geaenderte_produkte(): void
+    {
+        $tag = Tag::factory()->create();
+        $product = Product::factory()->create();
+
+        // Eine unbekannte ID darf die Rueckmeldung nicht aufblaehen
+        $this->postJson('/api/v1/products/bulk-tags', [
+            'product_ids' => [$product->id, (string) \Illuminate\Support\Str::uuid()],
+            'tag_ids' => [$tag->id],
+        ])->assertOk()->assertJsonPath('products_count', 1);
+    }
+
+    public function test_tags_setzen_erfordert_auch_das_tag_leserecht(): void
+    {
+        $product = Product::factory()->create();
+        $tag = Tag::factory()->create();
+
+        $ohneTagRecht = User::factory()->create();
+        $rolle = Role::findOrCreate('Nur Produkte', 'sanctum');
+        $rolle->givePermissionTo(\App\Models\Permission::findOrCreate('products.edit', 'sanctum'));
+        $ohneTagRecht->assignRole($rolle);
+        $this->actingAs($ohneTagRecht);
+
+        $this->putJson("/api/v1/products/{$product->id}/tags", ['tag_ids' => [$tag->id]])
+            ->assertForbidden();
+    }
+
+    // ── Tags an Assets (Menüpunkt Medien) ────────────────────────────
+
+    public function test_medienliste_filtert_nach_tag(): void
+    {
+        $tag = Tag::factory()->create();
+        $mitTag = Media::factory()->create(['file_name' => 'mit-tag.jpg']);
+        $mitTag->tags()->attach($tag->id);
+        Media::factory()->create(['file_name' => 'ohne-tag.jpg']);
+
+        $response = $this->getJson('/api/v1/media?filter[tags]='.$tag->id);
+
+        $response->assertOk()->assertJsonCount(1, 'data');
+        $this->assertSame('mit-tag.jpg', $response->json('data.0.file_name'));
+    }
+
+    public function test_medienliste_filtert_nach_mehreren_tags_als_vereinigungsmenge(): void
+    {
+        $ersterTag = Tag::factory()->create();
+        $zweiterTag = Tag::factory()->create();
+
+        Media::factory()->create()->tags()->attach($ersterTag->id);
+        Media::factory()->create()->tags()->attach($zweiterTag->id);
+        Media::factory()->create();
+
+        $this->getJson("/api/v1/media?filter[tags]={$ersterTag->id},{$zweiterTag->id}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+    }
+
+    public function test_medium_mit_mehreren_treffer_tags_erscheint_nur_einmal(): void
+    {
+        $ersterTag = Tag::factory()->create();
+        $zweiterTag = Tag::factory()->create();
+        Media::factory()->create()->tags()->attach([$ersterTag->id, $zweiterTag->id]);
+
+        $this->getJson("/api/v1/media?filter[tags]={$ersterTag->id},{$zweiterTag->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+    }
+
+    public function test_ohne_tag_filter_bleiben_alle_medien_sichtbar(): void
+    {
+        $tag = Tag::factory()->create();
+        Media::factory()->create()->tags()->attach($tag->id);
+        Media::factory()->create();
+
+        $this->getJson('/api/v1/media')->assertOk()->assertJsonCount(2, 'data');
+    }
 }

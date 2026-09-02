@@ -32,6 +32,14 @@ use ZipArchive;
 class AssetCatalogController extends BaseController
 {
     /**
+     * Reservierter Facetten-Schlüssel für Tags — analog zum Produktkatalog
+     * (CatalogController::TAG_FACET_KEY). Tags sind keine Attribute, laufen aber
+     * über denselben filters[...]-Vertrag, damit Auswahl, Zähler und Smart
+     * Graying im Asset-Katalog unverändert funktionieren.
+     */
+    private const TAG_FACET_KEY = 'tags';
+
+    /**
      * GET /api/v1/asset-catalog/assets
      *
      * Paginated list of media assets with optional folder/search/usage filtering.
@@ -81,6 +89,7 @@ class AssetCatalogController extends BaseController
             'assetFolder',
             'pdfDocument',
             'hierarchyNodeAssignments.hierarchyNode.hierarchy',
+            'tags',
             'mediaLanguage',
             'mediaCountry',
         ])->withCount(['productAssignments', 'hierarchyNodeAssignments']);
@@ -484,7 +493,8 @@ class AssetCatalogController extends BaseController
 
         $hierarchy = Hierarchy::where('hierarchy_type', 'asset')->orderBy('name_de')->first();
         if (!$hierarchy) {
-            return response()->json(['facets' => []]);
+            // Ohne Asset-Hierarchie gibt es keine Attribut-Facetten, Tags aber schon.
+            return response()->json(['facets' => $this->tagFacetOnly($request, $lang)]);
         }
 
         $hierarchyFacetAssignments = HierarchyAttributeAssignment::where('hierarchy_id', $hierarchy->id)
@@ -516,7 +526,7 @@ class AssetCatalogController extends BaseController
         }
 
         if ($facetAttributes->isEmpty()) {
-            return response()->json(['facets' => []]);
+            return response()->json(['facets' => $this->tagFacetOnly($request, $lang)]);
         }
 
         $baseQuery = Media::query()->excludingRestrictionSensitive($request->user());
@@ -734,6 +744,11 @@ class AssetCatalogController extends BaseController
             }
         }
 
+        $tagFacet = $this->buildTagFacet($baseQuery, $filters, $lang);
+        if ($tagFacet !== null) {
+            $facets[] = $tagFacet;
+        }
+
         return response()->json(['facets' => $facets]);
     }
 
@@ -758,6 +773,7 @@ class AssetCatalogController extends BaseController
             'hierarchyNodeAssignments.hierarchyNode.hierarchy',
             'mediaLanguage',
             'mediaCountry',
+            'tags',
         ])->loadCount(['productAssignments', 'hierarchyNodeAssignments']);
 
         // Build folder breadcrumb
@@ -1152,6 +1168,83 @@ class AssetCatalogController extends BaseController
     }
 
     /**
+     * Facetten-Antwort, wenn es keine Attribut-Facetten gibt: dann bleibt nur
+     * die Tag-Facette — ohne diesen Weg waere die Tag-Suche im Asset-Katalog
+     * genau dort unsichtbar, wo sie am ehesten gebraucht wird.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function tagFacetOnly(Request $request, string $lang): array
+    {
+        $baseQuery = Media::query()->excludingRestrictionSensitive($request->user());
+        $this->applyBaseAssetFilters($baseQuery, $request);
+
+        $filters = $request->query('filters', []);
+        $tagFacet = $this->buildTagFacet($baseQuery, is_array($filters) ? $filters : [], $lang);
+
+        return $tagFacet !== null ? [$tagFacet] : [];
+    }
+
+    /**
+     * Tag-Filter: Assets, die mindestens einen der gewählten Tags tragen
+     * (ODER innerhalb der Gruppe, wie bei den Wertelisten-Facetten).
+     */
+    private function applyTagFacetFilter($query, string $filterValue): void
+    {
+        $tagIds = array_values(array_filter(array_map('urldecode', explode(',', $filterValue))));
+        if (empty($tagIds)) {
+            return;
+        }
+
+        $query->whereIn('id', function ($sub) use ($tagIds) {
+            $sub->select('media_id')
+                ->from('media_tag')
+                ->whereIn('tag_id', $tagIds);
+        });
+    }
+
+    /**
+     * Baut die Tag-Facette des Asset-Katalogs: Zähler je Tag über die aktuell
+     * gefilterte Asset-Menge. Gibt dasselbe Schema aus wie die Attribut-Facetten,
+     * damit AssetCatalogFacets.vue unverändert rendert.
+     *
+     * Anders als im Produktkatalog braucht es keine Freischaltung: die Facette
+     * erscheint genau dann, wenn überhaupt Assets getaggt sind.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>|null
+     */
+    private function buildTagFacet($baseQuery, array $filters, string $lang): ?array
+    {
+        $filteredMediaQuery = clone $baseQuery;
+        $this->applyFacetFilters($filteredMediaQuery, array_diff_key($filters, [self::TAG_FACET_KEY => true]));
+
+        $counts = DB::table('media_tag')
+            ->join('tags', 'tags.id', '=', 'media_tag.tag_id')
+            ->whereIn('media_tag.media_id', $filteredMediaQuery->select('id'))
+            ->where('tags.is_active', true)
+            ->groupBy('tags.id', 'tags.name_de', 'tags.name_en')
+            ->orderByDesc(DB::raw('COUNT(*)'))
+            ->limit(50)
+            ->get(['tags.id', 'tags.name_de', 'tags.name_en', DB::raw('COUNT(*) as asset_count')]);
+
+        if ($counts->isEmpty()) {
+            return null;
+        }
+
+        return [
+            'attribute_id' => self::TAG_FACET_KEY,
+            'label' => 'Tags',
+            'data_type' => 'ValueList',
+            'values' => $counts->map(fn ($row) => [
+                'value' => $lang === 'en' && $row->name_en ? $row->name_en : $row->name_de,
+                'value_id' => $row->id,
+                'count' => (int) $row->asset_count,
+            ])->all(),
+        ];
+    }
+
+    /**
      * Wendet Attribut-Facetten-Filter (aus /asset-catalog/facets ausgewählte Werte) auf eine
      * Media-Query an. $filters hat die Form [attribute_id => filterValue].
      */
@@ -1165,6 +1258,11 @@ class AssetCatalogController extends BaseController
 
         foreach ($filters as $filterAttrId => $filterValue) {
             if (empty($filterValue)) {
+                continue;
+            }
+
+            if ($filterAttrId === self::TAG_FACET_KEY) {
+                $this->applyTagFacetFilter($query, (string) $filterValue);
                 continue;
             }
 

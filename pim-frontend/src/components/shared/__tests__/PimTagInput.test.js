@@ -69,14 +69,27 @@ describe('PimTagInput', () => {
     expect(wrapper.vm.suggestions.map(t => t.id)).toEqual(['t2', 't3'])
   })
 
-  it('filtert Vorschläge nach Eingabe — auch über den technischen Namen', async () => {
+  it('laesst den Server filtern statt clientseitig zu kappen', async () => {
+    // Die API deckelt per_page auf 100 — clientseitiges Filtern haette ab dem
+    // 101. Tag Werte verschwiegen und "anlegen" faelschlich angeboten.
     const wrapper = await mountInput()
+    tagsApi.list.mockClear()
 
     await wrapper.find('input').setValue('auslauf')
-    expect(wrapper.vm.suggestions.map(t => t.id)).toEqual(['t3'])
+    await new Promise((r) => setTimeout(r, 300))
 
-    await wrapper.find('input').setValue('Aktion')
-    expect(wrapper.vm.suggestions.map(t => t.id)).toEqual(['t2'])
+    expect(tagsApi.list).toHaveBeenCalledWith(expect.objectContaining({ search: 'auslauf', perPage: 100 }))
+  })
+
+  it('uebernimmt die Servertreffer als Vorschlaege', async () => {
+    const wrapper = await mountInput()
+
+    // Erst nach dem Mount setzen — der initiale Aufruf verbraucht sonst den Mock
+    tagsApi.list.mockResolvedValueOnce({ data: { data: [{ id: 't3', technical_name: 'auslauf', name_de: 'Auslaufmodell' }] } })
+    await wrapper.vm.loadOptions('auslauf')
+    await flush()
+
+    expect(wrapper.vm.suggestions.map(t => t.id)).toEqual(['t3'])
   })
 
   it('emittiert die neue Auswahl statt modelValue zu verändern', async () => {
@@ -106,6 +119,20 @@ describe('PimTagInput', () => {
     expect(wrapper.vm.showCreateOption).toBe(true)
 
     await wrapper.find('input').setValue('Neuheit')
+    expect(wrapper.vm.showCreateOption).toBe(false)
+  })
+
+  it('bietet Anlegen im Filter-Kontext nicht an', async () => {
+    // Im Filter wird ausgewaehlt, nicht gepflegt — sonst legt ein Tippfehler
+    // beim Filtern versehentlich einen neuen Tag an.
+    const wrapper = mount(PimTagInput, {
+      props: { modelValue: [], allowCreate: false },
+      global: { plugins: [i18n] },
+    })
+    await flush()
+    useAuthStore().hasPermission = () => true
+
+    await wrapper.find('input').setValue('Sonderposten')
     expect(wrapper.vm.showCreateOption).toBe(false)
   })
 

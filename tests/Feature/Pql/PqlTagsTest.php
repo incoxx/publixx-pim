@@ -169,4 +169,22 @@ final class PqlTagsTest extends TestCase
         $this->assertFalse($result['valid']);
         $this->assertStringContainsString('tags LIKE', $result['errors'][0]['error']);
     }
+
+
+    public function test_search_fields_auf_tags_wird_abgelehnt(): void
+    {
+        // Ohne Guard validiert die Abfrage, erzeugt eine leere Bedingung und
+        // liefert damit ALLE Produkte statt der getaggten.
+        $result = $this->executor->validate('SELECT * WHERE SEARCH_FIELDS(tags) FUZZY "neuheit"');
+
+        $this->assertFalse($result['valid']);
+        $this->assertStringContainsString('tags LIKE', $result['errors'][0]['error']);
+    }
+
+    public function test_sounds_like_auf_tags_wird_abgelehnt(): void
+    {
+        $result = $this->executor->validate('SELECT * WHERE tags SOUNDS LIKE "nojheit"');
+
+        $this->assertFalse($result['valid']);
+    }
 }

@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\Builder;
  * - status_filter
  * - search_text (LIKE auf name, sku, ean)
  * - category_ids + include_descendants
+ * - product_type_ids, manufacturer_ids
+ * - tag_ids + tag_match (any/all)
  * - attribute_filters (flach, via ProductSearchFilters-Trait)
  * - attribute_filter_groups (verschachtelt AND/OR/NOT, via ProductSearchFilters-Trait)
  * - sort_field + sort_order
@@ -58,6 +60,26 @@ class SearchProfileQueryBuilder
                 $profile->category_ids,
                 $profile->include_descendants ?? false,
             );
+        }
+
+        // Produkttyp und Hersteller
+        if (!empty($profile->product_type_ids)) {
+            $query->whereIn('product_type_id', $profile->product_type_ids);
+        }
+
+        if (!empty($profile->manufacturer_ids)) {
+            $query->whereIn('manufacturer_id', $profile->manufacturer_ids);
+        }
+
+        // Tags — tag_match entscheidet zwischen "eines davon" und "alle"
+        if (!empty($profile->tag_ids)) {
+            if (($profile->tag_match ?? 'any') === 'all') {
+                foreach ($profile->tag_ids as $tagId) {
+                    $query->whereHas('tags', fn ($q) => $q->where('tags.id', $tagId));
+                }
+            } else {
+                $query->whereHas('tags', fn ($q) => $q->whereIn('tags.id', $profile->tag_ids));
+            }
         }
 
         // Attribut-Filter (Trait-basiert, vollständig)
