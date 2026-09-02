@@ -6,7 +6,7 @@ namespace App\Http\Requests\Api\V1;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class StoreTagRequest extends FormRequest
+class StoreTagGroupRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -16,15 +16,13 @@ class StoreTagRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Optional: wird im Controller aus name_de abgeleitet, wenn nicht gesetzt.
-            'technical_name' => 'nullable|string|max:100|unique:tags,technical_name',
-            'tag_group_id' => 'nullable|uuid|exists:tag_groups,id',
+            // Optional: wird im Controller aus name_de abgeleitet (wie beim Tag)
+            'technical_name' => 'nullable|string|max:100|unique:tag_groups,technical_name',
             'name_de' => 'required|string|max:255',
             'name_en' => 'nullable|string|max:255',
             'name_json' => 'nullable|array',
             'name_json.*' => 'nullable|string|max:255',
             'sort_order' => 'integer',
-            'is_active' => 'boolean',
         ];
     }
 }

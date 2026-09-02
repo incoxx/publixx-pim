@@ -837,6 +837,20 @@ function toggleManufacturer(id) {
   }
 }
 
+// Filterliste nach Tag-Gruppen gebündelt — dieselbe Bündelung wie im Katalog,
+// damit "Winter" aus zwei Gruppen unterscheidbar bleibt. Ungruppierte zuletzt.
+const groupedTagList = computed(() => {
+  const buckets = new Map()
+  for (const tag of tagList.value) {
+    const key = tag.group?.id || ''
+    if (!buckets.has(key)) {
+      buckets.set(key, { key, label: tag.group ? (localizedName(tag.group) || tag.group.technical_name) : '', tags: [] })
+    }
+    buckets.get(key).tags.push(tag)
+  }
+  return [...buckets.values()].sort((a, b) => (a.key === '' ? 1 : b.key === '' ? -1 : 0))
+})
+
 function toggleTag(id) {
   const idx = selectedTags.value.indexOf(id)
   if (idx === -1) {
@@ -1503,16 +1517,21 @@ const apiCallDisplay = computed(() => {
             </div>
             <div v-if="tagList.length === 0" class="text-xs text-[var(--color-text-tertiary)] py-2 text-center">Keine Tags angelegt</div>
             <div v-else class="max-h-44 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5 bg-[var(--color-surface)]">
-              <label
-                v-for="tag in tagList"
-                :key="tag.id"
-                class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs"
-                :title="tag.technical_name"
-              >
-                <input type="checkbox" :checked="isTagSelected(tag.id)" @change="toggleTag(tag.id)" class="rounded border-[var(--color-border)]" />
-                <span class="text-[var(--color-text-primary)]">{{ localizedName(tag) || tag.technical_name }}</span>
-                <span v-if="tag.is_active === false" class="text-[10px] text-[var(--color-text-tertiary)] italic">inaktiv</span>
-              </label>
+              <template v-for="bucket in groupedTagList" :key="bucket.key">
+                <div v-if="bucket.label" class="px-2 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)]">
+                  {{ bucket.label }}
+                </div>
+                <label
+                  v-for="tag in bucket.tags"
+                  :key="tag.id"
+                  class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs"
+                  :title="tag.technical_name"
+                >
+                  <input type="checkbox" :checked="isTagSelected(tag.id)" @change="toggleTag(tag.id)" class="rounded border-[var(--color-border)]" />
+                  <span class="text-[var(--color-text-primary)]">{{ localizedName(tag) || tag.technical_name }}</span>
+                  <span v-if="tag.is_active === false" class="text-[10px] text-[var(--color-text-tertiary)] italic">inaktiv</span>
+                </label>
+              </template>
             </div>
           </div>
 
@@ -1849,21 +1868,26 @@ const apiCallDisplay = computed(() => {
             <p class="text-xs text-[var(--color-text-tertiary)]">Keine Tags angelegt</p>
           </div>
           <div v-else class="max-h-36 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5">
-            <label
-              v-for="tag in tagList"
-              :key="tag.id"
-              class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs"
-              :title="tag.technical_name"
-            >
-              <input
-                type="checkbox"
-                :checked="isTagSelected(tag.id)"
-                @change="toggleTag(tag.id)"
-                class="rounded border-[var(--color-border)]"
-              />
-              <span class="text-[var(--color-text-primary)]">{{ localizedName(tag) || tag.technical_name }}</span>
-              <span v-if="tag.is_active === false" class="text-[10px] text-[var(--color-text-tertiary)] italic">inaktiv</span>
-            </label>
+            <template v-for="bucket in groupedTagList" :key="bucket.key">
+              <div v-if="bucket.label" class="px-2 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)]">
+                {{ bucket.label }}
+              </div>
+              <label
+                v-for="tag in bucket.tags"
+                :key="tag.id"
+                class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs"
+                :title="tag.technical_name"
+              >
+                <input
+                  type="checkbox"
+                  :checked="isTagSelected(tag.id)"
+                  @change="toggleTag(tag.id)"
+                  class="rounded border-[var(--color-border)]"
+                />
+                <span class="text-[var(--color-text-primary)]">{{ localizedName(tag) || tag.technical_name }}</span>
+                <span v-if="tag.is_active === false" class="text-[10px] text-[var(--color-text-tertiary)] italic">inaktiv</span>
+              </label>
+            </template>
           </div>
         </div>
 

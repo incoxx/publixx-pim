@@ -523,6 +523,14 @@ const allItems = computed(() => {
       module: 'typo3', permission: 'content.view',
     },
     {
+      id: 'cfg-tag-groups', icon: Tags,
+      label: t('Tag-Gruppen'),
+      description: t('cmd.desc.tagGroups'),
+      keywords: ['tag', 'tags', 'gruppe', 'group', 'stichwort', 'kategorie', 'bündeln', 'facette'],
+      section: 'config', action: () => router.push('/tag-groups'),
+      permission: 'tags.view',
+    },
+    {
       id: 'cfg-units', icon: Ruler,
       label: t('Einheiten'),
       description: t('cmd.desc.units'),

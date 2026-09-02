@@ -7,7 +7,7 @@ namespace App\Http\Requests\Api\V1;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class UpdateTagRequest extends FormRequest
+class UpdateTagGroupRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -21,15 +21,13 @@ class UpdateTagRequest extends FormRequest
                 'sometimes',
                 'string',
                 'max:100',
-                Rule::unique('tags', 'technical_name')->ignore($this->route('tag')),
+                Rule::unique('tag_groups', 'technical_name')->ignore($this->route('tag_group')),
             ],
-            'tag_group_id' => 'nullable|uuid|exists:tag_groups,id',
             'name_de' => 'sometimes|required|string|max:255',
             'name_en' => 'nullable|string|max:255',
             'name_json' => 'nullable|array',
             'name_json.*' => 'nullable|string|max:255',
             'sort_order' => 'integer',
-            'is_active' => 'boolean',
         ];
     }
 }

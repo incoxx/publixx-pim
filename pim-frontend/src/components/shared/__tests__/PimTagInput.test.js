@@ -175,4 +175,21 @@ describe('PimTagInput', () => {
     expect(wrapper.find('input').exists()).toBe(false)
     expect(wrapper.text()).toContain('Neuheit')
   })
+
+  it('buendelt Vorschlaege nach Tag-Gruppe, ungruppierte zuletzt', async () => {
+    const wrapper = await mountInput()
+
+    tagsApi.list.mockResolvedValueOnce({ data: { data: [
+      { id: 'a', technical_name: 'winter', name_de: 'Winter', group: { id: 'g1', name_de: 'Saison' } },
+      { id: 'b', technical_name: 'sommer', name_de: 'Sommer', group: { id: 'g1', name_de: 'Saison' } },
+      { id: 'c', technical_name: 'sonst', name_de: 'Sonstiges' },
+    ] } })
+    await wrapper.vm.loadOptions('')
+    await flush()
+
+    const buckets = wrapper.vm.groupedSuggestions
+    expect(buckets.map(b => b.label)).toEqual(['Saison', ''])
+    expect(buckets[0].tags.map(t => t.id)).toEqual(['a', 'b'])
+    expect(buckets[1].tags.map(t => t.id)).toEqual(['c'])
+  })
 })

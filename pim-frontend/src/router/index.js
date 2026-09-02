@@ -443,6 +443,12 @@ const routes = [
     meta: { title: 'Tags' },
   },
   {
+    path: '/tag-groups',
+    name: 'tag-groups',
+    component: () => import('@/views/tagGroups/TagGroupView.vue'),
+    meta: { title: 'Tag-Gruppen' },
+  },
+  {
     path: '/languages',
     name: 'languages',
     component: () => import('@/views/languages/LanguageView.vue'),

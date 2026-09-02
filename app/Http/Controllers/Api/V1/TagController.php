@@ -14,20 +14,20 @@ use App\Models\Tag;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use App\Support\TechnicalName;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class TagController extends Controller
 {
     use ChecksDeletionConstraints;
 
-    private const ALLOWED_FILTERS = ['is_active'];
+    private const ALLOWED_FILTERS = ['is_active', 'tag_group_id'];
 
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', Tag::class);
 
-        $query = Tag::query()->withCount(['products', 'media']);
+        $query = Tag::query()->with('group')->withCount(['products', 'media']);
 
         $this->applyFilters($query, array_intersect_key(
             (array) $request->query('filter', []),
@@ -46,9 +46,10 @@ class TagController extends Controller
         $this->authorize('create', Tag::class);
 
         $data = $request->validated();
-        $data['technical_name'] = $this->resolveTechnicalName(
+        $data['technical_name'] = TechnicalName::resolve(
             $data['technical_name'] ?? null,
-            $data['name_de']
+            $data['name_de'],
+            fn (string $candidate) => Tag::where('technical_name', $candidate)->exists(),
         );
 
         $tag = Tag::create($data);
@@ -195,34 +196,4 @@ class TagController extends Controller
         ]);
     }
 
-    /**
-     * Technischer Name als stabiler Schlüssel (Import/Export). Wird er nicht
-     * mitgegeben, entsteht er aus dem deutschen Namen; bei Kollision wird ein
-     * Zähler angehängt, damit der Nutzer im Dialog kein Pflichtfeld ausfüllen muss.
-     */
-    private function resolveTechnicalName(?string $given, string $nameDe): string
-    {
-        if ($given !== null && $given !== '') {
-            return $given;
-        }
-
-        // Umlaute explizit vor der Transliteration ersetzen (sonst macht Str::slug
-        // aus "für" ein "fur") — gleiche Regel wie BmecatFormatImporter::sanitizeTechnicalName().
-        $normalized = str_replace(
-            ['Ä', 'ä', 'Ö', 'ö', 'Ü', 'ü', 'ß'],
-            ['Ae', 'ae', 'Oe', 'oe', 'Ue', 'ue', 'ss'],
-            $nameDe,
-        );
-
-        $base = Str::limit(Str::slug($normalized), 90, '') ?: 'tag';
-        $candidate = $base;
-        $suffix = 2;
-
-        while (Tag::where('technical_name', $candidate)->exists()) {
-            $candidate = $base.'-'.$suffix;
-            $suffix++;
-        }
-
-        return $candidate;
-    }
 }

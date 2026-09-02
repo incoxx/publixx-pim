@@ -80,6 +80,26 @@ const assignedIds = computed(() => new Set(props.modelValue.map(t => t.id)))
 const suggestions = computed(() =>
   options.value.filter(t => !assignedIds.value.has(t.id)).slice(0, 8))
 
+/**
+ * Vorschläge nach Tag-Gruppe gebündelt — bei gleichnamigen Tags aus
+ * verschiedenen Gruppen ("Winter" in Saison vs. in Kollektion) ist sonst nicht
+ * erkennbar, welcher gemeint ist. Ungruppierte kommen zuletzt.
+ */
+const groupedSuggestions = computed(() => {
+  const buckets = new Map()
+  for (const tag of suggestions.value) {
+    const key = tag.group?.id || ''
+    if (!buckets.has(key)) {
+      buckets.set(key, { label: tag.group ? (localizedName(tag.group) || tag.group.technical_name) : '', tags: [] })
+    }
+    buckets.get(key).tags.push(tag)
+  }
+  // Ungruppierte ans Ende
+  return [...buckets.entries()]
+    .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : 0))
+    .map(([, bucket]) => bucket)
+})
+
 /** Genauer Treffer verhindert, dass „anlegen" für einen vorhandenen Tag erscheint. */
 const exactMatch = computed(() => {
   const term = input.value.trim().toLowerCase()
@@ -131,7 +151,7 @@ function onBlur() {
 
 onMounted(loadOptions)
 
-defineExpose({ suggestions, exactMatch, showCreateOption, add, remove, createTag, onEnter, loadOptions })
+defineExpose({ suggestions, groupedSuggestions, exactMatch, showCreateOption, add, remove, createTag, onEnter, loadOptions })
 </script>
 
 <template>
@@ -166,16 +186,24 @@ defineExpose({ suggestions, exactMatch, showCreateOption, add, remove, createTag
         v-if="open && (suggestions.length || showCreateOption)"
         class="absolute z-20 mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg max-h-48 overflow-y-auto"
       >
-        <button
-          v-for="tag in suggestions"
-          :key="tag.id"
-          type="button"
-          class="flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left text-xs hover:bg-[var(--color-bg)]"
-          @mousedown.prevent="add(tag)"
-        >
-          <span>{{ tagLabel(tag) }}</span>
-          <span class="font-mono text-[10px] text-[var(--color-text-tertiary)]">{{ tag.technical_name }}</span>
-        </button>
+        <template v-for="(bucket, i) in groupedSuggestions" :key="i">
+          <div
+            v-if="bucket.label"
+            class="px-2 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)]"
+          >
+            {{ bucket.label }}
+          </div>
+          <button
+            v-for="tag in bucket.tags"
+            :key="tag.id"
+            type="button"
+            class="flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left text-xs hover:bg-[var(--color-bg)]"
+            @mousedown.prevent="add(tag)"
+          >
+            <span>{{ tagLabel(tag) }}</span>
+            <span class="font-mono text-[10px] text-[var(--color-text-tertiary)]">{{ tag.technical_name }}</span>
+          </button>
+        </template>
         <button
           v-if="showCreateOption"
           type="button"
