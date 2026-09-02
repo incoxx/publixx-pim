@@ -95,6 +95,7 @@ class TagController extends Controller
     public function syncProductTags(Request $request, Product $product): JsonResponse
     {
         $this->authorize('update', $product);
+        $this->authorize('viewAny', Tag::class);
 
         return $this->syncTags($request, $product, 'tags');
     }
@@ -105,6 +106,7 @@ class TagController extends Controller
     public function syncMediaTags(Request $request, Media $medium): JsonResponse
     {
         $this->authorize('update', $medium);
+        $this->authorize('viewAny', Tag::class);
 
         return $this->syncTags($request, $medium, 'tags');
     }
@@ -126,9 +128,14 @@ class TagController extends Controller
         $this->authorize('viewAny', Tag::class);
 
         $validated = $request->validate([
-            'product_ids' => 'required|array|min:1',
-            'product_ids.*' => 'uuid|distinct|exists:products,id',
-            'tag_ids' => 'required|array|min:1',
+            // Obergrenze wie beim BulkUpdateController: "Alle Seiten auswählen"
+            // kann sonst den kompletten Katalog in einen Request kippen.
+            'product_ids' => 'required|array|min:1|max:5000',
+            // Bewusst ohne exists: die Regel läuft je Element einmal gegen die
+            // Datenbank — bei 5000 IDs also 5000 Abfragen. Unbekannte IDs fallen
+            // ohnehin durch das whereIn unten raus.
+            'product_ids.*' => 'uuid|distinct',
+            'tag_ids' => 'required|array|min:1|max:50',
             'tag_ids.*' => 'uuid|distinct|exists:tags,id',
             'mode' => 'sometimes|string|in:add,remove,replace',
         ]);
@@ -139,7 +146,9 @@ class TagController extends Controller
 
         // Chunking: Massenoperationen laufen auch über mehrere tausend Produkte,
         // die IDs dürfen nicht als eine einzige riesige IN-Liste in die Query.
-        DB::transaction(function () use ($productIds, $tagIds, $mode) {
+        $affected = 0;
+
+        DB::transaction(function () use ($productIds, $tagIds, $mode, &$affected) {
             foreach (array_chunk($productIds, 500) as $chunk) {
                 foreach (Product::whereIn('id', $chunk)->get() as $product) {
                     match ($mode) {
@@ -148,13 +157,16 @@ class TagController extends Controller
                         'remove' => $product->tags()->detach($tagIds),
                         'replace' => $product->tags()->sync($tagIds),
                     };
+                    $affected++;
                 }
             }
         });
 
+        // Tatsächlich geänderte Produkte melden, nicht die übergebenen IDs —
+        // inzwischen gelöschte IDs sollen die Rückmeldung nicht aufblähen.
         return response()->json([
-            'message' => count($productIds).' Produkt(e) aktualisiert.',
-            'products_count' => count($productIds),
+            'message' => $affected.' Produkt(e) aktualisiert.',
+            'products_count' => $affected,
             'mode' => $mode,
         ]);
     }

@@ -804,7 +804,7 @@ onMounted(async () => {
   // in der Liste, filtert das Profil weiter, ohne dass ein Haken sichtbar waere.
   if (authStore.hasPermission('tags.view')) {
     try {
-      const { data } = await tagsApi.list({ perPage: 200, sort: 'name_de', order: 'asc' })
+      const { data } = await tagsApi.list({ perPage: 100, sort: 'name_de', order: 'asc' })
       tagList.value = data.data || data
     } catch (e) { /* ignore */ }
   }

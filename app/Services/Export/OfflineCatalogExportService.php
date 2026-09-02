@@ -201,6 +201,7 @@ class OfflineCatalogExportService
                             ->with([
                                 'searchIndex',
                                 'masterHierarchyNode',
+                                'tags',
                                 'attributeValues' => fn ($q) => $q->where(function ($q2) use ($lang) {
                                     $q2->whereNull('language')->orWhere('language', $lang);
                                 }),
@@ -585,6 +586,7 @@ class OfflineCatalogExportService
         return $query->with([
                 'searchIndex',
                 'masterHierarchyNode',
+                'tags',
                 'attributeValues' => fn ($q) => $q->where(function ($q2) use ($lang) {
                     $q2->whereNull('language')->orWhere('language', $lang);
                 }),
@@ -734,6 +736,16 @@ class OfflineCatalogExportService
                 } else {
                     $facetValues[$attr->id] = $av->value_string;
                 }
+            }
+        }
+
+        // Tags gehoeren zur Facettenmenge, kommen aber nicht aus attributeValues.
+        // Ohne diesen Eintrag steht die Tag-Facette zwar in facets.json, das
+        // Offline-Filter findet aber zu jedem Produkt null und liefert 0 Treffer.
+        if (!empty($themePayload['catalog_tag_facet'])) {
+            $tagIds = $product->tags->pluck('id')->all();
+            if (!empty($tagIds)) {
+                $facetValues['tags'] = $tagIds;
             }
         }
 

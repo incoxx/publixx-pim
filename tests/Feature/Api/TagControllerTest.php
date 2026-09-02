@@ -369,4 +369,42 @@ class TagControllerTest extends TestCase
 
         $this->assertSame(0, $product->fresh()->tags->count());
     }
+
+    public function test_massenzuordnung_lehnt_uebergrosse_auswahl_ab(): void
+    {
+        $tag = Tag::factory()->create();
+        $zuViele = array_map(fn () => (string) \Illuminate\Support\Str::uuid(), range(1, 5001));
+
+        $this->postJson('/api/v1/products/bulk-tags', [
+            'product_ids' => $zuViele,
+            'tag_ids' => [$tag->id],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['product_ids']);
+    }
+
+    public function test_massenzuordnung_meldet_nur_tatsaechlich_geaenderte_produkte(): void
+    {
+        $tag = Tag::factory()->create();
+        $product = Product::factory()->create();
+
+        // Eine unbekannte ID darf die Rueckmeldung nicht aufblaehen
+        $this->postJson('/api/v1/products/bulk-tags', [
+            'product_ids' => [$product->id, (string) \Illuminate\Support\Str::uuid()],
+            'tag_ids' => [$tag->id],
+        ])->assertOk()->assertJsonPath('products_count', 1);
+    }
+
+    public function test_tags_setzen_erfordert_auch_das_tag_leserecht(): void
+    {
+        $product = Product::factory()->create();
+        $tag = Tag::factory()->create();
+
+        $ohneTagRecht = User::factory()->create();
+        $rolle = Role::findOrCreate('Nur Produkte', 'sanctum');
+        $rolle->givePermissionTo(\App\Models\Permission::findOrCreate('products.edit', 'sanctum'));
+        $ohneTagRecht->assignRole($rolle);
+        $this->actingAs($ohneTagRecht);
+
+        $this->putJson("/api/v1/products/{$product->id}/tags", ['tag_ids' => [$tag->id]])
+            ->assertForbidden();
+    }
 }
