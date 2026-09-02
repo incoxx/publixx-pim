@@ -122,6 +122,20 @@ describe('PimTagInput', () => {
     expect(wrapper.vm.showCreateOption).toBe(false)
   })
 
+  it('bietet Anlegen im Filter-Kontext nicht an', async () => {
+    // Im Filter wird ausgewaehlt, nicht gepflegt — sonst legt ein Tippfehler
+    // beim Filtern versehentlich einen neuen Tag an.
+    const wrapper = mount(PimTagInput, {
+      props: { modelValue: [], allowCreate: false },
+      global: { plugins: [i18n] },
+    })
+    await flush()
+    useAuthStore().hasPermission = () => true
+
+    await wrapper.find('input').setValue('Sonderposten')
+    expect(wrapper.vm.showCreateOption).toBe(false)
+  })
+
   it('bietet Anlegen ohne tags.create nicht an', async () => {
     const wrapper = await mountInput({ permissions: ['tags.view'] })
 

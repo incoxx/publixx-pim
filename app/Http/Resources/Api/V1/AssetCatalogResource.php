@@ -137,6 +137,7 @@ class AssetCatalogResource extends JsonResource
             'description' => $description,
             'alt_text' => $lang === 'en' && $this->alt_text_en ? $this->alt_text_en : $this->alt_text_de,
             'keywords' => $this->keywords ?? [],
+            'tags' => TagResource::collection($this->whenLoaded('tags')),
             'media_language' => $mediaLanguage,
             'media_country' => $mediaCountry,
             'width' => $this->width,

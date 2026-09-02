@@ -19,6 +19,8 @@ import VideoPreview from '@/components/media/VideoPreview.vue'
 import AudioPlayer from '@/components/media/AudioPlayer.vue'
 import MediaUploadQueue from '@/components/media/MediaUploadQueue.vue'
 import MediaProcessingStatus from '@/components/media/MediaProcessingStatus.vue'
+import PimTagInput from '@/components/shared/PimTagInput.vue'
+import { tags as tagsApi } from '@/api/tags'
 
 const { t, locale } = useI18n()
 const numberLocale = computed(() => (locale.value === 'de' ? 'de-DE' : 'en-US'))
@@ -37,6 +39,11 @@ const selectedFolderId = ref(null)
 const includeDescendants = ref(true)
 const usagePurposeFilter = ref('')
 const keywordFilter = ref('')
+// Tags: Zuordnung am Medium und Filter der Liste. Tags sind — anders als die
+// freien keywords — gepflegte Stammdaten und hängen an einer Zuordnungstabelle.
+const tagFilter = ref([])
+const detailTags = ref([])
+const detailTagsDirty = ref(false)
 const showRenditions = ref(false)
 const detailItem = ref(null)
 const detailOpen = ref(false)
@@ -195,6 +202,7 @@ const filterOptions = computed(() => {
   if (selectedFolderId.value) filters.asset_folder_id = selectedFolderId.value
   if (usagePurposeFilter.value) filters.usage_purpose = usagePurposeFilter.value
   if (keywordFilter.value.trim()) filters.keywords = keywordFilter.value.trim()
+  if (tagFilter.value.length) filters.tags = tagFilter.value.map(t => t.id).join(',')
   if (missingOnlyFilter.value) filters.is_missing = '1'
   if (showQuickLookup.value) {
     const ql = quickLookupFilters.value
@@ -627,6 +635,8 @@ function openDetail(item) {
   detailTab.value = 'info'
   keywordInput.value = ''
   keywordSuggestions.value = []
+  detailTags.value = [...(item.tags || [])]
+  detailTagsDirty.value = false
   loadAssetAttributes(item)
   fetchUsage(item.id)
   if (item.revision_count > 0) {
@@ -713,6 +723,14 @@ async function saveDetail() {
       media_country_id: detailItem.value.media_country_id,
     })
     await saveAssetAttributeValues()
+
+    // Tags hängen an einer Zuordnungstabelle, nicht am Mediendatensatz — eigene
+    // Route, zuletzt, damit ein Fehler dort die übrigen Änderungen nicht mitreißt.
+    if (detailTagsDirty.value) {
+      await tagsApi.syncMedia(detailItem.value.id, detailTags.value.map(t => t.id))
+      detailTagsDirty.value = false
+    }
+
     closeDetail()
     await fetchMedia()
   } catch (err) {
@@ -1007,6 +1025,8 @@ onUnmounted(() => {
 })
 watch(usagePurposeFilter, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
 watch([sortField, sortOrder], () => { clearSelection(); currentPage.value = 1; fetchMedia() })
+watch(tagFilter, () => { clearSelection(); currentPage.value = 1; fetchMedia() }, { deep: true })
+
 let keywordFilterDebounce = null
 watch(keywordFilter, () => {
   clearTimeout(keywordFilterDebounce)
@@ -1153,6 +1173,15 @@ onMounted(() => {
               class="pim-input text-xs w-32 sm:w-40"
               placeholder="Schlagwort…"
               title="Nach Schlagwort filtern (exakt, mehrere kommagetrennt)"
+            />
+          </div>
+
+          <!-- Tag filter -->
+          <div v-if="authStore.hasPermission('tags.view')" class="w-40 max-sm:hidden">
+            <PimTagInput
+              v-model="tagFilter"
+              :allow-create="false"
+              placeholder="Nach Tag filtern…"
             />
           </div>
 
@@ -1707,6 +1736,13 @@ onMounted(() => {
           <div>
             <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Alt-Text</label>
             <input v-model="detailItem.alt_text_de" class="pim-input text-xs w-full" />
+          </div>
+          <div v-if="authStore.hasPermission('tags.view')">
+            <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Tags</label>
+            <PimTagInput
+              :modelValue="detailTags"
+              @update:modelValue="detailTags = $event; detailTagsDirty = true"
+            />
           </div>
           <div>
             <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Schlagworte</label>

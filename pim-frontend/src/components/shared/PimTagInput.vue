@@ -20,6 +20,8 @@ const props = defineProps({
   /** Zugeordnete Tags als Objekte ({ id, technical_name, name_de, ... }) */
   modelValue: { type: Array, default: () => [] },
   disabled: { type: Boolean, default: false },
+  /** Im Filter-Kontext sinnlos: dort wird ausgewählt, nicht gepflegt. */
+  allowCreate: { type: Boolean, default: true },
   placeholder: { type: String, default: 'Tag hinzufügen…' },
 })
 
@@ -40,7 +42,7 @@ const open = ref(false)
 let searchDebounce = null
 let requestSeq = 0
 
-const canCreate = computed(() => authStore.hasPermission('tags.create'))
+const canCreate = computed(() => props.allowCreate && authStore.hasPermission('tags.create'))
 
 function tagLabel(tag) {
   return localizedName(tag) || tag?.technical_name || ''

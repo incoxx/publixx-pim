@@ -407,4 +407,53 @@ class TagControllerTest extends TestCase
         $this->putJson("/api/v1/products/{$product->id}/tags", ['tag_ids' => [$tag->id]])
             ->assertForbidden();
     }
+
+    // ── Tags an Assets (Menüpunkt Medien) ────────────────────────────
+
+    public function test_medienliste_filtert_nach_tag(): void
+    {
+        $tag = Tag::factory()->create();
+        $mitTag = Media::factory()->create(['file_name' => 'mit-tag.jpg']);
+        $mitTag->tags()->attach($tag->id);
+        Media::factory()->create(['file_name' => 'ohne-tag.jpg']);
+
+        $response = $this->getJson('/api/v1/media?filter[tags]='.$tag->id);
+
+        $response->assertOk()->assertJsonCount(1, 'data');
+        $this->assertSame('mit-tag.jpg', $response->json('data.0.file_name'));
+    }
+
+    public function test_medienliste_filtert_nach_mehreren_tags_als_vereinigungsmenge(): void
+    {
+        $ersterTag = Tag::factory()->create();
+        $zweiterTag = Tag::factory()->create();
+
+        Media::factory()->create()->tags()->attach($ersterTag->id);
+        Media::factory()->create()->tags()->attach($zweiterTag->id);
+        Media::factory()->create();
+
+        $this->getJson("/api/v1/media?filter[tags]={$ersterTag->id},{$zweiterTag->id}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+    }
+
+    public function test_medium_mit_mehreren_treffer_tags_erscheint_nur_einmal(): void
+    {
+        $ersterTag = Tag::factory()->create();
+        $zweiterTag = Tag::factory()->create();
+        Media::factory()->create()->tags()->attach([$ersterTag->id, $zweiterTag->id]);
+
+        $this->getJson("/api/v1/media?filter[tags]={$ersterTag->id},{$zweiterTag->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+    }
+
+    public function test_ohne_tag_filter_bleiben_alle_medien_sichtbar(): void
+    {
+        $tag = Tag::factory()->create();
+        Media::factory()->create()->tags()->attach($tag->id);
+        Media::factory()->create();
+
+        $this->getJson('/api/v1/media')->assertOk()->assertJsonCount(2, 'data');
+    }
 }

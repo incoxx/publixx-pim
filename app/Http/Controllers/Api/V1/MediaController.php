@@ -363,6 +363,25 @@ class MediaController extends Controller
             }
         }
 
+        // Tag-Filter (?filter[tags]=<id>,<id> — mindestens einer muss gesetzt sein).
+        // Anders als die freien keywords sind Tags eine Zuordnung, daher Subquery
+        // statt LIKE auf JSON.
+        if (! empty($filters['tags'])) {
+            $rawTags = $filters['tags'];
+            $tagIds = is_array($rawTags)
+                ? array_map('trim', $rawTags)
+                : array_map('trim', explode(',', (string) $rawTags));
+            $tagIds = array_values(array_filter($tagIds, fn ($id) => $id !== ''));
+
+            if (! empty($tagIds)) {
+                $query->whereIn('id', function ($sub) use ($tagIds) {
+                    $sub->select('media_id')
+                        ->from('media_tag')
+                        ->whereIn('tag_id', $tagIds);
+                });
+            }
+        }
+
         // 'keywords' bewusst NICHT Teil der applySearch()-Spaltenliste: MySQL 8 erlaubt LIKE nicht
         // direkt auf JSON-Spalten ("Cannot compare JSON in the LIKE operator") — Freitextsuche über
         // Keywords läuft daher über denselben CAST-Ansatz wie oben, ergänzt zur normalen Suche.
