@@ -47,6 +47,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class CatalogController extends BaseController
 {
     /**
+     * Reservierter Facetten-Schlüssel für Tags. Tags sind keine Attribute, sondern
+     * eine Zuordnung (product_tag) — sie laufen aber bewusst über denselben
+     * `filters[...]`-Vertrag wie die Attribut-Facetten, damit Auswahl, Zähler,
+     * Deeplinks und Smart Graying im Katalog unverändert funktionieren.
+     */
+    private const TAG_FACET_KEY = 'tags';
+
+    /**
      * GET /api/v1/catalog/products
      *
      * Paginated list of active products (uses search index for performance).
@@ -197,6 +205,15 @@ class CatalogController extends BaseController
                     if (!is_string($attrId) || empty($filterValue)) {
                         continue;
                     }
+
+                    // Tags sind keine Attribute — ohne diese Abzweigung würde auf
+                    // product_attribute_values mit attribute_id='tags' gejoint und
+                    // die Trefferliste bliebe leer.
+                    if ($attrId === self::TAG_FACET_KEY) {
+                        $this->applyTagFacetFilter($query, (string) $filterValue, 'products.id');
+                        continue;
+                    }
+
                     $alias = "pav_f{$filterIdx}";
                     $filterIdx++;
 
@@ -1272,13 +1289,172 @@ class CatalogController extends BaseController
      *
      * Returns available facet filters based on configured attributes.
      */
+    /**
+     * Baut die Tag-Facette: Zähler je Tag über die aktuell gefilterte Produktmenge.
+     *
+     * Gibt bewusst dasselbe Schema aus wie die Attribut-Facetten
+     * (attribute_id/label/data_type/values), damit das Facetten-Widget im Katalog
+     * unverändert rendert — data_type 'ValueList' liefert die Checkbox-Liste
+     * inklusive Suche und "mehr anzeigen".
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>|null  null, wenn es nichts zu filtern gibt
+     */
+    private function buildTagFacet($activeProductQuery, $categoryProductQuery, array $filters, $attributes, string $lang): ?array
+    {
+        $filteredProductQuery = clone $activeProductQuery;
+
+        if ($categoryProductQuery !== null) {
+            $filteredProductQuery->whereIn('id', $categoryProductQuery);
+        }
+
+        $this->applyOtherFacetFilters($filteredProductQuery, $filters, $attributes, self::TAG_FACET_KEY);
+
+        $counts = DB::table('product_tag')
+            ->join('tags', 'tags.id', '=', 'product_tag.tag_id')
+            ->whereIn('product_tag.product_id', $filteredProductQuery)
+            ->where('tags.is_active', true)
+            ->groupBy('tags.id', 'tags.name_de', 'tags.name_en')
+            ->orderByDesc(DB::raw('COUNT(*)'))
+            ->limit(50)
+            ->get([
+                'tags.id',
+                'tags.name_de',
+                'tags.name_en',
+                DB::raw('COUNT(*) as product_count'),
+            ]);
+
+        if ($counts->isEmpty()) {
+            return null;
+        }
+
+        $values = $counts->map(fn ($row) => [
+            'value' => $lang === 'en' && $row->name_en ? $row->name_en : $row->name_de,
+            'value_id' => $row->id,
+            'count' => (int) $row->product_count,
+        ])->all();
+
+        return [
+            'attribute_id' => self::TAG_FACET_KEY,
+            // "Tags" ist in beiden Sprachen dasselbe Wort — kein Sprachzweig nötig
+            'label' => 'Tags',
+            'data_type' => 'ValueList',
+            'values' => $values,
+        ];
+    }
+
+    /**
+     * Tag-Filter einer Katalog-Query: Produkte, die mindestens einen der gewählten
+     * Tags tragen (ODER innerhalb der Gruppe, wie bei den Wertelisten-Facetten).
+     */
+    private function applyTagFacetFilter($query, string $filterValue, string $productIdColumn): void
+    {
+        $tagIds = array_values(array_filter(array_map('urldecode', explode(',', $filterValue))));
+        if (empty($tagIds)) {
+            return;
+        }
+
+        $query->whereIn($productIdColumn, function ($sub) use ($tagIds) {
+            $sub->select('product_id')
+                ->from('product_tag')
+                ->whereIn('tag_id', $tagIds);
+        });
+    }
+
+    /**
+     * Wendet alle aktiven Facetten-Filter auf eine Produkt-Query an — außer dem
+     * der eigenen Facette (Smart Graying: die Auswahl in Facette A verändert die
+     * Zähler in B/C/D, Facette A zeigt weiter alle ihre Werte).
+     *
+     * Aus facets() extrahiert, damit die Tag-Facette exakt denselben Regeln folgt
+     * statt einer zweiten, leicht abweichenden Kopie.
+     *
+     * @param  array<string, mixed>  $filters
+     */
+    private function applyOtherFacetFilters($query, array $filters, $attributes, string $excludeKey): void
+    {
+        $otherFilters = array_diff_key($filters, [$excludeKey => true]);
+        if (!empty($otherFilters)) {
+            foreach ($otherFilters as $filterAttrId => $filterValue) {
+                if (!is_string($filterAttrId) && !is_int($filterAttrId)) {
+                    continue;
+                }
+                if (empty($filterValue)) {
+                    continue;
+                }
+
+                if ($filterAttrId === self::TAG_FACET_KEY) {
+                    $this->applyTagFacetFilter($query, (string) $filterValue, 'id');
+                    continue;
+                }
+
+                $filterAttr = $attributes->get($filterAttrId);
+                $query->whereIn('id', function ($sub) use ($filterAttrId, $filterValue, $filterAttr) {
+                    $sub->select('product_id')
+                        ->from('product_attribute_values')
+                        ->where('attribute_id', $filterAttrId);
+
+                    if ($filterAttr && $filterAttr->data_type === 'MultiSelection') {
+                        // MultiSelection: JSON-Array enthält value_selection_ids
+                        $values = array_map('urldecode', array_filter(explode(',', (string) $filterValue)));
+                        if (!empty($values)) {
+                            $sub->where(function ($q) use ($values) {
+                                foreach ($values as $v) {
+                                    $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $v);
+                                    $q->orWhere('value_string', 'LIKE', '%"' . $escaped . '"%');
+                                }
+                            });
+                        }
+                    } elseif ($filterAttr && $filterAttr->data_type === 'DelimitedValue') {
+                        // DelimitedValue: LIKE-basierte Suche nach Einzelwerten
+                        $values = array_map('urldecode', array_filter(explode(',', (string) $filterValue)));
+                        if (!empty($values)) {
+                            $delimiter = $filterAttr->delimiter ?? '|';
+                            $sub->where(function ($q) use ($values, $delimiter) {
+                                foreach ($values as $v) {
+                                    $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $v);
+                                    $q->orWhere(function ($inner) use ($escaped, $delimiter) {
+                                        $inner->where('value_string', $escaped)
+                                              ->orWhere('value_string', 'LIKE', $escaped . $delimiter . '%')
+                                              ->orWhere('value_string', 'LIKE', '%' . $delimiter . $escaped)
+                                              ->orWhere('value_string', 'LIKE', '%' . $delimiter . $escaped . $delimiter . '%');
+                                    });
+                                }
+                            });
+                        }
+                    } elseif (str_contains((string) $filterValue, ':')) {
+                        [$min, $max] = explode(':', (string) $filterValue, 2);
+                        if ($min !== '') {
+                            $sub->where('value_number', '>=', (float) $min);
+                        }
+                        if ($max !== '') {
+                            $sub->where('value_number', '<=', (float) $max);
+                        }
+                    } elseif ($filterValue === '0' || $filterValue === '1') {
+                        $sub->where('value_flag', '=', $filterValue === '1');
+                    } else {
+                        $values = array_map('urldecode', array_filter(explode(',', (string) $filterValue)));
+                        if (!empty($values)) {
+                            $sub->where(function ($q) use ($values) {
+                                $q->whereIn('value_selection_id', $values)
+                                  ->orWhereIn('value_string', $values);
+                            });
+                        }
+                    }
+                });
+            }
+        }
+    }
+
     public function facets(Request $request): JsonResponse
     {
         $lang = $request->query('lang', 'de');
         $themePayload = WebsiteProfile::getActivePayload();
         $facetAttributeIds = $themePayload['facet_attribute_ids'] ?? [];
 
-        if (empty($facetAttributeIds)) {
+        // Frueher Ausstieg nur, wenn es ueberhaupt nichts zu berechnen gibt — die
+        // Tag-Facette braucht keine konfigurierten Attribut-Facetten.
+        if (empty($facetAttributeIds) && empty($themePayload['catalog_tag_facet'])) {
             return response()->json(['facets' => []]);
         }
 
@@ -1358,72 +1534,7 @@ class CatalogController extends BaseController
                 $filteredProductQuery->whereIn('id', $categoryProductQuery);
             }
 
-            $otherFilters = array_diff_key($filters, [$attrId => true]);
-            if (!empty($otherFilters)) {
-                foreach ($otherFilters as $filterAttrId => $filterValue) {
-                    if (!is_string($filterAttrId) && !is_int($filterAttrId)) {
-                        continue;
-                    }
-                    if (empty($filterValue)) {
-                        continue;
-                    }
-
-                    $filterAttr = $attributes->get($filterAttrId);
-                    $filteredProductQuery->whereIn('id', function ($sub) use ($filterAttrId, $filterValue, $filterAttr) {
-                        $sub->select('product_id')
-                            ->from('product_attribute_values')
-                            ->where('attribute_id', $filterAttrId);
-
-                        if ($filterAttr && $filterAttr->data_type === 'MultiSelection') {
-                            // MultiSelection: JSON-Array enthält value_selection_ids
-                            $values = array_map('urldecode', array_filter(explode(',', (string) $filterValue)));
-                            if (!empty($values)) {
-                                $sub->where(function ($q) use ($values) {
-                                    foreach ($values as $v) {
-                                        $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $v);
-                                        $q->orWhere('value_string', 'LIKE', '%"' . $escaped . '"%');
-                                    }
-                                });
-                            }
-                        } elseif ($filterAttr && $filterAttr->data_type === 'DelimitedValue') {
-                            // DelimitedValue: LIKE-basierte Suche nach Einzelwerten
-                            $values = array_map('urldecode', array_filter(explode(',', (string) $filterValue)));
-                            if (!empty($values)) {
-                                $delimiter = $filterAttr->delimiter ?? '|';
-                                $sub->where(function ($q) use ($values, $delimiter) {
-                                    foreach ($values as $v) {
-                                        $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $v);
-                                        $q->orWhere(function ($inner) use ($escaped, $delimiter) {
-                                            $inner->where('value_string', $escaped)
-                                                  ->orWhere('value_string', 'LIKE', $escaped . $delimiter . '%')
-                                                  ->orWhere('value_string', 'LIKE', '%' . $delimiter . $escaped)
-                                                  ->orWhere('value_string', 'LIKE', '%' . $delimiter . $escaped . $delimiter . '%');
-                                        });
-                                    }
-                                });
-                            }
-                        } elseif (str_contains((string) $filterValue, ':')) {
-                            [$min, $max] = explode(':', (string) $filterValue, 2);
-                            if ($min !== '') {
-                                $sub->where('value_number', '>=', (float) $min);
-                            }
-                            if ($max !== '') {
-                                $sub->where('value_number', '<=', (float) $max);
-                            }
-                        } elseif ($filterValue === '0' || $filterValue === '1') {
-                            $sub->where('value_flag', '=', $filterValue === '1');
-                        } else {
-                            $values = array_map('urldecode', array_filter(explode(',', (string) $filterValue)));
-                            if (!empty($values)) {
-                                $sub->where(function ($q) use ($values) {
-                                    $q->whereIn('value_selection_id', $values)
-                                      ->orWhereIn('value_string', $values);
-                                });
-                            }
-                        }
-                    });
-                }
-            }
+            $this->applyOtherFacetFilters($filteredProductQuery, $filters, $attributes, $attrId);
 
             $baseQuery = ProductAttributeValue::where('attribute_id', $attrId)
                 ->whereIn('product_id', $filteredProductQuery);
@@ -1618,6 +1729,16 @@ class CatalogController extends BaseController
                     'data_type' => 'Text',
                     'values' => $values,
                 ];
+            }
+        }
+
+        // Tag-Facette (optional, über die Katalog-Einstellungen aktivierbar). Sie folgt
+        // denselben Regeln wie die Attribut-Facetten: nur aktive Produkte ohne Teile,
+        // Kategorie-/Suchprofil-Grenzen, und Smart Graying über applyOtherFacetFilters().
+        if (!empty($themePayload['catalog_tag_facet'])) {
+            $tagFacet = $this->buildTagFacet($activeProductQuery, $categoryProductQuery, $filters, $attributes, $lang);
+            if ($tagFacet !== null) {
+                $facets[] = $tagFacet;
             }
         }
 

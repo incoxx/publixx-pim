@@ -826,6 +826,7 @@ const themeForm = ref({
   default_locale: 'de',
   popup_max_width: '4xl',
   facet_attribute_ids: [],
+  catalog_tag_facet: false,
   detail_layout: 'classic',
   card_attribute_ids: [],
   primary_card_attribute_id: null,
@@ -934,6 +935,7 @@ async function loadThemeSettings() {
         color_search_text: d.color_search_text || '',
         popup_max_width: d.popup_max_width || '4xl',
         facet_attribute_ids: d.facet_attribute_ids || [],
+    catalog_tag_facet: d.catalog_tag_facet ?? false,
         detail_layout: d.detail_layout || 'classic',
         card_attribute_ids: d.card_attribute_ids || [],
         primary_card_attribute_id: d.primary_card_attribute_id || null,
@@ -1077,6 +1079,7 @@ function applyPayloadToForm(payload) {
     color_mobile_menu_text: d.color_mobile_menu_text || '',
     popup_max_width: d.popup_max_width || '4xl',
     facet_attribute_ids: d.facet_attribute_ids || [],
+    catalog_tag_facet: d.catalog_tag_facet ?? false,
     detail_layout: d.detail_layout || 'classic',
     card_attribute_ids: d.card_attribute_ids || [],
     primary_card_attribute_id: d.primary_card_attribute_id || null,
@@ -2932,6 +2935,11 @@ onUnmounted(() => {
               <span class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-tertiary)] shrink-0">{{ attr.data_type }}</span>
             </label>
           </div>
+          <label class="flex items-center gap-2 text-xs cursor-pointer pt-1">
+            <input type="checkbox" v-model="themeForm.catalog_tag_facet" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+            Tags als Facette anzeigen
+          </label>
+          <p class="text-[11px] text-[var(--color-text-tertiary)] ml-6 -mt-1">Zeigt die vergebenen Tags als zusätzliche Filtergruppe. Nur aktive Tags, absteigend nach Trefferzahl.</p>
         </div>
 
         <!-- Produktvergleich -->

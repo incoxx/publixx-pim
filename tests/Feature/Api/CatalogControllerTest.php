@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductSearchIndex;
 use App\Models\Role;
+use App\Models\Tag;
 use App\Models\User;
 use App\Models\WebsiteProfile;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -530,5 +531,141 @@ class CatalogControllerTest extends TestCase
         // … schreibende Warenkorb-/Bestell-Aktionen aber nicht (catalog.no-share → 403).
         $this->postJson('/api/v1/catalog/cart/standard/submit', [], ['X-Catalog-Share' => $access])
             ->assertForbidden();
+    }
+
+    // ── Tag-Facette im Katalog ───────────────────────────────────────
+
+    public function test_tag_facette_bleibt_aus_ohne_einstellung(): void
+    {
+        $tag = Tag::factory()->create();
+        $this->createIndexedProduct()->tags()->attach($tag->id);
+
+        $this->getJson('/api/v1/catalog/facets')
+            ->assertOk()
+            ->assertJsonPath('facets', []);
+    }
+
+    public function test_tag_facette_zaehlt_produkte_je_tag(): void
+    {
+        $this->createActiveProfile(['catalog_tag_facet' => true]);
+
+        $neuheit = Tag::factory()->create(['name_de' => 'Neuheit']);
+        $aktion = Tag::factory()->create(['name_de' => 'Aktion']);
+
+        $this->createIndexedProduct()->tags()->attach([$neuheit->id, $aktion->id]);
+        $this->createIndexedProduct()->tags()->attach($neuheit->id);
+        $this->createIndexedProduct();
+
+        $response = $this->getJson('/api/v1/catalog/facets');
+
+        $response->assertOk()
+            ->assertJsonPath('facets.0.attribute_id', 'tags')
+            ->assertJsonPath('facets.0.data_type', 'ValueList')
+            // Absteigend nach Trefferzahl
+            ->assertJsonPath('facets.0.values.0.value', 'Neuheit')
+            ->assertJsonPath('facets.0.values.0.count', 2)
+            ->assertJsonPath('facets.0.values.1.value', 'Aktion')
+            ->assertJsonPath('facets.0.values.1.count', 1);
+    }
+
+    public function test_tag_facette_zaehlt_nur_aktive_produkte_ohne_teile(): void
+    {
+        $this->createActiveProfile(['catalog_tag_facet' => true]);
+        $tag = Tag::factory()->create(['name_de' => 'Neuheit']);
+
+        $this->createIndexedProduct()->tags()->attach($tag->id);
+
+        // Entwurf und Variante dürfen den Zähler nicht erhöhen
+        Product::factory()->create(['status' => 'draft'])->tags()->attach($tag->id);
+        Product::factory()->active()->create(['product_type_ref' => 'variant'])->tags()->attach($tag->id);
+
+        $this->getJson('/api/v1/catalog/facets')
+            ->assertOk()
+            ->assertJsonPath('facets.0.values.0.count', 1);
+    }
+
+    public function test_tag_facette_zeigt_inaktive_tags_nicht(): void
+    {
+        $this->createActiveProfile(['catalog_tag_facet' => true]);
+        $inaktiv = Tag::factory()->create(['name_de' => 'Stillgelegt', 'is_active' => false]);
+
+        $this->createIndexedProduct()->tags()->attach($inaktiv->id);
+
+        $this->getJson('/api/v1/catalog/facets')
+            ->assertOk()
+            ->assertJsonPath('facets', []);
+    }
+
+    public function test_tag_facette_zeigt_englische_namen(): void
+    {
+        $this->createActiveProfile(['catalog_tag_facet' => true]);
+        $tag = Tag::factory()->create(['name_de' => 'Neuheit', 'name_en' => 'New']);
+
+        $this->createIndexedProduct()->tags()->attach($tag->id);
+
+        $this->getJson('/api/v1/catalog/facets?lang=en')
+            ->assertOk()
+            ->assertJsonPath('facets.0.values.0.value', 'New');
+    }
+
+    public function test_tag_facette_zeigt_trotz_eigener_auswahl_alle_werte(): void
+    {
+        $this->createActiveProfile(['catalog_tag_facet' => true]);
+
+        $neuheit = Tag::factory()->create(['name_de' => 'Neuheit']);
+        $aktion = Tag::factory()->create(['name_de' => 'Aktion']);
+
+        $this->createIndexedProduct()->tags()->attach($neuheit->id);
+        $this->createIndexedProduct()->tags()->attach($aktion->id);
+
+        // Smart Graying: die eigene Auswahl darf die eigene Gruppe nicht leeren,
+        // sonst verschwindet die Filtergruppe nach dem ersten Klick.
+        $response = $this->getJson('/api/v1/catalog/facets?filters[tags]=' . $neuheit->id);
+
+        $response->assertOk()->assertJsonCount(2, 'facets.0.values');
+    }
+
+    public function test_produktliste_filtert_nach_tag(): void
+    {
+        $tag = Tag::factory()->create();
+
+        $mitTag = $this->createIndexedProduct(['name' => 'Mit Tag']);
+        $mitTag->tags()->attach($tag->id);
+        $this->createIndexedProduct(['name' => 'Ohne Tag']);
+
+        $response = $this->getJson('/api/v1/catalog/products?filters[tags]=' . $tag->id);
+
+        $response->assertOk();
+        $namen = collect($response->json())->pluck('name')->all();
+        $this->assertSame(['Mit Tag'], $namen);
+    }
+
+    public function test_produktliste_mit_mehreren_tags_liefert_vereinigungsmenge(): void
+    {
+        $neuheit = Tag::factory()->create();
+        $aktion = Tag::factory()->create();
+
+        $this->createIndexedProduct(['name' => 'A'])->tags()->attach($neuheit->id);
+        $this->createIndexedProduct(['name' => 'B'])->tags()->attach($aktion->id);
+        $this->createIndexedProduct(['name' => 'C']);
+
+        $response = $this->getJson("/api/v1/catalog/products?filters[tags]={$neuheit->id},{$aktion->id}");
+
+        $response->assertOk();
+        $namen = collect($response->json())->pluck('name')->sort()->values()->all();
+        $this->assertSame(['A', 'B'], $namen);
+    }
+
+    public function test_produkt_mit_mehreren_treffer_tags_erscheint_nur_einmal(): void
+    {
+        $neuheit = Tag::factory()->create();
+        $aktion = Tag::factory()->create();
+
+        $this->createIndexedProduct(['name' => 'Mehrfach'])->tags()->attach([$neuheit->id, $aktion->id]);
+
+        $response = $this->getJson("/api/v1/catalog/products?filters[tags]={$neuheit->id},{$aktion->id}");
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json());
     }
 }
