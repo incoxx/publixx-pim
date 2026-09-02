@@ -14,6 +14,7 @@ use App\Models\Tag;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class TagController extends Controller
@@ -106,6 +107,56 @@ class TagController extends Controller
         $this->authorize('update', $medium);
 
         return $this->syncTags($request, $medium, 'tags');
+    }
+
+    /**
+     * POST /products/bulk-tags — Tags für viele Produkte auf einmal setzen.
+     *
+     * `mode` entscheidet über die Semantik, weil bei einer Massenoperation alle
+     * drei Fälle vorkommen und stillschweigendes Überschreiben teuer wäre:
+     *  - add     (Standard): Tags ergänzen, bestehende bleiben
+     *  - remove:            nur die genannten Tags entfernen
+     *  - replace:           genau diese Tags setzen, alle anderen entfernen
+     */
+    public function bulkAssignProducts(Request $request): JsonResponse
+    {
+        // Tags vergeben heißt Produkte ändern — dieselbe Berechtigung wie die
+        // übrigen Massenoperationen (BulkUpdateController).
+        $this->authorize('bulkUpdate', Product::class);
+        $this->authorize('viewAny', Tag::class);
+
+        $validated = $request->validate([
+            'product_ids' => 'required|array|min:1',
+            'product_ids.*' => 'uuid|distinct|exists:products,id',
+            'tag_ids' => 'required|array|min:1',
+            'tag_ids.*' => 'uuid|distinct|exists:tags,id',
+            'mode' => 'sometimes|string|in:add,remove,replace',
+        ]);
+
+        $productIds = $validated['product_ids'];
+        $tagIds = $validated['tag_ids'];
+        $mode = $validated['mode'] ?? 'add';
+
+        // Chunking: Massenoperationen laufen auch über mehrere tausend Produkte,
+        // die IDs dürfen nicht als eine einzige riesige IN-Liste in die Query.
+        DB::transaction(function () use ($productIds, $tagIds, $mode) {
+            foreach (array_chunk($productIds, 500) as $chunk) {
+                foreach (Product::whereIn('id', $chunk)->get() as $product) {
+                    match ($mode) {
+                        // syncWithoutDetaching statt sync: bestehende Tags bleiben
+                        'add' => $product->tags()->syncWithoutDetaching($tagIds),
+                        'remove' => $product->tags()->detach($tagIds),
+                        'replace' => $product->tags()->sync($tagIds),
+                    };
+                }
+            }
+        });
+
+        return response()->json([
+            'message' => count($productIds).' Produkt(e) aktualisiert.',
+            'products_count' => count($productIds),
+            'mode' => $mode,
+        ]);
     }
 
     /**

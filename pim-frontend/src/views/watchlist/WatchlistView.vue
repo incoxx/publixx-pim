@@ -7,7 +7,7 @@ import { useLocalizedName } from '@/composables/useLocalizedName'
 import {
   Star, Trash2, Download, FileSpreadsheet, FileText,
   Languages, Archive, X, GitCompareArrows, Pencil, Settings, ListFilter,
-  Code2, ChevronDown, ChevronUp, FolderTree, FolderOpen,
+  Code2, ChevronDown, ChevronUp, FolderTree, FolderOpen, Tag,
 } from 'lucide-vue-next'
 import { useAttributeStore } from '@/stores/attributes'
 import { useServerQuickLookup } from '@/composables/useServerQuickLookup'
@@ -24,9 +24,11 @@ import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import ReportTemplatePickerModal from '@/components/reports/ReportTemplatePickerModal.vue'
 import PdfTemplatePickerModal from '@/components/pdf-templates/PdfTemplatePickerModal.vue'
 import { useLicenseStore } from '@/stores/license'
+import { useAuthStore } from '@/stores/auth'
 import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialog.vue'
 import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierarchyNodeDialog.vue'
 import BulkAddToCollectionDialog from '@/components/dialogs/BulkAddToCollectionDialog.vue'
+import BulkAssignTagsDialog from '@/components/dialogs/BulkAssignTagsDialog.vue'
 import { useRecordNavigatorStore } from '@/stores/recordNavigator'
 
 const router = useRouter()
@@ -36,6 +38,7 @@ const { localizedName } = useLocalizedName()
 const localeStore = useLocaleStore()
 const attrStore = useAttributeStore()
 const licenseStore = useLicenseStore()
+const authStore = useAuthStore()
 const recordNavigatorStore = useRecordNavigatorStore()
 
 const items = ref([])
@@ -382,6 +385,7 @@ async function loadWatchlistProductIds() {
 // ─── Bulk Assign to Project ──────────────────────────
 const showAssignProject = ref(false)
 const showAssignHierarchy = ref(false)
+const showAssignTags = ref(false)
 const showAddToCollection = ref(false)
 const selectedProductIdsForBulk = computed(() =>
   selectedIds.value.map(id => items.value.find(i => i.id === id)?.product_id).filter(Boolean)
@@ -614,6 +618,14 @@ onMounted(async () => {
       >
         <FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />
         <span class="hidden sm:inline">Hierarchie zuordnen</span>
+      </button>
+      <button
+        v-if="authStore.hasPermission('tags.view')"
+        class="pim-btn pim-btn-secondary text-xs"
+        @click="showAssignTags = true"
+      >
+        <Tag class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">Tags zuordnen</span>
       </button>
       <button
         class="pim-btn pim-btn-danger text-xs"
@@ -854,6 +866,13 @@ onMounted(async () => {
     <BulkAddToCollectionDialog
       v-model:open="showAddToCollection"
       :productIds="selectedProductIdsForBulk"
+    />
+
+    <!-- Massenzuordnung von Tags -->
+    <BulkAssignTagsDialog
+      v-model:open="showAssignTags"
+      :productIds="selectedProductIdsForBulk"
+      @assigned="loadWatchlist()"
     />
   </div>
 </template>

@@ -34,6 +34,7 @@ import PdfTemplatePickerModal from '@/components/pdf-templates/PdfTemplatePicker
 import { useLicenseStore } from '@/stores/license'
 import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialog.vue'
 import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierarchyNodeDialog.vue'
+import BulkAssignTagsDialog from '@/components/dialogs/BulkAssignTagsDialog.vue'
 import QueryBuilderGroup from '@/components/search/QueryBuilderGroup.vue'
 import { tags as tagsApi } from '@/api/tags'
 
@@ -1258,6 +1259,7 @@ function openBulkUpdate() {
 // ─── Bulk Assign to Project ──────────────────────────
 const showAssignProject = ref(false)
 const showAssignHierarchy = ref(false)
+const showAssignTags = ref(false)
 
 // --- API Call Display ---
 const showApiCall = ref(false)
@@ -2044,6 +2046,14 @@ const apiCallDisplay = computed(() => {
           <FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />
           <span class="hidden sm:inline">Hierarchie zuordnen</span>
         </button>
+        <button
+          v-if="authStore.hasPermission('tags.view')"
+          class="pim-btn pim-btn-secondary text-xs"
+          @click="showAssignTags = true"
+        >
+          <Tag class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Tags zuordnen</span>
+        </button>
 
         <!-- Admin: Bulk Delete -->
         <button
@@ -2461,6 +2471,13 @@ const apiCallDisplay = computed(() => {
     <BulkAssignHierarchyNodeDialog
       v-model:open="showAssignHierarchy"
       :productIds="selectedProductIds"
+    />
+
+    <!-- Massenzuordnung von Tags -->
+    <BulkAssignTagsDialog
+      v-model:open="showAssignTags"
+      :productIds="selectedProductIds"
+      @assigned="doSearch(resultMeta.current_page || 1)"
     />
   </div>
 </template>

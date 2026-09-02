@@ -268,4 +268,105 @@ class TagControllerTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.tags.0.name_de', 'Neuheit');
     }
+
+    // ── Massenzuordnung ──────────────────────────────────────────────
+
+    public function test_massenzuordnung_ergaenzt_tags_und_laesst_bestehende_stehen(): void
+    {
+        $bestehend = Tag::factory()->create();
+        $neu = Tag::factory()->create();
+
+        $erstes = Product::factory()->create();
+        $zweites = Product::factory()->create();
+        $erstes->tags()->attach($bestehend->id);
+
+        $this->postJson('/api/v1/products/bulk-tags', [
+            'product_ids' => [$erstes->id, $zweites->id],
+            'tag_ids' => [$neu->id],
+        ])->assertOk()->assertJsonPath('products_count', 2);
+
+        $this->assertEqualsCanonicalizing(
+            [$bestehend->id, $neu->id],
+            $erstes->fresh()->tags->pluck('id')->all(),
+        );
+        $this->assertSame([$neu->id], $zweites->fresh()->tags->pluck('id')->all());
+    }
+
+    public function test_massenzuordnung_ist_wiederholbar_ohne_duplikate(): void
+    {
+        $tag = Tag::factory()->create();
+        $product = Product::factory()->create();
+
+        foreach (range(1, 2) as $ignored) {
+            $this->postJson('/api/v1/products/bulk-tags', [
+                'product_ids' => [$product->id],
+                'tag_ids' => [$tag->id],
+            ])->assertOk();
+        }
+
+        $this->assertSame(1, $product->fresh()->tags->count());
+    }
+
+    public function test_massenzuordnung_entfernt_nur_die_genannten_tags(): void
+    {
+        $bleibt = Tag::factory()->create();
+        $weg = Tag::factory()->create();
+        $product = Product::factory()->create();
+        $product->tags()->attach([$bleibt->id, $weg->id]);
+
+        $this->postJson('/api/v1/products/bulk-tags', [
+            'product_ids' => [$product->id],
+            'tag_ids' => [$weg->id],
+            'mode' => 'remove',
+        ])->assertOk();
+
+        $this->assertSame([$bleibt->id], $product->fresh()->tags->pluck('id')->all());
+    }
+
+    public function test_massenzuordnung_ersetzt_alle_tags_im_replace_modus(): void
+    {
+        $alt = Tag::factory()->create();
+        $neu = Tag::factory()->create();
+        $product = Product::factory()->create();
+        $product->tags()->attach($alt->id);
+
+        $this->postJson('/api/v1/products/bulk-tags', [
+            'product_ids' => [$product->id],
+            'tag_ids' => [$neu->id],
+            'mode' => 'replace',
+        ])->assertOk();
+
+        $this->assertSame([$neu->id], $product->fresh()->tags->pluck('id')->all());
+    }
+
+    public function test_massenzuordnung_validiert_eingaben(): void
+    {
+        $this->postJson('/api/v1/products/bulk-tags', [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['product_ids', 'tag_ids']);
+
+        $product = Product::factory()->create();
+        $tag = Tag::factory()->create();
+
+        $this->postJson('/api/v1/products/bulk-tags', [
+            'product_ids' => [$product->id],
+            'tag_ids' => [$tag->id],
+            'mode' => 'loeschen',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['mode']);
+    }
+
+    public function test_massenzuordnung_braucht_produkt_bearbeiten_recht(): void
+    {
+        $product = Product::factory()->create();
+        $tag = Tag::factory()->create();
+
+        $this->actingAs(User::factory()->create());
+
+        $this->postJson('/api/v1/products/bulk-tags', [
+            'product_ids' => [$product->id],
+            'tag_ids' => [$tag->id],
+        ])->assertForbidden();
+
+        $this->assertSame(0, $product->fresh()->tags->count());
+    }
 }

@@ -23,6 +23,10 @@ export const tags = {
   syncMedia(mediaId, tagIds) {
     return client.put(`/media/${mediaId}/tags`, { tag_ids: tagIds })
   },
+  // Massenzuordnung: mode = add | remove | replace
+  bulkAssignProducts(productIds, tagIds, mode = 'add') {
+    return client.post('/products/bulk-tags', { product_ids: productIds, tag_ids: tagIds, mode })
+  },
 }
 
 export default tags
