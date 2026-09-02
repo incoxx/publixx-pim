@@ -535,8 +535,31 @@ class CatalogControllerTest extends TestCase
 
     // ── Tag-Facette im Katalog ───────────────────────────────────────
 
-    public function test_tag_facette_bleibt_aus_ohne_einstellung(): void
+    public function test_tag_facette_erscheint_ohne_zutun_sobald_produkte_getaggt_sind(): void
     {
+        $tag = Tag::factory()->create(['name_de' => 'Neuheit']);
+        $this->createIndexedProduct()->tags()->attach($tag->id);
+
+        $this->getJson('/api/v1/catalog/facets')
+            ->assertOk()
+            ->assertJsonPath('facets.0.attribute_id', 'tags')
+            ->assertJsonPath('facets.0.values.0.value', 'Neuheit');
+    }
+
+    public function test_tag_facette_bleibt_aus_solange_kein_produkt_getaggt_ist(): void
+    {
+        // Ein Katalog ohne Tags sieht unveraendert aus — die Facette taucht nicht
+        // als leere Gruppe auf.
+        $this->createIndexedProduct();
+
+        $this->getJson('/api/v1/catalog/facets')
+            ->assertOk()
+            ->assertJsonPath('facets', []);
+    }
+
+    public function test_tag_facette_laesst_sich_ausdruecklich_abschalten(): void
+    {
+        $this->createActiveProfile(['catalog_tag_facet' => false]);
         $tag = Tag::factory()->create();
         $this->createIndexedProduct()->tags()->attach($tag->id);
 
@@ -667,5 +690,24 @@ class CatalogControllerTest extends TestCase
 
         $response->assertOk();
         $this->assertCount(1, $response->json());
+    }
+
+    public function test_tag_facette_laesst_sich_ueber_die_katalog_einstellungen_schalten(): void
+    {
+        // Beweist den kompletten Weg: Schalter in den Einstellungen speichern →
+        // Facette erscheint im Katalog. Der Payload-Merge hat schon Felder verschluckt.
+        $tag = Tag::factory()->create(['name_de' => 'Neuheit']);
+        $this->createIndexedProduct()->tags()->attach($tag->id);
+
+        $this->actingAs($this->user)
+            ->putJson('/api/v1/settings/catalog-theme', ['catalog_tag_facet' => true])
+            ->assertOk();
+
+        \Illuminate\Support\Once::flush();
+
+        $this->getJson('/api/v1/catalog/facets')
+            ->assertOk()
+            ->assertJsonPath('facets.0.attribute_id', 'tags')
+            ->assertJsonPath('facets.0.values.0.value', 'Neuheit');
     }
 }

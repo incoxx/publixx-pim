@@ -1454,7 +1454,7 @@ class CatalogController extends BaseController
 
         // Frueher Ausstieg nur, wenn es ueberhaupt nichts zu berechnen gibt — die
         // Tag-Facette braucht keine konfigurierten Attribut-Facetten.
-        if (empty($facetAttributeIds) && empty($themePayload['catalog_tag_facet'])) {
+        if (empty($facetAttributeIds) && ! ($themePayload['catalog_tag_facet'] ?? true)) {
             return response()->json(['facets' => []]);
         }
 
@@ -1735,7 +1735,10 @@ class CatalogController extends BaseController
         // Tag-Facette (optional, über die Katalog-Einstellungen aktivierbar). Sie folgt
         // denselben Regeln wie die Attribut-Facetten: nur aktive Produkte ohne Teile,
         // Kategorie-/Suchprofil-Grenzen, und Smart Graying über applyOtherFacetFilters().
-        if (!empty($themePayload['catalog_tag_facet'])) {
+        // Standardmaessig an: buildTagFacet() liefert null, solange keine Produkte
+        // getaggt sind — ein Katalog ohne Tags sieht also unveraendert aus. Aus
+        // bleibt sie nur, wenn sie in den Einstellungen ausdruecklich abgewaehlt wird.
+        if ($themePayload['catalog_tag_facet'] ?? true) {
             $tagFacet = $this->buildTagFacet($activeProductQuery, $categoryProductQuery, $filters, $attributes, $lang);
             if ($tagFacet !== null) {
                 $facets[] = $tagFacet;

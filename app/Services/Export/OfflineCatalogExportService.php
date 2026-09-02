@@ -742,7 +742,7 @@ class OfflineCatalogExportService
         // Tags gehoeren zur Facettenmenge, kommen aber nicht aus attributeValues.
         // Ohne diesen Eintrag steht die Tag-Facette zwar in facets.json, das
         // Offline-Filter findet aber zu jedem Produkt null und liefert 0 Treffer.
-        if (!empty($themePayload['catalog_tag_facet'])) {
+        if ($themePayload['catalog_tag_facet'] ?? true) {
             $tagIds = $product->tags->pluck('id')->all();
             if (!empty($tagIds)) {
                 $facetValues['tags'] = $tagIds;
@@ -1081,7 +1081,7 @@ class OfflineCatalogExportService
     private function buildFacets(array $themePayload, string $lang): array
     {
         $facetAttributeIds = $themePayload['facet_attribute_ids'] ?? [];
-        if (empty($facetAttributeIds) && empty($themePayload['catalog_tag_facet'])) {
+        if (empty($facetAttributeIds) && ! ($themePayload['catalog_tag_facet'] ?? true)) {
             Log::channel('export')->info('Facets: keine facet_attribute_ids konfiguriert');
             return ['facets' => []];
         }
@@ -1316,7 +1316,7 @@ class OfflineCatalogExportService
         // Tag-Facette, sofern im Katalog aktiviert — sonst fehlte sie im Offline-Bundle,
         // obwohl der Online-Katalog sie zeigt. Ohne aktive Filter im Bundle genuegt
         // die reine Zaehlung ueber dieselbe Produktmenge.
-        if (!empty($themePayload['catalog_tag_facet'])) {
+        if ($themePayload['catalog_tag_facet'] ?? true) {
             $tagCounts = DB::table('product_tag')
                 ->join('tags', 'tags.id', '=', 'product_tag.tag_id')
                 ->whereIn('product_tag.product_id', $activeProductQuery)
