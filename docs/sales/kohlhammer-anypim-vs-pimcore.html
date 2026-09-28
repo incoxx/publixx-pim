@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anyPIM für Kohlhammer</title>
+<meta name="description" content="Entscheidungsvorlage: anyPIM als PIM für ein Fachverlagsprogramm, mit direktem Vergleich zu Pimcore.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #000e2f;
+    --navy-2: #1b2d5c;
+    --mint: #c6e6e3;
+    --mint-soft: #e4f3f1;
+    --red: #e2211c;
+    --orange: #f29400;
+    --ink: #16181d;
+    --muted: #4b5563;
+    --line: #d6dde3;
+    --chip: #eef0f2;
+    --paper: #ffffff;
+    --good: #0f7a4d;
+    --even: #6b7280;
+    --pim: #1b2d5c;
+    --font: "Helvetica Neue", Helvetica, Inter, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font);
+    font-weight: 300;
+    font-size: 17px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+
+  /* Kopfzeile */
+  header.top {
+    background: var(--navy);
+    color: #fff;
+    position: sticky; top: 0; z-index: 10;
+    box-shadow: 0 2px 6px rgba(0,0,0,.25);
+  }
+  header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 76px; }
+  .brand { font-weight: 700; font-size: 26px; letter-spacing: -0.03em; white-space: nowrap; }
+  .brand span { font-weight: 300; }
+  nav.links { display: flex; gap: 22px; flex-wrap: wrap; font-size: 15px; }
+  nav.links a { text-decoration: none; opacity: .85; }
+  nav.links a:hover { opacity: 1; text-decoration: underline; text-underline-offset: 4px; }
+  @media (max-width: 760px) { nav.links { display: none; } }
+
+  /* Hero */
+  .hero { background: var(--mint); padding: 88px 0 72px; }
+  .claim {
+    font-weight: 200;
+    color: #2b3050;
+    line-height: .92;
+    letter-spacing: -0.035em;
+    margin: 0 auto 64px;
+    width: fit-content;
+    text-align: left;
+  }
+  .claim .l1 { display: block; font-size: clamp(48px, 9vw, 104px); padding-left: 16%; }
+  .claim .l2 { display: block; font-size: clamp(72px, 15vw, 176px); }
+  .claim .l2 i { font-style: normal; color: var(--navy-2); }
+  .hero p.lead { max-width: 820px; margin: 0; font-size: 17px; color: #22303c; }
+  .hero .meta { margin-top: 28px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 12px;
+    background: var(--chip); color: var(--navy-2);
+    border-radius: 999px; padding: 9px 20px; font-size: 16px; font-weight: 400;
+  }
+  .chip small { font-size: 18px; color: var(--navy); }
+  .hero .chip { background: rgba(255,255,255,.65); }
+
+  /* Abschnitte */
+  section.block { padding: 72px 0 8px; }
+  section.block + section.block .wrap { border-top: 1px solid var(--line); padding-top: 64px; }
+  section.block:first-of-type .wrap { border-top: 0; }
+  h2 {
+    font-weight: 300; text-transform: uppercase; letter-spacing: 0.01em;
+    font-size: clamp(28px, 4vw, 40px); margin: 0 0 12px; line-height: 1.15;
+  }
+  h3 { font-weight: 600; font-size: 19px; margin: 0 0 6px; }
+  .sub { color: var(--muted); max-width: 760px; margin: 0 0 36px; }
+
+  ul.squares { list-style: none; padding: 0; margin: 0; }
+  ul.squares li { display: flex; gap: 22px; align-items: baseline; padding: 14px 0; font-size: 20px; font-weight: 300; }
+  ul.squares li::before { content: ""; flex: 0 0 22px; height: 22px; background: var(--navy); transform: translateY(3px); }
+  ul.squares li b { font-weight: 600; }
+  ul.squares li span.d { display: block; font-size: 16px; color: var(--muted); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 12px; margin: 28px 0 8px; }
+
+  /* Titel-Anatomie */
+  .anatomy { display: grid; grid-template-columns: 300px 1fr; gap: 48px; align-items: start; }
+  @media (max-width: 820px) { .anatomy { grid-template-columns: 1fr; } }
+  .cover {
+    background: var(--red); color: #fff; aspect-ratio: 105 / 148; width: 100%; max-width: 300px;
+    display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,.18); margin: 0 auto;
+  }
+  .cover .strip { background: var(--orange); font-size: 11px; padding: 6px 14px; }
+  .cover .series { font-weight: 700; font-size: 17px; padding: 14px 14px 0; letter-spacing: .02em; }
+  .cover .series span { font-weight: 300; }
+  .cover .authors { font-size: 11px; padding: 12px 14px 0; opacity: .85; }
+  .cover .title { font-size: 27px; line-height: 1.12; padding: 18px 14px; font-weight: 400; }
+  .cover .foot { margin-top: auto; padding: 12px 14px; font-size: 11px; text-align: right; opacity: .9; }
+  .cover-cap { text-align: center; font-size: 13px; color: var(--muted); margin-top: 10px; }
+
+  .tree { border-left: 3px solid var(--navy); padding-left: 24px; }
+  .node { margin-bottom: 22px; }
+  .node .k { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+  .node .v { font-size: 20px; }
+  .inherit { background: var(--mint-soft); padding: 14px 18px; margin: 8px 0 18px; font-size: 15px; }
+  .inherit b { font-weight: 600; }
+  .editions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 620px) { .editions { grid-template-columns: 1fr; } }
+  .ed { border: 1px solid var(--line); padding: 14px 16px; font-size: 14px; }
+  .ed h4 { margin: 0 0 6px; font-size: 16px; font-weight: 600; color: var(--navy-2); }
+  .ed ul { margin: 0; padding-left: 18px; }
+  .hier { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 15px; }
+  @media (max-width: 620px) { .hier { grid-template-columns: 1fr; } }
+  .hier div { background: var(--chip); padding: 12px 16px; }
+  .hier div b { display: block; font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+
+  /* Kachel-Raster im Service-Stil */
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+  @media (max-width: 860px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .tiles { grid-template-columns: 1fr; } }
+  .tile { display: flex; flex-direction: column; }
+  .tile .bar {
+    background: var(--navy); color: #fff; min-height: 64px; padding: 12px 18px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 17px; font-weight: 300;
+  }
+  .tile .bar::after { content: "\2192"; font-size: 22px; flex: 0 0 auto; }
+  .tile .body { padding: 14px 2px 0; font-size: 15.5px; color: #2c333b; }
+  .tile .body em { font-style: normal; color: var(--navy-2); font-weight: 600; }
+
+  /* Argumente */
+  .args { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 48px; }
+  @media (max-width: 760px) { .args { grid-template-columns: 1fr; } }
+  .arg { padding: 22px 0; border-bottom: 1px solid var(--line); }
+  .arg .n { color: var(--red); font-weight: 600; font-size: 14px; letter-spacing: .06em; }
+  .arg p { margin: 4px 0 0; color: #2c333b; font-size: 16px; }
+
+  /* Hinweisbox */
+  .note { background: var(--mint-soft); border-left: 6px solid var(--navy); padding: 24px 28px; margin: 8px 0 0; }
+  .note h3 { margin-bottom: 10px; }
+  .note ul { margin: 0; padding-left: 20px; }
+  .note li { margin: 6px 0; }
+
+  /* Vergleichstabelle */
+  .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 15.5px; min-width: 720px; }
+  table.cmp th, table.cmp td { text-align: left; vertical-align: top; padding: 14px 14px; border-bottom: 1px solid var(--line); }
+  table.cmp thead th { background: var(--navy); color: #fff; font-weight: 400; font-size: 16px; position: sticky; top: 0; }
+  table.cmp tbody th { font-weight: 600; width: 20%; }
+  table.cmp td.v { width: 14%; white-space: nowrap; }
+  table.cmp tbody tr:nth-child(even) { background: #f7f9fa; }
+  .tag { display: inline-block; font-size: 12.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+  .tag.a { background: #dff3ea; color: var(--good); }
+  .tag.p { background: #e3e8f4; color: var(--pim); }
+  .tag.e { background: var(--chip); color: var(--even); }
+
+  .score { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 32px 0 0; }
+  @media (max-width: 620px) { .score { grid-template-columns: 1fr; } }
+  .score div { border: 1px solid var(--line); padding: 18px 20px; }
+  .score b { display: block; font-size: 40px; font-weight: 200; line-height: 1; margin-bottom: 6px; }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 36px; }
+  @media (max-width: 760px) { .two { grid-template-columns: 1fr; } }
+  .two .note { margin: 0; }
+  .two .note.pim { border-left-color: #8a96b5; background: #f3f5f9; }
+
+  /* Fahrplan */
+  .steps { counter-reset: s; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  @media (max-width: 860px) { .steps { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 520px) { .steps { grid-template-columns: 1fr; } }
+  .step { border-top: 4px solid var(--navy); padding-top: 14px; font-size: 15.5px; }
+  .step::before { counter-increment: s; content: "0" counter(s); display: block; font-size: 34px; font-weight: 200; color: var(--navy-2); }
+  .step .t { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+
+  .more { display: inline-flex; gap: 14px; align-items: center; font-size: 20px; margin-top: 36px; }
+  .more::before { content: "\2192"; color: var(--red); font-size: 26px; }
+
+  /* Abschluss */
+  .cta { background: var(--mint); margin-top: 80px; padding: 72px 0; text-align: center; }
+  .cta h2 { margin-bottom: 18px; }
+  .cta p { max-width: 680px; margin: 0 auto; color: #22303c; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 18px; margin-top: 32px;
+    background: var(--navy-2); color: #fff; text-decoration: none; padding: 16px 40px; font-size: 20px; font-weight: 400;
+  }
+  .btn::after { content: "\2192"; font-size: 24px; }
+
+  footer { background: var(--navy); color: #c9d1e3; font-size: 13.5px; padding: 36px 0 44px; }
+  footer p { margin: 0 0 10px; }
+  footer a { color: #fff; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">anyPIM <span>für Kohlhammer</span></div>
+    <nav class="links" aria-label="Abschnitte">
+      <a href="#entscheidung">Entscheidung</a>
+      <a href="#ausgangslage">Ausgangslage</a>
+      <a href="#datenmodell">Datenmodell</a>
+      <a href="#bereiche">Bereiche</a>
+      <a href="#argumente">Argumente</a>
+      <a href="#vergleich">Vergleich</a>
+      <a href="#fahrplan">Fahrplan</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <h1 class="claim" aria-label="Wissen braucht Struktur.">
+      <span class="l1">Wissen braucht</span>
+      <span class="l2">Struktur<i>.</i></span>
+    </h1>
+    <p class="lead">
+      Jedes Buch, jedes eBook, jede Zeitschrift und jedes Formular im Programm ist auch ein Datensatz:
+      Titel, AutorInnen, Reihe, Auflage, ISBN je Ausgabe, Preis, Umfang, Cover, Beschreibung, Fachbereich.
+      Seit vielen Jahren pflegt Kohlhammer diese Daten in Pimcore 6, eingeführt und betreut von incoxx.
+      Diese Version ist am Ende ihres Lebenszyklus angekommen. Jetzt steht die Entscheidung an: Pimcore auf den
+      aktuellen Stand heben oder auf ein neues System wechseln. Diese Vorlage stellt beide Wege sachlich
+      gegenüber – und begründet, warum wir anyPIM empfehlen.
+    </p>
+    <div class="meta">
+      <span class="chip">Entscheidungsvorlage</span>
+      <span class="chip">Stand: September 2026</span>
+      <span class="chip">Pimcore-Upgrade oder anyPIM</span>
+    </div>
+  </div>
+</div>
+
+<!-- 0 Entscheidung -->
+<section class="block" id="entscheidung">
+  <div class="wrap">
+    <h2>Die Entscheidung</h2>
+    <p class="sub">Drei denkbare Wege, von denen nur zwei tragfähig sind.</p>
+    <div class="tiles">
+      <div class="tile"><div class="bar">Weiter mit Pimcore 6</div><div class="body">Keine Option auf Dauer: Pimcore 6 erhält keine Updates mehr und läuft auf einer PHP- und Symfony-Generation ohne Sicherheitsupdates. Das Risiko wächst mit jedem Monat.</div></div>
+      <div class="tile"><div class="bar">Upgrade auf aktuelles Pimcore</div><div class="body">Tragfähig, aber aufwendig: schrittweise über mehrere Hauptversionen, Eigenentwicklungen je Stufe anpassen, neue Oberfläche – und <em>erstmals Lizenzkosten</em>.</div></div>
+      <div class="tile"><div class="bar">Wechsel zu anyPIM</div><div class="body">Tragfähig: einmalige Datenübernahme aus Pimcore 6, danach Standardfunktionen statt Eigenentwicklungen. <em>Keine Lizenzgebühr</em>, schlankerer Betrieb.</div></div>
+    </div>
+
+    <div class="note" style="margin-top:40px">
+      <h3>Was „Upgrade“ bei Pimcore 6 konkret heißt</h3>
+      <ul>
+        <li><b>Mehrere Versionssprünge:</b> Pimcore 6 → 10 → 11 → aktuelle Jahresversion. Jede Stufe bringt neue PHP- und Symfony-Anforderungen und Änderungen an Schnittstellen, die Eigenentwicklungen betreffen.</li>
+        <li><b>Umgebaute Plattform:</b> Seit Version 11 sind zahlreiche Funktionen in separate Bundles ausgelagert, die Administrationsoberfläche wird auf Pimcore Studio umgestellt, der Suchindex setzt OpenSearch bzw. Elasticsearch voraus.</li>
+        <li><b>Neues Lizenzmodell:</b> Pimcore 6 lief unter GPL. Ab Version 2025.1 gilt die Pimcore Open Core License – kostenfrei nur bis 5 Mio. € Jahresumsatz. Für ein Verlagshaus in der Größe von Kohlhammer bedeutet das Upgrade eine laufende kommerzielle Lizenz.</li>
+        <li><b>Fazit:</b> Das Upgrade ist in der Praxis ein Neuprojekt auf derselben Marke. Damit ist der richtige Zeitpunkt, die Systemfrage offen zu stellen.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 1 Ausgangslage -->
+<section class="block" id="ausgangslage">
+  <div class="wrap">
+    <h2>Ausgangslage</h2>
+    <p class="sub">Was das Programm von einem PIM verlangt – schon am öffentlichen Auftritt von kohlhammer.de und shop.kohlhammer.de ablesbar.</p>
+    <ul class="squares">
+      <li><div><b>Fachbereiche als Baum</b><span class="d">z. B. Brandschutz › Bautechnik / Vorbeugender Brandschutz, Besondere Gefahrenlagen, Brandeinsatz, Dienstvorschriften / Gesetzestexte – dazu Geschichte, Gesellschaft, Krankenhaus u. v. m.</span></div></li>
+      <li><div><b>Ein Werk, mehrere Ausgaben</b><span class="d">Print, eBook (PDF) und eBook (ePub) mit eigenen Preisen und Kennungen, aber gemeinsamem Inhalt.</span></div></li>
+      <li><div><b>Reihen und Bände</b><span class="d">„Die Roten Hefte, Band 75“ – samt „Mehr aus der Reihe“ im Shop.</span></div></li>
+      <li><div><b>Bibliografische Tiefe</b><span class="d">Auflage, Erscheinungsjahr, Seiten, Abbildungen, Tabellen, Einband, Format in mm, ISBN, Lieferstatus.</span></div></li>
+      <li><div><b>Heterogenes Programm</b><span class="d">Neben Büchern auch Zeitschriften, Formulare für Verwaltung und Wahlen, Formularsoftware, Verlag für Ärzte / Schulen, Seminare.</span></div></li>
+      <li><div><b>Viele Abnehmer derselben Daten</b><span class="d">Shop, Buchhandel, Bibliotheken, Presse, Foreign Rights &amp; Licensing, Mediadaten.</span></div></li>
+    </ul>
+    <div class="chips" aria-label="Produktarten">
+      <span class="chip">Buch <small>×</small></span>
+      <span class="chip">eBook (PDF) <small>×</small></span>
+      <span class="chip">eBook (ePub) <small>×</small></span>
+      <span class="chip">Zeitschrift <small>×</small></span>
+      <span class="chip">Formular <small>×</small></span>
+      <span class="chip">Formularsoftware <small>×</small></span>
+      <span class="chip">Seminar <small>×</small></span>
+    </div>
+  </div>
+</section>
+
+<!-- 2 Datenmodell -->
+<section class="block" id="datenmodell">
+  <div class="wrap">
+    <h2>Ein Titel, drei Ausgaben</h2>
+    <p class="sub">So bildet anyPIM einen realen Titel aus dem Shop ab. Gepflegt wird einmal am Werk; die Ausgaben überschreiben nur, was wirklich abweicht.</p>
+
+    <div class="anatomy">
+      <div>
+        <div class="cover" role="img" aria-label="Schematisches Cover: Die Roten Hefte 75, Vorbeugender Brandschutz">
+          <div class="strip">Vorbeugender Brandschutz</div>
+          <div class="series">DIE ROTEN HEFTE <span>75</span></div>
+          <div class="authors">Frieder Kircher / Rainer Sonntag</div>
+          <div class="title">Vorbeugender Brandschutz</div>
+          <div class="foot">2., aktualisierte Auflage</div>
+        </div>
+        <div class="cover-cap">Schematische Darstellung</div>
+      </div>
+
+      <div class="tree">
+        <div class="node">
+          <div class="k">Elternprodukt · Produkttyp „Buch“</div>
+          <div class="v">Werk: Vorbeugender Brandschutz</div>
+          <div class="inherit">
+            <b>Einmal gepflegt, an alle Ausgaben vererbt:</b>
+            AutorInnen, Reihe „Die Roten Hefte“, Band 75, Auflage „2., aktualisierte“, Erscheinungsjahr 2026,
+            Umfang 164 Seiten, 36 Abb., 9 Tab., Produktbeschreibung, Cover, Fachbereich.
+          </div>
+        </div>
+
+        <div class="node">
+          <div class="k">Varianten · nur Abweichungen</div>
+          <div class="editions">
+            <div class="ed"><h4>Print</h4><ul><li>ISBN 978-3-17-040610-0</li><li>19,00 € inkl. MwSt.</li><li>kartoniert</li><li>148 × 105 × 10 mm</li><li>Lieferstatus</li></ul></div>
+            <div class="ed"><h4>eBook (PDF)</h4><ul><li>eigene ISBN</li><li>eigener Preis</li><li>Dateiformat</li><li>Download-Asset</li></ul></div>
+            <div class="ed"><h4>eBook (ePub)</h4><ul><li>eigene ISBN</li><li>eigener Preis</li><li>Dateiformat</li><li>Download-Asset</li></ul></div>
+          </div>
+        </div>
+
+        <div class="node">
+          <div class="k">Hierarchien · ein Titel, mehrere Ordnungen</div>
+          <div class="hier">
+            <div><b>Master</b>Brandschutz › Bautechnik / Vorbeugender Brandschutz</div>
+            <div><b>Output: Shop</b>Navigation und Filter des Shops</div>
+            <div><b>Output: Reihe</b>Die Roten Hefte › Band 75 („Mehr aus der Reihe“)</div>
+            <div><b>Output: Handel</b>Branchen-Klassifikation, z. B. Thema / Warengruppe</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 Bereiche -->
+<section class="block" id="bereiche">
+  <div class="wrap">
+    <h2>Ihre Bereiche – was anyPIM liefert</h2>
+    <p class="sub">Die Servicebereiche von kohlhammer.de, zugeordnet zu Funktionen, die in anyPIM heute vorhanden sind.</p>
+    <div class="tiles">
+      <div class="tile"><div class="bar">Buchhandel</div><div class="body">Geplante <em>Export-Jobs</em> per SFTP/Webhook, Excel/CSV/BMEcat, <em>Delta-Export</em> nur geänderter Titel. ONIX siehe unten.</div></div>
+      <div class="tile"><div class="bar">Bibliotheken</div><div class="body"><em>Öffentlicher Katalog</em> mit Facettensuche und <em>Offline-Katalog</em> (statisches HTML) für Erwerbungsabteilungen.</div></div>
+      <div class="tile"><div class="bar">AutorInnen</div><div class="body"><em>Zugangslinks</em> ohne Benutzerkonto zur Ansicht und Freigabe von Titeldaten; <em>Workflow-Aufgaben</em> für die Rückläufe.</div></div>
+      <div class="tile"><div class="bar">Foreign Rights &amp; Licensing</div><div class="body">Unbegrenzte Inhaltssprachen, <em>DeepL-Connector</em>, <em>XLIFF</em>-Austausch mit Übersetzern, befristete Katalog-Links für Lizenzpartner.</div></div>
+      <div class="tile"><div class="bar">Presse</div><div class="body"><em>Asset-Katalog</em> mit Ordnern, Tags und Download: Cover, AutorInnenfotos, Leseproben ohne E-Mail-Pingpong.</div></div>
+      <div class="tile"><div class="bar">Mediadaten</div><div class="body"><em>PDF-Vorlagen</em> aus PIM-Daten – Datenblätter, Preislisten und Mediadaten ohne manuelles Layout.</div></div>
+      <div class="tile"><div class="bar">Zeitschriften</div><div class="body">Eigener <em>Produkttyp</em> mit eigenen Pflichtfeldern (ISSN, Erscheinungsweise, Abo-Preisarten, Staffelpreise).</div></div>
+      <div class="tile"><div class="bar">Formulare</div><div class="body">Produkttypen für Formular und <em>Software</em>; Formularsätze als <em>Bundle</em>, Varianten für Blockgrößen und Ausführungen.</div></div>
+      <div class="tile"><div class="bar">Seminare</div><div class="body">Produkttyp <em>Schulung</em> mit Terminen, Orten und Preisen – im selben Katalog wie die Begleitliteratur, verknüpft über <em>Relationen</em>.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 Argumente -->
+<section class="block" id="argumente">
+  <div class="wrap">
+    <h2>Argumente für anyPIM</h2>
+    <p class="sub">Zehn Gründe, jeweils mit dem Mechanismus dahinter – keine Versprechen, die das System heute nicht einlöst.</p>
+    <div class="args">
+      <div class="arg"><div class="n">01 · WERK UND AUSGABE</div><h3>Pflege einmal, Abweichung nur dort, wo sie ist</h3><p>Zweistufige Vererbung (Hierarchie → Produkt, Produkt → Variante), pro Attribut steuerbar. Korrekturen am Klappentext wirken sofort auf Print, PDF und ePub.</p></div>
+      <div class="arg"><div class="n">02 · KLASSIFIKATIONEN</div><h3>Mehrere Ordnungen ohne Dubletten</h3><p>Eine Master-Hierarchie für die Fachbereiche, beliebig viele Output-Hierarchien für Shop, Reihen und Handelsklassifikationen. Attribut-Mappings mit Umrechnung und bedingten Regeln.</p></div>
+      <div class="arg"><div class="n">03 · DATENMODELL</div><h3>Fachabteilung statt Entwicklerticket</h3><p>21 Datentypen, neue Attribute über die Oberfläche – ohne Datenbankmigration und ohne Deployment. Attributansichten zeigen Lektorat, Herstellung und Marketing nur ihre Felder.</p></div>
+      <div class="arg"><div class="n">04 · PRINT</div><h3>Vorschau und Prospekt aus denselben Daten</h3><p>PDF-Vorlagen, InDesign-Skript-Export und die Publixx-Anbindung erzeugen Verlagsvorschauen und Fachbereichsprospekte direkt aus dem PIM.</p></div>
+      <div class="arg"><div class="n">05 · SHOP UND WEB</div><h3>Anbinden statt ersetzen</h3><p>Connectoren für Shopware 6 und Shopify, ein einbettbares Katalog-Widget für TYPO3, WordPress und andere CMS sowie eine REST-API mit rund 870 Endpunkten.</p></div>
+      <div class="arg"><div class="n">06 · SUCHE</div><h3>Gebaut für deutsche Fachsprache</h3><p>PQL-Abfragen, Fuzzy-Suche und Kölner Phonetik („Kirchner“ findet „Kircher“), ergänzt um semantische Hybrid-Suche.</p></div>
+      <div class="arg"><div class="n">07 · PROGRAMMPLANUNG</div><h3>Erscheinungstermine im System</h3><p>Produktversionen mit Veröffentlichungsdatum und Rollback, Planungskalender für Frühjahrs- und Herbstprogramm, Workflow-Aufgaben mit Fälligkeiten.</p></div>
+      <div class="arg"><div class="n">08 · DATENQUALITÄT</div><h3>Vollständigkeit wird messbar</h3><p>Konformitätsprofile je Kanal, Reports, Dashboard-Kennzahlen, Journal und Audit-Trail: wer hat wann welches Feld geändert.</p></div>
+      <div class="arg"><div class="n">09 · IMPORT</div><h3>Bestand schnell übernehmen</h3><p>Excel-Import mit dreistufiger Validierung und Tippfehler-Erkennung, JSON-Voll-Import, BMEcat bidirektional.</p></div>
+      <div class="arg"><div class="n">10 · BETRIEB UND KOSTEN</div><h3>Keine Lizenzgebühr, volle Datenhoheit</h3><p>GPL-3.0, unabhängig vom Umsatz. Standardstack (PHP/Laravel, MySQL, Redis), Installation per Skript, Betrieb im eigenen Rechenzentrum oder bei jedem Hoster. SSO über Azure AD.</p></div>
+    </div>
+
+    <div class="note" style="margin-top:40px">
+      <h3>Ehrlich gesagt: was heute noch fehlt</h3>
+      <ul>
+        <li><b>ONIX 3.0</b> (VLB, Barsortimente) ist in anyPIM nicht im Standard enthalten. Umsetzung als eigenes Exportformat über die vorhandene Mapping-Engine – derselbe Weg, auf dem BMEcat gebaut ist. Pimcore bringt ONIX ebenfalls nicht im Standardumfang mit.</li>
+        <li><b>Branchenklassifikationen</b> wie Thema oder die Warengruppen-Systematik werden als Hierarchie importiert; ein vorkonfiguriertes Paket gibt es noch nicht.</li>
+        <li><b>Verlagssoftware</b> für Herstellung, Honorare und Rechte ersetzt anyPIM nicht – es ergänzt sie als führendes System für Titel- und Vermarktungsdaten.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 5 Vergleich -->
+<section class="block" id="vergleich">
+  <div class="wrap">
+    <h2>Direktvergleich: anyPIM und Pimcore</h2>
+    <p class="sub">Pimcore ist ein etabliertes, leistungsfähiges System – wir haben es bei Kohlhammer selbst eingeführt. Der Vergleich stellt anyPIM dem aktuellen Pimcore nach einem Upgrade gegenüber und bewertet nach dem, was ein Fachverlag für Titeldaten braucht, nicht nach Funktionsbreite allgemein.</p>
+
+    <div class="tablewrap">
+      <table class="cmp">
+        <thead>
+          <tr><th>Kriterium</th><th>anyPIM</th><th>Pimcore (aktuelle Version)</th><th>Vorteil</th></tr>
+        </thead>
+        <tbody>
+          <tr><th>Weg von Pimcore 6</th><td>Einmalige Datenübernahme aus Pimcore 6 per Export und Excel-/JSON-Import; Eigenentwicklungen werden durch Standardfunktionen ersetzt</td><td>Schrittweises Upgrade über 10 und 11; Eigenentwicklungen auf jeder Stufe anpassen oder neu schreiben</td><td class="v"><span class="tag e">je nach Eigenanteil</span></td></tr>
+          <tr><th>Datenkontinuität</th><td>Datenübernahme nötig – mit dem Wissen aus 20 Jahren Betreuung gut planbar</td><td>Daten bleiben in der Datenbank und werden je Version migriert</td><td class="v"><span class="tag p">Pimcore</span></td></tr>
+          <tr><th>Ausrichtung</th><td>Spezialisiertes PIM mit Katalog-, Print- und Kanal-Ausgabe</td><td>Plattform aus PIM, MDM, DAM, CMS und Commerce</td><td class="v"><span class="tag e">je nach Ziel</span></td></tr>
+          <tr><th>Lizenz und Kosten</th><td>GPL-3.0, keine Lizenzgebühr – unabhängig von Umsatz und Nutzerzahl</td><td>Seit Version 2025.1 Pimcore Open Core License: kostenfrei nur bis 5 Mio. € Jahresumsatz, darüber kommerzielle Lizenz – neue laufende Kosten gegenüber Pimcore 6</td><td class="v"><span class="tag a">anyPIM</span></td></tr>
+          <tr><th>Datenmodell ändern</th><td>Attribute zur Laufzeit über die Oberfläche, ohne Migration oder Deployment</td><td>Klassen-Editor erzeugt PHP-Klassen und Tabellen; Änderungen werden üblicherweise versioniert und ausgerollt</td><td class="v"><span class="tag a">anyPIM</span></td></tr>
+          <tr><th>Werk / Ausgabe</th><td>Vererbung Hierarchie → Produkt → Variante, pro Attribut</td><td>Objekt-Vererbung Eltern → Kind, Varianten</td><td class="v"><span class="tag e">gleichauf</span></td></tr>
+          <tr><th>Parallele Klassifikationen</th><td>Master- und Output-Hierarchien plus Attribut-Mapping im Standard</td><td>Kategorien als Objekte, Classification Store – gut modellierbar, aber Projektarbeit</td><td class="v"><span class="tag a">anyPIM</span></td></tr>
+          <tr><th>Print / Vorschau</th><td>PDF-Vorlagen, InDesign-Skript-Export, Publixx im Produkt</td><td>Web-to-Print-Bundle, Ausprägung meist projektspezifisch</td><td class="v"><span class="tag a">anyPIM</span></td></tr>
+          <tr><th>Suche</th><td>PQL, Fuzzy, Kölner Phonetik, semantische Hybrid-Suche</td><td>Datenindex auf OpenSearch / Elasticsearch, sehr leistungsfähig</td><td class="v"><span class="tag e">gleichauf</span></td></tr>
+          <tr><th>Asset-Management</th><td>Medien mit Verwendungstypen, Renditions, Tags, Asset-Katalog</td><td>Vollwertiges DAM mit umfangreichem Metadaten- und Rechtemodell</td><td class="v"><span class="tag p">Pimcore</span></td></tr>
+          <tr><th>Website-CMS</th><td>Kein eigenes CMS; Katalog-Widget für bestehende CMS</td><td>Integriertes CMS / DXP</td><td class="v"><span class="tag p">Pimcore</span></td></tr>
+          <tr><th>ONIX 3.0</th><td>Nicht im Standard, Erweiterung über die Mapping-Engine</td><td>Nicht im Standard, Partnerlösung oder Eigenentwicklung</td><td class="v"><span class="tag e">gleichauf</span></td></tr>
+          <tr><th>Infrastruktur</th><td>PHP/Laravel, MySQL, Redis – Installation per Skript</td><td>Symfony, MySQL/MariaDB, Redis, zusätzlich OpenSearch/Elasticsearch</td><td class="v"><span class="tag a">anyPIM</span></td></tr>
+          <tr><th>Einführung</th><td>Konfiguration vorhandener Standardfunktionen, Pilot in Wochen</td><td>In der Regel Implementierungsprojekt mit Partner, mehrere Monate</td><td class="v"><span class="tag a">anyPIM</span></td></tr>
+          <tr><th>Ökosystem</th><td>Kleiner, direkter Draht zum Hersteller</td><td>Große internationale Community, viele Partner und Erweiterungen</td><td class="v"><span class="tag p">Pimcore</span></td></tr>
+          <tr><th>Abhängigkeit</th><td>Quellcode vollständig beim Kunden, Lizenz kann nicht nachträglich eingeschränkt werden</td><td>Selbst betreibbar; Lizenzmodell 2025 bereits einmal geändert</td><td class="v"><span class="tag a">anyPIM</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="score">
+      <div><b>7</b>Kriterien mit Vorteil anyPIM – vor allem Kosten, Autonomie und Einführungsaufwand</div>
+      <div><b>4</b>Kriterien mit Vorteil Pimcore – Datenkontinuität, DAM, CMS und Ökosystem</div>
+      <div><b>5</b>Kriterien gleichauf oder abhängig von Ziel und Eigenanteil</div>
+    </div>
+
+    <div class="two">
+      <div class="note">
+        <h3>anyPIM passt, wenn …</h3>
+        <ul>
+          <li>Titel- und Produktdaten zentral, schnell und schlank gepflegt werden sollen,</li>
+          <li>Shop, Website und Verlagssoftware bestehen bleiben und angebunden werden,</li>
+          <li>Print-Ausgaben wie Vorschauen aus denselben Daten entstehen sollen,</li>
+          <li>Lizenzkosten und Herstellerabhängigkeit gering bleiben sollen.</li>
+        </ul>
+      </div>
+      <div class="note pim">
+        <h3>Das Pimcore-Upgrade passt, wenn …</h3>
+        <ul>
+          <li>Website, DAM, PIM und Commerce auf einer Plattform konsolidiert werden sollen,</li>
+          <li>die Eigenentwicklungen in Pimcore 6 gering sind und sich leicht portieren lassen,</li>
+          <li>ein großes Partner-Ökosystem Voraussetzung ist,</li>
+          <li>die kommerzielle Lizenz dauerhaft im Budget eingeplant ist.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 Rolle -->
+<section class="block" id="rolle">
+  <div class="wrap">
+    <h2>Unsere Rolle, transparent</h2>
+    <p class="sub">incoxx betreut Kohlhammer seit über 20 Jahren und hat Pimcore 6 eingeführt. anyPIM ist ein Produkt von incoxx. Wir können beide Wege gehen – und sagen deshalb offen, warum wir einen empfehlen.</p>
+    <ul class="squares">
+      <li><div><b>Wir kennen den Bestand</b><span class="d">Klassen, Objekte, Eigenentwicklungen und Schnittstellen der Pimcore-6-Installation sind bei uns dokumentiert. Das senkt das Migrationsrisiko für beide Wege – bei anyPIM besonders, weil das Mapping der Daten nicht erst erarbeitet werden muss.</span></div></li>
+      <li><div><b>Wir empfehlen anyPIM</b><span class="d">Weil das Upgrade ohnehin einem Neuprojekt gleichkommt, erstmals Lizenzkosten auslöst und die heutigen Eigenentwicklungen in anyPIM weitgehend Standard sind.</span></div></li>
+      <li><div><b>Wir bleiben Ansprechpartner</b><span class="d">Gleicher Partner, gleiche Ansprechpersonen – mit direktem Einfluss auf die Weiterentwicklung des Produkts, etwa beim ONIX-Export.</span></div></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 7 Fahrplan -->
+<section class="block" id="fahrplan">
+  <div class="wrap">
+    <h2>Vorgeschlagener Fahrplan</h2>
+    <p class="sub">Richtwerte, die im gemeinsamen Workshop geschärft werden. Pimcore 6 läuft bis zur Umstellung weiter; ein Fachbereich dient als Pilot, bevor das ganze Programm folgt.</p>
+    <div class="steps">
+      <div class="step"><div class="t">ca. 2 Wochen</div><h3>Bestandsaufnahme</h3>Pimcore-6-Klassen, Eigenentwicklungen und Schnittstellen erfassen; Zielmodell mit Produkttypen, Attributen, Hierarchien und Ausgaben festlegen.</div>
+      <div class="step"><div class="t">ca. 4 Wochen</div><h3>Pilot Brandschutz</h3>Titel des Fachbereichs aus Pimcore 6 übernehmen, Werk/Ausgabe-Struktur, Qualitätsprofile; Parallelbetrieb und Datenabgleich.</div>
+      <div class="step"><div class="t">ca. 4–6 Wochen</div><h3>Kanäle</h3>Shop und Handel auf anyPIM umstellen, ONIX-Export, erste Vorschau als PDF, Zugangslinks für Presse und Partner.</div>
+      <div class="step"><div class="t">fortlaufend</div><h3>Ablösung</h3>Weitere Fachbereiche, Zeitschriften, Formulare und Seminare; Schulung der Redaktionen; Abschaltung von Pimcore 6.</div>
+    </div>
+    <div class="more">Mehr zum Funktionsumfang: Feature-Übersicht in <code>docs/features/features.md</code></div>
+  </div>
+</section>
+
+<div class="cta">
+  <div class="wrap">
+    <h2>Nächster Schritt</h2>
+    <p>Ein halbtägiger Workshop mit Lektorat, Herstellung, Vertrieb und IT, danach ein Pilot mit dem Fachbereich Brandschutz auf echten Titeldaten aus Pimcore 6. Das Ergebnis ist eine belastbare Grundlage für die Entscheidung zwischen Upgrade und Wechsel.</p>
+    <a class="btn" href="#fahrplan">Workshop vereinbaren</a>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <p>Entscheidungsvorlage der incoxx GmbH, Stand September 2026. Keine Veröffentlichung der W. Kohlhammer GmbH; „Kohlhammer“ ist eine Marke der W. Kohlhammer GmbH. Titelbeispiel nach den öffentlich im Kohlhammer-Shop angezeigten Angaben.</p>
+    <p>Angaben zu Pimcore nach öffentlich verfügbaren Informationen; aktuelle Lizenzkonditionen vor einer Entscheidung beim Hersteller prüfen:
+      <a href="https://pimcore.com/en/resources/blog/breaking-free-pimcore-says-goodbye-to-gpl-and-enters-a-new-era-with-pocl">Pimcore: Wechsel zur POCL</a> ·
+      <a href="https://pimcore.com/en/products/edition/community">Pimcore Community Edition</a> ·
+      <a href="https://pimcore.com/en/products/open-core">Pimcore Enterprise Open Core</a>
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
